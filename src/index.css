@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+/* 32-Bit Pixel Scaling Rules */
+canvas,
+.pixelated {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+/* Retro CRT scanline effect (subtle) */
+.crt-overlay::before {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+  background-size: 100% 4px;
+  z-index: 40;
+  pointer-events: none;
+  opacity: 0.35;
+}
+
+/* Custom 32-bit pixel borders */
+.retro-border {
+  border: 4px solid #2E2B44;
+  box-shadow: 
+    inset -3px -3px 0px 0px #0a0910,
+    inset 3px 3px 0px 0px #3e3b5e,
+    4px 4px 0px 0px #000000;
+}
+
+.retro-border-gold {
+  border: 4px solid #F4B41A;
+  box-shadow: 
+    inset -3px -3px 0px 0px #946800,
+    inset 3px 3px 0px 0px #ffe175,
+    4px 4px 0px 0px #000000;
+}
+
+.retro-border-cyan {
+  border: 4px solid #38B6FF;
+  box-shadow: 
+    inset -3px -3px 0px 0px #0066aa,
+    inset 3px 3px 0px 0px #80d4ff,
+    4px 4px 0px 0px #000000;
+}
+
+/* Focused TV element effect */
+.tv-focused {
+  animation: tvFocusPulse 1.2s infinite ease-in-out;
+  outline: none;
+}
+
+@keyframes tvFocusPulse {
+  0%, 100% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 4px #0F0E17, 0 0 0 8px #F4B41A, 0 0 20px rgba(244, 180, 26, 0.6);
+  }
+  50% {
+    transform: scale(1.06);
+    box-shadow: 0 0 0 4px #0F0E17, 0 0 10px #38B6FF, 0 0 28px rgba(56, 182, 255, 0.8);
+  }
+}
+
+/* Custom retro scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0F0E17;
+}
+::-webkit-scrollbar-thumb {
+  background: #2E2B44;
+  border: 2px solid #0F0E17;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #F4B41A;
+}
