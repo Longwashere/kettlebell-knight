@@ -45,7 +45,7 @@ export interface KinematicStateUpdate {
  * MediaPipe coordinate system: y=0 (top of screen), y=1 (bottom of screen).
  * - State 0 (Hike): (leftWrist.y + rightWrist.y)/2 > (leftHip.y + rightHip.y)/2 (wrists dropped below hips)
  * - State 1 (Drive): Wrists moving rapidly upward (dy < 0 with high velocity)
- * - State 2 (Peak / Lockout): Wrists reach (leftShoulder.y + rightShoulder.y)/2
+ * - State 2 (Peak / Lockout): Wrists reach chest/shoulder plane (Russian/American lockout)
  */
 export class KinematicTracker {
   private currentState: SwingState = 0;
@@ -56,7 +56,7 @@ export class KinematicTracker {
   private lastWristY: number = 0;
   private maxDriveVelocity: number = 0; // Peak upward speed (normalized units / sec)
   private lastRepTimestamp: number = 0;
-  private minRepIntervalMs: number = 650; // Debounce minimum time for a biometric swing cycle
+  private minRepIntervalMs: number = 600; // Debounce minimum time for a biometric swing cycle
 
   public onRepCompleted?: (telemetry: RepTelemetry) => void;
   public onStateChange?: (update: KinematicStateUpdate) => void;
@@ -107,21 +107,37 @@ export class KinematicTracker {
     const rShoulder = landmarks[POSE_INDEX.RIGHT_SHOULDER];
 
     // Compute midpoints along vertical frontal Y-axis
-    const wristY = (lWrist.y + rWrist.y) / 2;
+    // Also detect single-arm swings (e.g. if one wrist is active)
+    const avgWristY = (lWrist.y + rWrist.y) / 2;
+    const isSingleArmLeft = Math.abs(lWrist.y - rWrist.y) > 0.22 && lWrist.y > lHip.y;
+    const isSingleArmRight = Math.abs(lWrist.y - rWrist.y) > 0.22 && rWrist.y > rHip.y;
+
+    let wristY = avgWristY;
+    if (isSingleArmLeft) {
+      wristY = lWrist.y;
+    } else if (isSingleArmRight) {
+      wristY = rWrist.y;
+    }
+
     const hipY = (lHip.y + rHip.y) / 2;
     const shoulderY = (lShoulder.y + rShoulder.y) / 2;
 
+    // Torso height proportion for adaptive sizing across different body heights & camera distances
+    const torsoHeight = Math.max(0.15, Math.abs(hipY - shoulderY));
+    const hikeThresholdY = hipY - torsoHeight * 0.05; // Slightly below or at hips
+    const lockoutThresholdY = shoulderY + torsoHeight * 0.18; // Chest to shoulder height (Russian swing apex)
+
     const dt = this.lastTimestamp > 0 ? Math.max(0.016, (timestampMs - this.lastTimestamp) / 1000) : 0.033;
     // Positive velocity = moving physically UPWARDS (so dy = lastWristY - wristY > 0)
-    const upwardVelocity = (this.lastWristY - wristY) / dt;
+    const upwardVelocity = this.lastWristY > 0 ? (this.lastWristY - wristY) / dt : 0;
 
     let emittedTelemetry: RepTelemetry | undefined = undefined;
 
     // STATE MACHINE TRANSITIONS
     switch (this.currentState) {
       case 0: { // STATE 0: HIKE
-        // Check if wrists are below hips: (leftWrist.y + rightWrist.y)/2 > (leftHip.y + rightHip.y)/2
-        const isHike = wristY > hipY;
+        // Wrists drop below hips into backswing: (wristY > hipY)
+        const isHike = wristY > hikeThresholdY;
 
         if (isHike) {
           this.hikeTimestamp = timestampMs;
@@ -129,8 +145,8 @@ export class KinematicTracker {
         }
 
         // Transition 0 -> 1 (Drive): Wrists initiate rapid upward movement
-        // Moving upward means wristY is decreasing, upwardVelocity > threshold
-        if (this.hikeTimestamp > 0 && upwardVelocity > 0.45 && wristY <= hipY + 0.05) {
+        // User snaps hips forward, upwardVelocity > threshold
+        if (this.hikeTimestamp > 0 && upwardVelocity > 0.35 && wristY <= hipY + 0.08) {
           this.currentState = 1;
           this.driveTimestamp = timestampMs;
           this.maxDriveVelocity = upwardVelocity;
@@ -144,16 +160,15 @@ export class KinematicTracker {
           this.maxDriveVelocity = upwardVelocity;
         }
 
-        // If the user aborted and wrists fell back below hips, reset to Hike
-        if (wristY > hipY + 0.08 && upwardVelocity < -0.2) {
+        // Aborted swing check: if kettlebell drops back down without reaching peak
+        if (wristY > hipY + 0.12 && upwardVelocity < -0.2) {
           this.currentState = 0;
           this.maxDriveVelocity = 0;
           break;
         }
 
-        // Transition 1 -> 2 (Peak / Lockout): Wrists reach shoulder height
-        // In screen coords: wristY <= shoulderY (or within small margin of shoulder line)
-        const reachedPeak = wristY <= shoulderY + 0.08;
+        // Transition 1 -> 2 (Peak / Lockout): Wrists reach chest/shoulder lockout line
+        const reachedPeak = wristY <= lockoutThresholdY;
 
         if (reachedPeak) {
           const timeSinceLastRep = timestampMs - this.lastRepTimestamp;
@@ -163,19 +178,21 @@ export class KinematicTracker {
             this.lastRepTimestamp = timestampMs;
 
             // Form score calculation:
-            // 1. Wrist symmetry: difference between left and right wrist height
+            // 1. Symmetry score (for 2-hand swings) or stable alignment
             const wristDelta = Math.abs(lWrist.y - rWrist.y);
-            const symmetryScore = Math.max(0.6, 1.0 - wristDelta * 2.5);
+            const symmetryScore = (isSingleArmLeft || isSingleArmRight) 
+              ? 0.95 
+              : Math.max(0.65, 1.0 - wristDelta * 2.2);
 
-            // 2. Lockout height score (ideal peak right around shoulder line, not wildly overhead or under)
+            // 2. Lockout height score
             const heightDeviation = Math.abs(wristY - shoulderY);
-            const heightScore = Math.max(0.7, 1.0 - heightDeviation * 1.8);
+            const heightScore = Math.max(0.75, 1.0 - heightDeviation * 1.5);
 
             const formScore = Number((symmetryScore * 0.5 + heightScore * 0.5).toFixed(2));
 
-            // Power calculation: scaled from maximum drive velocity (normalized speed 0.8 - 3.5 -> 60 - 130 power)
-            const baseVelocity = Math.max(0.8, this.maxDriveVelocity);
-            const rawPower = Math.round(50 + baseVelocity * 32);
+            // Power calculation: scaled from peak drive velocity
+            const baseVelocity = Math.max(0.6, this.maxDriveVelocity);
+            const rawPower = Math.round(55 + baseVelocity * 38);
             const finalPower = Math.min(150, Math.max(50, rawPower));
 
             emittedTelemetry = {
@@ -203,9 +220,8 @@ export class KinematicTracker {
       }
 
       case 2: { // STATE 2: PEAK / LOCKOUT
-        // As the kettlebell descends from lockout back toward the hike position
-        // Once wrists pass down past chest and approach hips, transition back to State 0
-        if (wristY > shoulderY + 0.15 || upwardVelocity < -0.3) {
+        // As the kettlebell descends from lockout back down into the backswing
+        if (wristY > lockoutThresholdY + torsoHeight * 0.25 || upwardVelocity < -0.25) {
           this.currentState = 0;
           this.maxDriveVelocity = 0;
         }
@@ -226,7 +242,7 @@ export class KinematicTracker {
       state: this.currentState,
       stateName: stateNames[this.currentState],
       repCount: this.repCount,
-      power: emittedTelemetry?.power || (this.currentState === 1 ? Math.round(50 + this.maxDriveVelocity * 30) : 0),
+      power: emittedTelemetry?.power || (this.currentState === 1 ? Math.round(50 + this.maxDriveVelocity * 32) : 0),
       form: emittedTelemetry?.form || 1.0,
       wristY,
       hipY,

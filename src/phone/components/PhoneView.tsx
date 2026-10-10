@@ -78,6 +78,9 @@ export const PhoneView: React.FC = () => {
     }
   };
 
+  // Visual rep flash banner state
+  const [repFlash, setRepFlash] = useState<{ show: boolean; power: number; rep: number } | null>(null);
+
   // Setup tracker callback to broadcast telemetry to TV
   useEffect(() => {
     trackerRef.current.onRepCompleted = (telemetry: RepTelemetry) => {
@@ -88,6 +91,10 @@ export const PhoneView: React.FC = () => {
       setRepCount(telemetry.repCount || 0);
       setLastPower(telemetry.power);
       setLastForm(telemetry.form);
+
+      // Trigger visual rep celebration flash
+      setRepFlash({ show: true, power: telemetry.power, rep: telemetry.repCount || 0 });
+      setTimeout(() => setRepFlash(null), 900);
 
       // Transmit to TV via reliable WebRTC DataChannel
       networkManager.sendTelemetry(telemetry);
@@ -321,6 +328,9 @@ export const PhoneView: React.FC = () => {
     setLastForm(simulatedForm);
     audioManager.play('crit');
 
+    setRepFlash({ show: true, power: simulatedPower, rep: nextCount });
+    setTimeout(() => setRepFlash(null), 900);
+
     const telemetry: RepTelemetry = {
       event: 'REP_TRIGGER',
       power: simulatedPower,
@@ -456,6 +466,17 @@ export const PhoneView: React.FC = () => {
               {wakeLockActive && (
                 <div className="absolute top-2 right-2 bg-[#00EB88]/90 text-black border border-black px-1.5 py-0.5 font-pixel text-[8px]">
                   WAKE LOCK ON
+                </div>
+              )}
+
+              {/* Rep Completed Flash Banner Overlay */}
+              {repFlash && (
+                <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center bg-[#00EB88]/20 border-4 border-[#00EB88]">
+                  <div className="bg-[#0F0E17]/95 border-4 border-[#F4B41A] px-5 py-3 text-center rounded shadow-pixel-box-gold">
+                    <div className="font-pixel text-[9px] text-[#00EB88] tracking-widest">REP DETECTED!</div>
+                    <div className="font-pixel text-xl text-[#F4B41A] my-1">REP #{repFlash.rep}</div>
+                    <div className="font-pixel text-[11px] text-[#38B6FF]">+{repFlash.power} POWER</div>
+                  </div>
                 </div>
               )}
 
