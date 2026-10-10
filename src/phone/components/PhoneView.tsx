@@ -41,6 +41,20 @@ export const PhoneView: React.FC = () => {
   const deckManagerRef = useRef<CardDeckManager>(new CardDeckManager());
   const [handCards, setHandCards] = useState<CombatCard[]>(() => deckManagerRef.current.getHand());
 
+  // Workout Skeleton Overlay Toggle (Defaults to ON, can be toggled to save battery)
+  const [showSkeleton, setShowSkeleton] = useState<boolean>(true);
+  const showSkeletonRef = useRef<boolean>(true);
+  showSkeletonRef.current = showSkeleton;
+
+  const toggleSkeleton = () => {
+    setShowSkeleton((prev) => {
+      const next = !prev;
+      showSkeletonRef.current = next;
+      audioManager.play('ui_move');
+      return next;
+    });
+  };
+
   // Live telemetry display
   const [repCount, setRepCount] = useState<number>(0);
   const [lastPower, setLastPower] = useState<number>(0);
@@ -247,6 +261,11 @@ export const PhoneView: React.FC = () => {
 
                 // Draw retro kinematic guides on canvas
                 drawKinematicHUD(ctx, canvas.width, canvas.height, mirrored);
+
+                // Draw workout skeleton overlay (optional, defaults to ON)
+                if (showSkeletonRef.current) {
+                  drawWorkoutSkeleton(ctx, canvas.width, canvas.height, mirrored);
+                }
               }
             } catch (e) {
               // Frame dropped, proceed to next
@@ -390,6 +409,114 @@ export const PhoneView: React.FC = () => {
     ctx.restore();
   };
 
+  /**
+   * Draws a complete 32-bit retro workout skeleton over the camera viewfinder.
+   * Visualizes all MediaPipe detected joints and bone connections so the user can verify pose tracking.
+   */
+  const drawWorkoutSkeleton = (
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    h: number,
+    landmarks: NormalizedLandmark[]
+  ) => {
+    if (!landmarks || landmarks.length < 29) return;
+
+    // Bone connections (from joint idx -> to joint idx)
+    const connections = [
+      // Shoulders & Spine / Torso Box
+      { from: POSE_INDEX.LEFT_SHOULDER, to: POSE_INDEX.RIGHT_SHOULDER, color: '#F4B41A', width: 4 },
+      { from: POSE_INDEX.LEFT_SHOULDER, to: POSE_INDEX.LEFT_HIP, color: '#38B6FF', width: 3 },
+      { from: POSE_INDEX.RIGHT_SHOULDER, to: POSE_INDEX.RIGHT_HIP, color: '#38B6FF', width: 3 },
+      { from: POSE_INDEX.LEFT_HIP, to: POSE_INDEX.RIGHT_HIP, color: '#FF3366', width: 4 },
+
+      // Left Arm (Shoulder -> Elbow -> Wrist)
+      { from: POSE_INDEX.LEFT_SHOULDER, to: POSE_INDEX.LEFT_ELBOW, color: '#38B6FF', width: 3.5 },
+      { from: POSE_INDEX.LEFT_ELBOW, to: POSE_INDEX.LEFT_WRIST, color: '#F4B41A', width: 3.5 },
+
+      // Right Arm (Shoulder -> Elbow -> Wrist)
+      { from: POSE_INDEX.RIGHT_SHOULDER, to: POSE_INDEX.RIGHT_ELBOW, color: '#38B6FF', width: 3.5 },
+      { from: POSE_INDEX.RIGHT_ELBOW, to: POSE_INDEX.RIGHT_WRIST, color: '#F4B41A', width: 3.5 },
+
+      // Left Leg (Hip -> Knee -> Ankle)
+      { from: POSE_INDEX.LEFT_HIP, to: POSE_INDEX.LEFT_KNEE, color: '#FF3366', width: 4 },
+      { from: POSE_INDEX.LEFT_KNEE, to: POSE_INDEX.LEFT_ANKLE, color: '#38B6FF', width: 3.5 },
+
+      // Right Leg (Hip -> Knee -> Ankle)
+      { from: POSE_INDEX.RIGHT_HIP, to: POSE_INDEX.RIGHT_KNEE, color: '#FF3366', width: 4 },
+      { from: POSE_INDEX.RIGHT_KNEE, to: POSE_INDEX.RIGHT_ANKLE, color: '#38B6FF', width: 3.5 },
+    ];
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // 1. Draw Bones / Connectors
+    for (const conn of connections) {
+      const p1 = landmarks[conn.from];
+      const p2 = landmarks[conn.to];
+      if (!p1 || !p2) continue;
+
+      const x1 = p1.x * w;
+      const y1 = p1.y * h;
+      const x2 = p2.x * w;
+      const y2 = p2.y * h;
+
+      // Outer colored neon bone
+      ctx.strokeStyle = conn.color;
+      ctx.lineWidth = conn.width;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+
+      // Inner white neon core
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = Math.max(1, conn.width - 2);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    // 2. Draw Joint Spheres / Nodes
+    const jointIndices = [
+      POSE_INDEX.LEFT_SHOULDER, POSE_INDEX.RIGHT_SHOULDER,
+      POSE_INDEX.LEFT_ELBOW, POSE_INDEX.RIGHT_ELBOW,
+      POSE_INDEX.LEFT_WRIST, POSE_INDEX.RIGHT_WRIST,
+      POSE_INDEX.LEFT_HIP, POSE_INDEX.RIGHT_HIP,
+      POSE_INDEX.LEFT_KNEE, POSE_INDEX.RIGHT_KNEE,
+      POSE_INDEX.LEFT_ANKLE, POSE_INDEX.RIGHT_ANKLE,
+    ];
+
+    for (const idx of jointIndices) {
+      const lm = landmarks[idx];
+      if (!lm) continue;
+
+      const jx = lm.x * w;
+      const jy = lm.y * h;
+      const isWrist = idx === POSE_INDEX.LEFT_WRIST || idx === POSE_INDEX.RIGHT_WRIST;
+      const isHip = idx === POSE_INDEX.LEFT_HIP || idx === POSE_INDEX.RIGHT_HIP;
+      const isKnee = idx === POSE_INDEX.LEFT_KNEE || idx === POSE_INDEX.RIGHT_KNEE;
+
+      const nodeRadius = isWrist ? 7 : (isHip || isKnee) ? 6 : 5;
+      const nodeColor = isWrist ? '#F4B41A' : isHip ? '#FF3366' : '#38B6FF';
+
+      // Outer joint border
+      ctx.fillStyle = nodeColor;
+      ctx.beginPath();
+      ctx.arc(jx, jy, nodeRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Inner white core
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(jx, jy, nodeRadius * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  };
+
   // Manual Demo Swing Simulation Trigger (For quick testing without webcam)
   const handleSimulateSwing = () => {
     const simulatedPower = Math.floor(75 + Math.random() * 35);
@@ -511,7 +638,7 @@ export const PhoneView: React.FC = () => {
               ⚡ BEGIN WORKOUT
             </button>
             <p className="text-[9px] text-[#A7A9BE] font-mono">
-              Requests Screen WakeLock & Camera Vision
+              Requests Screen WakeLock & Camera Vision • Pose Skeleton enabled (toggleable to save battery)
             </p>
           </div>
         ) : (
@@ -600,12 +727,27 @@ export const PhoneView: React.FC = () => {
                 </span>
               </div>
 
-              {/* Wake Lock Active Indicator */}
-              {wakeLockActive && (
-                <div className="absolute top-2 right-2 bg-[#00EB88]/90 text-black border border-black px-1.5 py-0.5 font-pixel text-[8px]">
-                  WAKE LOCK ON
-                </div>
-              )}
+              {/* Top Right Viewfinder Indicators & Skeleton Toggle */}
+              <div className="absolute top-2 right-2 flex items-center space-x-1.5 z-20">
+                {wakeLockActive && (
+                  <div className="bg-[#00EB88]/90 text-black border border-black px-1.5 py-0.5 font-pixel text-[8px]">
+                    WAKE LOCK ON
+                  </div>
+                )}
+
+                {/* SKELETON OVERLAY TOGGLE BUTTON (Default ON, optional for battery saving) */}
+                <button
+                  onClick={toggleSkeleton}
+                  className={`px-1.5 py-0.5 font-pixel text-[8px] border-2 shadow-pixel-box transition-all flex items-center gap-1 ${
+                    showSkeleton
+                      ? 'bg-[#38B6FF] text-[#0F0E17] border-black font-bold'
+                      : 'bg-[#1A1926]/90 text-[#A7A9BE] border-[#2E2B44]'
+                  }`}
+                  title="Toggle body tracking skeleton overlay to conserve phone battery"
+                >
+                  🦴 SKELETON: {showSkeleton ? 'ON' : 'OFF'}
+                </button>
+              </div>
 
               {/* Rep Completed Flash Banner Overlay */}
               {repFlash && (
