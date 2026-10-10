@@ -93,7 +93,12 @@ export const GameScreen: React.FC = () => {
       if (telemetry.event === 'REP_TRIGGER') {
         // Direct zero-overhead pass-through to PixiJS WebGL loop
         if (engineRef.current) {
-          engineRef.current.onRepCompleted(telemetry.power, telemetry.form);
+          engineRef.current.onRepCompleted(
+            telemetry.power, 
+            telemetry.form, 
+            telemetry.exercise || 'SWING', 
+            telemetry.skillName
+          );
         }
 
         // Lightweight stats increment
@@ -221,9 +226,11 @@ export const GameScreen: React.FC = () => {
     onDemoSwing: () => {
       const demoPower = 85 + Math.floor(Math.random() * 30);
       const demoForm = Number((0.95 + Math.random() * 0.05).toFixed(2));
+      const demoExercises: ('SWING' | 'SQUAT' | 'OVERHEAD_PRESS')[] = ['SWING', 'SQUAT', 'OVERHEAD_PRESS'];
+      const chosen = demoExercises[Math.floor(Math.random() * demoExercises.length)];
 
       if (engineRef.current) {
-        engineRef.current.onRepCompleted(demoPower, demoForm);
+        engineRef.current.onRepCompleted(demoPower, demoForm, chosen);
       }
 
       setSessionReps((prev) => prev + 1);

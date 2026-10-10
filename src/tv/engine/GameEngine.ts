@@ -458,41 +458,134 @@ export class GameEngine {
    * The /tv component must hold a useRef<GameEngine> and pass WebRTC payloads directly to
    * engineRef.current.onRepCompleted()."
    */
-  public onRepCompleted(power: number = 80, form: number = 1.0): void {
+  /**
+   * Dispatches specialized attack animations based on the performed exercise
+   */
+  public onRepCompleted(
+    power: number = 80, 
+    form: number = 1.0, 
+    exercise: 'SWING' | 'SQUAT' | 'OVERHEAD_PRESS' = 'SWING',
+    skillName?: string
+  ): void {
     this.totalRepsCount++;
     this.currentCombo++;
     this.totalPowerAccumulated += power;
 
-    // 1. Trigger Full 32-bit Kettlebell Swing Animation Arc
-    this.isSwinging = true;
-    this.swingProgress = 0;
-    // Faster swing velocity for higher power output
-    this.swingVelocity = 0.05 + (power / 100) * 0.06;
-
-    // 2. Trigger Fullscreen Impact Screen Flash
-    this.flashAlpha = power >= 95 ? 0.75 : 0.45;
-
-    // 3. Screen Shake Camera Kickback
-    this.shakeIntensity = Math.min(10, 3 + (power / 25));
-
-    // 4. Spawn Floating Combat Damage Text at Enemy Target (x=300, y=110)
     const isCrit = power >= 95;
-    const damageNum = Math.round(power * form * 12);
-    const label = isCrit ? `CRIT! +${damageNum}` : `+${damageNum}`;
-    const textColor = isCrit ? 0xF4B41A : 0x38B6FF;
+    const damageNum = Math.round(power * form * 14);
 
-    this.spawnFloatingText(label, 300, 110, textColor, isCrit ? 14 : 11);
+    // 1. Attack type specific visuals
+    switch (exercise) {
+      case 'SQUAT': {
+        // TITAN GROUND SLAM: Heavy tremor, shockwave along floor, earth particles
+        this.shakeIntensity = Math.min(14, 6 + (power / 20));
+        this.flashAlpha = 0.55;
+        this.spawnShockwave(300, 168, 0xFF3366);
+        this.spawnSparks(300, 168, 16, [0xFF3366, 0xC49A45, 0x5C2B14]);
+        
+        const label = `TITAN SLAM! +${damageNum}`;
+        this.spawnFloatingText(label, 300, 100, 0xFF3366, isCrit ? 13 : 11);
+        audioManager.play('hit');
+        break;
+      }
 
-    // Form feedback text
-    if (form >= 0.95) {
-      this.spawnFloatingText('PERFECT FORM!', 300, 92, 0x00EB88, 9);
+      case 'OVERHEAD_PRESS': {
+        // THUNDER SMITE: Lightning bolt from sky striking enemy, electric cyan sparks
+        this.shakeIntensity = Math.min(10, 4 + (power / 25));
+        this.flashAlpha = 0.7;
+        this.spawnLightningBolt(300, 100);
+        this.spawnSparks(300, 110, 20, [0x38B6FF, 0xFFFFFF, 0x80D4FF]);
+
+        const label = `THUNDER SMITE! +${damageNum}`;
+        this.spawnFloatingText(label, 300, 90, 0x38B6FF, isCrit ? 14 : 11);
+        audioManager.play('crit');
+        break;
+      }
+
+      case 'SWING':
+      default: {
+        // IRON CLEAVE: 32-bit kettlebell swing arc, gold slash sparks
+        this.isSwinging = true;
+        this.swingProgress = 0;
+        this.swingVelocity = 0.05 + (power / 100) * 0.06;
+        this.flashAlpha = isCrit ? 0.75 : 0.45;
+        this.shakeIntensity = Math.min(10, 3 + (power / 25));
+
+        const label = isCrit ? `CRIT CLEAVE! +${damageNum}` : `CLEAVE! +${damageNum}`;
+        this.spawnFloatingText(label, 300, 110, 0xF4B41A, isCrit ? 14 : 11);
+        this.spawnSparks(300, 126, isCrit ? 16 : 8, [0xF4B41A, 0xFFFBEA, 0xDC2626]);
+        audioManager.play(isCrit ? 'crit' : 'hit');
+        break;
+      }
     }
 
-    // 5. Spawn Hit Spark Particles
-    this.spawnSparks(300, 126, isCrit ? 16 : 8);
+    // Form feedback text
+    if (form >= 0.94) {
+      this.spawnFloatingText('PERFECT FORM!', 300, 75, 0x00EB88, 9);
+    }
+  }
 
-    // Audio SFX
-    audioManager.play(isCrit ? 'crit' : 'hit');
+  /**
+   * Spawns an expanding earth tremor shockwave along the floor
+   */
+  private spawnShockwave(x: number, y: number, color: number): void {
+    if (!this.effectsLayer) return;
+
+    const shockwave = new Graphics();
+    this.effectsLayer.addChild(shockwave);
+
+    let radius = 8;
+    const maxRadius = 55;
+
+    const animateShockwave = () => {
+      if (this.isDestroyed || !this.effectsLayer) return;
+      radius += 3.5;
+      const alpha = 1 - (radius / maxRadius);
+
+      shockwave.clear();
+      shockwave.ellipse(x, y, radius, radius * 0.35).stroke({ width: 3, color, alpha });
+
+      if (radius < maxRadius) {
+        requestAnimationFrame(animateShockwave);
+      } else {
+        shockwave.destroy();
+      }
+    };
+    animateShockwave();
+  }
+
+  /**
+   * Spawns a zigzag divine lightning bolt striking down onto target
+   */
+  private spawnLightningBolt(targetX: number, targetY: number): void {
+    if (!this.effectsLayer) return;
+
+    const bolt = new Graphics();
+    this.effectsLayer.addChild(bolt);
+
+    let currentX = targetX + (Math.random() * 20 - 10);
+    let currentY = 0;
+
+    bolt.moveTo(currentX, currentY);
+    while (currentY < targetY) {
+      currentY += 15 + Math.random() * 15;
+      currentX += (Math.random() - 0.5) * 22;
+      bolt.lineTo(currentX, Math.min(targetY, currentY));
+    }
+    bolt.stroke({ width: 3, color: 0x38B6FF });
+    bolt.stroke({ width: 1.5, color: 0xFFFFFF });
+
+    let frames = 6;
+    const fade = () => {
+      frames--;
+      if (frames > 0) {
+        bolt.alpha = frames / 6;
+        requestAnimationFrame(fade);
+      } else {
+        bolt.destroy();
+      }
+    };
+    fade();
   }
 
   private spawnFloatingText(content: string, x: number, y: number, color: number, fontSize: number): void {
@@ -526,10 +619,10 @@ export class GameEngine {
     });
   }
 
-  private spawnSparks(x: number, y: number, count: number): void {
+  private spawnSparks(x: number, y: number, count: number, customColors?: number[]): void {
     if (!this.effectsLayer) return;
 
-    const colors = [0xF4B41A, 0x38B6FF, 0xFF3366, 0xFFFFFF];
+    const colors = customColors || [0xF4B41A, 0x38B6FF, 0xFF3366, 0xFFFFFF];
 
     for (let i = 0; i < count; i++) {
       const g = new Graphics();

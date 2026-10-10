@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import { KinematicTracker, KinematicStateUpdate, NormalizedLandmark, POSE_INDEX } from '../utils/KinematicTracker';
 import { networkManager, NetworkConnectionState } from '../../shared/NetworkManager';
-import { RepTelemetry } from '../../types/game';
+import { RepTelemetry, ExerciseType, EXERCISE_SKILLS } from '../../types/game';
 import { audioManager } from '../../shared/AudioManager';
 import { 
   Camera, 
@@ -15,7 +15,10 @@ import {
   Zap, 
   ShieldAlert, 
   Activity, 
-  RefreshCw 
+  RefreshCw,
+  Swords,
+  Shield,
+  ZapOff
 } from 'lucide-react';
 
 export const PhoneView: React.FC = () => {
@@ -30,6 +33,7 @@ export const PhoneView: React.FC = () => {
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [modelLoading, setModelLoading] = useState<boolean>(false);
   const [modelReady, setModelReady] = useState<boolean>(false);
+  const [activeExercise, setActiveExercise] = useState<ExerciseType>('SWING');
 
   // Live telemetry display
   const [repCount, setRepCount] = useState<number>(0);
@@ -258,6 +262,13 @@ export const PhoneView: React.FC = () => {
   }, [workoutStarted, processFrame]);
 
   // Draw 32-bit retro kinematic HUD overlay
+  const handleSelectExercise = (ex: ExerciseType) => {
+    trackerRef.current.setExercise(ex);
+    setActiveExercise(ex);
+    audioManager.play('ui_select');
+  };
+
+  // Draw 32-bit retro kinematic HUD overlay adapted to current exercise
   const drawKinematicHUD = (
     ctx: CanvasRenderingContext2D,
     w: number,
@@ -270,49 +281,100 @@ export const PhoneView: React.FC = () => {
     const rHip = landmarks[POSE_INDEX.RIGHT_HIP];
     const lShoulder = landmarks[POSE_INDEX.LEFT_SHOULDER];
     const rShoulder = landmarks[POSE_INDEX.RIGHT_SHOULDER];
+    const lKnee = landmarks[POSE_INDEX.LEFT_KNEE];
+    const rKnee = landmarks[POSE_INDEX.RIGHT_KNEE];
 
     const wristY = ((lWrist.y + rWrist.y) / 2) * h;
     const wristX = ((lWrist.x + rWrist.x) / 2) * w;
     const hipY = ((lHip.y + rHip.y) / 2) * h;
+    const hipX = ((lHip.x + rHip.x) / 2) * w;
     const shoulderY = ((lShoulder.y + rShoulder.y) / 2) * h;
+    const kneeY = lKnee && rKnee ? ((lKnee.y + rKnee.y) / 2) * h : hipY + 80;
 
     ctx.save();
     ctx.lineWidth = 3;
+    ctx.font = '11px "Press Start 2P", monospace';
 
-    // Shoulder Guide Line (Lockout Level - Cyan)
-    ctx.strokeStyle = '#38B6FF';
-    ctx.setLineDash([8, 6]);
-    ctx.beginPath();
-    ctx.moveTo(w * 0.1, shoulderY);
-    ctx.lineTo(w * 0.9, shoulderY);
-    ctx.stroke();
+    if (activeExercise === 'SQUAT') {
+      // Squat HUD: Track Hip relative to Knee
+      ctx.strokeStyle = '#FF3366';
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, kneeY - 15);
+      ctx.lineTo(w * 0.9, kneeY - 15);
+      ctx.stroke();
 
-    // Hip Guide Line (Hike Level - Crimson)
-    ctx.strokeStyle = '#FF3366';
-    ctx.setLineDash([8, 6]);
-    ctx.beginPath();
-    ctx.moveTo(w * 0.1, hipY);
-    ctx.lineTo(w * 0.9, hipY);
-    ctx.stroke();
+      ctx.fillStyle = '#FF3366';
+      ctx.fillText('PARALLEL DEPTH', 20, kneeY - 22);
 
-    ctx.setLineDash([]); // Reset dash
+      // Hip Center Indicator (Gold)
+      ctx.fillStyle = '#F4B41A';
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(hipX, hipY, 12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
 
-    // Wrist Center Indicator (Gold)
-    ctx.fillStyle = '#F4B41A';
-    ctx.beginPath();
-    ctx.arc(wristX, wristY, 12, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#0F0E17';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    } else if (activeExercise === 'OVERHEAD_PRESS') {
+      // Press HUD: Track Wrists from Shoulder Rack to Overhead Reach
+      const overheadY = Math.max(15, shoulderY - (hipY - shoulderY) * 0.6);
 
-    // Draw Labels
-    ctx.font = '12px "Press Start 2P", monospace';
-    ctx.fillStyle = '#38B6FF';
-    ctx.fillText('LOCKOUT LINE', 20, shoulderY - 8);
+      ctx.strokeStyle = '#38B6FF';
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, overheadY);
+      ctx.lineTo(w * 0.9, overheadY);
+      ctx.stroke();
 
-    ctx.fillStyle = '#FF3366';
-    ctx.fillText('HIKE LINE', 20, hipY + 20);
+      ctx.fillStyle = '#38B6FF';
+      ctx.fillText('OVERHEAD LOCKOUT', 20, overheadY - 8);
+
+      ctx.strokeStyle = '#F4B41A';
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, shoulderY);
+      ctx.lineTo(w * 0.9, shoulderY);
+      ctx.stroke();
+
+      ctx.fillStyle = '#F4B41A';
+      ctx.fillText('SHOULDER RACK', 20, shoulderY + 18);
+
+      // Wrist Center Indicator
+      ctx.fillStyle = '#38B6FF';
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(wristX, wristY, 12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+    } else {
+      // Swing HUD: Shoulder Lockout & Hip Hike Lines
+      ctx.strokeStyle = '#38B6FF';
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, shoulderY);
+      ctx.lineTo(w * 0.9, shoulderY);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#FF3366';
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, hipY);
+      ctx.lineTo(w * 0.9, hipY);
+      ctx.stroke();
+
+      ctx.fillStyle = '#38B6FF';
+      ctx.fillText('LOCKOUT LINE', 20, shoulderY - 8);
+
+      ctx.fillStyle = '#FF3366';
+      ctx.fillText('HIKE LINE', 20, hipY + 20);
+
+      // Wrist Center Indicator (Gold)
+      ctx.fillStyle = '#F4B41A';
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(wristX, wristY, 12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
 
     ctx.restore();
   };
@@ -333,6 +395,8 @@ export const PhoneView: React.FC = () => {
 
     const telemetry: RepTelemetry = {
       event: 'REP_TRIGGER',
+      exercise: activeExercise,
+      skillName: EXERCISE_SKILLS[activeExercise].skillName,
       power: simulatedPower,
       form: simulatedForm,
       repCount: nextCount,
@@ -439,6 +503,45 @@ export const PhoneView: React.FC = () => {
         ) : (
           /* Live Camera Viewfinder & Pose HUD */
           <div className="space-y-4">
+            {/* RPG Attack Stance / Exercise Selector */}
+            <div className="bg-[#1A1926] border-2 border-[#2E2B44] p-1.5 rounded flex gap-1.5 shadow-pixel-box">
+              <button
+                onClick={() => handleSelectExercise('SWING')}
+                className={`flex-1 py-2 px-1 text-center font-pixel text-[8px] border-2 transition-all ${
+                  activeExercise === 'SWING'
+                    ? 'bg-[#F4B41A] text-[#0F0E17] border-black shadow-pixel-box font-bold'
+                    : 'bg-[#0F0E17] text-[#A7A9BE] border-[#2E2B44] hover:text-white'
+                }`}
+              >
+                ⚔️ CLEAVE
+                <span className="block text-[7px] font-mono mt-0.5 opacity-80">SWING</span>
+              </button>
+
+              <button
+                onClick={() => handleSelectExercise('SQUAT')}
+                className={`flex-1 py-2 px-1 text-center font-pixel text-[8px] border-2 transition-all ${
+                  activeExercise === 'SQUAT'
+                    ? 'bg-[#FF3366] text-white border-black shadow-pixel-box font-bold'
+                    : 'bg-[#0F0E17] text-[#A7A9BE] border-[#2E2B44] hover:text-white'
+                }`}
+              >
+                🛡️ SLAM
+                <span className="block text-[7px] font-mono mt-0.5 opacity-80">SQUAT</span>
+              </button>
+
+              <button
+                onClick={() => handleSelectExercise('OVERHEAD_PRESS')}
+                className={`flex-1 py-2 px-1 text-center font-pixel text-[8px] border-2 transition-all ${
+                  activeExercise === 'OVERHEAD_PRESS'
+                    ? 'bg-[#38B6FF] text-[#0F0E17] border-black shadow-pixel-box font-bold'
+                    : 'bg-[#0F0E17] text-[#A7A9BE] border-[#2E2B44] hover:text-white'
+                }`}
+              >
+                ⚡ SMITE
+                <span className="block text-[7px] font-mono mt-0.5 opacity-80">PRESS</span>
+              </button>
+            </div>
+
             <div className="relative bg-black border-4 border-[#38B6FF] aspect-[4/3] overflow-hidden shadow-pixel-box">
               {/* Hidden raw video element */}
               <video
@@ -524,7 +627,7 @@ export const PhoneView: React.FC = () => {
                 className="flex-1 bg-[#2E2B44] hover:bg-[#3E3B5E] text-[#F4B41A] font-pixel text-[10px] py-3 border-2 border-black shadow-pixel-box flex items-center justify-center gap-2 active:translate-x-0.5 active:translate-y-0.5"
               >
                 <Zap className="w-3.5 h-3.5" />
-                SIMULATE SWING REP
+                TRIGGER {EXERCISE_SKILLS[activeExercise].skillName}
               </button>
             </div>
           </div>
