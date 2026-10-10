@@ -2,7 +2,14 @@
 
 export type RepEvent = 'REP_TRIGGER' | 'REP_UPDATE' | 'CALIBRATION' | 'HIKE_ENTER' | 'DRIVE_ENTER';
 
-export type ExerciseType = 'SWING' | 'SQUAT' | 'OVERHEAD_PRESS';
+export type ExerciseType = 
+  | 'SWING' 
+  | 'SQUAT' 
+  | 'OVERHEAD_PRESS'
+  | 'CLEAN'
+  | 'HALO'
+  | 'DEADLIFT'
+  | 'LUNGE';
 
 export interface ExerciseSkillConfig {
   type: ExerciseType;
@@ -37,6 +44,38 @@ export const EXERCISE_SKILLS: Record<ExerciseType, ExerciseSkillConfig> = {
     rpgElement: 'LIGHTNING',
     colorHex: '#38B6FF',
     targetMetric: 'Overhead Lockout',
+  },
+  CLEAN: {
+    type: 'CLEAN',
+    skillName: 'ANVIL BREAKER',
+    description: 'Explosive floor to shoulder rack snap with immense kinetic force.',
+    rpgElement: 'PHYSICAL',
+    colorHex: '#F97316',
+    targetMetric: 'Triple Extension',
+  },
+  HALO: {
+    type: 'HALO',
+    skillName: 'CELESTIAL WARD',
+    description: 'Rotational orbit around the crown generating an impenetrable shield.',
+    rpgElement: 'LIGHTNING',
+    colorHex: '#818CF8',
+    targetMetric: 'Orbit Smoothness',
+  },
+  DEADLIFT: {
+    type: 'DEADLIFT',
+    skillName: 'MOUNTAIN SUNDER',
+    description: 'Heavy posterior hinge anchoring your stance into the bedrock.',
+    rpgElement: 'EARTH',
+    colorHex: '#D97706',
+    targetMetric: 'Lockout Extension',
+  },
+  LUNGE: {
+    type: 'LUNGE',
+    skillName: 'VALKYRIE DASH',
+    description: 'Dynamic split knee dip balancing agility and striking power.',
+    rpgElement: 'PHYSICAL',
+    colorHex: '#EC4899',
+    targetMetric: 'Lunge Depth',
   },
 };
 

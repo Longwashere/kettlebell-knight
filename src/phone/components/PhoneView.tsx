@@ -4,6 +4,8 @@ import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import { KinematicTracker, KinematicStateUpdate, NormalizedLandmark, POSE_INDEX } from '../utils/KinematicTracker';
 import { networkManager, NetworkConnectionState } from '../../shared/NetworkManager';
 import { RepTelemetry, ExerciseType, EXERCISE_SKILLS } from '../../types/game';
+import { CombatCard } from '../../types/battle';
+import { CardDeckManager } from '../../shared/CardDeckManager';
 import { audioManager } from '../../shared/AudioManager';
 import { 
   Camera, 
@@ -34,6 +36,10 @@ export const PhoneView: React.FC = () => {
   const [modelLoading, setModelLoading] = useState<boolean>(false);
   const [modelReady, setModelReady] = useState<boolean>(false);
   const [activeExercise, setActiveExercise] = useState<ExerciseType>('SWING');
+
+  // Slay the Spire 5-Card Hand State
+  const deckManagerRef = useRef<CardDeckManager>(new CardDeckManager());
+  const [handCards, setHandCards] = useState<CombatCard[]>(() => deckManagerRef.current.getHand());
 
   // Live telemetry display
   const [repCount, setRepCount] = useState<number>(0);
@@ -88,26 +94,31 @@ export const PhoneView: React.FC = () => {
   // Setup tracker callback to broadcast telemetry to TV
   useEffect(() => {
     trackerRef.current.onRepCompleted = (telemetry: RepTelemetry) => {
-      // Audio feedback
-      audioManager.play(telemetry.power >= 90 ? 'crit' : 'hit');
+      const exercise = telemetry.exercise || activeExercise;
+      const cardResult = deckManagerRef.current.recordRep(exercise, telemetry.power, telemetry.form);
+      setHandCards(cardResult.hand);
 
-      // Update state for phone UI
-      setRepCount(telemetry.repCount || 0);
+      audioManager.play(cardResult.activated ? 'crit' : 'hit');
+
+      setRepCount((prev) => prev + 1);
       setLastPower(telemetry.power);
       setLastForm(telemetry.form);
 
-      // Trigger visual rep celebration flash
-      setRepFlash({ show: true, power: telemetry.power, rep: telemetry.repCount || 0 });
+      setRepFlash({ show: true, power: telemetry.power, rep: (telemetry.repCount || 0) + 1 });
       setTimeout(() => setRepFlash(null), 900);
 
       // Transmit to TV via reliable WebRTC DataChannel
-      networkManager.sendTelemetry(telemetry);
+      networkManager.sendTelemetry({
+        ...telemetry,
+        exercise,
+        skillName: cardResult.activated && cardResult.card ? cardResult.card.name : undefined,
+      });
     };
 
     trackerRef.current.onStateChange = (update: KinematicStateUpdate) => {
       setCurrentStateName(update.stateName);
     };
-  }, []);
+  }, [activeExercise]);
 
   // Initialize MediaPipe PoseLandmarker
   const initPoseLandmarker = async () => {
@@ -385,10 +396,13 @@ export const PhoneView: React.FC = () => {
     const simulatedForm = Number((0.92 + Math.random() * 0.08).toFixed(2));
     const nextCount = repCount + 1;
 
+    const cardResult = deckManagerRef.current.recordRep(activeExercise, simulatedPower, simulatedForm);
+    setHandCards(cardResult.hand);
+
     setRepCount(nextCount);
     setLastPower(simulatedPower);
     setLastForm(simulatedForm);
-    audioManager.play('crit');
+    audioManager.play(cardResult.activated ? 'crit' : 'hit');
 
     setRepFlash({ show: true, power: simulatedPower, rep: nextCount });
     setTimeout(() => setRepFlash(null), 900);
@@ -396,7 +410,7 @@ export const PhoneView: React.FC = () => {
     const telemetry: RepTelemetry = {
       event: 'REP_TRIGGER',
       exercise: activeExercise,
-      skillName: EXERCISE_SKILLS[activeExercise].skillName,
+      skillName: cardResult.activated && cardResult.card ? cardResult.card.name : EXERCISE_SKILLS[activeExercise]?.skillName,
       power: simulatedPower,
       form: simulatedForm,
       repCount: nextCount,
@@ -503,43 +517,64 @@ export const PhoneView: React.FC = () => {
         ) : (
           /* Live Camera Viewfinder & Pose HUD */
           <div className="space-y-4">
-            {/* RPG Attack Stance / Exercise Selector */}
-            <div className="bg-[#1A1926] border-2 border-[#2E2B44] p-1.5 rounded flex gap-1.5 shadow-pixel-box">
-              <button
-                onClick={() => handleSelectExercise('SWING')}
-                className={`flex-1 py-2 px-1 text-center font-pixel text-[8px] border-2 transition-all ${
-                  activeExercise === 'SWING'
-                    ? 'bg-[#F4B41A] text-[#0F0E17] border-black shadow-pixel-box font-bold'
-                    : 'bg-[#0F0E17] text-[#A7A9BE] border-[#2E2B44] hover:text-white'
-                }`}
-              >
-                ⚔️ CLEAVE
-                <span className="block text-[7px] font-mono mt-0.5 opacity-80">SWING</span>
-              </button>
+            {/* Slay the Spire 5-Card Combat Hand */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-[8px] font-pixel text-[#F4B41A]">
+                <span>🎴 CARDS IN HAND (5 UNIQUE EXERCISES)</span>
+                <span className="text-[#38B6FF]">TAP CARD TO FOCUS</span>
+              </div>
 
-              <button
-                onClick={() => handleSelectExercise('SQUAT')}
-                className={`flex-1 py-2 px-1 text-center font-pixel text-[8px] border-2 transition-all ${
-                  activeExercise === 'SQUAT'
-                    ? 'bg-[#FF3366] text-white border-black shadow-pixel-box font-bold'
-                    : 'bg-[#0F0E17] text-[#A7A9BE] border-[#2E2B44] hover:text-white'
-                }`}
-              >
-                🛡️ SLAM
-                <span className="block text-[7px] font-mono mt-0.5 opacity-80">SQUAT</span>
-              </button>
+              <div className="grid grid-cols-5 gap-1">
+                {handCards.map((card) => {
+                  const isSelected = activeExercise === card.exercise;
+                  const progress = Math.min(100, (card.currentReps / card.requiredReps) * 100);
 
-              <button
-                onClick={() => handleSelectExercise('OVERHEAD_PRESS')}
-                className={`flex-1 py-2 px-1 text-center font-pixel text-[8px] border-2 transition-all ${
-                  activeExercise === 'OVERHEAD_PRESS'
-                    ? 'bg-[#38B6FF] text-[#0F0E17] border-black shadow-pixel-box font-bold'
-                    : 'bg-[#0F0E17] text-[#A7A9BE] border-[#2E2B44] hover:text-white'
-                }`}
-              >
-                ⚡ SMITE
-                <span className="block text-[7px] font-mono mt-0.5 opacity-80">PRESS</span>
-              </button>
+                  return (
+                    <button
+                      key={card.id}
+                      onClick={() => handleSelectExercise(card.exercise)}
+                      className={`p-1 rounded border-2 transition-all flex flex-col justify-between text-left h-24 ${
+                        isSelected
+                          ? 'bg-[#242138] border-[#F4B41A] shadow-pixel-box scale-102 z-10'
+                          : 'bg-[#0F0E17] border-[#2E2B44] hover:border-[#38B6FF]'
+                      }`}
+                      style={{
+                        borderColor: isSelected ? '#F4B41A' : card.colorHex,
+                      }}
+                    >
+                      <div>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span>{card.icon}</span>
+                          <span className="text-[7px] font-pixel text-[#A7A9BE]">
+                            {card.damage > 0 ? `⚔️${card.damage}` : `🛡️${card.block}`}
+                          </span>
+                        </div>
+                        <div className="font-pixel text-[7px] text-white truncate mt-1">
+                          {card.name}
+                        </div>
+                        <div className="text-[6px] font-mono uppercase text-[#A7A9BE] truncate">
+                          {card.exercise}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-[8px] font-mono text-[#F4B41A] font-bold">
+                          {card.currentReps}/{card.requiredReps}
+                        </div>
+                        <div className="w-full h-1.5 bg-[#0F0E17] border border-[#2E2B44] rounded-sm overflow-hidden mt-0.5">
+                          <div
+                            className="h-full transition-all duration-200"
+                            style={{
+                              width: `${progress}%`,
+                              backgroundColor: card.colorHex,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="relative bg-black border-4 border-[#38B6FF] aspect-[4/3] overflow-hidden shadow-pixel-box">

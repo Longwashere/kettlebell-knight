@@ -1,5 +1,6 @@
 import { Application, Container, Graphics, Text, Assets, Sprite, Texture } from 'pixi.js';
 import { audioManager } from '../../shared/AudioManager';
+import { ExerciseType } from '../../types/game';
 
 interface FloatingCombatText {
   container: Container;
@@ -259,33 +260,165 @@ export class GameEngine {
     this.enemyDummy.x = 300;
     this.enemyDummy.y = 168;
 
+    this.setMonster('DEMON');
+    this.gameLayer.addChild(this.enemyDummy);
+  }
+
+  /**
+   * Renders specialized 32-bit pixel art monsters for Slay the Spire boss battles
+   */
+  public setMonster(type: 'DEMON' | 'GOLEM' | 'WARLORD' | 'MINOTAUR' = 'DEMON'): void {
+    if (!this.enemyDummy) return;
+
+    this.enemyDummy.removeChildren();
     const g = new Graphics();
 
     // Shadow
-    g.ellipse(0, 0, 22, 5).fill({ color: 0x000000, alpha: 0.45 });
+    g.ellipse(0, 0, 26, 6).fill({ color: 0x000000, alpha: 0.5 });
 
-    // Wooden Stand
-    g.rect(-4, -40, 8, 40).fill({ color: 0x6E4720 });
-    g.rect(-16, -2, 32, 4).fill({ color: 0x482E13 });
+    switch (type) {
+      case 'GOLEM': {
+        // LACTIC TITAN (Heavy Iron & Stone Golem)
+        // Granite legs
+        g.rect(-16, -14, 12, 14).fill({ color: 0x334155 });
+        g.rect(4, -14, 12, 14).fill({ color: 0x334155 });
+        // Massive Stone Torso
+        g.rect(-22, -48, 44, 34).fill({ color: 0x475569 });
+        g.rect(-18, -44, 36, 26).fill({ color: 0x64748B });
+        // Glowing Cyan Core Runes
+        g.rect(-6, -38, 12, 14).fill({ color: 0x38B6FF });
+        g.rect(-4, -36, 8, 10).fill({ color: 0xFFFFFF });
+        // Giant Stone Pauldrons
+        g.rect(-28, -52, 12, 16).fill({ color: 0x1E293B });
+        g.rect(16, -52, 12, 16).fill({ color: 0x1E293B });
+        // Golem Head with Glowing Eye Slit
+        g.rect(-12, -68, 24, 20).fill({ color: 0x334155 });
+        g.rect(-8, -60, 16, 4).fill({ color: 0x38B6FF });
+        break;
+      }
 
-    // Straw Armor Body
-    g.rect(-14, -56, 28, 28).fill({ color: 0xC49A45 });
-    g.rect(-10, -52, 20, 20).fill({ color: 0xDFB65B });
-    // Straps
-    g.rect(-14, -46, 28, 4).fill({ color: 0x5C2B14 });
+      case 'WARLORD': {
+        // WARLORD GORECLAW (Dungeon Executioner)
+        // Spiked boots
+        g.rect(-14, -14, 10, 14).fill({ color: 0x18181B });
+        g.rect(4, -14, 10, 14).fill({ color: 0x18181B });
+        // Orc Muscle & Spiked Plate
+        g.rect(-18, -46, 36, 32).fill({ color: 0x27272A });
+        g.rect(-14, -42, 28, 24).fill({ color: 0xDC2626 }); // Blood armor
+        // Spiked Shoulder Pauldrons
+        g.rect(-26, -50, 12, 14).fill({ color: 0x71717A });
+        g.rect(14, -50, 12, 14).fill({ color: 0x71717A });
+        // Giant Battleaxe
+        g.rect(20, -75, 4, 70).fill({ color: 0x52525B });
+        g.rect(14, -70, 16, 18).fill({ color: 0xDC2626 });
+        // Horned Iron Visor Head
+        g.circle(0, -62, 12).fill({ color: 0x27272A });
+        g.rect(-14, -76, 6, 16).fill({ color: 0xF4B41A }); // Horn
+        g.rect(8, -76, 6, 16).fill({ color: 0xF4B41A }); // Horn
+        g.rect(-6, -60, 12, 3).fill({ color: 0xFF3366 }); // Evil eye slit
+        break;
+      }
 
-    // Target Crest (Bullseye)
-    g.circle(0, -42, 6).fill({ color: 0xFF3366 });
-    g.circle(0, -42, 2).fill({ color: 0xFFFFFF });
-
-    // Dummy Head
-    g.circle(0, -66, 10).fill({ color: 0xC49A45 });
-    // Iron Helmet on dummy
-    g.rect(-9, -74, 18, 10).fill({ color: 0x4C566A });
-    g.rect(-7, -68, 14, 3).fill({ color: 0x2E3440 });
+      case 'DEMON':
+      default: {
+        // BELPHEGOR (The Sloth Demon)
+        // Demonic bat wings
+        g.poly([-20, -50, -45, -75, -30, -35]).fill({ color: 0x3B0764, alpha: 0.85 });
+        g.poly([20, -50, 45, -75, 30, -35]).fill({ color: 0x3B0764, alpha: 0.85 });
+        // Hooves
+        g.rect(-12, -12, 8, 12).fill({ color: 0x1E1B4B });
+        g.rect(4, -12, 8, 12).fill({ color: 0x1E1B4B });
+        // Dark Purple Chitin Body
+        g.rect(-16, -46, 32, 34).fill({ color: 0x581C87 });
+        g.rect(-12, -42, 24, 26).fill({ color: 0x7E22CE });
+        // Glowing Demonic Sigil
+        g.circle(0, -32, 5).fill({ color: 0xFF3366 });
+        // Demon Horns
+        g.poly([-8, -65, -18, -85, -4, -68]).fill({ color: 0xF4B41A });
+        g.poly([8, -65, 18, -85, 4, -68]).fill({ color: 0xF4B41A });
+        // Head & Glowing Red Eyes
+        g.circle(0, -58, 12).fill({ color: 0x3B0764 });
+        g.circle(-4, -58, 2.5).fill({ color: 0xFF3366 });
+        g.circle(4, -58, 2.5).fill({ color: 0xFF3366 });
+        break;
+      }
+    }
 
     this.enemyDummy.addChild(g);
-    this.gameLayer.addChild(this.enemyDummy);
+  }
+
+  /**
+   * Animates a fierce monster attack lunge towards the player
+   */
+  public monsterAttackLunge(): void {
+    if (!this.enemyDummy) return;
+
+    const startX = 300;
+    const lungeX = 175; // Right in front of Sir Kettleburne
+
+    this.flashAlpha = 0.65;
+    this.shakeIntensity = 8;
+
+    // Fast forward lunge
+    this.enemyDummy.x = lungeX;
+
+    // Claw slash graphic
+    if (this.effectsLayer) {
+      const claw = new Graphics();
+      claw.moveTo(lungeX - 25, 120);
+      claw.lineTo(lungeX + 15, 160);
+      claw.moveTo(lungeX - 15, 115);
+      claw.lineTo(lungeX + 25, 155);
+      claw.stroke({ width: 3, color: 0xFF3366 });
+      this.effectsLayer.addChild(claw);
+
+      setTimeout(() => {
+        if (claw && !this.isDestroyed) {
+          claw.destroy();
+        }
+      }, 150);
+    }
+
+    // Spring back
+    setTimeout(() => {
+      if (this.enemyDummy) {
+        this.enemyDummy.x = startX;
+      }
+    }, 200);
+  }
+
+  /**
+   * Animates a defensive shield pulse around Sir Kettleburne
+   */
+  public playerShieldPulse(): void {
+    if (!this.effectsLayer || !this.knightContainer) return;
+
+    const shieldG = new Graphics();
+    this.effectsLayer.addChild(shieldG);
+
+    let radius = 18;
+    const maxRadius = 38;
+
+    const animateShield = () => {
+      if (this.isDestroyed || !this.effectsLayer) return;
+      radius += 2.5;
+      const alpha = 1 - (radius / maxRadius);
+
+      shieldG.clear();
+      shieldG.circle(this.knightContainer!.x, this.knightContainer!.y - 28, radius).stroke({
+        width: 3,
+        color: 0x38B6FF,
+        alpha,
+      });
+
+      if (radius < maxRadius) {
+        requestAnimationFrame(animateShield);
+      } else {
+        shieldG.destroy();
+      }
+    };
+    animateShield();
+    audioManager.play('equip');
   }
 
   /**
@@ -464,7 +597,7 @@ export class GameEngine {
   public onRepCompleted(
     power: number = 80, 
     form: number = 1.0, 
-    exercise: 'SWING' | 'SQUAT' | 'OVERHEAD_PRESS' = 'SWING',
+    exercise: ExerciseType = 'SWING',
     skillName?: string
   ): void {
     this.totalRepsCount++;
@@ -588,7 +721,7 @@ export class GameEngine {
     fade();
   }
 
-  private spawnFloatingText(content: string, x: number, y: number, color: number, fontSize: number): void {
+  public spawnFloatingText(content: string, x: number, y: number, color: number, fontSize: number): void {
     if (!this.effectsLayer) return;
 
     const text = new Text({

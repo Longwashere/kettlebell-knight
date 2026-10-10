@@ -4,6 +4,7 @@ import { useTVRemote } from '../hooks/useTVRemote';
 import { networkManager, NetworkConnectionState } from '../../shared/NetworkManager';
 import { HubMenu, HUB_NODES } from './HubMenu';
 import { BlacksmithShop, SHOP_ITEMS } from './BlacksmithShop';
+import { BattleScreen } from './BattleScreen';
 import { QRCodeModal } from './QRCodeModal';
 import { EquipmentItem, HubLocation, RepTelemetry } from '../../types/game';
 import { audioManager } from '../../shared/AudioManager';
@@ -98,6 +99,15 @@ export const GameScreen: React.FC = () => {
             telemetry.form, 
             telemetry.exercise || 'SWING', 
             telemetry.skillName
+          );
+        }
+
+        // Forward to Slay the Spire battle card engine if active
+        if ((window as any).__onKettlebellRepCompleted) {
+          (window as any).__onKettlebellRepCompleted(
+            telemetry.exercise || 'SWING',
+            telemetry.power,
+            telemetry.form
           );
         }
 
@@ -233,11 +243,15 @@ export const GameScreen: React.FC = () => {
         engineRef.current.onRepCompleted(demoPower, demoForm, chosen);
       }
 
+      if ((window as any).__onKettlebellRepCompleted) {
+        (window as any).__onKettlebellRepCompleted(chosen, demoPower, demoForm);
+      }
+
       setSessionReps((prev) => prev + 1);
       setHighestPower((prev) => Math.max(prev, demoPower));
       setPlayerGold((prev) => prev + Math.round(demoPower * 0.5));
     },
-  });
+  }, { enabled: currentView !== 'COMBAT' });
 
   const toggleMute = () => {
     const muted = audioManager.toggleMute();
@@ -260,9 +274,15 @@ export const GameScreen: React.FC = () => {
         CRITICAL REQUIREMENT:
         React DOM Overlay (z-index: 10) for 10-foot Fire TV UI
       */}
-      <div className="relative z-10 w-full h-full flex flex-col justify-between p-6 pointer-events-auto">
-        {/* Top TV HUD Header */}
-        <header className="flex items-center justify-between">
+      {currentView === 'COMBAT' ? (
+        <BattleScreen
+          engineRef={engineRef}
+          onExitBattle={() => setCurrentView('HUB')}
+        />
+      ) : (
+        <div className="relative z-10 w-full h-full flex flex-col justify-between p-6 pointer-events-auto">
+          {/* Top TV HUD Header */}
+          <header className="flex items-center justify-between">
           {/* RPG Knight Profile & Health/XP */}
           <div className="flex items-center space-x-4 bg-[#1A1926]/90 border-4 border-[#2E2B44] px-4 py-2.5 rounded shadow-pixel-box backdrop-blur-sm">
             <div className="w-10 h-10 rounded bg-[#F4B41A] text-[#0F0E17] flex items-center justify-center font-bold text-xl font-pixel shadow-pixel-box">
@@ -374,40 +394,6 @@ export const GameScreen: React.FC = () => {
             />
           )}
 
-          {currentView === 'COMBAT' && (
-            <div className="bg-[#1A1926]/95 border-4 border-[#FF3366] p-6 max-w-xl w-full text-center rounded shadow-pixel-box backdrop-blur-md">
-              <div className="w-12 h-12 mx-auto bg-[#FF3366]/20 border-2 border-[#FF3366] flex items-center justify-center rounded-full mb-3">
-                <Swords className="w-6 h-6 text-[#FF3366]" />
-              </div>
-              <h2 className="text-sm font-pixel text-[#FF3366] mb-1">DUNGEON BATTLE ACTIVE</h2>
-              <p className="text-xs text-[#A7A9BE] font-mono mb-4">
-                Execute explosive kettlebell swings! High-power lockout hits damage the straw dummy target.
-              </p>
-
-              <div className="bg-[#0F0E17] border-2 border-[#2E2B44] p-4 rounded mb-4 grid grid-cols-3 gap-2 text-center">
-                <div>
-                  <span className="text-[9px] font-pixel text-[#A7A9BE] block">SESSION REPS</span>
-                  <span className="text-xl font-pixel text-[#F4B41A]">{sessionReps}</span>
-                </div>
-                <div>
-                  <span className="text-[9px] font-pixel text-[#A7A9BE] block">GOLD EARNED</span>
-                  <span className="text-xl font-pixel text-[#00EB88]">+{sessionReps * 45} GP</span>
-                </div>
-                <div>
-                  <span className="text-[9px] font-pixel text-[#A7A9BE] block">TARGET</span>
-                  <span className="text-xl font-pixel text-[#38B6FF]">20 REPS</span>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setCurrentView('HUB')}
-                className="bg-[#2E2B44] hover:bg-[#3E3B5E] text-white font-pixel text-[10px] py-2 px-6 border-2 border-black shadow-pixel-box"
-              >
-                [BACK / ESC] RETURN TO HUB
-              </button>
-            </div>
-          )}
-
           {currentView === 'ALCHEMIST' && (
             <div className="bg-[#1A1926]/95 border-4 border-[#38B6FF] p-6 max-w-lg w-full text-center rounded shadow-pixel-box backdrop-blur-md">
               <h2 className="text-sm font-pixel text-[#38B6FF] mb-2">ALCHEMIST'S APOTHECARY</h2>
@@ -475,6 +461,7 @@ export const GameScreen: React.FC = () => {
           </div>
         </footer>
       </div>
+      )}
 
       {/* QR Code Modal for Phone Pairing */}
       <QRCodeModal
