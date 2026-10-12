@@ -1,63 +1,55 @@
 import { NormalizedLandmark, POSE_INDEX } from './KinematicTracker';
 
 export interface KnightArmorRenderOptions {
-  glowPower?: number; // 0 - 150 (drives aura and gauntlet sparks)
+  glowPower?: number; // 0 - 150 (drives aura and weapon sparks)
   activePhase?: number; // 0 (Hike/Prep), 1 (Drive), 2 (Lockout)
   showHelmet?: boolean;
   showChestplate?: boolean;
   showPauldrons?: boolean;
   showGauntlets?: boolean;
   showLegArmor?: boolean;
-  heraldryColor?: string; // default gold '#F4B41A'
+  showWeapons?: boolean; // defaults to true (Buster Sword & Kettlebell Shield)
+  heraldryColor?: string;
 }
 
 /**
- * 32-Bit Dark Fantasy Palette:
- * Abyssal Forged Iron, Blood-Iron Highlights, Antique Tarnished Gold Filigree, and Cursed Soulfire.
+ * Pixel-Perfect Palette matched directly from the 32-bit Kettlebell Knight reference artwork:
+ * Heavy Cast-Iron Slate Blue, Weathered Metal Highlights, and Fiery Molten T-Visor Glow.
  */
-const PALETTE = {
-  // Abyssal Black Iron & Damascus Steel
-  abyss: '#0A0910',
-  ironShadow: '#151322',
-  ironDark: '#221E36',
-  ironMid: '#363054',
-  ironPlate: '#4C4472',
-  ironLight: '#6B619B',
-  ironHighlight: '#9A8FD1',
-  ironSpecular: '#C4BCF2',
+const KB_PALETTE = {
+  // Heavy Cast-Iron Steel
+  outline: '#13141C',
+  ironDarkest: '#1C1F2B',
+  ironShadow: '#282E40',
+  ironMid: '#3C445C',
+  ironPlate: '#525E7E',
+  ironLight: '#7584A6',
+  ironHighlight: '#A0B0D1',
+  ironGlint: '#D4E0F4',
 
-  // Antique Tarnished Gold / Cursed Brass Filigree
-  goldDeep: '#3D2403',
-  goldShadow: '#6B4208',
-  goldMid: '#A86C10',
-  goldPlate: '#D9911C',
-  goldHighlight: '#F5B738',
-  goldGlint: '#FFE885',
+  // Molten Forge Visor Glow
+  visorDark: '#8A1500',
+  visorRed: '#C92A00',
+  visorOrange: '#FF5900',
+  visorAmber: '#FFA71A',
+  visorCore: '#FFF4A3',
 
-  // Blood Embers & Dark Magic Core
-  bloodGlow: '#9E0B28',
-  bloodFlame: '#E01A4F',
-  bloodBright: '#FF3366',
-  bloodCore: '#FF6B8B',
-  soulCyan: '#00F5D4',
-  soulViolet: '#A855F7',
-  amberFlame: '#F59E0B',
-
-  // Chainmail & Shadow Insets
-  mailShadow: '#0E0D17',
-  mailLink: '#201D30',
-  rubyGlint: '#FF1744',
+  // Stamped Weight & Scratch Marks
+  stampDark: '#161924',
+  stampBevel: '#8291B3',
 };
 
 /**
- * 32-Bit Dark Fantasy Knight Armor Augmented Reality Renderer.
- * Projects imposing gothic plate armor, horned bascinet helm, fluted ribcage cuirass,
- * spired dread pauldrons, bladed gauntlets, and floating soul embers directly onto MediaPipe landmarks.
+ * 32-Bit Kettlebell Knight Augmented Reality Renderer.
+ * Projects the iconic Kettlebell Juggernaut directly onto MediaPipe Pose landmarks:
+ * - Giant cast-iron overhead arch handle sweeping over the shoulders and head
+ * - Cylindrical barrel helmet with mini kettlebell loop and glowing fiery T-visor
+ * - Spherical cast-iron pauldrons stamped with "24kg" and "32kg" weight badges
+ * - Massive round spherical kettlebell breastplate with center reinforcement disc & battle scratches
+ * - Heavy Kettlebell Heater Shield and Kettlebell-Hilt Buster Greatsword
+ * - Chunky spherical knee cops and cast-iron greaves
  */
 export class KnightArmorRenderer {
-  /**
-   * Main render call: draws full 32-bit dark fantasy knight armor overlay
-   */
   public static drawKnightArmor(
     ctx: CanvasRenderingContext2D,
     w: number,
@@ -75,7 +67,7 @@ export class KnightArmorRenderer {
       showPauldrons = true,
       showGauntlets = true,
       showLegArmor = true,
-      heraldryColor = PALETTE.goldHighlight,
+      showWeapons = true,
     } = options;
 
     ctx.save();
@@ -96,7 +88,6 @@ export class KnightArmorRenderer {
     const lAnkle = landmarks[POSE_INDEX.LEFT_ANKLE];
     const rAnkle = landmarks[POSE_INDEX.RIGHT_ANKLE];
 
-    // Check minimum visibility for core anchors
     const isVisible = (p?: NormalizedLandmark, minVis = 0.35) =>
       p && (p.visibility ?? 1) >= minVis;
 
@@ -127,101 +118,148 @@ export class KnightArmorRenderer {
       y: (pLShoulder.y + pRShoulder.y) / 2,
     };
 
-    // 0. AMBIENT DARK SOUL EMBERS (Floating embers around the torso and shoulders)
-    this.drawDarkSoulEmbers(ctx, chestCenter, shoulderWidth, glowPower, activePhase);
+    // 1. GIANT OVERHEAD KETTLEBELL ARCH HANDLE (Drawn in background behind head/body)
+    this.drawOverheadKettlebellHandle(ctx, pLShoulder, pRShoulder, pNose, shoulderWidth);
 
-    // 1. CUIRASS: FLUTED RIBCAGE BREASTPLATE & INFERNAL CORE
+    // 2. ROUND SPHERICAL KETTLEBELL CUIRASS (Belly & Chest)
     if (showChestplate && pLHip && pRHip) {
-      this.drawDarkGothicCuirass(ctx, pLShoulder, pRShoulder, pLHip, pRHip, heraldryColor, activePhase, glowPower);
+      this.drawKettlebellCuirass(ctx, pLShoulder, pRShoulder, pLHip, pRHip, activePhase, glowPower);
     }
 
-    // 2. PAULDRONS: SPIRED DREAD-GUARD SHOULDER GUARDS
+    // 3. SPHERICAL KETTLEBELL PAULDRONS ("24kg" & "32kg" stamped spheres)
     if (showPauldrons) {
-      if (pLElbow) this.drawDarkPlauldron(ctx, pLShoulder, pLElbow, shoulderWidth * 0.32, 'LEFT');
-      if (pRElbow) this.drawDarkPlauldron(ctx, pRShoulder, pRElbow, shoulderWidth * 0.32, 'RIGHT');
+      const pauldronRadius = shoulderWidth * 0.32;
+      // Left on screen (user's right shoulder): 24kg
+      this.drawKettlebellPauldron(ctx, pLShoulder, pLElbow, pauldronRadius, '24kg', 'LEFT');
+      // Right on screen (user's left shoulder): 32kg
+      this.drawKettlebellPauldron(ctx, pRShoulder, pRElbow, pauldronRadius, '32kg', 'RIGHT');
     }
 
-    // 3. VAMBRACES & BLADED GAUNTLETS
+    // 4. VAMBRACES & WEAPONS (Buster Sword in right hand, Heater Shield on left arm)
     if (showGauntlets) {
-      if (pLElbow && pLWrist) this.drawDarkVambrace(ctx, pLElbow, pLWrist, shoulderWidth * 0.17, glowPower, activePhase);
-      if (pRElbow && pRWrist) this.drawDarkVambrace(ctx, pRElbow, pRWrist, shoulderWidth * 0.17, glowPower, activePhase);
+      if (pLElbow && pLWrist) {
+        this.drawIronVambrace(ctx, pLElbow, pLWrist, shoulderWidth * 0.16);
+        if (showWeapons) {
+          // Mount Buster Greatsword on screen-left hand
+          this.drawKettlebellBusterSword(ctx, pLElbow, pLWrist, shoulderWidth * 0.45, glowPower, activePhase);
+        }
+      }
+      if (pRElbow && pRWrist) {
+        this.drawIronVambrace(ctx, pRElbow, pRWrist, shoulderWidth * 0.16);
+        if (showWeapons) {
+          // Mount Kettlebell Heater Shield on screen-right forearm
+          this.drawKettlebellShield(ctx, pRElbow, pRWrist, shoulderWidth * 0.48, activePhase);
+        }
+      }
     }
 
-    // 4. FAULDS, TASSETS & GREAVES
-    if (showLegArmor && pLHip && pRHip) {
-      this.drawDarkFauldsAndTassets(ctx, pLHip, pRHip, shoulderWidth * 0.38);
+    // 5. LEGS: CHUNKY KNEE COPS & GREAVES
+    if (showLegArmor) {
+      const kneeSize = shoulderWidth * 0.18;
+      if (pLKnee) this.drawKettlebellPoleyn(ctx, pLKnee, kneeSize);
+      if (pRKnee) this.drawKettlebellPoleyn(ctx, pRKnee, kneeSize);
 
-      if (pLKnee) this.drawDarkPoleyn(ctx, pLKnee, shoulderWidth * 0.2);
-      if (pRKnee) this.drawDarkPoleyn(ctx, pRKnee, shoulderWidth * 0.2);
-
-      if (pLKnee && pLAnkle) this.drawDarkGreaves(ctx, pLKnee, pLAnkle, shoulderWidth * 0.16);
-      if (pRKnee && pRAnkle) this.drawDarkGreaves(ctx, pRKnee, pRAnkle, shoulderWidth * 0.16);
+      if (pLKnee && pLAnkle) this.drawKettlebellGreave(ctx, pLKnee, pLAnkle, shoulderWidth * 0.16);
+      if (pRKnee && pRAnkle) this.drawKettlebellGreave(ctx, pRKnee, pRAnkle, shoulderWidth * 0.16);
     }
 
-    // 5. GREAT HELM: THE HORNED DREAD BASCINET & CURSED EYE SLITS
+    // 6. HELMET & GLOWING T-VISOR (Drawn in front of the handle)
     if (showHelmet && pNose) {
-      this.drawDarkGreatHelm(ctx, pNose, chestCenter, shoulderWidth * 0.44, activePhase, glowPower);
+      this.drawKettlebellHelmet(ctx, pNose, chestCenter, shoulderWidth * 0.4, activePhase, glowPower);
     }
 
-    // 6. CURSED BLOOD LIGHTNING & DARK SPARKS (When attacking or high velocity)
-    if (glowPower > 70 || activePhase === 1) {
-      if (pLWrist) this.drawCursedLightning(ctx, pLWrist.x, pLWrist.y, glowPower, activePhase);
-      if (pRWrist) this.drawCursedLightning(ctx, pRWrist.x, pRWrist.y, glowPower, activePhase);
+    // 7. ATMOSPHERIC FORGE EMBERS (Rising from the T-Visor and Greatsword)
+    if (glowPower > 60 || activePhase === 1) {
+      if (pNose) this.drawForgeEmbers(ctx, pNose.x, pNose.y, shoulderWidth * 0.5, activePhase);
     }
 
     ctx.restore();
   }
 
   /**
-   * 0. Ambient Floating Dark Soul Embers
-   * Simulates atmospheric embers drifting upward from the knight's charred armor plates.
+   * 1. Giant Overhead Cast-Iron Kettlebell Arch Handle
+   * Loops high above the head from behind the left shoulder to behind the right shoulder.
    */
-  private static drawDarkSoulEmbers(
+  private static drawOverheadKettlebellHandle(
     ctx: CanvasRenderingContext2D,
-    center: { x: number; y: number },
-    bodyWidth: number,
-    power: number,
-    phase: number
+    lS: { x: number; y: number },
+    rS: { x: number; y: number },
+    nose: { x: number; y: number } | null,
+    shoulderWidth: number
   ): void {
-    const time = performance.now() * 0.0015;
-    const emberCount = 14 + (phase === 1 ? 10 : 0);
-    const emberColor = phase === 1 ? PALETTE.soulCyan : PALETTE.bloodFlame;
+    const chestCenterX = (lS.x + rS.x) / 2;
+    const chestCenterY = (lS.y + rS.y) / 2;
+    const headTopY = nose ? nose.y - shoulderWidth * 0.35 : chestCenterY - shoulderWidth * 0.7;
+    const archApexY = headTopY - shoulderWidth * 0.38;
+    const archWidth = shoulderWidth * 0.85;
+    const tubeThickness = Math.max(14, shoulderWidth * 0.14);
 
     ctx.save();
-    for (let i = 0; i < emberCount; i++) {
-      const seed = i * 79.19;
-      const xOffset = Math.sin(time * 0.8 + seed) * (bodyWidth * 0.7);
-      const lifetime = ((time * 0.6 + seed * 0.1) % 1);
-      const yOffset = -lifetime * (bodyWidth * 1.5) + bodyWidth * 0.2;
-      const alpha = Math.sin(lifetime * Math.PI) * (0.4 + (power / 200));
-      const size = (2 + (i % 3) * 1.5) * (phase === 1 ? 1.3 : 1.0);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
-      ctx.fillStyle = emberColor;
-      ctx.shadowColor = emberColor;
-      ctx.shadowBlur = 8;
-      ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
-
-      // Draw diamond / pixel ember mote
-      const px = center.x + xOffset;
-      const py = center.y + yOffset;
-
+    // Path for the big kettlebell arch handle
+    const createArchPath = (yOffset = 0) => {
       ctx.beginPath();
-      ctx.moveTo(px, py - size);
-      ctx.lineTo(px + size * 0.8, py);
-      ctx.lineTo(px, py + size);
-      ctx.lineTo(px - size * 0.8, py);
-      ctx.closePath();
-      ctx.fill();
-    }
+      ctx.moveTo(chestCenterX - archWidth * 0.5, lS.y + 10 + yOffset);
+      ctx.bezierCurveTo(
+        chestCenterX - archWidth * 0.58,
+        archApexY + yOffset,
+        chestCenterX + archWidth * 0.58,
+        archApexY + yOffset,
+        chestCenterX + archWidth * 0.5,
+        rS.y + 10 + yOffset
+      );
+    };
+
+    // Black outer outline
+    ctx.strokeStyle = KB_PALETTE.outline;
+    ctx.lineWidth = tubeThickness + 10;
+    createArchPath();
+    ctx.stroke();
+
+    // Dark shadow tube base
+    ctx.strokeStyle = KB_PALETTE.ironShadow;
+    ctx.lineWidth = tubeThickness + 4;
+    createArchPath();
+    ctx.stroke();
+
+    // Cast-iron plate body
+    ctx.strokeStyle = KB_PALETTE.ironPlate;
+    ctx.lineWidth = tubeThickness;
+    createArchPath();
+    ctx.stroke();
+
+    // Metallic highlight stripe along the outer top curve
+    ctx.strokeStyle = KB_PALETTE.ironHighlight;
+    ctx.lineWidth = tubeThickness * 0.38;
+    ctx.beginPath();
+    ctx.moveTo(chestCenterX - archWidth * 0.42, archApexY + tubeThickness * 0.6);
+    ctx.bezierCurveTo(
+      chestCenterX - archWidth * 0.45,
+      archApexY - tubeThickness * 0.15,
+      chestCenterX + archWidth * 0.45,
+      archApexY - tubeThickness * 0.15,
+      chestCenterX + archWidth * 0.42,
+      archApexY + tubeThickness * 0.6
+    );
+    ctx.stroke();
+
+    // Specular glint at apex
+    ctx.strokeStyle = KB_PALETTE.ironGlint;
+    ctx.lineWidth = tubeThickness * 0.16;
+    ctx.beginPath();
+    ctx.moveTo(chestCenterX - archWidth * 0.18, archApexY - tubeThickness * 0.12);
+    ctx.lineTo(chestCenterX + archWidth * 0.18, archApexY - tubeThickness * 0.12);
+    ctx.stroke();
+
     ctx.restore();
   }
 
   /**
-   * 1. The Horned Dread Bascinet & Cursed Eye Slits (Helm)
-   * Angular blackened steel skull cap, swept-back gothic horn spires,
-   * jagged golden crown trim, and burning crimson/cyan eye slits with trailing flares.
+   * 2. Cylindrical Barrel Helmet, Mini Handle & Glowing Molten T-Visor
    */
-  private static drawDarkGreatHelm(
+  private static drawKettlebellHelmet(
     ctx: CanvasRenderingContext2D,
     nose: { x: number; y: number },
     chestCenter: { x: number; y: number },
@@ -229,411 +267,380 @@ export class KnightArmorRenderer {
     phase: number,
     power: number
   ): void {
-    const headAngle = Math.atan2(nose.x - chestCenter.x, chestCenter.y - nose.y) * 0.35;
-    const helmCenter = { x: nose.x, y: nose.y - radius * 0.22 };
+    const headAngle = Math.atan2(nose.x - chestCenter.x, chestCenter.y - nose.y) * 0.28;
+    const helmCenter = { x: nose.x, y: nose.y - radius * 0.15 };
 
     ctx.save();
     ctx.translate(helmCenter.x, helmCenter.y);
     ctx.rotate(headAngle);
 
-    // --- A. TWIN GOTHIC DEMON HORN SPIRES ---
-    // Left Horn
-    this.drawHornSpire(ctx, -radius * 0.65, -radius * 0.45, -1, radius);
-    // Right Horn
-    this.drawHornSpire(ctx, radius * 0.65, -radius * 0.45, 1, radius);
+    // --- A. ROUND NECK COLLAR / GORGET (Base under helmet) ---
+    const collarW = radius * 1.55;
+    const collarH = radius * 0.42;
+    const collarY = radius * 0.75;
 
-    // --- B. CENTRAL RAZOR COMB RIDGE ---
-    ctx.fillStyle = PALETTE.goldMid;
-    ctx.strokeStyle = PALETTE.abyss;
-    ctx.lineWidth = 3;
+    ctx.fillStyle = KB_PALETTE.ironDarkest;
+    ctx.strokeStyle = KB_PALETTE.outline;
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(-radius * 0.12, -radius * 0.7);
-    ctx.lineTo(0, -radius * 1.4);
-    ctx.lineTo(radius * 0.12, -radius * 0.7);
-    ctx.closePath();
+    ctx.ellipse(0, collarY, collarW * 0.5, collarH * 0.5, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // Gold highlight on crest edge
-    ctx.strokeStyle = PALETTE.goldHighlight;
-    ctx.lineWidth = 1.5;
+    // Collar metallic rim highlight
+    ctx.strokeStyle = KB_PALETTE.ironHighlight;
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(0, -radius * 1.35);
-    ctx.lineTo(0, -radius * 0.75);
+    ctx.ellipse(0, collarY - 2, collarW * 0.45, collarH * 0.35, 0, 0, Math.PI);
     ctx.stroke();
 
-    // --- C. BLACKENED STEEL SKULL DOME (Angled Gothic Polygon) ---
-    const domeGrad = ctx.createLinearGradient(-radius, -radius, radius, radius * 1.2);
-    domeGrad.addColorStop(0, PALETTE.ironLight);
-    domeGrad.addColorStop(0.25, PALETTE.ironMid);
-    domeGrad.addColorStop(0.6, PALETTE.ironDark);
-    domeGrad.addColorStop(0.9, PALETTE.ironShadow);
-    domeGrad.addColorStop(1, PALETTE.abyss);
+    // --- B. MINI KETTLEBELL HANDLE ON TOP OF HELMET ---
+    const miniHandleW = radius * 0.52;
+    const miniHandleH = radius * 0.38;
+    const miniThickness = Math.max(5, radius * 0.11);
 
-    ctx.fillStyle = domeGrad;
-    ctx.strokeStyle = PALETTE.abyss;
+    ctx.strokeStyle = KB_PALETTE.outline;
+    ctx.lineWidth = miniThickness + 4;
+    ctx.beginPath();
+    ctx.arc(0, -radius * 0.85, miniHandleW * 0.5, Math.PI, 0);
+    ctx.stroke();
+
+    ctx.strokeStyle = KB_PALETTE.ironPlate;
+    ctx.lineWidth = miniThickness;
+    ctx.beginPath();
+    ctx.arc(0, -radius * 0.85, miniHandleW * 0.5, Math.PI, 0);
+    ctx.stroke();
+
+    ctx.strokeStyle = KB_PALETTE.ironGlint;
+    ctx.lineWidth = miniThickness * 0.35;
+    ctx.beginPath();
+    ctx.arc(0, -radius * 0.85, miniHandleW * 0.5 - 1, Math.PI * 0.8, Math.PI * 0.2, true);
+    ctx.stroke();
+
+    // --- C. CYLINDRICAL BARREL DOME HELMET ---
+    const helmW = radius * 1.35;
+    const helmH = radius * 1.5;
+
+    // Cast-iron shaded cylinder gradient
+    const helmGrad = ctx.createLinearGradient(-helmW * 0.5, 0, helmW * 0.5, 0);
+    helmGrad.addColorStop(0, KB_PALETTE.ironDarkest);
+    helmGrad.addColorStop(0.18, KB_PALETTE.ironShadow);
+    helmGrad.addColorStop(0.5, KB_PALETTE.ironPlate);
+    helmGrad.addColorStop(0.8, KB_PALETTE.ironLight);
+    helmGrad.addColorStop(0.92, KB_PALETTE.ironHighlight);
+    helmGrad.addColorStop(1, KB_PALETTE.ironDarkest);
+
+    ctx.fillStyle = helmGrad;
+    ctx.strokeStyle = KB_PALETTE.outline;
+    ctx.lineWidth = 4;
+
+    ctx.beginPath();
+    // Rounded dome top tapering to flat barrel chin
+    ctx.roundRect(-helmW * 0.5, -radius * 0.85, helmW, helmH, [
+      radius * 0.65,
+      radius * 0.65,
+      radius * 0.25,
+      radius * 0.25,
+    ]);
+    ctx.fill();
+    ctx.stroke();
+
+    // Horizontal ridge band across the brow
+    ctx.strokeStyle = KB_PALETTE.outline;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-helmW * 0.48, -radius * 0.28);
+    ctx.lineTo(helmW * 0.48, -radius * 0.28);
+    ctx.stroke();
+
+    ctx.strokeStyle = KB_PALETTE.ironGlint;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-helmW * 0.45, -radius * 0.31);
+    ctx.lineTo(helmW * 0.45, -radius * 0.31);
+    ctx.stroke();
+
+    // --- D. GLOWING MOLTEN FIERY T-VISOR SLIT (Key Feature) ---
+    const visorW = radius * 0.82;
+    const visorBarH = Math.max(7, radius * 0.18);
+    const stemW = Math.max(8, radius * 0.24);
+    const stemH = radius * 0.44;
+    const visorY = -radius * 0.08;
+
+    // Helper: Draws the T-Visor polygon path
+    const createTVisorPath = () => {
+      ctx.beginPath();
+      // Top horizontal bar
+      ctx.moveTo(-visorW * 0.5, visorY);
+      ctx.lineTo(visorW * 0.5, visorY);
+      ctx.lineTo(visorW * 0.5, visorY + visorBarH);
+      ctx.lineTo(stemW * 0.5, visorY + visorBarH);
+      // Down vertical stem
+      ctx.lineTo(stemW * 0.5, visorY + visorBarH + stemH);
+      ctx.lineTo(-stemW * 0.5, visorY + visorBarH + stemH);
+      ctx.lineTo(-stemW * 0.5, visorY + visorBarH);
+      ctx.lineTo(-visorW * 0.5, visorY + visorBarH);
+      ctx.closePath();
+    };
+
+    // 1. Dark Black Recessed Cavity
+    ctx.fillStyle = KB_PALETTE.outline;
+    ctx.strokeStyle = KB_PALETTE.outline;
+    ctx.lineWidth = 3;
+    createTVisorPath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 2. Fiery Visor Glow & Bloom
+    const isDrive = phase === 1;
+    ctx.save();
+    ctx.shadowColor = KB_PALETTE.visorOrange;
+    ctx.shadowBlur = isDrive ? 28 : 16;
+
+    // Visor fiery gradient (bright yellow core, deep orange edges)
+    const visorGrad = ctx.createLinearGradient(0, visorY, 0, visorY + visorBarH + stemH);
+    visorGrad.addColorStop(0, KB_PALETTE.visorCore);
+    visorGrad.addColorStop(0.35, KB_PALETTE.visorAmber);
+    visorGrad.addColorStop(0.7, KB_PALETTE.visorOrange);
+    visorGrad.addColorStop(1, KB_PALETTE.visorRed);
+
+    ctx.fillStyle = visorGrad;
+    createTVisorPath();
+    ctx.fill();
+
+    // Superheated white-hot center filament
+    ctx.fillStyle = KB_PALETTE.visorCore;
+    ctx.shadowColor = '#FFFFFF';
+    ctx.shadowBlur = 8;
+    ctx.fillRect(-visorW * 0.42, visorY + 2, visorW * 0.84, visorBarH * 0.45);
+    ctx.fillRect(-stemW * 0.25, visorY + visorBarH, stemW * 0.5, stemH * 0.7);
+
+    ctx.restore();
+
+    ctx.restore();
+  }
+
+  /**
+   * 3. Spherical Cast-Iron Pauldrons ("24kg" & "32kg" Stamped Spheres)
+   */
+  private static drawKettlebellPauldron(
+    ctx: CanvasRenderingContext2D,
+    shoulder: { x: number; y: number },
+    elbow: { x: number; y: number } | null,
+    radius: number,
+    weightText: '24kg' | '32kg',
+    side: 'LEFT' | 'RIGHT'
+  ): void {
+    ctx.save();
+    ctx.translate(shoulder.x, shoulder.y);
+
+    if (elbow) {
+      const angle = Math.atan2(elbow.y - shoulder.y, elbow.x - shoulder.x);
+      // Tilt slightly with the arm
+      ctx.rotate(angle * 0.4);
+    }
+
+    // --- A. UNDER-RING CUFF PLATES (Articulation rings under sphere) ---
+    const cuffW = radius * 1.6;
+    const cuffH = radius * 0.45;
+    ctx.fillStyle = KB_PALETTE.ironDarkest;
+    ctx.strokeStyle = KB_PALETTE.outline;
     ctx.lineWidth = 3.5;
 
     ctx.beginPath();
-    // Angular faceted crown cap
-    ctx.moveTo(0, -radius * 0.95);
-    ctx.lineTo(radius * 0.7, -radius * 0.6);
-    ctx.lineTo(radius * 0.78, radius * 0.1);
-    ctx.lineTo(radius * 0.5, radius * 0.85);
-    ctx.lineTo(0, radius * 1.05); // Sharp beak chin
-    ctx.lineTo(-radius * 0.5, radius * 0.85);
-    ctx.lineTo(-radius * 0.78, radius * 0.1);
-    ctx.lineTo(-radius * 0.7, -radius * 0.6);
-    ctx.closePath();
+    ctx.roundRect(-cuffW * 0.5, radius * 0.45, cuffW, cuffH, [6]);
     ctx.fill();
     ctx.stroke();
 
-    // Specular highlight facet on left skull
-    ctx.fillStyle = PALETTE.ironHighlight;
-    ctx.beginPath();
-    ctx.moveTo(0, -radius * 0.9);
-    ctx.lineTo(-radius * 0.65, -radius * 0.55);
-    ctx.lineTo(-radius * 0.45, -radius * 0.2);
-    ctx.lineTo(-radius * 0.1, -radius * 0.5);
-    ctx.closePath();
-    ctx.globalAlpha = 0.45;
-    ctx.fill();
-    ctx.globalAlpha = 1.0;
+    // Rivets on cuff
+    ctx.fillStyle = KB_PALETTE.ironHighlight;
+    ctx.fillRect(-cuffW * 0.35, radius * 0.6, 4, 4);
+    ctx.fillRect(0, radius * 0.6, 4, 4);
+    ctx.fillRect(cuffW * 0.35 - 4, radius * 0.6, 4, 4);
 
-    // --- D. GOTHIC JAGGED CROWN / BROW BAND ---
-    ctx.fillStyle = PALETTE.goldPlate;
-    ctx.strokeStyle = PALETTE.abyss;
+    // --- B. GIANT SPHERICAL CAST-IRON KETTLEBELL BALL ---
+    const sphereGrad = ctx.createRadialGradient(
+      radius * 0.2,
+      -radius * 0.25,
+      radius * 0.1,
+      0,
+      0,
+      radius * 1.05
+    );
+    sphereGrad.addColorStop(0, KB_PALETTE.ironGlint);
+    sphereGrad.addColorStop(0.2, KB_PALETTE.ironHighlight);
+    sphereGrad.addColorStop(0.55, KB_PALETTE.ironPlate);
+    sphereGrad.addColorStop(0.85, KB_PALETTE.ironShadow);
+    sphereGrad.addColorStop(1, KB_PALETTE.ironDarkest);
+
+    ctx.fillStyle = sphereGrad;
+    ctx.strokeStyle = KB_PALETTE.outline;
+    ctx.lineWidth = 4;
+
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Outer crescent shadow line for 3D depth
+    ctx.strokeStyle = KB_PALETTE.outline;
     ctx.lineWidth = 2.5;
-
     ctx.beginPath();
-    ctx.moveTo(-radius * 0.74, -radius * 0.22);
-    ctx.lineTo(-radius * 0.4, -radius * 0.35);
-    ctx.lineTo(0, -radius * 0.2);
-    ctx.lineTo(radius * 0.4, -radius * 0.35);
-    ctx.lineTo(radius * 0.74, -radius * 0.22);
-    ctx.lineTo(radius * 0.72, -radius * 0.08);
-    ctx.lineTo(0, -radius * 0.06);
-    ctx.lineTo(-radius * 0.72, -radius * 0.08);
-    ctx.closePath();
-    ctx.fill();
+    ctx.arc(0, 0, radius - 2, Math.PI * 0.3, Math.PI * 1.2);
     ctx.stroke();
 
-    // Gold filigree studs on brow band
-    ctx.fillStyle = PALETTE.goldGlint;
-    for (let c = -3; c <= 3; c++) {
-      ctx.fillRect(c * radius * 0.2 - 2, -radius * 0.18 - 2, 4, 4);
-    }
+    // --- C. STAMPED WEIGHT ENGRAVING ("24kg" / "32kg") ---
+    const fontSize = Math.max(10, Math.round(radius * 0.42));
+    ctx.font = `900 ${fontSize}px "Courier New", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
 
-    // --- E. VISOR SLIT & BURNING DEMON EYE EMISSION ---
-    const eyeColor = phase === 1 ? PALETTE.soulCyan : PALETTE.bloodFlame;
-    const eyeCore = phase === 1 ? '#E0FFFF' : PALETTE.bloodBright;
-
-    // Dark Visor Recess
-    ctx.fillStyle = PALETTE.abyss;
-    ctx.beginPath();
-    ctx.moveTo(-radius * 0.62, -radius * 0.04);
-    ctx.lineTo(-radius * 0.05, radius * 0.08);
-    ctx.lineTo(0, radius * 0.09);
-    ctx.lineTo(radius * 0.05, radius * 0.08);
-    ctx.lineTo(radius * 0.62, -radius * 0.04);
-    ctx.lineTo(radius * 0.58, radius * 0.15);
-    ctx.lineTo(0, radius * 0.22);
-    ctx.lineTo(-radius * 0.58, radius * 0.15);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Intense Glowing Slit Eyes with Trailing Wisps
+    const textAngle = side === 'LEFT' ? -0.22 : 0.22;
     ctx.save();
-    ctx.shadowColor = eyeColor;
-    ctx.shadowBlur = phase === 1 ? 22 : 14;
+    ctx.rotate(textAngle);
 
-    // Left Eye Flare
-    ctx.fillStyle = eyeColor;
-    ctx.beginPath();
-    ctx.moveTo(-radius * 0.5, 0);
-    ctx.lineTo(-radius * 0.12, radius * 0.07);
-    ctx.lineTo(-radius * 0.15, radius * 0.14);
-    ctx.lineTo(-radius * 0.52, radius * 0.06);
-    ctx.closePath();
-    ctx.fill();
+    // Embossed shadow (debossed into cast-iron)
+    ctx.fillStyle = KB_PALETTE.stampDark;
+    ctx.fillText(weightText, 0, 1.5);
 
-    // Right Eye Flare
-    ctx.beginPath();
-    ctx.moveTo(radius * 0.12, radius * 0.07);
-    ctx.lineTo(radius * 0.5, 0);
-    ctx.lineTo(radius * 0.52, radius * 0.06);
-    ctx.lineTo(radius * 0.15, radius * 0.14);
-    ctx.closePath();
-    ctx.fill();
+    // Light bevel highlight edge
+    ctx.fillStyle = KB_PALETTE.stampBevel;
+    ctx.fillText(weightText, -0.5, -0.5);
 
-    // Superheated Inner Eye Pupil Lines
-    ctx.fillStyle = eyeCore;
-    ctx.shadowBlur = 8;
-    ctx.fillRect(-radius * 0.44, radius * 0.02, radius * 0.28, 3.5);
-    ctx.fillRect(radius * 0.16, radius * 0.02, radius * 0.28, 3.5);
-
-    // Trailing soulfire flame wisps outside eye slit
-    const flameWisp = Math.sin(performance.now() * 0.012) * 5;
-    ctx.strokeStyle = eyeColor;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-radius * 0.5, 0);
-    ctx.quadraticCurveTo(-radius * 0.75, -radius * 0.15 + flameWisp, -radius * 0.95, -radius * 0.3);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(radius * 0.5, 0);
-    ctx.quadraticCurveTo(radius * 0.75, -radius * 0.15 - flameWisp, radius * 0.95, -radius * 0.3);
-    ctx.stroke();
+    // Primary dark engraved ink
+    ctx.fillStyle = KB_PALETTE.ironDarkest;
+    ctx.fillText(weightText, 0, 0);
 
     ctx.restore();
-
-    // --- F. GOTHIC RESPIRATORY BEVOR (Vertical Breathing Slits) ---
-    ctx.fillStyle = PALETTE.abyss;
-    const slitWidth = Math.max(2, radius * 0.035);
-    const slitSpacing = radius * 0.09;
-    for (let r = -3; r <= 3; r++) {
-      const slitHeight = radius * 0.26 - Math.abs(r) * radius * 0.04;
-      const slitY = radius * 0.38 + Math.abs(r) * 2;
-      ctx.fillRect(r * slitSpacing - slitWidth * 0.5, slitY, slitWidth, slitHeight);
-
-      // Faint interior ember glow inside the grille
-      ctx.fillStyle = phase === 1 ? PALETTE.soulCyan : PALETTE.bloodGlow;
-      ctx.fillRect(r * slitSpacing - slitWidth * 0.5 + 0.5, slitY + 2, slitWidth - 1, slitHeight - 4);
-      ctx.fillStyle = PALETTE.abyss;
-    }
-
-    // Heavy chin bezel rivets
-    ctx.fillStyle = PALETTE.goldPlate;
-    ctx.fillRect(-radius * 0.35, radius * 0.78, 4, 4);
-    ctx.fillRect(radius * 0.35 - 4, radius * 0.78, 4, 4);
-    ctx.fillRect(-2, radius * 0.95, 4, 4);
 
     ctx.restore();
   }
 
   /**
-   * Helper: Draws an aggressive curved gothic demon horn spire
+   * 4. Massive Round Spherical Kettlebell Cuirass (Breastplate & Belly)
+   * The entire torso is a giant cast-iron kettlebell with center circular medallion & battle scars!
    */
-  private static drawHornSpire(
-    ctx: CanvasRenderingContext2D,
-    startX: number,
-    startY: number,
-    direction: number, // -1 (left), 1 (right)
-    scale: number
-  ): void {
-    ctx.save();
-    ctx.fillStyle = PALETTE.ironDark;
-    ctx.strokeStyle = PALETTE.abyss;
-    ctx.lineWidth = 3;
-
-    // Horn silhouette sweeping outward and upward
-    ctx.beginPath();
-    ctx.moveTo(startX, startY);
-    ctx.quadraticCurveTo(
-      startX + direction * scale * 0.5,
-      startY - scale * 0.6,
-      startX + direction * scale * 0.7,
-      startY - scale * 1.15
-    );
-    // Tip hook
-    ctx.lineTo(startX + direction * scale * 0.65, startY - scale * 1.1);
-    ctx.quadraticCurveTo(
-      startX + direction * scale * 0.35,
-      startY - scale * 0.45,
-      startX - direction * scale * 0.15,
-      startY - scale * 0.1
-    );
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Gold filigree tip on the horn
-    ctx.fillStyle = PALETTE.goldHighlight;
-    ctx.beginPath();
-    ctx.moveTo(startX + direction * scale * 0.58, startY - scale * 0.9);
-    ctx.lineTo(startX + direction * scale * 0.7, startY - scale * 1.15);
-    ctx.lineTo(startX + direction * scale * 0.5, startY - scale * 0.82);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.restore();
-  }
-
-  /**
-   * 2. The Fluted Ribcage Cuirass & Infernal Relic Core (Torso)
-   * High gothic gorget, anatomical ribbed plates, tarnished gold filigree,
-   * glowing Kettlebell infernal relic seal, and expanding occult drive shockwave.
-   */
-  private static drawDarkGothicCuirass(
+  private static drawKettlebellCuirass(
     ctx: CanvasRenderingContext2D,
     lS: { x: number; y: number },
     rS: { x: number; y: number },
     lH: { x: number; y: number },
     rH: { x: number; y: number },
-    heraldryColor: string,
     phase: number,
     power: number
   ): void {
     ctx.save();
 
-    // Body dimensions
-    const chestWidth = Math.hypot(lS.x - rS.x, lS.y - rS.y);
+    const shoulderDist = Math.hypot(lS.x - rS.x, lS.y - rS.y);
     const chestCenterX = (lS.x + rS.x + lH.x + rH.x) / 4;
-    const chestCenterY = (lS.y + rS.y) / 2 + ((lH.y + rH.y) / 2 - (lS.y + rS.y) / 2) * 0.35;
-    const waistWidth = Math.hypot(lH.x - rH.x, lH.y - rH.y);
+    const chestCenterY = (lS.y + rS.y) / 2 + ((lH.y + rH.y) / 2 - (lS.y + rS.y) / 2) * 0.42;
+    const bellRadius = shoulderDist * 0.58;
 
-    // --- A. UNDERLAYER CHAINMAIL SHROUD ---
-    ctx.fillStyle = PALETTE.mailShadow;
-    ctx.strokeStyle = PALETTE.abyss;
-    ctx.lineWidth = 3;
+    // --- A. GIANT SPHERICAL KETTLEBELL BELLY (3D Cast-Iron Shading) ---
+    const bellGrad = ctx.createRadialGradient(
+      chestCenterX + bellRadius * 0.15,
+      chestCenterY - bellRadius * 0.25,
+      bellRadius * 0.08,
+      chestCenterX,
+      chestCenterY,
+      bellRadius * 1.05
+    );
+    bellGrad.addColorStop(0, KB_PALETTE.ironGlint);
+    bellGrad.addColorStop(0.25, KB_PALETTE.ironHighlight);
+    bellGrad.addColorStop(0.6, KB_PALETTE.ironPlate);
+    bellGrad.addColorStop(0.85, KB_PALETTE.ironShadow);
+    bellGrad.addColorStop(1, KB_PALETTE.ironDarkest);
+
+    ctx.fillStyle = bellGrad;
+    ctx.strokeStyle = KB_PALETTE.outline;
+    ctx.lineWidth = 5;
+
     ctx.beginPath();
-    ctx.moveTo(lS.x - 14, lS.y);
-    ctx.lineTo(rS.x + 14, rS.y);
-    ctx.lineTo(rH.x + 16, rH.y + 6);
-    ctx.lineTo(lH.x - 16, lH.y + 6);
-    ctx.closePath();
+    ctx.arc(chestCenterX, chestCenterY, bellRadius, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // --- B. BLACKENED IRON CUIRASS SHELL ---
-    const cuirassGrad = ctx.createLinearGradient(lS.x, lS.y, rH.x, rH.y);
-    cuirassGrad.addColorStop(0, PALETTE.ironLight);
-    cuirassGrad.addColorStop(0.2, PALETTE.ironPlate);
-    cuirassGrad.addColorStop(0.55, PALETTE.ironDark);
-    cuirassGrad.addColorStop(0.85, PALETTE.ironShadow);
-    cuirassGrad.addColorStop(1, PALETTE.abyss);
+    // --- B. CENTRAL CIRCULAR REINFORCEMENT MEDALLION ---
+    const medalRadius = bellRadius * 0.46;
+    const medalGrad = ctx.createLinearGradient(
+      chestCenterX - medalRadius,
+      chestCenterY - medalRadius,
+      chestCenterX + medalRadius,
+      chestCenterY + medalRadius
+    );
+    medalGrad.addColorStop(0, KB_PALETTE.ironHighlight);
+    medalGrad.addColorStop(0.4, KB_PALETTE.ironPlate);
+    medalGrad.addColorStop(0.9, KB_PALETTE.ironShadow);
+    medalGrad.addColorStop(1, KB_PALETTE.ironDarkest);
 
-    ctx.fillStyle = cuirassGrad;
+    ctx.fillStyle = medalGrad;
+    ctx.strokeStyle = KB_PALETTE.outline;
     ctx.lineWidth = 3.5;
 
-    // Segmented Gothic Silhouette
     ctx.beginPath();
-    ctx.moveTo(lS.x - 10, lS.y - 8); // High gorget corner
-    ctx.lineTo(chestCenterX, (lS.y + rS.y) / 2 - 12); // Neck peak
-    ctx.lineTo(rS.x + 10, rS.y - 8);
-    ctx.lineTo(rS.x + 14, (lS.y + rS.y) / 2 + 30); // Lat taper
-    ctx.lineTo(rH.x + 12, rH.y - 4);
-    ctx.lineTo(chestCenterX, (lH.y + rH.y) / 2 + 10); // Waist V-point
-    ctx.lineTo(lH.x - 12, lH.y - 4);
-    ctx.lineTo(lS.x - 14, (lS.y + rS.y) / 2 + 30);
-    ctx.closePath();
+    ctx.arc(chestCenterX, chestCenterY, medalRadius, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // --- C. ANATOMICAL GOTHIC RIBCAGE FLUTING ---
-    const ribTiers = [0.3, 0.48, 0.66, 0.82];
-    ribTiers.forEach((ratio, idx) => {
-      const leftX = lS.x + (lH.x - lS.x) * ratio;
-      const rightX = rS.x + (rH.x - rS.x) * ratio;
-      const yVal = (lS.y + rS.y) / 2 + ((lH.y + rH.y) / 2 - (lS.y + rS.y) / 2) * ratio;
+    // Medallion inner rim bevel
+    ctx.strokeStyle = KB_PALETTE.ironGlint;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(chestCenterX, chestCenterY, medalRadius - 2.5, Math.PI * 0.8, Math.PI * 1.8);
+    ctx.stroke();
 
-      // Dark shadow flute groove
-      ctx.strokeStyle = PALETTE.abyss;
-      ctx.lineWidth = 3.5;
-      ctx.beginPath();
-      ctx.moveTo(leftX, yVal - 4);
-      ctx.lineTo(chestCenterX, yVal + 10);
-      ctx.lineTo(rightX, yVal - 4);
-      ctx.stroke();
-
-      // Sharp metallic highlight edge along each rib crest
-      ctx.strokeStyle = PALETTE.ironHighlight;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(leftX + 4, yVal - 7);
-      ctx.lineTo(chestCenterX, yVal + 7);
-      ctx.lineTo(rightX - 4, yVal - 7);
-      ctx.stroke();
-
-      // Gold filigree rivet studs along the rib junctions
-      ctx.fillStyle = PALETTE.goldPlate;
-      ctx.fillRect(leftX + 6, yVal - 6, 3.5, 3.5);
-      ctx.fillRect(rightX - 9, yVal - 6, 3.5, 3.5);
-    });
-
-    // --- D. GOTHIC STERNUM KEEL RIDGE ---
-    ctx.strokeStyle = PALETTE.goldPlate;
+    // --- C. BATTLE SLASH SCRATCHES ACROSS MEDALLION (Just like artwork!) ---
+    ctx.strokeStyle = KB_PALETTE.outline;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.moveTo(chestCenterX, (lS.y + rS.y) / 2 - 8);
-    ctx.lineTo(chestCenterX, (lH.y + rH.y) / 2 + 8);
+    // Scratch 1 (long diagonal slash)
+    ctx.moveTo(chestCenterX - medalRadius * 0.5, chestCenterY - medalRadius * 0.35);
+    ctx.lineTo(chestCenterX + medalRadius * 0.45, chestCenterY + medalRadius * 0.4);
+    // Scratch 2 (secondary nick)
+    ctx.moveTo(chestCenterX - medalRadius * 0.2, chestCenterY - medalRadius * 0.5);
+    ctx.lineTo(chestCenterX + medalRadius * 0.15, chestCenterY - medalRadius * 0.1);
     ctx.stroke();
 
-    // --- E. CENTRAL INFERNAL KETTLEBELL RELIC SEAL ---
-    const emblemRadius = Math.max(14, chestWidth * 0.16);
-
-    // Relic Arch Diamond Frame (Tarnished Gold)
-    ctx.fillStyle = PALETTE.ironDark;
-    ctx.strokeStyle = PALETTE.goldHighlight;
-    ctx.lineWidth = 3;
+    // Highlight edge along the scratches
+    ctx.strokeStyle = KB_PALETTE.ironGlint;
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(chestCenterX, chestCenterY - emblemRadius * 1.35);
-    ctx.lineTo(chestCenterX + emblemRadius * 1.25, chestCenterY);
-    ctx.lineTo(chestCenterX, chestCenterY + emblemRadius * 1.35);
-    ctx.lineTo(chestCenterX - emblemRadius * 1.25, chestCenterY);
-    ctx.closePath();
+    ctx.moveTo(chestCenterX - medalRadius * 0.5 + 1, chestCenterY - medalRadius * 0.35 + 1);
+    ctx.lineTo(chestCenterX + medalRadius * 0.45 + 1, chestCenterY + medalRadius * 0.4 + 1);
+    ctx.stroke();
+
+    // --- D. BOTTOM WAIST LIP / RIM BAND ---
+    const lipY = chestCenterY + bellRadius * 0.68;
+    const lipW = bellRadius * 1.45;
+
+    ctx.fillStyle = KB_PALETTE.ironShadow;
+    ctx.strokeStyle = KB_PALETTE.outline;
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.roundRect(chestCenterX - lipW * 0.5, lipY, lipW, bellRadius * 0.22, [8]);
     ctx.fill();
     ctx.stroke();
 
-    // Glowing Inner Occult Chamber
-    const coreGlow = phase === 1 ? PALETTE.soulCyan : PALETTE.bloodFlame;
-    ctx.save();
-    ctx.shadowColor = coreGlow;
-    ctx.shadowBlur = phase === 1 ? 24 : 12;
-
-    // Glowing Kettlebell Bell Body
-    ctx.fillStyle = coreGlow;
-    ctx.beginPath();
-    ctx.arc(chestCenterX, chestCenterY + emblemRadius * 0.28, emblemRadius * 0.68, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Kettlebell Horned Demonic Handle
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = PALETTE.goldHighlight;
-    ctx.beginPath();
-    ctx.arc(chestCenterX, chestCenterY - emblemRadius * 0.22, emblemRadius * 0.52, Math.PI * 0.9, Math.PI * 0.1);
-    ctx.stroke();
-
-    // Occult Crosshair / Seal Runes inside the Kettlebell Core
-    ctx.strokeStyle = PALETTE.abyss;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(chestCenterX - emblemRadius * 0.45, chestCenterY + emblemRadius * 0.28);
-    ctx.lineTo(chestCenterX + emblemRadius * 0.45, chestCenterY + emblemRadius * 0.28);
-    ctx.moveTo(chestCenterX, chestCenterY - emblemRadius * 0.15);
-    ctx.lineTo(chestCenterX, chestCenterY + emblemRadius * 0.7);
-    ctx.stroke();
-
-    ctx.restore();
-
-    // --- F. DRIVE PHASE / EXPLOSIVE REP OCCULT SHOCKWAVE ---
-    if (phase === 1 || power > 80) {
-      const pulseTime = (performance.now() * 0.005) % (Math.PI * 2);
-      const ringScale = 1.3 + Math.sin(pulseTime) * 0.25;
-
-      ctx.save();
-      ctx.strokeStyle = phase === 1 ? PALETTE.soulCyan : PALETTE.bloodBright;
-      ctx.shadowColor = phase === 1 ? PALETTE.soulCyan : PALETTE.bloodBright;
-      ctx.shadowBlur = 18;
-      ctx.lineWidth = 2.5;
-
-      // Outer Runic Shockwave Ring
+    // Heavy round rivets on waist lip
+    ctx.fillStyle = KB_PALETTE.ironGlint;
+    const rivetCount = 5;
+    for (let i = 0; i < rivetCount; i++) {
+      const rx = chestCenterX - lipW * 0.4 + (i * (lipW * 0.8)) / (rivetCount - 1);
       ctx.beginPath();
-      ctx.arc(chestCenterX, chestCenterY, emblemRadius * ringScale * 1.6, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.arc(rx, lipY + bellRadius * 0.11, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
-      // Cardinal occult spike teeth radiating outward
-      for (let a = 0; a < 8; a++) {
-        const rad = (a * Math.PI) / 4 + pulseTime * 0.5;
-        const innerR = emblemRadius * ringScale * 1.6;
-        const outerR = innerR + 10;
-        ctx.beginPath();
-        ctx.moveTo(chestCenterX + Math.cos(rad) * innerR, chestCenterY + Math.sin(rad) * innerR);
-        ctx.lineTo(chestCenterX + Math.cos(rad) * outerR, chestCenterY + Math.sin(rad) * outerR);
-        ctx.stroke();
-      }
+    // --- E. DRIVE PHASE FORGE PULSE RING ---
+    if (phase === 1 || power > 80) {
+      ctx.save();
+      ctx.strokeStyle = KB_PALETTE.visorOrange;
+      ctx.shadowColor = KB_PALETTE.visorAmber;
+      ctx.shadowBlur = 18;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(chestCenterX, chestCenterY, medalRadius * 1.35, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.restore();
     }
 
@@ -641,100 +648,13 @@ export class KnightArmorRenderer {
   }
 
   /**
-   * 3. Spired Dread-Guard Pauldrons (Shoulder Guards)
-   * High upward-curving gothic sword-breaker spire, tiered scalloped dragon-plates,
-   * antique gold filigree trims, and blood-ruby rivet studs.
+   * 5. Chunky Cast-Iron Forearm Vambraces & Gauntlets
    */
-  private static drawDarkPlauldron(
-    ctx: CanvasRenderingContext2D,
-    shoulder: { x: number; y: number },
-    elbow: { x: number; y: number },
-    size: number,
-    side: 'LEFT' | 'RIGHT'
-  ): void {
-    const angle = Math.atan2(elbow.y - shoulder.y, elbow.x - shoulder.x);
-    const isLeft = side === 'LEFT';
-
-    ctx.save();
-    ctx.translate(shoulder.x, shoulder.y);
-    ctx.rotate(angle);
-
-    // --- A. UPWARD GOTHIC SWORD-BREAKER SPIRE (Garde-Bras) ---
-    ctx.fillStyle = PALETTE.ironDark;
-    ctx.strokeStyle = PALETTE.abyss;
-    ctx.lineWidth = 3;
-
-    ctx.beginPath();
-    ctx.moveTo(0, -size * 0.4);
-    // Vicious upward-curving horn blade
-    ctx.quadraticCurveTo(size * 0.2, -size * 1.25, size * 0.45, -size * 1.65);
-    ctx.lineTo(size * 0.35, -size * 1.55);
-    ctx.quadraticCurveTo(size * 0.15, -size * 0.9, -size * 0.25, -size * 0.35);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Gold filigree edge on blade spire
-    ctx.strokeStyle = PALETTE.goldHighlight;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, -size * 0.4);
-    ctx.quadraticCurveTo(size * 0.2, -size * 1.25, size * 0.45, -size * 1.65);
-    ctx.stroke();
-
-    // --- B. TIERED SCALLOPED PLATES (Dragon-Scale Armor) ---
-    const tiers = [
-      { offset: -size * 0.1, scale: 1.05, color: PALETTE.ironMid, gold: true },
-      { offset: size * 0.25, scale: 0.9, color: PALETTE.ironDark, gold: true },
-      { offset: size * 0.55, scale: 0.72, color: PALETTE.ironShadow, gold: false },
-    ];
-
-    tiers.forEach(({ offset, scale, color, gold }) => {
-      // Plate body
-      ctx.fillStyle = color;
-      ctx.strokeStyle = PALETTE.abyss;
-      ctx.lineWidth = 3;
-
-      ctx.beginPath();
-      // Scalloped pointed gothic plate
-      ctx.ellipse(offset, 0, size * scale * 0.85, size * scale * 0.6, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      // Gold filigree rim on top tiers
-      if (gold) {
-        ctx.strokeStyle = PALETTE.goldPlate;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(offset + size * scale * 0.3, 0, size * scale * 0.48, -Math.PI * 0.5, Math.PI * 0.5);
-        ctx.stroke();
-      }
-
-      // Blood-ruby rivet stud
-      ctx.fillStyle = PALETTE.bloodBright;
-      ctx.beginPath();
-      ctx.arc(offset + size * scale * 0.45, 0, Math.max(2.5, size * 0.08), 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = PALETTE.goldDeep;
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    });
-
-    ctx.restore();
-  }
-
-  /**
-   * 4. Bladed Couters & Vambraces (Elbow & Forearm Armor)
-   * Pointed diamond elbow couter with rear thorn spike, outer parrying blade fin,
-   * clawed gauntlets, and pulsating knuckle power gems.
-   */
-  private static drawDarkVambrace(
+  private static drawIronVambrace(
     ctx: CanvasRenderingContext2D,
     elbow: { x: number; y: number },
     wrist: { x: number; y: number },
-    thickness: number,
-    power: number,
-    phase: number
+    thickness: number
   ): void {
     const angle = Math.atan2(wrist.y - elbow.y, wrist.x - elbow.x);
     const length = Math.hypot(wrist.x - elbow.x, wrist.y - elbow.y);
@@ -743,212 +663,242 @@ export class KnightArmorRenderer {
     ctx.translate(elbow.x, elbow.y);
     ctx.rotate(angle);
 
-    // --- A. GOTHIC POINTED ELBOW COUTER (Thorn Spike) ---
-    ctx.fillStyle = PALETTE.ironDark;
-    ctx.strokeStyle = PALETTE.abyss;
-    ctx.lineWidth = 2.5;
-
-    ctx.beginPath();
-    ctx.moveTo(-thickness * 0.6, -thickness * 0.5);
-    ctx.lineTo(-thickness * 1.4, 0); // Pointed thorn spike pointing back
-    ctx.lineTo(-thickness * 0.6, thickness * 0.5);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // --- B. VAMBRACE SHAFT & OUTER PARRYING BLADE FIN ---
-    const vambraceGrad = ctx.createLinearGradient(0, -thickness, 0, thickness);
-    vambraceGrad.addColorStop(0, PALETTE.ironLight);
-    vambraceGrad.addColorStop(0.3, PALETTE.ironPlate);
-    vambraceGrad.addColorStop(0.7, PALETTE.ironDark);
-    vambraceGrad.addColorStop(1, PALETTE.abyss);
-
-    ctx.fillStyle = vambraceGrad;
-    ctx.strokeStyle = PALETTE.abyss;
+    // Rounded elbow cop
+    ctx.fillStyle = KB_PALETTE.ironPlate;
+    ctx.strokeStyle = KB_PALETTE.outline;
     ctx.lineWidth = 3;
-
-    // Outer fluted blade fin profile
     ctx.beginPath();
-    ctx.moveTo(0, -thickness * 0.5);
-    ctx.lineTo(length * 0.45, -thickness * 0.9); // Raised blade crest
-    ctx.lineTo(length * 0.8, -thickness * 0.6);
-    ctx.lineTo(length * 0.82, thickness * 0.6);
-    ctx.lineTo(0, thickness * 0.5);
-    ctx.closePath();
+    ctx.arc(0, 0, thickness * 0.65, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // Metallic highlight line along the parrying fin
-    ctx.strokeStyle = PALETTE.ironHighlight;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(length * 0.1, -thickness * 0.5);
-    ctx.lineTo(length * 0.45, -thickness * 0.85);
-    ctx.lineTo(length * 0.75, -thickness * 0.58);
-    ctx.stroke();
+    // Vambrace forearm shaft
+    const armGrad = ctx.createLinearGradient(0, -thickness * 0.5, 0, thickness * 0.5);
+    armGrad.addColorStop(0, KB_PALETTE.ironGlint);
+    armGrad.addColorStop(0.3, KB_PALETTE.ironPlate);
+    armGrad.addColorStop(0.8, KB_PALETTE.ironShadow);
+    armGrad.addColorStop(1, KB_PALETTE.ironDarkest);
 
-    // --- C. TARNISHED GOLD WRIST CUFF ---
-    ctx.fillStyle = PALETTE.goldPlate;
-    ctx.strokeStyle = PALETTE.abyss;
-    ctx.lineWidth = 2;
+    ctx.fillStyle = armGrad;
     ctx.beginPath();
-    ctx.roundRect(length * 0.76, -thickness * 0.7, length * 0.26, thickness * 1.4, [thickness * 0.2]);
+    ctx.roundRect(0, -thickness * 0.45, length * 0.82, thickness * 0.9, [thickness * 0.25]);
     ctx.fill();
     ctx.stroke();
 
-    // --- D. CLAWED GAUNTLET FINGERS ---
-    ctx.fillStyle = PALETTE.ironDark;
-    ctx.strokeStyle = PALETTE.abyss;
-    ctx.lineWidth = 2;
+    // Heavy flared wrist gauntlet cuff
+    ctx.fillStyle = KB_PALETTE.ironShadow;
     ctx.beginPath();
-    ctx.moveTo(length * 0.98, -thickness * 0.5);
-    ctx.lineTo(length * 1.25, -thickness * 0.2); // Pointed claw tip
-    ctx.lineTo(length * 1.25, thickness * 0.2);
-    ctx.lineTo(length * 0.98, thickness * 0.5);
-    ctx.closePath();
+    ctx.roundRect(length * 0.78, -thickness * 0.6, length * 0.25, thickness * 1.2, [4]);
     ctx.fill();
     ctx.stroke();
-
-    // Gold Claw Tips
-    ctx.fillStyle = PALETTE.goldHighlight;
-    ctx.beginPath();
-    ctx.moveTo(length * 1.15, -thickness * 0.15);
-    ctx.lineTo(length * 1.25, -thickness * 0.2);
-    ctx.lineTo(length * 1.25, thickness * 0.2);
-    ctx.lineTo(length * 1.15, thickness * 0.15);
-    ctx.closePath();
-    ctx.fill();
-
-    // --- E. PULSING RUNIC POWER GEM ON KNUCKLES ---
-    const gemColor = phase === 1 ? PALETTE.soulCyan : power > 80 ? PALETTE.bloodFlame : PALETTE.goldHighlight;
-    ctx.save();
-    ctx.fillStyle = gemColor;
-    ctx.shadowColor = gemColor;
-    ctx.shadowBlur = power > 70 ? 14 : 6;
-    ctx.beginPath();
-    ctx.arc(length * 0.9, 0, Math.max(3.5, thickness * 0.32), 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = PALETTE.goldGlint;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.restore();
 
     ctx.restore();
   }
 
   /**
-   * 5. The Abyssal War Belt & Fluted Tassets (Hips & Thighs)
-   * Ornate tarnished gold belt with horned kettlebell buckle, hanging maille skirt,
-   * and dual pointed gothic tasset plates guarding the thighs.
+   * 6. Heavy Kettlebell Heater Shield (Left Arm / Screen Right)
+   * Sturdy medieval heater shield with thick beveled border and embossed Kettlebell crest!
    */
-  private static drawDarkFauldsAndTassets(
+  private static drawKettlebellShield(
     ctx: CanvasRenderingContext2D,
-    lH: { x: number; y: number },
-    rH: { x: number; y: number },
-    width: number
+    elbow: { x: number; y: number },
+    wrist: { x: number; y: number },
+    size: number,
+    phase: number
   ): void {
-    ctx.save();
-
-    const hipCenterX = (lH.x + rH.x) / 2;
-    const hipCenterY = (lH.y + rH.y) / 2;
-    const beltAngle = Math.atan2(rH.y - lH.y, rH.x - lH.x);
-    const beltWidth = Math.hypot(rH.x - lH.x, rH.y - lH.y) * 1.15;
-
-    ctx.translate(hipCenterX, hipCenterY);
-    ctx.rotate(beltAngle);
-
-    // --- A. CHAINMAIL FRINGE UNDERLAY ---
-    ctx.fillStyle = PALETTE.mailShadow;
-    ctx.strokeStyle = PALETTE.abyss;
-    ctx.lineWidth = 2.5;
-
-    ctx.beginPath();
-    ctx.moveTo(-beltWidth * 0.5, 4);
-    ctx.lineTo(beltWidth * 0.5, 4);
-    ctx.lineTo(beltWidth * 0.42, width * 0.4);
-    ctx.lineTo(-beltWidth * 0.42, width * 0.4);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // --- B. GILDED WAR BELT ---
-    ctx.fillStyle = PALETTE.goldMid;
-    ctx.strokeStyle = PALETTE.abyss;
-    ctx.lineWidth = 3;
-    ctx.fillRect(-beltWidth * 0.5, -10, beltWidth, 20);
-    ctx.strokeRect(-beltWidth * 0.5, -10, beltWidth, 20);
-
-    // Gold belt studs
-    ctx.fillStyle = PALETTE.goldHighlight;
-    for (let i = -4; i <= 4; i++) {
-      if (Math.abs(i) <= 1) continue; // Leave center for buckle
-      ctx.fillRect(i * (beltWidth * 0.1) - 2.5, -2.5, 5, 5);
-    }
-
-    // Center Horned Kettlebell Buckle
-    ctx.fillStyle = PALETTE.ironDark;
-    ctx.strokeStyle = PALETTE.goldHighlight;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(0, 0, 11, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Glowing skull / ruby eye in center of buckle
-    ctx.fillStyle = PALETTE.bloodBright;
-    ctx.fillRect(-3, -2, 2.5, 2.5);
-    ctx.fillRect(1, -2, 2.5, 2.5);
-
-    // --- C. DUAL POINTED GOTHIC TASSETS ---
-    const drawSingleTasset = (direction: number) => {
-      ctx.save();
-      const xStart = direction * beltWidth * 0.12;
-      const xEnd = direction * beltWidth * 0.44;
-      const xTip = direction * beltWidth * 0.28;
-      const tassetLen = width * 0.85;
-
-      ctx.fillStyle = PALETTE.ironDark;
-      ctx.strokeStyle = PALETTE.abyss;
-      ctx.lineWidth = 3;
-
-      // Scalloped pointed gothic tasset polygon
-      ctx.beginPath();
-      ctx.moveTo(xStart, 10);
-      ctx.lineTo(xEnd, 10);
-      ctx.lineTo(xEnd - direction * 6, tassetLen * 0.65);
-      ctx.lineTo(xTip, tassetLen); // Menacing bottom dagger tip
-      ctx.lineTo(xStart + direction * 4, tassetLen * 0.65);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Central reinforcing spine ridge
-      ctx.strokeStyle = PALETTE.goldPlate;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(xTip, 10);
-      ctx.lineTo(xTip, tassetLen);
-      ctx.stroke();
-
-      // Gold stud accents
-      ctx.fillStyle = PALETTE.goldGlint;
-      ctx.fillRect(xTip - 2, tassetLen * 0.45 - 2, 4, 4);
-      ctx.fillRect(xTip - 2, tassetLen * 0.75 - 2, 4, 4);
-
-      ctx.restore();
+    const angle = Math.atan2(wrist.y - elbow.y, wrist.x - elbow.x);
+    const shieldCenter = {
+      x: wrist.x + Math.cos(angle) * (size * 0.25),
+      y: wrist.y + Math.sin(angle) * (size * 0.25),
     };
 
-    drawSingleTasset(-1); // Left Tasset
-    drawSingleTasset(1); // Right Tasset
+    ctx.save();
+    ctx.translate(shieldCenter.x, shieldCenter.y);
+    ctx.rotate(angle * 0.6);
+
+    const sW = size * 0.9;
+    const sH = size * 1.25;
+
+    // Helper: Classic Heater Shield Path
+    const createShieldPath = (inset = 0) => {
+      const w2 = (sW - inset * 2) * 0.5;
+      const hTop = -sH * 0.5 + inset;
+      const hMid = sH * 0.05;
+      const hBottom = sH * 0.5 - inset;
+
+      ctx.beginPath();
+      // Curved top edge
+      ctx.moveTo(-w2, hTop + 6);
+      ctx.quadraticCurveTo(0, hTop - 8, w2, hTop + 6);
+      // Straight upper sides tapering into pointed bottom beak
+      ctx.lineTo(w2, hMid);
+      ctx.quadraticCurveTo(w2 * 0.85, hBottom * 0.65, 0, hBottom);
+      ctx.quadraticCurveTo(-w2 * 0.85, hBottom * 0.65, -w2, hMid);
+      ctx.closePath();
+    };
+
+    // 1. Black outer border outline
+    ctx.fillStyle = KB_PALETTE.outline;
+    ctx.strokeStyle = KB_PALETTE.outline;
+    ctx.lineWidth = 4;
+    createShieldPath(0);
+    ctx.fill();
+    ctx.stroke();
+
+    // 2. Beveled outer rim
+    ctx.fillStyle = KB_PALETTE.ironPlate;
+    createShieldPath(4);
+    ctx.fill();
+    ctx.stroke();
+
+    // 3. Recessed shield field plate
+    const fieldGrad = ctx.createLinearGradient(-sW * 0.5, -sH * 0.5, sW * 0.5, sH * 0.5);
+    fieldGrad.addColorStop(0, KB_PALETTE.ironLight);
+    fieldGrad.addColorStop(0.35, KB_PALETTE.ironPlate);
+    fieldGrad.addColorStop(0.8, KB_PALETTE.ironShadow);
+    fieldGrad.addColorStop(1, KB_PALETTE.ironDarkest);
+
+    ctx.fillStyle = fieldGrad;
+    createShieldPath(10);
+    ctx.fill();
+    ctx.stroke();
+
+    // 4. EMBOSSED CAST-IRON KETTLEBELL CREST IN CENTER
+    const kbIconRadius = sW * 0.22;
+    const kbCenterY = -sH * 0.02;
+
+    // Embossed shadow
+    ctx.fillStyle = KB_PALETTE.ironDarkest;
+    ctx.beginPath();
+    ctx.arc(0, kbCenterY + 2, kbIconRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Kettlebell body
+    ctx.fillStyle = KB_PALETTE.ironGlint;
+    ctx.strokeStyle = KB_PALETTE.outline;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(0, kbCenterY, kbIconRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Kettlebell handle loop
+    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = KB_PALETTE.ironGlint;
+    ctx.beginPath();
+    ctx.arc(0, kbCenterY - kbIconRadius * 0.8, kbIconRadius * 0.55, Math.PI * 0.9, Math.PI * 0.1);
+    ctx.stroke();
+
+    // Corner rivets along shield rim
+    ctx.fillStyle = KB_PALETTE.ironGlint;
+    ctx.fillRect(-sW * 0.4, -sH * 0.44, 4, 4);
+    ctx.fillRect(sW * 0.4 - 4, -sH * 0.44, 4, 4);
+    ctx.fillRect(-2, sH * 0.4 - 4, 4, 4);
 
     ctx.restore();
   }
 
   /**
-   * 6. Demon-Thorn Poleyns (Armored Knee Cops)
-   * Spiked gothic diamond knee cop with sharp central thorn horn and gold studs.
+   * 7. The Kettlebell Buster Greatsword (Right Hand / Screen Left)
+   * Heavy broad slab blade with rounded kettlebell crossguard & iron pommel!
    */
-  private static drawDarkPoleyn(
+  private static drawKettlebellBusterSword(
+    ctx: CanvasRenderingContext2D,
+    elbow: { x: number; y: number },
+    wrist: { x: number; y: number },
+    size: number,
+    power: number,
+    phase: number
+  ): void {
+    const angle = Math.atan2(wrist.y - elbow.y, wrist.x - elbow.x);
+
+    ctx.save();
+    ctx.translate(wrist.x, wrist.y);
+    ctx.rotate(angle);
+
+    const bladeLen = size * 2.2;
+    const bladeW = size * 0.45;
+
+    // --- A. KETTLEBELL CROSSGUARD (Hollow Ring Handle Guard) ---
+    const guardRadius = bladeW * 0.65;
+
+    // Guard kettlebell bell body
+    ctx.fillStyle = KB_PALETTE.ironPlate;
+    ctx.strokeStyle = KB_PALETTE.outline;
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, guardRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Guard kettlebell handle loops on left and right
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = KB_PALETTE.ironPlate;
+    ctx.beginPath();
+    ctx.arc(0, -guardRadius * 0.7, guardRadius * 0.65, Math.PI, 0);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, guardRadius * 0.7, guardRadius * 0.65, 0, Math.PI);
+    ctx.stroke();
+
+    // --- B. HEAVY BUSTER SLAB BLADE ---
+    const bladeGrad = ctx.createLinearGradient(0, -bladeW * 0.5, 0, bladeW * 0.5);
+    bladeGrad.addColorStop(0, KB_PALETTE.ironGlint);
+    bladeGrad.addColorStop(0.3, KB_PALETTE.ironLight);
+    bladeGrad.addColorStop(0.65, KB_PALETTE.ironPlate);
+    bladeGrad.addColorStop(1, KB_PALETTE.ironShadow);
+
+    ctx.fillStyle = bladeGrad;
+    ctx.strokeStyle = KB_PALETTE.outline;
+    ctx.lineWidth = 4;
+
+    ctx.beginPath();
+    ctx.moveTo(guardRadius * 0.8, -bladeW * 0.5);
+    ctx.lineTo(bladeLen - bladeW * 0.75, -bladeW * 0.5); // Top blade spine
+    ctx.lineTo(bladeLen, 0); // Angled clip point tip
+    ctx.lineTo(bladeLen - bladeW * 0.75, bladeW * 0.5);
+    ctx.lineTo(guardRadius * 0.8, bladeW * 0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Central fuller ridge line down the blade
+    ctx.strokeStyle = KB_PALETTE.ironDarkest;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(guardRadius * 1.2, 0);
+    ctx.lineTo(bladeLen - bladeW * 0.8, 0);
+    ctx.stroke();
+
+    // Sharp metallic cutting edge highlight
+    ctx.strokeStyle = KB_PALETTE.ironGlint;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(guardRadius * 0.9, -bladeW * 0.45);
+    ctx.lineTo(bladeLen - bladeW * 0.72, -bladeW * 0.45);
+    ctx.stroke();
+
+    // High-power / Drive molten sparks along the blade edge
+    if (power > 80 || phase === 1) {
+      ctx.save();
+      ctx.strokeStyle = KB_PALETTE.visorAmber;
+      ctx.shadowColor = KB_PALETTE.visorOrange;
+      ctx.shadowBlur = 12;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(guardRadius * 1.5, -bladeW * 0.48);
+      ctx.lineTo(bladeLen - bladeW * 0.8, -bladeW * 0.48);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * 8. Spherical Kettlebell Poleyns (Knee Cops)
+   */
+  private static drawKettlebellPoleyn(
     ctx: CanvasRenderingContext2D,
     knee: { x: number; y: number },
     size: number
@@ -956,49 +906,41 @@ export class KnightArmorRenderer {
     ctx.save();
     ctx.translate(knee.x, knee.y);
 
-    // Multi-layered diamond steel knee cop
-    ctx.fillStyle = PALETTE.ironDark;
-    ctx.strokeStyle = PALETTE.abyss;
-    ctx.lineWidth = 3;
+    const sphereGrad = ctx.createRadialGradient(
+      size * 0.2,
+      -size * 0.25,
+      size * 0.08,
+      0,
+      0,
+      size * 1.05
+    );
+    sphereGrad.addColorStop(0, KB_PALETTE.ironGlint);
+    sphereGrad.addColorStop(0.3, KB_PALETTE.ironHighlight);
+    sphereGrad.addColorStop(0.65, KB_PALETTE.ironPlate);
+    sphereGrad.addColorStop(1, KB_PALETTE.ironDarkest);
 
-    // Outer Scalloped Diamond
+    ctx.fillStyle = sphereGrad;
+    ctx.strokeStyle = KB_PALETTE.outline;
+    ctx.lineWidth = 3.5;
+
     ctx.beginPath();
-    ctx.moveTo(0, -size * 0.75);
-    ctx.lineTo(size * 0.75, 0);
-    ctx.lineTo(0, size * 0.85); // Menacing downward thorn
-    ctx.lineTo(-size * 0.75, 0);
-    ctx.closePath();
+    ctx.arc(0, 0, size * 0.65, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // Central Protruding Thorn Spike
-    ctx.fillStyle = PALETTE.ironLight;
+    // Center kettlebell iron rivet
+    ctx.fillStyle = KB_PALETTE.ironGlint;
     ctx.beginPath();
-    ctx.moveTo(0, -size * 0.35);
-    ctx.lineTo(size * 0.35, 0);
-    ctx.lineTo(0, size * 0.45);
-    ctx.lineTo(-size * 0.35, 0);
-    ctx.closePath();
+    ctx.arc(0, 0, size * 0.16, 0, Math.PI * 2);
     ctx.fill();
-    ctx.stroke();
-
-    // Blood-ruby center gem
-    ctx.fillStyle = PALETTE.bloodBright;
-    ctx.beginPath();
-    ctx.arc(0, 0, Math.max(3, size * 0.16), 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = PALETTE.goldPlate;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
 
     ctx.restore();
   }
 
   /**
-   * 7. Fluted Gothic Greaves (Shin & Ankle Plates)
-   * Contoured blackened steel greaves with sharp vertical keel lines and gold filigree ankles.
+   * 9. Heavy Cast-Iron Greaves (Lower Shin & Ankle Armor)
    */
-  private static drawDarkGreaves(
+  private static drawKettlebellGreave(
     ctx: CanvasRenderingContext2D,
     knee: { x: number; y: number },
     ankle: { x: number; y: number },
@@ -1011,86 +953,68 @@ export class KnightArmorRenderer {
     ctx.translate(knee.x, knee.y);
     ctx.rotate(angle);
 
-    const greaveGrad = ctx.createLinearGradient(0, -thickness, 0, thickness);
-    greaveGrad.addColorStop(0, PALETTE.ironLight);
-    greaveGrad.addColorStop(0.3, PALETTE.ironPlate);
-    greaveGrad.addColorStop(0.7, PALETTE.ironDark);
-    greaveGrad.addColorStop(1, PALETTE.abyss);
+    const greaveGrad = ctx.createLinearGradient(0, -thickness * 0.5, 0, thickness * 0.5);
+    greaveGrad.addColorStop(0, KB_PALETTE.ironGlint);
+    greaveGrad.addColorStop(0.3, KB_PALETTE.ironPlate);
+    greaveGrad.addColorStop(0.8, KB_PALETTE.ironShadow);
+    greaveGrad.addColorStop(1, KB_PALETTE.ironDarkest);
 
     ctx.fillStyle = greaveGrad;
-    ctx.strokeStyle = PALETTE.abyss;
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = KB_PALETTE.outline;
+    ctx.lineWidth = 3.5;
 
+    // Segmented contoured shin plate
     ctx.beginPath();
-    ctx.roundRect(length * 0.16, -thickness * 0.5, length * 0.72, thickness, [thickness * 0.25]);
+    ctx.roundRect(length * 0.15, -thickness * 0.45, length * 0.72, thickness * 0.9, [thickness * 0.25]);
     ctx.fill();
     ctx.stroke();
 
-    // Sharp central shin ridge
-    ctx.strokeStyle = PALETTE.ironHighlight;
-    ctx.lineWidth = 2;
+    // Ridge plate down center
+    ctx.strokeStyle = KB_PALETTE.ironGlint;
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(length * 0.2, 0);
-    ctx.lineTo(length * 0.82, 0);
+    ctx.moveTo(length * 0.22, 0);
+    ctx.lineTo(length * 0.78, 0);
     ctx.stroke();
 
-    // Gilded Ankle Band with heel spur
-    ctx.fillStyle = PALETTE.goldPlate;
-    ctx.strokeStyle = PALETTE.abyss;
-    ctx.lineWidth = 2;
-    ctx.fillRect(length * 0.8, -thickness * 0.55, length * 0.1, thickness * 1.1);
-    ctx.strokeRect(length * 0.8, -thickness * 0.55, length * 0.1, thickness * 1.1);
+    // Heavy flared boot ring
+    ctx.fillStyle = KB_PALETTE.ironDarkest;
+    ctx.fillRect(length * 0.78, -thickness * 0.52, length * 0.12, thickness * 1.04);
+    ctx.strokeRect(length * 0.78, -thickness * 0.52, length * 0.12, thickness * 1.04);
 
     ctx.restore();
   }
 
   /**
-   * 8. Cursed Blood Lightning & Dark Energy Arcs
-   * Jagged dark-red and gold electric arcs surging around the gauntlets during high-velocity reps.
+   * 10. Atmospheric Molten Forge Embers
    */
-  private static drawCursedLightning(
+  private static drawForgeEmbers(
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
-    power: number,
+    radius: number,
     phase: number
   ): void {
+    const count = 10;
+    const time = performance.now() * 0.0018;
+
     ctx.save();
-    const isSpectral = phase === 1;
-    const lightningColor = isSpectral ? PALETTE.soulCyan : PALETTE.bloodBright;
-    const lightningCore = isSpectral ? '#FFFFFF' : PALETTE.goldGlint;
+    for (let i = 0; i < count; i++) {
+      const seed = i * 47.13;
+      const progress = (time * 0.8 + seed * 0.1) % 1;
+      const emberX = x + Math.sin(time + seed) * radius;
+      const emberY = y - progress * radius * 1.6;
+      const size = 2.5 + (i % 2) * 1.5;
+      const alpha = Math.sin(progress * Math.PI) * 0.85;
 
-    ctx.strokeStyle = lightningColor;
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = lightningColor;
-    ctx.shadowBlur = 14;
+      ctx.fillStyle = i % 2 === 0 ? KB_PALETTE.visorAmber : KB_PALETTE.visorOrange;
+      ctx.shadowColor = KB_PALETTE.visorAmber;
+      ctx.shadowBlur = 8;
+      ctx.globalAlpha = Math.max(0, alpha);
 
-    const numBolts = 5;
-    const time = performance.now() * 0.012;
-
-    for (let i = 0; i < numBolts; i++) {
-      const angle = (i * Math.PI * 2) / numBolts + time;
-      const reach = 22 + (i % 3) * 14 + (power * 0.15);
-      const xMid = x + Math.cos(angle + 0.3) * (reach * 0.55);
-      const yMid = y + Math.sin(angle + 0.3) * (reach * 0.55) + ((i % 2 === 0 ? 6 : -6));
-      const xEnd = x + Math.cos(angle) * reach;
-      const yEnd = y + Math.sin(angle) * reach;
-
-      // Outer colored aura bolt
       ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(xMid, yMid);
-      ctx.lineTo(xEnd, yEnd);
-      ctx.stroke();
-
-      // Inner superheated core bolt
-      ctx.strokeStyle = lightningCore;
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
-      ctx.strokeStyle = lightningColor;
-      ctx.lineWidth = 2.5;
+      ctx.fillRect(emberX, emberY, size, size);
     }
-
     ctx.restore();
   }
 }
