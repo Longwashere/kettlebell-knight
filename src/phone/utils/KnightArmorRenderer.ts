@@ -10,6 +10,7 @@ export interface KnightArmorRenderOptions {
   showLegArmor?: boolean;
   showWeapons?: boolean; // defaults to true (Buster Sword & Kettlebell Shield)
   heraldryColor?: string;
+  requireFullBody?: boolean; // defaults to true: gatekeeps armor until shoulders, hips, hands, and knees are visible
 }
 
 /**
@@ -68,6 +69,7 @@ export class KnightArmorRenderer {
       showGauntlets = true,
       showLegArmor = true,
       showWeapons = true,
+      requireFullBody = true,
     } = options;
 
     ctx.save();
@@ -88,13 +90,29 @@ export class KnightArmorRenderer {
     const lAnkle = landmarks[POSE_INDEX.LEFT_ANKLE];
     const rAnkle = landmarks[POSE_INDEX.RIGHT_ANKLE];
 
-    const isVisible = (p?: NormalizedLandmark, minVis = 0.35) =>
-      p && (p.visibility ?? 1) >= minVis;
+    // Body Visibility Gatekeeper:
+    // Only materialize the Kettlebell Knight armor when the user's body down to the knees is fully visible in frame.
+    const isPointValid = (p?: NormalizedLandmark, minVis = 0.40): boolean => {
+      if (!p) return false;
+      const vis = p.visibility !== undefined ? p.visibility : 1.0;
+      const inBounds = p.x >= 0.01 && p.x <= 0.99 && p.y >= 0.01 && p.y <= 0.99;
+      return vis >= minVis && inBounds;
+    };
 
-    if (!isVisible(lShoulder) || !isVisible(rShoulder)) {
+    const shouldersVisible = isPointValid(lShoulder, 0.45) && isPointValid(rShoulder, 0.45);
+    const hipsVisible = isPointValid(lHip, 0.40) && isPointValid(rHip, 0.40);
+    const wristsVisible = isPointValid(lWrist, 0.38) || isPointValid(rWrist, 0.38);
+    const kneesVisible = isPointValid(lKnee, 0.38) && isPointValid(rKnee, 0.38);
+
+    const isBodyFullyVisible = shouldersVisible && hipsVisible && wristsVisible && kneesVisible;
+
+    if (requireFullBody && !isBodyFullyVisible) {
       ctx.restore();
       return;
     }
+
+    const isVisible = (p?: NormalizedLandmark, minVis = 0.35) =>
+      p && (p.visibility ?? 1) >= minVis;
 
     // Convert normalized coordinates to screen pixel points
     const pNose = nose ? { x: nose.x * w, y: nose.y * h } : null;

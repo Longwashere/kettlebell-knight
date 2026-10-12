@@ -65,6 +65,7 @@ export const PhoneView: React.FC = () => {
   const currentStateRef = useRef<string>('IDLE');
   const activeExerciseRef = useRef<ExerciseType>('SWING');
   activeExerciseRef.current = activeExercise;
+  const isFullBodyVisibleRef = useRef<boolean>(true);
 
   // Live telemetry display
   const [repCount, setRepCount] = useState<number>(0);
@@ -155,7 +156,9 @@ export const PhoneView: React.FC = () => {
     trackerRef.current.onStateChange = (update: KinematicStateUpdate) => {
       setCurrentStateName(update.stateName);
       currentStateRef.current = update.stateName;
-      setIsFullBodyVisible(update.isFullBodyVisible ?? true);
+      const fullVisible = update.isFullBodyVisible ?? true;
+      setIsFullBodyVisible(fullVisible);
+      isFullBodyVisibleRef.current = fullVisible;
       setMissingBodyParts(update.missingBodyParts ?? []);
     };
   }, [activeExercise, handCards]);
@@ -290,11 +293,15 @@ export const PhoneView: React.FC = () => {
 
                 // Render AR Knight Armor or Workout Skeleton based on overlay mode
                 if (overlayModeRef.current === 'ARMOR') {
-                  KnightArmorRenderer.drawKnightArmor(ctx, canvas.width, canvas.height, mirrored, {
-                    glowPower: lastPowerRef.current,
-                    activePhase: currentStateRef.current === 'DRIVE' ? 1 : 0,
-                    heraldryColor: EXERCISE_SKILLS[activeExerciseRef.current]?.colorHex || '#F4B41A',
-                  });
+                  // Only render armor when camera can see most of body (down to knees)
+                  if (isFullBodyVisibleRef.current) {
+                    KnightArmorRenderer.drawKnightArmor(ctx, canvas.width, canvas.height, mirrored, {
+                      glowPower: lastPowerRef.current,
+                      activePhase: currentStateRef.current === 'DRIVE' ? 1 : 0,
+                      heraldryColor: EXERCISE_SKILLS[activeExerciseRef.current]?.colorHex || '#F4B41A',
+                      requireFullBody: true,
+                    });
+                  }
                 } else if (overlayModeRef.current === 'SKELETON') {
                   drawWorkoutSkeleton(ctx, canvas.width, canvas.height, mirrored);
                 }

@@ -190,6 +190,7 @@ export const MotionTestView: React.FC = () => {
   const currentStateRef = useRef<string>('IDLE');
   const selectedExerciseRef = useRef<ExerciseType>('SWING');
   selectedExerciseRef.current = selectedExercise;
+  const isFullBodyVisibleRef = useRef<boolean>(true);
 
   // DOM & Engine References
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -251,7 +252,9 @@ export const MotionTestView: React.FC = () => {
       setCurrentStateName(update.stateName);
       currentStateRef.current = update.stateName;
       setLiveVelocity(Number(update.velocity.toFixed(2)));
-      setIsFullBodyVisible(update.isFullBodyVisible ?? true);
+      const fullVisible = update.isFullBodyVisible ?? true;
+      setIsFullBodyVisible(fullVisible);
+      isFullBodyVisibleRef.current = fullVisible;
       setMissingBodyParts(update.missingBodyParts ?? []);
     };
   }, [selectedExercise, autoRouteMode, requireFullBody, soundEnabled]);
@@ -427,11 +430,15 @@ export const MotionTestView: React.FC = () => {
 
                 // Render AR Knight Armor or Retro Workout Skeleton (if enabled)
                 if (overlayModeRef.current === 'ARMOR') {
-                  KnightArmorRenderer.drawKnightArmor(ctx, canvas.width, canvas.height, processedLandmarks, {
-                    glowPower: lastPowerRef.current,
-                    activePhase: currentStateRef.current === 'DRIVE' ? 1 : 0,
-                    heraldryColor: EXERCISE_SKILLS[selectedExerciseRef.current]?.colorHex || '#F4B41A',
-                  });
+                  // Only render armor when camera can see most of body (down to knees)
+                  if (!requireFullBody || isFullBodyVisibleRef.current) {
+                    KnightArmorRenderer.drawKnightArmor(ctx, canvas.width, canvas.height, processedLandmarks, {
+                      glowPower: lastPowerRef.current,
+                      activePhase: currentStateRef.current === 'DRIVE' ? 1 : 0,
+                      heraldryColor: EXERCISE_SKILLS[selectedExerciseRef.current]?.colorHex || '#F4B41A',
+                      requireFullBody: requireFullBody,
+                    });
+                  }
                 } else if (overlayModeRef.current === 'SKELETON') {
                   drawWorkoutSkeleton(ctx, canvas.width, canvas.height, processedLandmarks);
                 }
