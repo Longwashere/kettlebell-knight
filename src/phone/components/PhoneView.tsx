@@ -921,7 +921,7 @@ export const PhoneView: React.FC = () => {
                 <div className="absolute inset-x-3 top-12 bg-[#0F0E17]/95 border-2 border-[#FF3366] p-2.5 text-center z-30 shadow-pixel-box animate-pulse">
                   <div className="font-pixel text-[8px] text-[#FF3366] flex items-center justify-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5" />
-                    STEP BACK: FULL BODY REQUIRED
+                    STEP BACK: VISIBILITY DOWN TO KNEES REQUIRED
                   </div>
                   <div className="text-[7px] font-mono text-[#A7A9BE] mt-0.5">
                     Please step back so your <strong className="text-[#F4B41A]">{missingBodyParts.join(' & ')}</strong> are visible.

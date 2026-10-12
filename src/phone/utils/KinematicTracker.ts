@@ -252,20 +252,15 @@ export class KinematicTracker {
     const armsVisible = shouldersVisible && wristsVisible;
     if (!wristsVisible) missingParts.push('ARMS / HANDS');
 
-    // 4. Legs Verification: KNEES AND ANKLES MUST BE VISIBLE
-    // If ankles are cut off by screen edge (y > 0.985 or low visibility), legs are NOT fully visible!
-    const kneesVisible = isPointValid(lKnee, 0.42) && isPointValid(rKnee, 0.42);
-    const anklesVisible =
-      (isPointValid(lAnkle, 0.38) || isPointValid(rAnkle, 0.38)) &&
-      (lAnkle.y < 0.985 || rAnkle.y < 0.985);
-    const legsVisible = kneesVisible && anklesVisible;
+    // 4. Legs Verification: KNEES MUST BE VISIBLE (Feet & ankles no longer gatekept)
+    const kneesVisible = isPointValid(lKnee, 0.40) && isPointValid(rKnee, 0.40);
+    const legsVisible = kneesVisible;
     if (!kneesVisible) missingParts.push('KNEES');
-    if (!anklesVisible) missingParts.push('FEET / ANKLES');
 
     const isFullyVisible = shouldersVisible && hipsVisible && wristsVisible && legsVisible;
 
-    const keyPoints = [lShoulder, rShoulder, lElbow, rElbow, lWrist, rWrist, lHip, rHip, lKnee, rKnee, lAnkle, rAnkle];
-    const validCount = keyPoints.filter((p) => isPointValid(p, 0.4)).length;
+    const keyPoints = [lShoulder, rShoulder, lElbow, rElbow, lWrist, rWrist, lHip, rHip, lKnee, rKnee];
+    const validCount = keyPoints.filter((p) => isPointValid(p, 0.38)).length;
     const inFrameScore = Number((validCount / keyPoints.length).toFixed(2));
 
     return {
@@ -442,11 +437,14 @@ export class KinematicTracker {
       return 'WINDMILL';
     }
 
-    // 3. Single-Leg RDL Signature: One ankle elevated significantly behind
-    const ankleDeltaY = Math.abs(lAnkle.y - rAnkle.y);
+    // 3. Single-Leg RDL Signature: One ankle or knee elevated significantly behind
+    const legDeltaY =
+      lAnkle && rAnkle && (lAnkle.visibility ?? 0) > 0.35 && (rAnkle.visibility ?? 0) > 0.35
+        ? Math.abs(lAnkle.y - rAnkle.y)
+        : Math.abs(lKnee.y - rKnee.y) * 1.5;
     if (
       this.allowedExercises.includes('SINGLE_LEG_RDL') &&
-      ankleDeltaY > 0.14 &&
+      legDeltaY > 0.12 &&
       wristY > hipY
     ) {
       return 'SINGLE_LEG_RDL';
@@ -1444,36 +1442,47 @@ export class KinematicTracker {
     const lWrist = landmarks[POSE_INDEX.LEFT_WRIST];
     const rWrist = landmarks[POSE_INDEX.RIGHT_WRIST];
 
-    // Determine planted vs trail leg: trail ankle rises significantly above planted ankle
-    const isLeftPlanted = lAnkle.y > rAnkle.y;
-    const plantedAnkle = isLeftPlanted ? lAnkle : rAnkle;
-    const trailAnkle = isLeftPlanted ? rAnkle : lAnkle;
+    // Determine planted vs trail leg: trail ankle rises significantly above planted ankle, or trail knee elevates
+    const hasAnkles = lAnkle && rAnkle && (lAnkle.visibility ?? 0) > 0.35 && (rAnkle.visibility ?? 0) > 0.35;
+    const isLeftPlanted = hasAnkles ? lAnkle.y > rAnkle.y : lKnee.y > rKnee.y;
     const plantedKnee = isLeftPlanted ? lKnee : rKnee;
+    const trailKnee = isLeftPlanted ? rKnee : lKnee;
     const hipY = (lHip.y + rHip.y) / 2;
     const wristY = (lWrist.y + rWrist.y) / 2;
 
-    const elevationDelta = plantedAnkle.y - trailAnkle.y;
+    const elevationDelta = hasAnkles
+      ? (isLeftPlanted ? lAnkle.y - rAnkle.y : rAnkle.y - lAnkle.y)
+      : (plantedKnee.y - trailKnee.y) * 1.5;
     let emittedTelemetry: RepTelemetry | undefined = undefined;
 
     switch (this.currentState) {
       case 0: { // BILATERAL STANDING
-        if (Math.abs(lAnkle.y - rAnkle.y) < 0.08) {
+        const bilateral = hasAnkles
+          ? Math.abs(lAnkle.y - rAnkle.y) < 0.08
+          : Math.abs(lKnee.y - rKnee.y) < 0.08;
+        if (bilateral) {
           this.phaseStartTimestamp = timestampMs;
         }
-        if (elevationDelta > 0.12 && wristY > hipY) {
+        if (elevationDelta > 0.10 && wristY > hipY) {
           this.currentState = 1;
         }
         break;
       }
       case 1: { // HINGING & REAR LEG KICKBACK
         // Trail leg reaches near knee level (horizontal T-position) and wrist lowers to planted knee
-        if (trailAnkle.y <= plantedKnee.y + 0.05 && wristY >= plantedKnee.y - 0.05) {
+        const reachedPeak = hasAnkles
+          ? (isLeftPlanted ? rAnkle.y : lAnkle.y) <= plantedKnee.y + 0.05
+          : trailKnee.y <= hipY + 0.06;
+        if (reachedPeak && wristY >= plantedKnee.y - 0.08) {
           this.currentState = 2;
         }
         break;
       }
       case 2: { // RETURN TO STAND
-        if (Math.abs(lAnkle.y - rAnkle.y) < 0.08) {
+        const bilateralReturn = hasAnkles
+          ? Math.abs(lAnkle.y - rAnkle.y) < 0.08
+          : Math.abs(lKnee.y - rKnee.y) < 0.08;
+        if (bilateralReturn) {
           if (timestampMs - this.lastRepTimestamp >= this.minRepIntervalMs) {
             this.repCount++;
             this.lastRepTimestamp = timestampMs;

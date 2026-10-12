@@ -873,10 +873,10 @@ export const MotionTestView: React.FC = () => {
               <div className="absolute inset-x-4 top-14 bg-[#0F0E17]/95 border-2 border-[#FF3366] p-3 text-center z-30 shadow-pixel-box animate-pulse">
                 <div className="font-pixel text-[10px] text-[#FF3366] flex items-center justify-center gap-1.5">
                   <AlertCircle className="w-4 h-4 text-[#FF3366]" />
-                  STEP BACK: FULL BODY REQUIRED TO COUNT REPS
+                  STEP BACK: VISIBILITY DOWN TO KNEES REQUIRED
                 </div>
                 <p className="font-mono text-[9px] text-[#A7A9BE] mt-1">
-                  Camera must detect your arms, hips, and legs to prevent false reps. Missing:{' '}
+                  Camera must detect your arms, hips, and knees to count reps. Missing:{' '}
                   <strong className="text-[#F4B41A]">{missingBodyParts.join(' & ')}</strong>.
                 </p>
               </div>
