@@ -1,6 +1,6 @@
 {
   "skeleton": {
-    "hash": "ed956d8a78a90b1ce5ac",
+    "hash": "14bcd4c7644f82802408",
     "spine": "4.2.0",
     "x": -256,
     "y": 0,
@@ -148,16 +148,6 @@
       "attachment": "leg_lower_l"
     },
     {
-      "name": "head",
-      "bone": "head",
-      "attachment": "head"
-    },
-    {
-      "name": "sword",
-      "bone": "sword",
-      "attachment": "sword"
-    },
-    {
       "name": "arm_upper_l",
       "bone": "left-upper-arm",
       "attachment": "arm_upper_l"
@@ -166,6 +156,16 @@
       "name": "arm_lower_l",
       "bone": "left-lower-arm",
       "attachment": "arm_lower_l"
+    },
+    {
+      "name": "head",
+      "bone": "head",
+      "attachment": "head"
+    },
+    {
+      "name": "sword",
+      "bone": "sword",
+      "attachment": "sword"
     }
   ],
   "skins": [
@@ -174,98 +174,98 @@
       "attachments": {
         "backpack": {
           "backpack": {
-            "x": 0.0,
-            "y": 0.0,
-            "width": 81,
-            "height": 69
+            "x": 0.5,
+            "y": -0.5,
+            "width": 75,
+            "height": 63
           }
         },
         "arm_upper_r": {
           "arm_upper_r": {
-            "x": 39.5,
-            "y": -4.5,
-            "width": 96,
-            "height": 86
+            "x": 32.5,
+            "y": -5.0,
+            "width": 105,
+            "height": 80
           }
         },
         "arm_lower_r": {
           "arm_lower_r": {
-            "x": 44.5,
-            "y": 9.0,
-            "width": 96,
-            "height": 45
+            "x": 45.0,
+            "y": 8.5,
+            "width": 90,
+            "height": 39
           }
         },
         "leg_upper_r": {
           "leg_upper_r": {
-            "x": 9.5,
-            "y": -47.0,
-            "width": 76,
-            "height": 101
+            "x": 10.0,
+            "y": -47.5,
+            "width": 70,
+            "height": 95
           }
         },
         "leg_lower_r": {
           "leg_lower_r": {
-            "x": 23.0,
-            "y": -59.0,
-            "width": 89,
-            "height": 125
+            "x": 23.5,
+            "y": -59.5,
+            "width": 83,
+            "height": 119
           }
         },
         "torso": {
           "torso": {
-            "x": -2.5,
-            "y": -12.0,
-            "width": 156,
-            "height": 251
+            "x": -9.5,
+            "y": -15.0,
+            "width": 165,
+            "height": 240
           }
         },
         "leg_upper_l": {
           "leg_upper_l": {
-            "x": -13.0,
-            "y": -47.0,
-            "width": 71,
-            "height": 101
+            "x": -12.5,
+            "y": -47.5,
+            "width": 65,
+            "height": 95
           }
         },
         "leg_lower_l": {
           "leg_lower_l": {
-            "x": -7.5,
-            "y": -63.5,
-            "width": 70,
-            "height": 134
-          }
-        },
-        "head": {
-          "head": {
-            "x": 0.0,
-            "y": 49.5,
-            "width": 101,
-            "height": 106
-          }
-        },
-        "sword": {
-          "sword": {
-            "x": 29.5,
-            "y": -84.5,
-            "width": 106,
-            "height": 196
+            "x": -7.0,
+            "y": -64.0,
+            "width": 64,
+            "height": 128
           }
         },
         "arm_upper_l": {
           "arm_upper_l": {
-            "x": -43.0,
-            "y": -4.5,
-            "width": 101,
-            "height": 86
+            "x": -35.0,
+            "y": -5.0,
+            "width": 110,
+            "height": 80
           }
         },
         "arm_lower_l": {
           "arm_lower_l": {
-            "x": -29.0,
-            "y": 3.0,
-            "width": 83,
-            "height": 45
+            "x": -28.5,
+            "y": 2.5,
+            "width": 77,
+            "height": 39
+          }
+        },
+        "head": {
+          "head": {
+            "x": 0.5,
+            "y": 49.0,
+            "width": 95,
+            "height": 100
+          }
+        },
+        "sword": {
+          "sword": {
+            "x": 27.0,
+            "y": -85.5,
+            "width": 108,
+            "height": 191
           }
         }
       }
