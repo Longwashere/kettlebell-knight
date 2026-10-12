@@ -7,6 +7,7 @@ import { HubMenu, HUB_NODES } from './HubMenu';
 import { BlacksmithShop, SHOP_ITEMS } from './BlacksmithShop';
 import { BattleScreen } from './BattleScreen';
 import { QRCodeModal } from './QRCodeModal';
+import { QRCodeSVG } from 'qrcode.react';
 import { EquipmentItem, HubLocation, RepTelemetry } from '../../types/game';
 import { audioManager } from '../../shared/AudioManager';
 import { 
@@ -20,7 +21,8 @@ import {
   Award, 
   Activity, 
   Heart, 
-  Shield 
+  Shield,
+  Wifi
 } from 'lucide-react';
 
 export const GameScreen: React.FC = () => {
@@ -437,6 +439,40 @@ export const GameScreen: React.FC = () => {
             </div>
           )}
         </main>
+
+        {/* On-Screen Instant QR Pairing Widget (Prominently displayed whenever unpaired) */}
+        {netState !== 'CONNECTED' && roomId && currentView === 'HUB' && (
+          <aside
+            aria-label="Scan QR Code to Pair Mobile Companion"
+            className="absolute bottom-20 right-8 z-40 bg-[#1A1926]/95 border-4 border-[#38B6FF] p-3.5 rounded shadow-pixel-box text-center backdrop-blur-md max-w-[210px] animate-in fade-in"
+          >
+            <div className="flex items-center justify-between gap-1 mb-2 pb-1.5 border-b border-[#2E2B44]">
+              <span className="font-pixel text-[8px] text-[#38B6FF] flex items-center gap-1">
+                <Smartphone className="w-3 h-3 text-[#38B6FF]" />
+                PAIR PHONE
+              </span>
+              <span className="font-pixel text-[7px] text-[#F4B41A] animate-pulse flex items-center gap-0.5">
+                <Wifi className="w-2.5 h-2.5" /> WAITING
+              </span>
+            </div>
+
+            {/* High-Contrast QR Code for scanning from across the room */}
+            <div className="inline-block p-2 bg-white border-2 border-black rounded shadow-pixel-box mb-2">
+              <QRCodeSVG
+                value={`${window.location.origin}/phone?room=${roomId}`}
+                size={130}
+                level="M"
+              />
+            </div>
+
+            <div className="font-pixel text-[8px] text-[#A7A9BE] leading-tight mb-1">
+              SCAN WITH PHONE CAMERA
+            </div>
+            <div className="bg-[#0F0E17] border border-[#F4B41A] py-0.5 px-2 font-mono text-[11px] text-[#F4B41A] font-bold tracking-widest">
+              {roomId}
+            </div>
+          </aside>
+        )}
 
         {/* Bottom Fire TV Remote D-Pad Navigation Hint Bar */}
         <footer className="border-t-4 border-[#2E2B44] bg-[#1A1926]/90 p-3 rounded shadow-pixel-box flex items-center justify-between text-[10px] font-mono text-[#A7A9BE] backdrop-blur-sm">

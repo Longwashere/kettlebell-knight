@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Smartphone, X, CheckCircle, Wifi, Copy, ExternalLink } from 'lucide-react';
 
@@ -15,6 +15,16 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
   onClose,
   isPaired,
 }) => {
+  // Auto-close modal after successful connection so user doesn't need to press Back on TV remote
+  useEffect(() => {
+    if (isPaired && isOpen) {
+      const timer = setTimeout(() => {
+        onClose();
+      }, 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [isPaired, isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const phoneUrl = `${window.location.origin}/phone?room=${roomId}`;
