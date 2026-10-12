@@ -41,6 +41,13 @@
       "length": 40
     },
     {
+      "name": "sword",
+      "parent": "hip",
+      "x": 33,
+      "y": 95,
+      "length": 150
+    },
+    {
       "name": "left-upper-arm",
       "parent": "torso",
       "x": -72,
@@ -99,137 +106,98 @@
   ],
   "slots": [
     {
-      "name": "part_08",
-      "bone": "left-upper-leg",
-      "attachment": "part_08"
-    },
-    {
-      "name": "part_02",
+      "name": "backpack",
       "bone": "backpack",
       "attachment": "part_02"
     },
     {
-      "name": "part_04",
-      "bone": "right-upper-arm",
-      "attachment": "part_04"
-    },
-    {
-      "name": "part_16",
-      "bone": "right-lower-leg",
-      "attachment": "part_16"
-    },
-    {
-      "name": "part_01",
-      "bone": "torso",
-      "attachment": "part_01"
-    },
-    {
-      "name": "part_03",
-      "bone": "torso",
-      "attachment": "part_03"
-    },
-    {
-      "name": "part_12",
-      "bone": "right-upper-arm",
-      "attachment": "part_12"
-    },
-    {
-      "name": "part_14",
-      "bone": "left-upper-leg",
-      "attachment": "part_14"
-    },
-    {
-      "name": "part_15",
-      "bone": "left-lower-arm",
-      "attachment": "part_15"
-    },
-    {
-      "name": "part_06",
-      "bone": "torso",
-      "attachment": "part_06"
-    },
-    {
-      "name": "part_07",
+      "name": "right-upper-arm",
       "bone": "right-upper-arm",
       "attachment": "part_07"
     },
     {
-      "name": "part_10",
+      "name": "right-lower-arm",
+      "bone": "right-lower-arm",
+      "attachment": "part_06"
+    },
+    {
+      "name": "right-lower-leg",
       "bone": "right-lower-leg",
+      "attachment": "part_13"
+    },
+    {
+      "name": "torso",
+      "bone": "torso",
+      "attachment": "part_01"
+    },
+    {
+      "name": "hip",
+      "bone": "hip",
       "attachment": "part_10"
     },
     {
-      "name": "part_09",
-      "bone": "right-lower-arm",
-      "attachment": "part_09"
-    },
-    {
-      "name": "part_17",
-      "bone": "torso",
-      "attachment": "part_17"
-    },
-    {
-      "name": "part_11",
+      "name": "left-lower-leg",
       "bone": "left-lower-leg",
       "attachment": "part_11"
     },
     {
-      "name": "part_05",
-      "bone": "left-upper-leg",
+      "name": "left-upper-arm",
+      "bone": "left-upper-arm",
+      "attachment": "part_03"
+    },
+    {
+      "name": "left-lower-arm",
+      "bone": "left-lower-arm",
       "attachment": "part_05"
     },
     {
-      "name": "part_13",
-      "bone": "right-upper-leg",
-      "attachment": "part_13"
-    },
-    {
-      "name": "part_18",
-      "bone": "hip",
-      "attachment": "part_18"
-    },
-    {
-      "name": "part_00",
+      "name": "head",
       "bone": "head",
       "attachment": "part_00"
+    },
+    {
+      "name": "sword",
+      "bone": "sword",
+      "attachment": "part_14"
+    },
+    {
+      "name": "pouch",
+      "bone": "hip",
+      "attachment": "part_18"
     }
   ],
   "attachments": {
-    "part_08": {
-      "x": -18.5,
-      "y": -64.5,
-      "width": 160,
-      "height": 77,
-      "scaleX": 0.562,
-      "scaleY": 0.562,
-      "rotation": 0.0
-    },
     "part_02": {
       "x": 46.5,
       "y": -44.0,
       "width": 211,
       "height": 247,
       "scaleX": 0.653,
-      "scaleY": 0.653,
-      "rotation": 1.1
+      "scaleY": 0.653
     },
-    "part_04": {
-      "x": 36.5,
-      "y": 30.5,
-      "width": 141,
-      "height": 155,
+    "part_07": {
+      "x": 47.5,
+      "y": -12.0,
+      "width": 137,
+      "height": 76,
+      "scaleX": 0.684,
+      "scaleY": 0.684
+    },
+    "part_06": {
+      "x": 30.0,
+      "y": -37.5,
+      "width": 108,
+      "height": 170,
       "scaleX": 0.562,
-      "scaleY": 0.562,
-      "rotation": 0.0
+      "scaleY": 0.562
     },
-    "part_16": {
-      "x": 34.5,
-      "y": -67.5,
-      "width": 122,
-      "height": 141,
-      "scaleX": 0.819,
-      "scaleY": 0.819,
-      "rotation": -5.5
+    "part_13": {
+      "x": 67.5,
+      "y": 43.0,
+      "width": 227,
+      "height": 149,
+      "scaleX": 0.725,
+      "scaleY": 0.725
     },
     "part_01": {
       "x": -1.0,
@@ -237,89 +205,15 @@
       "width": 328,
       "height": 307,
       "scaleX": 0.702,
-      "scaleY": 0.702,
-      "rotation": -1.1
-    },
-    "part_03": {
-      "x": 84.0,
-      "y": 117.0,
-      "width": 111,
-      "height": 87,
-      "scaleX": 0.562,
-      "scaleY": 0.562,
-      "rotation": 0.0
-    },
-    "part_12": {
-      "x": 55.0,
-      "y": -136.5,
-      "width": 165,
-      "height": 291,
-      "scaleX": 0.562,
-      "scaleY": 0.562,
-      "rotation": 0.0
-    },
-    "part_14": {
-      "x": -284.0,
-      "y": -28.0,
-      "width": 157,
-      "height": 267,
-      "scaleX": 0.562,
-      "scaleY": 0.562,
-      "rotation": 0.0
-    },
-    "part_15": {
-      "x": -100.5,
-      "y": 0.0,
-      "width": 176,
-      "height": 141,
-      "scaleX": 0.597,
-      "scaleY": 0.597,
-      "rotation": 0.0
-    },
-    "part_06": {
-      "x": 61.0,
-      "y": 163.5,
-      "width": 108,
-      "height": 170,
-      "scaleX": 0.562,
-      "scaleY": 0.562,
-      "rotation": 0.0
-    },
-    "part_07": {
-      "x": 79.5,
-      "y": 8.0,
-      "width": 137,
-      "height": 76,
-      "scaleX": 0.684,
-      "scaleY": 0.684,
-      "rotation": -1.3
+      "scaleY": 0.702
     },
     "part_10": {
-      "x": 23.0,
-      "y": -8.5,
+      "x": 66.0,
+      "y": -93.5,
       "width": 159,
       "height": 302,
       "scaleX": 0.749,
-      "scaleY": 0.749,
-      "rotation": -0.3
-    },
-    "part_09": {
-      "x": 61.5,
-      "y": 5.0,
-      "width": 92,
-      "height": 65,
-      "scaleX": 0.562,
-      "scaleY": 0.562,
-      "rotation": 0.0
-    },
-    "part_17": {
-      "x": 83.0,
-      "y": 134.0,
-      "width": 124,
-      "height": 128,
-      "scaleX": 0.597,
-      "scaleY": 0.597,
-      "rotation": 0.0
+      "scaleY": 0.749
     },
     "part_11": {
       "x": 9.5,
@@ -327,35 +221,23 @@
       "width": 146,
       "height": 313,
       "scaleX": 0.741,
-      "scaleY": 0.741,
-      "rotation": -0.3
+      "scaleY": 0.741
+    },
+    "part_03": {
+      "x": -29.0,
+      "y": -9.0,
+      "width": 111,
+      "height": 87,
+      "scaleX": 0.562,
+      "scaleY": 0.562
     },
     "part_05": {
-      "x": -39.0,
-      "y": -23.5,
+      "x": -10.0,
+      "y": -38.5,
       "width": 108,
       "height": 173,
       "scaleX": 0.562,
-      "scaleY": 0.562,
-      "rotation": 0.0
-    },
-    "part_13": {
-      "x": -25.5,
-      "y": -4.0,
-      "width": 227,
-      "height": 149,
-      "scaleX": 0.725,
-      "scaleY": 0.725,
-      "rotation": 5.7
-    },
-    "part_18": {
-      "x": -42.0,
-      "y": 43.5,
-      "width": 101,
-      "height": 95,
-      "scaleX": 0.671,
-      "scaleY": 0.671,
-      "rotation": -2.4
+      "scaleY": 0.562
     },
     "part_00": {
       "x": 11.5,
@@ -363,8 +245,23 @@
       "width": 129,
       "height": 168,
       "scaleX": 0.7,
-      "scaleY": 0.7,
-      "rotation": -0.1
+      "scaleY": 0.7
+    },
+    "part_14": {
+      "x": 44.0,
+      "y": -75.0,
+      "width": 157,
+      "height": 267,
+      "scaleX": 0.562,
+      "scaleY": 0.562
+    },
+    "part_18": {
+      "x": -42.0,
+      "y": 43.5,
+      "width": 101,
+      "height": 95,
+      "scaleX": 0.671,
+      "scaleY": 0.671
     }
   },
   "animations": [],
@@ -483,6 +380,22 @@
               "angle": 0
             }
           ]
+        },
+        "sword": {
+          "rotate": [
+            {
+              "time": 0,
+              "angle": 0
+            },
+            {
+              "time": 0.9,
+              "angle": 2.5
+            },
+            {
+              "time": 1.8,
+              "angle": 0
+            }
+          ]
         }
       }
     },
@@ -541,75 +454,27 @@
             }
           ]
         },
-        "left-upper-leg": {
-          "rotate": [
-            {
-              "time": 0,
-              "angle": -20
-            },
-            {
-              "time": 0.225,
-              "angle": 0
-            },
-            {
-              "time": 0.45,
-              "angle": 20
-            },
-            {
-              "time": 0.675,
-              "angle": 0
-            },
-            {
-              "time": 0.9,
-              "angle": -20
-            }
-          ]
-        },
         "left-lower-leg": {
           "rotate": [
             {
               "time": 0,
-              "angle": 5
+              "angle": -18
             },
             {
               "time": 0.225,
-              "angle": 25
-            },
-            {
-              "time": 0.45,
               "angle": 10
             },
             {
-              "time": 0.675,
-              "angle": 5
-            },
-            {
-              "time": 0.9,
-              "angle": 5
-            }
-          ]
-        },
-        "right-upper-leg": {
-          "rotate": [
-            {
-              "time": 0,
-              "angle": 20
-            },
-            {
-              "time": 0.225,
-              "angle": 0
-            },
-            {
               "time": 0.45,
-              "angle": -20
+              "angle": 18
             },
             {
               "time": 0.675,
-              "angle": 0
+              "angle": 5
             },
             {
               "time": 0.9,
-              "angle": 20
+              "angle": -18
             }
           ]
         },
@@ -617,7 +482,7 @@
           "rotate": [
             {
               "time": 0,
-              "angle": 10
+              "angle": 18
             },
             {
               "time": 0.225,
@@ -625,15 +490,15 @@
             },
             {
               "time": 0.45,
-              "angle": 5
+              "angle": -18
             },
             {
               "time": 0.675,
-              "angle": 25
+              "angle": 10
             },
             {
               "time": 0.9,
-              "angle": 10
+              "angle": 18
             }
           ]
         },
@@ -682,6 +547,30 @@
             {
               "time": 0.9,
               "angle": -80
+            }
+          ]
+        },
+        "sword": {
+          "rotate": [
+            {
+              "time": 0,
+              "angle": -3
+            },
+            {
+              "time": 0.225,
+              "angle": 4
+            },
+            {
+              "time": 0.45,
+              "angle": -3
+            },
+            {
+              "time": 0.675,
+              "angle": 4
+            },
+            {
+              "time": 0.9,
+              "angle": -3
             }
           ]
         }
