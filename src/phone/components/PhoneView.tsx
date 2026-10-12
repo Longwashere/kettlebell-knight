@@ -7,6 +7,9 @@ import { RepTelemetry, ExerciseType, EXERCISE_SKILLS } from '../../types/game';
 import { CombatCard } from '../../types/battle';
 import { CardDeckManager } from '../../shared/CardDeckManager';
 import { audioManager } from '../../shared/AudioManager';
+import { KnightArmorRenderer } from '../utils/KnightArmorRenderer';
+
+export type PhoneOverlayMode = 'ARMOR' | 'SKELETON' | 'OFF';
 import { 
   Camera, 
   Smartphone, 
@@ -41,19 +44,27 @@ export const PhoneView: React.FC = () => {
   const deckManagerRef = useRef<CardDeckManager>(new CardDeckManager());
   const [handCards, setHandCards] = useState<CombatCard[]>(() => deckManagerRef.current.getHand());
 
-  // Workout Skeleton Overlay Toggle (Defaults to ON, can be toggled to save battery)
-  const [showSkeleton, setShowSkeleton] = useState<boolean>(true);
-  const showSkeletonRef = useRef<boolean>(true);
-  showSkeletonRef.current = showSkeleton;
+  // Camera Overlay Mode: AR Knight Armor (default) | Neon Skeleton | Off (battery saver)
+  const [overlayMode, setOverlayMode] = useState<PhoneOverlayMode>('ARMOR');
+  const overlayModeRef = useRef<PhoneOverlayMode>('ARMOR');
+  overlayModeRef.current = overlayMode;
 
-  const toggleSkeleton = () => {
-    setShowSkeleton((prev) => {
-      const next = !prev;
-      showSkeletonRef.current = next;
+  const cycleOverlayMode = () => {
+    setOverlayMode((prev) => {
+      let next: PhoneOverlayMode;
+      if (prev === 'ARMOR') next = 'SKELETON';
+      else if (prev === 'SKELETON') next = 'OFF';
+      else next = 'ARMOR';
+      overlayModeRef.current = next;
       audioManager.play('ui_move');
       return next;
     });
   };
+
+  const lastPowerRef = useRef<number>(0);
+  const currentStateRef = useRef<string>('IDLE');
+  const activeExerciseRef = useRef<ExerciseType>('SWING');
+  activeExerciseRef.current = activeExercise;
 
   // Live telemetry display
   const [repCount, setRepCount] = useState<number>(0);
@@ -113,6 +124,7 @@ export const PhoneView: React.FC = () => {
 
     trackerRef.current.onExerciseAutoSwitched = (newEx: ExerciseType) => {
       setActiveExercise(newEx);
+      activeExerciseRef.current = newEx;
       audioManager.play('ui_select');
     };
 
@@ -126,6 +138,7 @@ export const PhoneView: React.FC = () => {
 
       setRepCount((prev) => prev + 1);
       setLastPower(telemetry.power);
+      lastPowerRef.current = telemetry.power;
       setLastForm(telemetry.form);
 
       setRepFlash({ show: true, power: telemetry.power, rep: (telemetry.repCount || 0) + 1 });
@@ -141,6 +154,7 @@ export const PhoneView: React.FC = () => {
 
     trackerRef.current.onStateChange = (update: KinematicStateUpdate) => {
       setCurrentStateName(update.stateName);
+      currentStateRef.current = update.stateName;
       setIsFullBodyVisible(update.isFullBodyVisible ?? true);
       setMissingBodyParts(update.missingBodyParts ?? []);
     };
@@ -274,8 +288,14 @@ export const PhoneView: React.FC = () => {
                 // Draw retro kinematic guides on canvas
                 drawKinematicHUD(ctx, canvas.width, canvas.height, mirrored);
 
-                // Draw workout skeleton overlay (optional, defaults to ON)
-                if (showSkeletonRef.current) {
+                // Render AR Knight Armor or Workout Skeleton based on overlay mode
+                if (overlayModeRef.current === 'ARMOR') {
+                  KnightArmorRenderer.drawKnightArmor(ctx, canvas.width, canvas.height, mirrored, {
+                    glowPower: lastPowerRef.current,
+                    activePhase: currentStateRef.current === 'DRIVE' ? 1 : 0,
+                    heraldryColor: EXERCISE_SKILLS[activeExerciseRef.current]?.colorHex || '#F4B41A',
+                  });
+                } else if (overlayModeRef.current === 'SKELETON') {
                   drawWorkoutSkeleton(ctx, canvas.width, canvas.height, mirrored);
                 }
               }
@@ -307,6 +327,7 @@ export const PhoneView: React.FC = () => {
   const handleSelectExercise = (ex: ExerciseType) => {
     trackerRef.current.setExercise(ex);
     setActiveExercise(ex);
+    activeExerciseRef.current = ex;
     audioManager.play('ui_select');
   };
 
@@ -902,17 +923,21 @@ export const PhoneView: React.FC = () => {
                   </div>
                 )}
 
-                {/* SKELETON OVERLAY TOGGLE BUTTON (Default ON, optional for battery saving) */}
+                {/* OVERLAY MODE TOGGLE BUTTON (Cycle: ARMOR -> SKELETON -> OFF) */}
                 <button
-                  onClick={toggleSkeleton}
-                  className={`px-1.5 py-0.5 font-pixel text-[8px] border-2 shadow-pixel-box transition-all flex items-center gap-1 ${
-                    showSkeleton
+                  onClick={cycleOverlayMode}
+                  className={`px-2 py-0.5 font-pixel text-[8px] border-2 shadow-pixel-box transition-all flex items-center gap-1 ${
+                    overlayMode === 'ARMOR'
+                      ? 'bg-[#F4B41A] text-[#0F0E17] border-black font-bold'
+                      : overlayMode === 'SKELETON'
                       ? 'bg-[#38B6FF] text-[#0F0E17] border-black font-bold'
                       : 'bg-[#1A1926]/90 text-[#A7A9BE] border-[#2E2B44]'
                   }`}
-                  title="Toggle body tracking skeleton overlay to conserve phone battery"
+                  title="Cycle camera overlay: AR Knight Armor, Skeleton lines, or Off (battery saver)"
                 >
-                  🦴 SKELETON: {showSkeleton ? 'ON' : 'OFF'}
+                  {overlayMode === 'ARMOR' && '🛡️ ARMOR'}
+                  {overlayMode === 'SKELETON' && '🦴 SKELETON'}
+                  {overlayMode === 'OFF' && '👁️ OVERLAY: OFF'}
                 </button>
               </div>
 

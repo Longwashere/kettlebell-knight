@@ -9,6 +9,9 @@ import {
 } from '../phone/utils/KinematicTracker';
 import { ExerciseType, EXERCISE_SKILLS, RepTelemetry } from '../types/game';
 import { audioManager } from '../shared/AudioManager';
+import { KnightArmorRenderer } from '../phone/utils/KnightArmorRenderer';
+
+export type TestOverlayMode = 'ARMOR' | 'SKELETON' | 'OFF';
 import {
   Camera,
   Play,
@@ -153,10 +156,23 @@ export const MotionTestView: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState<string>('Press Start Camera to begin testing');
   const [fps, setFps] = useState<number>(0);
 
-  // Vision & Gatekeeper Options
-  const [showSkeleton, setShowSkeleton] = useState<boolean>(true);
-  const showSkeletonRef = useRef<boolean>(true);
-  showSkeletonRef.current = showSkeleton;
+  // Vision & Overlay Mode (AR Knight Armor default, Neon Skeleton, or Off)
+  const [overlayMode, setOverlayMode] = useState<TestOverlayMode>('ARMOR');
+  const overlayModeRef = useRef<TestOverlayMode>('ARMOR');
+  overlayModeRef.current = overlayMode;
+
+  const cycleOverlayMode = () => {
+    setOverlayMode((prev) => {
+      let next: TestOverlayMode;
+      if (prev === 'ARMOR') next = 'SKELETON';
+      else if (prev === 'SKELETON') next = 'OFF';
+      else next = 'ARMOR';
+      overlayModeRef.current = next;
+      if (soundEnabled) audioManager.play('ui_move');
+      return next;
+    });
+  };
+
   const [requireFullBody, setRequireFullBody] = useState<boolean>(true);
   const [isFullBodyVisible, setIsFullBodyVisible] = useState<boolean>(true);
   const [missingBodyParts, setMissingBodyParts] = useState<string[]>([]);
@@ -169,6 +185,11 @@ export const MotionTestView: React.FC = () => {
   const [liveVelocity, setLiveVelocity] = useState<number>(0);
   const [repFlash, setRepFlash] = useState<{ show: boolean; power: number; rep: number } | null>(null);
   const [history, setHistory] = useState<RepHistoryItem[]>([]);
+
+  const lastPowerRef = useRef<number>(0);
+  const currentStateRef = useRef<string>('IDLE');
+  const selectedExerciseRef = useRef<ExerciseType>('SWING');
+  selectedExerciseRef.current = selectedExercise;
 
   // DOM & Engine References
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -191,6 +212,7 @@ export const MotionTestView: React.FC = () => {
 
     tracker.onExerciseAutoSwitched = (newEx: ExerciseType) => {
       setSelectedExercise(newEx);
+      selectedExerciseRef.current = newEx;
       if (soundEnabled) audioManager.play('ui_select');
       setStatusMessage(`AI Auto-Routed to: ${newEx}`);
     };
@@ -199,6 +221,7 @@ export const MotionTestView: React.FC = () => {
       const exercise = telemetry.exercise || selectedExercise;
       setRepCount((prev) => prev + 1);
       setLastPower(telemetry.power);
+      lastPowerRef.current = telemetry.power;
       setLastForm(telemetry.form);
 
       if (soundEnabled) {
@@ -226,6 +249,7 @@ export const MotionTestView: React.FC = () => {
 
     tracker.onStateChange = (update: KinematicStateUpdate) => {
       setCurrentStateName(update.stateName);
+      currentStateRef.current = update.stateName;
       setLiveVelocity(Number(update.velocity.toFixed(2)));
       setIsFullBodyVisible(update.isFullBodyVisible ?? true);
       setMissingBodyParts(update.missingBodyParts ?? []);
@@ -235,6 +259,7 @@ export const MotionTestView: React.FC = () => {
   // Handle Exercise Selection Change
   const handleSelectExercise = (ex: ExerciseType) => {
     setSelectedExercise(ex);
+    selectedExerciseRef.current = ex;
     trackerRef.current.setExercise(ex);
     if (!autoRouteMode) {
       trackerRef.current.setAllowedExercises([ex]);
@@ -400,8 +425,14 @@ export const MotionTestView: React.FC = () => {
                 // Draw Kinematic HUD Guides
                 drawKinematicHUD(ctx, canvas.width, canvas.height, processedLandmarks);
 
-                // Draw Retro Workout Skeleton (if enabled)
-                if (showSkeletonRef.current) {
+                // Render AR Knight Armor or Retro Workout Skeleton (if enabled)
+                if (overlayModeRef.current === 'ARMOR') {
+                  KnightArmorRenderer.drawKnightArmor(ctx, canvas.width, canvas.height, processedLandmarks, {
+                    glowPower: lastPowerRef.current,
+                    activePhase: currentStateRef.current === 'DRIVE' ? 1 : 0,
+                    heraldryColor: EXERCISE_SKILLS[selectedExerciseRef.current]?.colorHex || '#F4B41A',
+                  });
+                } else if (overlayModeRef.current === 'SKELETON') {
                   drawWorkoutSkeleton(ctx, canvas.width, canvas.height, processedLandmarks);
                 }
               }
@@ -847,14 +878,22 @@ export const MotionTestView: React.FC = () => {
                 </div>
 
                 <button
-                  onClick={() => setShowSkeleton((prev) => !prev)}
-                  className={`px-2 py-1 font-pixel text-[8px] border border-black shadow-pixel-box flex items-center gap-1 ${
-                    showSkeleton ? 'bg-[#38B6FF] text-[#0F0E17] font-bold' : 'bg-[#1A1926]/90 text-[#A7A9BE]'
+                  onClick={cycleOverlayMode}
+                  className={`px-2 py-1 font-pixel text-[8px] border border-black shadow-pixel-box flex items-center gap-1 transition-all ${
+                    overlayMode === 'ARMOR'
+                      ? 'bg-[#F4B41A] text-[#0F0E17] font-bold'
+                      : overlayMode === 'SKELETON'
+                      ? 'bg-[#38B6FF] text-[#0F0E17] font-bold'
+                      : 'bg-[#1A1926]/90 text-[#A7A9BE]'
                   }`}
-                  title="Toggle skeleton joint lines"
+                  title="Cycle camera overlay: AR Knight Armor, Skeleton lines, or Off (battery saver)"
                 >
-                  {showSkeleton ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                  SKELETON: {showSkeleton ? 'ON' : 'OFF'}
+                  {overlayMode === 'ARMOR' && <Shield className="w-3 h-3" />}
+                  {overlayMode === 'SKELETON' && <Eye className="w-3 h-3" />}
+                  {overlayMode === 'OFF' && <EyeOff className="w-3 h-3" />}
+                  {overlayMode === 'ARMOR' && 'ARMOR: ON'}
+                  {overlayMode === 'SKELETON' && 'SKELETON: ON'}
+                  {overlayMode === 'OFF' && 'OVERLAY: OFF'}
                 </button>
 
                 <button
