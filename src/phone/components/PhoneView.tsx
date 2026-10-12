@@ -105,12 +105,20 @@ export const PhoneView: React.FC = () => {
   // Visual rep flash banner state
   const [repFlash, setRepFlash] = useState<{ show: boolean; power: number; rep: number } | null>(null);
 
-  // Setup tracker callback to broadcast telemetry to TV
+  // Setup tracker callback to broadcast telemetry to TV & sync allowed hand exercises
   useEffect(() => {
+    trackerRef.current.setAllowedExercises(handCards.map((c) => c.exercise));
+
+    trackerRef.current.onExerciseAutoSwitched = (newEx: ExerciseType) => {
+      setActiveExercise(newEx);
+      audioManager.play('ui_select');
+    };
+
     trackerRef.current.onRepCompleted = (telemetry: RepTelemetry) => {
       const exercise = telemetry.exercise || activeExercise;
       const cardResult = deckManagerRef.current.recordRep(exercise, telemetry.power, telemetry.form);
       setHandCards(cardResult.hand);
+      trackerRef.current.setAllowedExercises(cardResult.hand.map((c) => c.exercise));
 
       audioManager.play(cardResult.activated ? 'crit' : 'hit');
 
@@ -132,7 +140,7 @@ export const PhoneView: React.FC = () => {
     trackerRef.current.onStateChange = (update: KinematicStateUpdate) => {
       setCurrentStateName(update.stateName);
     };
-  }, [activeExercise]);
+  }, [activeExercise, handCards]);
 
   // Initialize MediaPipe PoseLandmarker
   const initPoseLandmarker = async () => {
@@ -321,9 +329,17 @@ export const PhoneView: React.FC = () => {
     const shoulderY = ((lShoulder.y + rShoulder.y) / 2) * h;
     const kneeY = lKnee && rKnee ? ((lKnee.y + rKnee.y) / 2) * h : hipY + 80;
 
+    const lAnkle = landmarks[POSE_INDEX.LEFT_ANKLE];
+    const rAnkle = landmarks[POSE_INDEX.RIGHT_ANKLE];
+    const nose = landmarks[POSE_INDEX.NOSE];
+
+    const ankleY = lAnkle && rAnkle ? ((lAnkle.y + rAnkle.y) / 2) * h : hipY + 160;
+    const noseX = nose ? nose.x * w : w / 2;
+    const noseY = nose ? nose.y * h : shoulderY - 40;
+
     ctx.save();
     ctx.lineWidth = 3;
-    ctx.font = '11px "Press Start 2P", monospace';
+    ctx.font = '10px "Press Start 2P", monospace';
 
     if (activeExercise === 'SQUAT') {
       // Squat HUD: Track Hip relative to Knee
@@ -347,7 +363,7 @@ export const PhoneView: React.FC = () => {
 
     } else if (activeExercise === 'OVERHEAD_PRESS') {
       // Press HUD: Track Wrists from Shoulder Rack to Overhead Reach
-      const overheadY = Math.max(15, shoulderY - (hipY - shoulderY) * 0.6);
+      const overheadY = Math.max(20, shoulderY - (hipY - shoulderY) * 0.6);
 
       ctx.strokeStyle = '#38B6FF';
       ctx.setLineDash([8, 6]);
@@ -368,13 +384,151 @@ export const PhoneView: React.FC = () => {
       ctx.fillStyle = '#F4B41A';
       ctx.fillText('SHOULDER RACK', 20, shoulderY + 18);
 
-      // Wrist Center Indicator
       ctx.fillStyle = '#38B6FF';
       ctx.setLineDash([]);
       ctx.beginPath();
       ctx.arc(wristX, wristY, 12, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
+
+    } else if (activeExercise === 'CLEAN_AND_PRESS') {
+      // Clean and Press: Hang, Rack, and Overhead
+      const overheadY = Math.max(20, shoulderY - (hipY - shoulderY) * 0.6);
+
+      ctx.strokeStyle = '#38B6FF';
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, overheadY);
+      ctx.lineTo(w * 0.9, overheadY);
+      ctx.stroke();
+      ctx.fillStyle = '#38B6FF';
+      ctx.fillText('OVERHEAD PRESS', 20, overheadY - 8);
+
+      ctx.strokeStyle = '#F97316';
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, shoulderY);
+      ctx.lineTo(w * 0.9, shoulderY);
+      ctx.stroke();
+      ctx.fillStyle = '#F97316';
+      ctx.fillText('RACK STAGE', 20, shoulderY + 18);
+
+      ctx.strokeStyle = '#FF3366';
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, hipY);
+      ctx.lineTo(w * 0.9, hipY);
+      ctx.stroke();
+      ctx.fillStyle = '#FF3366';
+      ctx.fillText('HANG CLEAN', 20, hipY + 18);
+
+    } else if (activeExercise === 'SNATCH') {
+      // Snatch HUD: Hike and continuous overhead punch-through
+      const overheadY = Math.max(20, shoulderY - (hipY - shoulderY) * 0.65);
+
+      ctx.strokeStyle = '#EF4444';
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, overheadY);
+      ctx.lineTo(w * 0.9, overheadY);
+      ctx.stroke();
+      ctx.fillStyle = '#EF4444';
+      ctx.fillText('SNATCH LOCKOUT', 20, overheadY - 8);
+
+      ctx.strokeStyle = '#F4B41A';
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, hipY);
+      ctx.lineTo(w * 0.9, hipY);
+      ctx.stroke();
+      ctx.fillStyle = '#F4B41A';
+      ctx.fillText('BACKSWING HIKE', 20, hipY + 18);
+
+    } else if (activeExercise === 'WINDMILL') {
+      // Windmill HUD: Overhead locked arm and floor ankle touch target
+      ctx.strokeStyle = '#00EB88';
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, ankleY - 20);
+      ctx.lineTo(w * 0.9, ankleY - 20);
+      ctx.stroke();
+      ctx.fillStyle = '#00EB88';
+      ctx.fillText('ANKLE TOUCH TARGET', 20, ankleY - 28);
+
+      ctx.fillStyle = '#00EB88';
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(wristX, wristY, 10, 0, Math.PI * 2);
+      ctx.fill();
+
+    } else if (activeExercise === 'DEADLIFT') {
+      // Deadlift HUD: Shin floor pickup and Hip Lockout (Keep below shoulders!)
+      ctx.strokeStyle = '#D97706';
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, hipY);
+      ctx.lineTo(w * 0.9, hipY);
+      ctx.stroke();
+      ctx.fillStyle = '#D97706';
+      ctx.fillText('HIP LOCKOUT', 20, hipY - 10);
+
+      ctx.strokeStyle = '#84CC16';
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, kneeY + 25);
+      ctx.lineTo(w * 0.9, kneeY + 25);
+      ctx.stroke();
+      ctx.fillStyle = '#84CC16';
+      ctx.fillText('SHIN SETUP', 20, kneeY + 40);
+
+    } else if (activeExercise === 'THRUSTER') {
+      // Thruster HUD: Deep Squat + Overhead Lockout
+      const overheadY = Math.max(20, shoulderY - (hipY - shoulderY) * 0.6);
+
+      ctx.strokeStyle = '#F59E0B';
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, overheadY);
+      ctx.lineTo(w * 0.9, overheadY);
+      ctx.stroke();
+      ctx.fillStyle = '#F59E0B';
+      ctx.fillText('OVERHEAD THRUST', 20, overheadY - 8);
+
+      ctx.strokeStyle = '#FF3366';
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, kneeY - 15);
+      ctx.lineTo(w * 0.9, kneeY - 15);
+      ctx.stroke();
+      ctx.fillStyle = '#FF3366';
+      ctx.fillText('SQUAT HOLE', 20, kneeY - 22);
+
+    } else if (activeExercise === 'GORILLA_ROW') {
+      // Gorilla Row HUD: Hinged pull to rib line
+      ctx.strokeStyle = '#84CC16';
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, hipY - 15);
+      ctx.lineTo(w * 0.9, hipY - 15);
+      ctx.stroke();
+      ctx.fillStyle = '#84CC16';
+      ctx.fillText('RIB CONTRACTION', 20, hipY - 22);
+
+    } else if (activeExercise === 'HALO') {
+      // Halo HUD: Head crown orbit ellipse
+      ctx.strokeStyle = '#818CF8';
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.ellipse(noseX, noseY, 65, 45, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#818CF8';
+      ctx.fillText('CROWN ORBIT', noseX - 45, noseY - 55);
+
+    } else if (activeExercise === 'SINGLE_LEG_RDL') {
+      // Single-Leg RDL HUD: Planted knee depth and horizontal trail leg line
+      ctx.strokeStyle = '#EC4899';
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, kneeY);
+      ctx.lineTo(w * 0.9, kneeY);
+      ctx.stroke();
+      ctx.fillStyle = '#EC4899';
+      ctx.fillText('PLANTED KNEE LEVEL', 20, kneeY - 10);
 
     } else {
       // Swing HUD: Shoulder Lockout & Hip Hike Lines

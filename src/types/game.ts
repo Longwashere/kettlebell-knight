@@ -5,17 +5,25 @@ export type RepEvent = 'REP_TRIGGER' | 'REP_UPDATE' | 'CALIBRATION' | 'HIKE_ENTE
 export type ExerciseType = 
   | 'SWING' 
   | 'SQUAT' 
-  | 'OVERHEAD_PRESS'
-  | 'CLEAN'
-  | 'HALO'
+  | 'CLEAN_AND_PRESS'
+  | 'SNATCH'
+  | 'WINDMILL'
   | 'DEADLIFT'
+  | 'OVERHEAD_PRESS'
+  | 'THRUSTER'
+  | 'GORILLA_ROW'
+  | 'HALO'
+  | 'SINGLE_LEG_RDL'
+  | 'CLEAN'
   | 'LUNGE';
+
+export type RpgElement = 'PHYSICAL' | 'EARTH' | 'LIGHTNING' | 'FIRE' | 'ARCANE';
 
 export interface ExerciseSkillConfig {
   type: ExerciseType;
   skillName: string;
   description: string;
-  rpgElement: 'PHYSICAL' | 'EARTH' | 'LIGHTNING';
+  rpgElement: RpgElement;
   colorHex: string;
   targetMetric: string;
 }
@@ -37,13 +45,77 @@ export const EXERCISE_SKILLS: Record<ExerciseType, ExerciseSkillConfig> = {
     colorHex: '#FF3366',
     targetMetric: 'Squat Depth',
   },
+  CLEAN_AND_PRESS: {
+    type: 'CLEAN_AND_PRESS',
+    skillName: 'STORM BREAKER',
+    description: 'Two-stage compound clean to rack followed by a thunderous overhead press.',
+    rpgElement: 'LIGHTNING',
+    colorHex: '#F97316',
+    targetMetric: 'Rack to Lockout',
+  },
+  SNATCH: {
+    type: 'SNATCH',
+    skillName: 'PHOENIX ASCENSION',
+    description: 'Continuous ballistic pull from floor directly to overhead lockout without pausing.',
+    rpgElement: 'FIRE',
+    colorHex: '#EF4444',
+    targetMetric: 'Explosive Pull',
+  },
+  WINDMILL: {
+    type: 'WINDMILL',
+    skillName: 'ASTRAL SPIRE',
+    description: 'Lateral hip hinge with bell locked overhead. Channels celestial cosmic ward.',
+    rpgElement: 'ARCANE',
+    colorHex: '#00EB88',
+    targetMetric: 'Lateral Flexibility',
+  },
+  DEADLIFT: {
+    type: 'DEADLIFT',
+    skillName: 'MOUNTAIN SUNDER',
+    description: 'Heavy posterior hinge pulling strictly from mid-shin to full standing hip lockout.',
+    rpgElement: 'EARTH',
+    colorHex: '#D97706',
+    targetMetric: 'Posterior Drive',
+  },
   OVERHEAD_PRESS: {
     type: 'OVERHEAD_PRESS',
     skillName: 'THUNDER SMITE',
-    description: 'Vertical push press overhead that calls divine lightning from the heavens.',
+    description: 'Strict unilateral push press overhead that calls divine lightning.',
     rpgElement: 'LIGHTNING',
     colorHex: '#38B6FF',
     targetMetric: 'Overhead Lockout',
+  },
+  THRUSTER: {
+    type: 'THRUSTER',
+    skillName: 'SOLAR ERUPTION',
+    description: 'Deep goblet squat directly transferring momentum into an explosive press.',
+    rpgElement: 'FIRE',
+    colorHex: '#F59E0B',
+    targetMetric: 'Squat-to-Press Flow',
+  },
+  GORILLA_ROW: {
+    type: 'GORILLA_ROW',
+    skillName: 'BEAST MAW',
+    description: 'Hinged bent-over pull driving elbow high past the ribs with predatory power.',
+    rpgElement: 'PHYSICAL',
+    colorHex: '#84CC16',
+    targetMetric: 'Elbow Row Drive',
+  },
+  HALO: {
+    type: 'HALO',
+    skillName: 'CELESTIAL WARD',
+    description: 'Rotational 360-degree orbit around the head generating an impenetrable shield.',
+    rpgElement: 'LIGHTNING',
+    colorHex: '#818CF8',
+    targetMetric: 'Orbit Smoothness',
+  },
+  SINGLE_LEG_RDL: {
+    type: 'SINGLE_LEG_RDL',
+    skillName: 'VALKYRIE BALANCE',
+    description: 'Unilateral hinge with horizontal rear-leg extension testing true knightly equilibrium.',
+    rpgElement: 'ARCANE',
+    colorHex: '#EC4899',
+    targetMetric: 'Single-Leg Balance',
   },
   CLEAN: {
     type: 'CLEAN',
@@ -52,22 +124,6 @@ export const EXERCISE_SKILLS: Record<ExerciseType, ExerciseSkillConfig> = {
     rpgElement: 'PHYSICAL',
     colorHex: '#F97316',
     targetMetric: 'Triple Extension',
-  },
-  HALO: {
-    type: 'HALO',
-    skillName: 'CELESTIAL WARD',
-    description: 'Rotational orbit around the crown generating an impenetrable shield.',
-    rpgElement: 'LIGHTNING',
-    colorHex: '#818CF8',
-    targetMetric: 'Orbit Smoothness',
-  },
-  DEADLIFT: {
-    type: 'DEADLIFT',
-    skillName: 'MOUNTAIN SUNDER',
-    description: 'Heavy posterior hinge anchoring your stance into the bedrock.',
-    rpgElement: 'EARTH',
-    colorHex: '#D97706',
-    targetMetric: 'Lockout Extension',
   },
   LUNGE: {
     type: 'LUNGE',

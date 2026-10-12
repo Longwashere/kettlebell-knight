@@ -93,7 +93,19 @@ export class CardDeckManager {
 
     // If still no candidate, generate fresh card from catalog for a missing exercise
     if (candidateIndex === -1) {
-      const allExercises: ExerciseType[] = ['SWING', 'SQUAT', 'OVERHEAD_PRESS', 'CLEAN', 'HALO', 'DEADLIFT', 'LUNGE'];
+      const allExercises: ExerciseType[] = [
+        'SWING',
+        'SQUAT',
+        'CLEAN_AND_PRESS',
+        'SNATCH',
+        'WINDMILL',
+        'DEADLIFT',
+        'OVERHEAD_PRESS',
+        'THRUSTER',
+        'GORILLA_ROW',
+        'HALO',
+        'SINGLE_LEG_RDL',
+      ];
       const missingExercises = allExercises.filter(ex => !currentExercisesInHand.has(ex));
       if (missingExercises.length > 0) {
         const targetEx = missingExercises[Math.floor(Math.random() * missingExercises.length)];
