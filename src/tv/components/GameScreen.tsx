@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GameEngine } from '../engine/GameEngine';
 import { useTVRemote } from '../hooks/useTVRemote';
 import { networkManager, NetworkConnectionState } from '../../shared/NetworkManager';
+import { discoveryManager } from '../../shared/DiscoveryManager';
 import { HubMenu, HUB_NODES } from './HubMenu';
 import { BlacksmithShop, SHOP_ITEMS } from './BlacksmithShop';
 import { BattleScreen } from './BattleScreen';
@@ -75,6 +76,7 @@ export const GameScreen: React.FC = () => {
 
     networkManager.initHost().then((generatedRoom) => {
       setRoomId(generatedRoom);
+      discoveryManager.startBroadcasting(generatedRoom, 'Living Room Fire TV');
     }).catch((err) => {
       console.error('[GameScreen] Network host error:', err);
     });
@@ -121,6 +123,7 @@ export const GameScreen: React.FC = () => {
     return () => {
       if (unsubState) unsubState();
       if (unsubTelemetry) unsubTelemetry();
+      discoveryManager.stopBroadcasting();
       networkManager.cleanup();
     };
   }, []);

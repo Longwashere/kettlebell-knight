@@ -8,6 +8,7 @@ import { CombatCard } from '../../types/battle';
 import { CardDeckManager } from '../../shared/CardDeckManager';
 import { audioManager } from '../../shared/AudioManager';
 import { KnightArmorRenderer } from '../utils/KnightArmorRenderer';
+import { discoveryManager, DiscoveredTV } from '../../shared/DiscoveryManager';
 
 export type PhoneOverlayMode = 'ARMOR' | 'SKELETON' | 'OFF';
 import { 
@@ -23,7 +24,9 @@ import {
   RefreshCw,
   Swords,
   Shield,
-  ZapOff
+  ZapOff,
+  Wifi,
+  Radio
 } from 'lucide-react';
 
 export const PhoneView: React.FC = () => {
@@ -83,6 +86,33 @@ export const PhoneView: React.FC = () => {
   const animFrameRef = useRef<number | null>(null);
   const lastVideoTimeRef = useRef<number>(-1);
 
+  // Local WiFi Discovery State
+  const [discoveredTVs, setDiscoveredTVs] = useState<DiscoveredTV[]>([]);
+  const [isScanningWifi, setIsScanningWifi] = useState<boolean>(false);
+
+  // Scan Local WiFi for running Fire TV hosts
+  const scanWifi = useCallback(async () => {
+    setIsScanningWifi(true);
+    setStatusMessage('Scanning local WiFi for Fire TV...');
+    try {
+      const found = await discoveryManager.scanForTVs();
+      setDiscoveredTVs(found);
+      if (found.length > 0) {
+        setStatusMessage(`Found ${found.length} TV on WiFi: ${found[0].roomId}`);
+        audioManager.play('ui_select');
+        if (!roomId) {
+          setRoomId(found[0].roomId);
+        }
+      } else {
+        setStatusMessage('No TV found on local WiFi. Ensure TV is open or enter code.');
+      }
+    } catch (e) {
+      setStatusMessage('WiFi scan completed. Use code entry as backup.');
+    } finally {
+      setIsScanningWifi(false);
+    }
+  }, [roomId]);
+
   // Subscribe to NetworkManager state
   useEffect(() => {
     const unsub = networkManager.onStateChange((state, info) => {
@@ -90,9 +120,11 @@ export const PhoneView: React.FC = () => {
       if (info) setStatusMessage(info);
     });
 
-    // Auto-connect if room is present in URL
+    // Auto-connect if room is present in URL, otherwise scan local WiFi
     if (roomFromQuery) {
       handleConnect(roomFromQuery);
+    } else {
+      scanWifi();
     }
 
     return () => {
@@ -109,6 +141,7 @@ export const PhoneView: React.FC = () => {
     const cleanRoom = targetRoom.trim().toUpperCase();
     if (!cleanRoom) return;
     try {
+      setRoomId(cleanRoom);
       setStatusMessage(`Pairing with ${cleanRoom}...`);
       await networkManager.connectToHost(cleanRoom);
     } catch (err: any) {
@@ -767,37 +800,106 @@ export const PhoneView: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col p-4 max-w-md mx-auto w-full space-y-4">
-        {/* Pairing Setup Card */}
-        <section className="bg-[#1A1926] border-4 border-[#2E2B44] p-4 rounded shadow-pixel-box">
-          <div className="flex items-center justify-between mb-3">
+        {/* Pairing Setup Card: Local WiFi Discovery + Manual Code Backup */}
+        <section className="bg-[#1A1926] border-4 border-[#2E2B44] p-4 rounded shadow-pixel-box space-y-3">
+          <div className="flex items-center justify-between">
             <span className="text-[11px] font-pixel text-[#38B6FF] flex items-center gap-2">
               <Tv className="w-4 h-4" /> TV ROOM PAIRING
             </span>
-            {netState === 'CONNECTED' && (
-              <span className="text-[10px] bg-[#00EB88]/20 text-[#00EB88] px-2 py-0.5 font-pixel border border-[#00EB88]">
-                LINK ACTIVE
+            {netState === 'CONNECTED' ? (
+              <span className="text-[10px] bg-[#00EB88]/20 text-[#00EB88] px-2 py-0.5 font-pixel border border-[#00EB88] flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" /> LINK ACTIVE
               </span>
+            ) : (
+              <button
+                onClick={scanWifi}
+                disabled={isScanningWifi}
+                className="text-[9px] font-pixel text-[#F4B41A] hover:text-white bg-[#0F0E17] border border-[#2E2B44] px-2 py-1 shadow-pixel-box flex items-center gap-1.5 transition-all active:translate-x-0.5 active:translate-y-0.5"
+                title="Scan local WiFi network for running TV"
+              >
+                <Wifi className={`w-3 h-3 ${isScanningWifi ? 'animate-ping text-[#00EB88]' : 'text-[#F4B41A]'}`} />
+                {isScanningWifi ? 'SCANNING...' : 'SCAN WIFI'}
+              </button>
             )}
           </div>
 
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={roomId}
-              onChange={(e) => setRoomId(e.target.value.toUpperCase())}
-              placeholder="E.G. KNIGHT-42"
-              className="flex-1 bg-[#0F0E17] border-2 border-[#2E2B44] px-3 py-2 text-sm font-mono text-[#F4B41A] uppercase tracking-wider focus:outline-none focus:border-[#38B6FF]"
-            />
-            <button
-              onClick={() => handleConnect(roomId)}
-              disabled={netState === 'CONNECTED' || !roomId}
-              className="bg-[#38B6FF] hover:bg-[#38B6FF]/80 disabled:opacity-50 text-[#0F0E17] font-pixel text-[10px] px-4 py-2 border-2 border-black shadow-pixel-box active:translate-x-0.5 active:translate-y-0.5"
-            >
-              PAIR
-            </button>
+          {/* 1. DISCOVERED LOCAL WIFI TVS SECTION */}
+          {netState !== 'CONNECTED' && (
+            <div className="space-y-2">
+              {discoveredTVs.length > 0 ? (
+                <div className="space-y-1.5">
+                  <div className="text-[9px] font-pixel text-[#00EB88] flex items-center gap-1">
+                    <Radio className="w-3 h-3 animate-pulse text-[#00EB88]" />
+                    DISCOVERED ON LOCAL WIFI:
+                  </div>
+                  {discoveredTVs.map((tv) => (
+                    <div
+                      key={tv.roomId}
+                      className="bg-[#0F0E17] border-2 border-[#00EB88] p-2.5 rounded shadow-pixel-box flex items-center justify-between gap-2"
+                    >
+                      <div className="text-left">
+                        <div className="font-pixel text-[10px] text-white flex items-center gap-1.5">
+                          <Tv className="w-3.5 h-3.5 text-[#38B6FF]" />
+                          {tv.name}
+                        </div>
+                        <div className="text-[9px] font-mono text-[#F4B41A] font-bold tracking-wider mt-0.5">
+                          ROOM: {tv.roomId}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleConnect(tv.roomId)}
+                        className="bg-[#00EB88] hover:bg-[#00EB88]/80 text-[#0F0E17] font-pixel text-[10px] px-3 py-1.5 border-2 border-black shadow-pixel-box font-bold flex items-center gap-1 active:translate-x-0.5 active:translate-y-0.5"
+                      >
+                        <Zap className="w-3 h-3" />
+                        CONNECT
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-[#0F0E17]/60 border border-[#2E2B44] p-2.5 rounded text-center">
+                  <p className="text-[10px] text-[#A7A9BE] font-mono flex items-center justify-center gap-1.5">
+                    {isScanningWifi ? (
+                      <>
+                        <Wifi className="w-3.5 h-3.5 text-[#38B6FF] animate-spin" />
+                        Scanning local WiFi for Fire TV...
+                      </>
+                    ) : (
+                      <>
+                        <Wifi className="w-3.5 h-3.5 text-[#F4B41A]" />
+                        Tap <strong className="text-[#F4B41A]">"SCAN WIFI"</strong> to auto-find Fire TV on your network.
+                      </>
+                    )}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 2. MANUAL CODE INPUT BACKUP */}
+          <div className="pt-2 border-t border-[#2E2B44]/60">
+            <div className="text-[8px] font-pixel text-[#A7A9BE] mb-1.5 uppercase">
+              {discoveredTVs.length > 0 ? 'Or Enter Code Manually (Backup):' : 'Enter TV Room Code (Backup):'}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={roomId}
+                onChange={(e) => setRoomId(e.target.value.toUpperCase())}
+                placeholder="E.G. KNIGHT-42"
+                className="flex-1 bg-[#0F0E17] border-2 border-[#2E2B44] px-3 py-1.5 text-sm font-mono text-[#F4B41A] uppercase tracking-wider focus:outline-none focus:border-[#38B6FF]"
+              />
+              <button
+                onClick={() => handleConnect(roomId)}
+                disabled={netState === 'CONNECTED' || !roomId}
+                className="bg-[#38B6FF] hover:bg-[#38B6FF]/80 disabled:opacity-50 text-[#0F0E17] font-pixel text-[10px] px-4 py-1.5 border-2 border-black shadow-pixel-box active:translate-x-0.5 active:translate-y-0.5"
+              >
+                PAIR
+              </button>
+            </div>
           </div>
 
-          <p className="text-[10px] text-[#A7A9BE] mt-2 font-mono flex items-center gap-1.5">
+          <p className="text-[10px] text-[#A7A9BE] font-mono flex items-center gap-1.5">
             <Activity className="w-3.5 h-3.5 text-[#F4B41A]" />
             {statusMessage}
           </p>
