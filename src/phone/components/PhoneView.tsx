@@ -60,6 +60,8 @@ export const PhoneView: React.FC = () => {
   const [lastPower, setLastPower] = useState<number>(0);
   const [lastForm, setLastForm] = useState<number>(1.0);
   const [currentStateName, setCurrentStateName] = useState<string>('IDLE');
+  const [isFullBodyVisible, setIsFullBodyVisible] = useState<boolean>(true);
+  const [missingBodyParts, setMissingBodyParts] = useState<string[]>([]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -139,6 +141,8 @@ export const PhoneView: React.FC = () => {
 
     trackerRef.current.onStateChange = (update: KinematicStateUpdate) => {
       setCurrentStateName(update.stateName);
+      setIsFullBodyVisible(update.isFullBodyVisible ?? true);
+      setMissingBodyParts(update.missingBodyParts ?? []);
     };
   }, [activeExercise, handCards]);
 
@@ -883,6 +887,15 @@ export const PhoneView: React.FC = () => {
 
               {/* Top Right Viewfinder Indicators & Skeleton Toggle */}
               <div className="absolute top-2 right-2 flex items-center space-x-1.5 z-20">
+                {/* Full Body Status Badge */}
+                <div
+                  className={`px-1.5 py-0.5 font-pixel text-[7px] border border-black shadow-pixel-box flex items-center gap-1 ${
+                    isFullBodyVisible ? 'bg-[#00EB88] text-black font-bold' : 'bg-[#FF3366] text-white animate-pulse'
+                  }`}
+                >
+                  {isFullBodyVisible ? 'BODY: OK' : `NEED: ${missingBodyParts.join(', ')}`}
+                </div>
+
                 {wakeLockActive && (
                   <div className="bg-[#00EB88]/90 text-black border border-black px-1.5 py-0.5 font-pixel text-[8px]">
                     WAKE LOCK ON
@@ -902,6 +915,19 @@ export const PhoneView: React.FC = () => {
                   🦴 SKELETON: {showSkeleton ? 'ON' : 'OFF'}
                 </button>
               </div>
+
+              {/* Out-of-Frame Step Back Alert Banner */}
+              {!isFullBodyVisible && (
+                <div className="absolute inset-x-3 top-12 bg-[#0F0E17]/95 border-2 border-[#FF3366] p-2.5 text-center z-30 shadow-pixel-box animate-pulse">
+                  <div className="font-pixel text-[8px] text-[#FF3366] flex items-center justify-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    STEP BACK: FULL BODY REQUIRED
+                  </div>
+                  <div className="text-[7px] font-mono text-[#A7A9BE] mt-0.5">
+                    Please step back so your <strong className="text-[#F4B41A]">{missingBodyParts.join(' & ')}</strong> are visible.
+                  </div>
+                </div>
+              )}
 
               {/* Rep Completed Flash Banner Overlay */}
               {repFlash && (

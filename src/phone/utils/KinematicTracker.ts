@@ -47,6 +47,17 @@ export const POSE_INDEX = {
   RIGHT_FOOT_INDEX: 32,
 } as const;
 
+export interface BodyVisibilityStatus {
+  isFullyVisible: boolean;
+  missingParts: string[];
+  armsVisible: boolean;
+  legsVisible: boolean;
+  hipsVisible: boolean;
+  shouldersVisible: boolean;
+  inFrameScore: number;
+  reason?: string;
+}
+
 export interface KinematicStateUpdate {
   exercise: ExerciseType;
   state: SwingState;
@@ -59,6 +70,8 @@ export interface KinematicStateUpdate {
   velocity: number;
   telemetry?: RepTelemetry;
   debugNotes?: string;
+  isFullBodyVisible?: boolean;
+  missingBodyParts?: string[];
 }
 
 /**
@@ -121,9 +134,24 @@ export class KinematicTracker {
   private lastHaloQuadrant: number = 0;
   private rdlWorkingLeg: 'LEFT' | 'RIGHT' = 'LEFT';
 
+  private requireFullBody: boolean = true;
+  private consecutiveFullBodyFrames: number = 0;
+  private minFullBodyFramesRequired: number = 3;
+
   public onRepCompleted?: (telemetry: RepTelemetry) => void;
   public onStateChange?: (update: KinematicStateUpdate) => void;
   public onExerciseAutoSwitched?: (newExercise: ExerciseType) => void;
+
+  public setRequireFullBody(require: boolean): void {
+    this.requireFullBody = require;
+    if (!require) {
+      this.consecutiveFullBodyFrames = this.minFullBodyFramesRequired;
+    }
+  }
+
+  public getRequireFullBody(): boolean {
+    return this.requireFullBody;
+  }
 
   public setAllowedExercises(exercises: ExerciseType[]): void {
     if (exercises && exercises.length > 0) {
@@ -164,6 +192,7 @@ export class KinematicTracker {
     this.cleanStageCompleted = false;
     this.haloAngleAccumulator = 0;
     this.lastHaloQuadrant = 0;
+    this.consecutiveFullBodyFrames = 0;
   }
 
   public getRepCount(): number {
@@ -171,9 +200,91 @@ export class KinematicTracker {
   }
 
   /**
+   * Verifies that the user's FULL body (Arms, Legs, Hips, Shoulders) is visible in frame.
+   * Suppresses rep counting if the user is too close or body parts are occluded/cut off.
+   */
+  public checkFullBodyVisibility(landmarks: NormalizedLandmark[]): BodyVisibilityStatus {
+    if (!landmarks || landmarks.length < 29) {
+      return {
+        isFullyVisible: false,
+        missingParts: ['ALL JOINTS'],
+        armsVisible: false,
+        legsVisible: false,
+        hipsVisible: false,
+        shouldersVisible: false,
+        inFrameScore: 0,
+        reason: 'No pose landmarks detected in frame',
+      };
+    }
+
+    const missingParts: string[] = [];
+
+    const lShoulder = landmarks[POSE_INDEX.LEFT_SHOULDER];
+    const rShoulder = landmarks[POSE_INDEX.RIGHT_SHOULDER];
+    const lElbow = landmarks[POSE_INDEX.LEFT_ELBOW];
+    const rElbow = landmarks[POSE_INDEX.RIGHT_ELBOW];
+    const lWrist = landmarks[POSE_INDEX.LEFT_WRIST];
+    const rWrist = landmarks[POSE_INDEX.RIGHT_WRIST];
+    const lHip = landmarks[POSE_INDEX.LEFT_HIP];
+    const rHip = landmarks[POSE_INDEX.RIGHT_HIP];
+    const lKnee = landmarks[POSE_INDEX.LEFT_KNEE];
+    const rKnee = landmarks[POSE_INDEX.RIGHT_KNEE];
+    const lAnkle = landmarks[POSE_INDEX.LEFT_ANKLE];
+    const rAnkle = landmarks[POSE_INDEX.RIGHT_ANKLE];
+
+    const isPointValid = (p?: NormalizedLandmark, minVis = 0.45): boolean => {
+      if (!p) return false;
+      const vis = p.visibility !== undefined ? p.visibility : 1.0;
+      const inBounds = p.x >= 0.01 && p.x <= 0.99 && p.y >= 0.01 && p.y <= 0.99;
+      return vis >= minVis && inBounds;
+    };
+
+    // 1. Shoulders Verification
+    const shouldersVisible = isPointValid(lShoulder, 0.48) && isPointValid(rShoulder, 0.48);
+    if (!shouldersVisible) missingParts.push('SHOULDERS');
+
+    // 2. Hips / Torso Verification
+    const hipsVisible = isPointValid(lHip, 0.45) && isPointValid(rHip, 0.45);
+    if (!hipsVisible) missingParts.push('HIPS');
+
+    // 3. Arms Verification (at least one working arm fully clear, wrists in bounds)
+    const wristsVisible = isPointValid(lWrist, 0.40) || isPointValid(rWrist, 0.40);
+    const armsVisible = shouldersVisible && wristsVisible;
+    if (!wristsVisible) missingParts.push('ARMS / HANDS');
+
+    // 4. Legs Verification: KNEES AND ANKLES MUST BE VISIBLE
+    // If ankles are cut off by screen edge (y > 0.985 or low visibility), legs are NOT fully visible!
+    const kneesVisible = isPointValid(lKnee, 0.42) && isPointValid(rKnee, 0.42);
+    const anklesVisible =
+      (isPointValid(lAnkle, 0.38) || isPointValid(rAnkle, 0.38)) &&
+      (lAnkle.y < 0.985 || rAnkle.y < 0.985);
+    const legsVisible = kneesVisible && anklesVisible;
+    if (!kneesVisible) missingParts.push('KNEES');
+    if (!anklesVisible) missingParts.push('FEET / ANKLES');
+
+    const isFullyVisible = shouldersVisible && hipsVisible && wristsVisible && legsVisible;
+
+    const keyPoints = [lShoulder, rShoulder, lElbow, rElbow, lWrist, rWrist, lHip, rHip, lKnee, rKnee, lAnkle, rAnkle];
+    const validCount = keyPoints.filter((p) => isPointValid(p, 0.4)).length;
+    const inFrameScore = Number((validCount / keyPoints.length).toFixed(2));
+
+    return {
+      isFullyVisible,
+      missingParts,
+      armsVisible,
+      legsVisible,
+      hipsVisible,
+      shouldersVisible,
+      inFrameScore,
+      reason: isFullyVisible ? 'Full body verified' : `Missing: ${missingParts.join(', ')}`,
+    };
+  }
+
+  /**
    * Main Frame Entrypoint:
-   * 1. Evaluates Smart Hand Auto-Router if motion deviates towards another card in hand
-   * 2. Executes the active exercise state machine
+   * 1. Evaluates Full Body Visibility Gatekeeper (Arms & Legs required)
+   * 2. Evaluates Smart Hand Auto-Router if motion deviates towards another card in hand
+   * 3. Executes the active exercise state machine
    */
   public processLandmarks(landmarks: NormalizedLandmark[], timestampMs: number = Date.now()): KinematicStateUpdate {
     if (!landmarks || landmarks.length < 29) {
@@ -187,10 +298,65 @@ export class KinematicTracker {
         primaryY: 0,
         referenceY: 0,
         velocity: 0,
+        isFullBodyVisible: false,
+        missingBodyParts: ['ALL JOINTS'],
       };
     }
 
-    // Smart Hand Auto-Routing
+    // 1. Full-Body Visibility Gatekeeper
+    if (this.requireFullBody) {
+      const visibility = this.checkFullBodyVisibility(landmarks);
+      if (!visibility.isFullyVisible) {
+        this.consecutiveFullBodyFrames = 0;
+        this.lastTimestamp = timestampMs;
+
+        // Reset any partially started rep to avoid hallucinated triggers
+        if (this.currentState !== 0) {
+          this.currentState = 0;
+          this.maxMovementVelocity = 0;
+        }
+
+        const stateName = `STEP BACK (${visibility.missingParts.join(', ')})`;
+        const update: KinematicStateUpdate = {
+          exercise: this.activeExercise,
+          state: 0,
+          stateName,
+          repCount: this.repCount,
+          power: 0,
+          form: 1.0,
+          primaryY: 0,
+          referenceY: 0,
+          velocity: 0,
+          isFullBodyVisible: false,
+          missingBodyParts: visibility.missingParts,
+          debugNotes: visibility.reason,
+        };
+        this.onStateChange?.(update);
+        return update;
+      }
+
+      this.consecutiveFullBodyFrames++;
+      if (this.consecutiveFullBodyFrames < this.minFullBodyFramesRequired) {
+        // Stabilizing camera framing
+        const update: KinematicStateUpdate = {
+          exercise: this.activeExercise,
+          state: 0,
+          stateName: 'STABILIZING FRAMING...',
+          repCount: this.repCount,
+          power: 0,
+          form: 1.0,
+          primaryY: 0,
+          referenceY: 0,
+          velocity: 0,
+          isFullBodyVisible: true,
+          missingBodyParts: [],
+        };
+        this.onStateChange?.(update);
+        return update;
+      }
+    }
+
+    // 2. Smart Hand Auto-Routing
     if (this.autoRouteEnabled && this.currentState === 0) {
       const detected = this.detectExerciseSignature(landmarks, timestampMs);
       if (detected && detected !== this.activeExercise && this.allowedExercises.includes(detected)) {

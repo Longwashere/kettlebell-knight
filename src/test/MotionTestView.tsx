@@ -153,10 +153,13 @@ export const MotionTestView: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState<string>('Press Start Camera to begin testing');
   const [fps, setFps] = useState<number>(0);
 
-  // Vision Options
+  // Vision & Gatekeeper Options
   const [showSkeleton, setShowSkeleton] = useState<boolean>(true);
   const showSkeletonRef = useRef<boolean>(true);
   showSkeletonRef.current = showSkeleton;
+  const [requireFullBody, setRequireFullBody] = useState<boolean>(true);
+  const [isFullBodyVisible, setIsFullBodyVisible] = useState<boolean>(true);
+  const [missingBodyParts, setMissingBodyParts] = useState<string[]>([]);
 
   // Real-Time Telemetry State
   const [repCount, setRepCount] = useState<number>(0);
@@ -183,6 +186,7 @@ export const MotionTestView: React.FC = () => {
     const tracker = trackerRef.current;
     tracker.setExercise(selectedExercise);
     tracker.setAutoRoute(autoRouteMode);
+    tracker.setRequireFullBody(requireFullBody);
     tracker.setAllowedExercises(autoRouteMode ? ALL_EXERCISES : [selectedExercise]);
 
     tracker.onExerciseAutoSwitched = (newEx: ExerciseType) => {
@@ -223,8 +227,10 @@ export const MotionTestView: React.FC = () => {
     tracker.onStateChange = (update: KinematicStateUpdate) => {
       setCurrentStateName(update.stateName);
       setLiveVelocity(Number(update.velocity.toFixed(2)));
+      setIsFullBodyVisible(update.isFullBodyVisible ?? true);
+      setMissingBodyParts(update.missingBodyParts ?? []);
     };
-  }, [selectedExercise, autoRouteMode, soundEnabled]);
+  }, [selectedExercise, autoRouteMode, requireFullBody, soundEnabled]);
 
   // Handle Exercise Selection Change
   const handleSelectExercise = (ex: ExerciseType) => {
@@ -822,6 +828,24 @@ export const MotionTestView: React.FC = () => {
             {/* Viewfinder Controls Overlay */}
             {cameraActive && (
               <div className="absolute top-3 right-3 flex items-center space-x-1.5 z-20">
+                {/* Full Body Status Badge */}
+                <div
+                  className={`px-2 py-1 font-pixel text-[8px] border border-black shadow-pixel-box flex items-center gap-1 ${
+                    !requireFullBody
+                      ? 'bg-[#1A1926]/90 text-[#A7A9BE]'
+                      : isFullBodyVisible
+                      ? 'bg-[#00EB88] text-black font-bold'
+                      : 'bg-[#FF3366] text-white animate-pulse'
+                  }`}
+                  title="Full body verification indicator"
+                >
+                  {!requireFullBody
+                    ? 'GATE: OFF'
+                    : isFullBodyVisible
+                    ? '🟢 FULL BODY OK'
+                    : `⚠️ NEED: ${missingBodyParts.join(', ')}`}
+                </div>
+
                 <button
                   onClick={() => setShowSkeleton((prev) => !prev)}
                   className={`px-2 py-1 font-pixel text-[8px] border border-black shadow-pixel-box flex items-center gap-1 ${
@@ -841,6 +865,20 @@ export const MotionTestView: React.FC = () => {
                   <RefreshCw className="w-3 h-3" />
                   {facingMode === 'user' ? 'FRONT' : 'BACK'}
                 </button>
+              </div>
+            )}
+
+            {/* Out-of-Frame Step Back Alert */}
+            {cameraActive && requireFullBody && !isFullBodyVisible && (
+              <div className="absolute inset-x-4 top-14 bg-[#0F0E17]/95 border-2 border-[#FF3366] p-3 text-center z-30 shadow-pixel-box animate-pulse">
+                <div className="font-pixel text-[10px] text-[#FF3366] flex items-center justify-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-[#FF3366]" />
+                  STEP BACK: FULL BODY REQUIRED TO COUNT REPS
+                </div>
+                <p className="font-mono text-[9px] text-[#A7A9BE] mt-1">
+                  Camera must detect your arms, hips, and legs to prevent false reps. Missing:{' '}
+                  <strong className="text-[#F4B41A]">{missingBodyParts.join(' & ')}</strong>.
+                </p>
               </div>
             )}
 
@@ -904,18 +942,37 @@ export const MotionTestView: React.FC = () => {
               </button>
             </div>
 
-            {/* Smart Auto-Routing Switch */}
-            <label className="flex items-center gap-2 cursor-pointer bg-[#0F0E17] border border-[#2E2B44] px-3 py-1.5 rounded">
-              <input
-                type="checkbox"
-                checked={autoRouteMode}
-                onChange={(e) => handleToggleAutoRoute(e.target.checked)}
-                className="w-4 h-4 accent-[#F4B41A] cursor-pointer"
-              />
-              <span className="font-pixel text-[8px] text-[#A7A9BE]">
-                SMART AUTO-ROUTER: <strong className={autoRouteMode ? 'text-[#00EB88]' : 'text-gray-400'}>{autoRouteMode ? 'ENABLED' : 'OFF'}</strong>
-              </span>
-            </label>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Full Body Gatekeeper Switch */}
+              <label className="flex items-center gap-2 cursor-pointer bg-[#0F0E17] border border-[#2E2B44] px-2.5 py-1.5 rounded">
+                <input
+                  type="checkbox"
+                  checked={requireFullBody}
+                  onChange={(e) => {
+                    setRequireFullBody(e.target.checked);
+                    trackerRef.current.setRequireFullBody(e.target.checked);
+                    if (soundEnabled) audioManager.play('ui_move');
+                  }}
+                  className="w-3.5 h-3.5 accent-[#00EB88] cursor-pointer"
+                />
+                <span className="font-pixel text-[8px] text-[#A7A9BE]">
+                  FULL-BODY GATE: <strong className={requireFullBody ? 'text-[#00EB88]' : 'text-gray-400'}>{requireFullBody ? 'ON' : 'OFF'}</strong>
+                </span>
+              </label>
+
+              {/* Smart Auto-Routing Switch */}
+              <label className="flex items-center gap-2 cursor-pointer bg-[#0F0E17] border border-[#2E2B44] px-2.5 py-1.5 rounded">
+                <input
+                  type="checkbox"
+                  checked={autoRouteMode}
+                  onChange={(e) => handleToggleAutoRoute(e.target.checked)}
+                  className="w-3.5 h-3.5 accent-[#F4B41A] cursor-pointer"
+                />
+                <span className="font-pixel text-[8px] text-[#A7A9BE]">
+                  AUTO-ROUTER: <strong className={autoRouteMode ? 'text-[#00EB88]' : 'text-gray-400'}>{autoRouteMode ? 'ON' : 'OFF'}</strong>
+                </span>
+              </label>
+            </div>
           </div>
 
           {/* Status Message Footer */}
