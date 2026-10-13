@@ -37,7 +37,7 @@ The app is built with **React 19**, **TypeScript**, **Vite**, **Tailwind CSS**, 
 
 ```bash
 # Navigate to project directory
-cd /Users/longm4/.gemini/antigravity/scratch/kettlebell-knight
+cd ~/Desktop/kettlebell-knight
 
 # Start Vite dev server (accessible across local network for phone testing)
 npm run dev
