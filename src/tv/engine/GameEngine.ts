@@ -816,8 +816,12 @@ export class GameEngine {
       setAttachment: (slotName: string, attachmentName: string | null) => {
         if (attachmentName) {
           this.equippedSlots[slotName] = attachmentName;
+          if (slotName === 'sword') this.equippedSlots['weapon'] = attachmentName;
+          if (slotName === 'weapon') this.equippedSlots['sword'] = attachmentName;
         } else {
           delete this.equippedSlots[slotName];
+          if (slotName === 'sword') delete this.equippedSlots['weapon'];
+          if (slotName === 'weapon') delete this.equippedSlots['sword'];
         }
         this.updateKnightVisuals();
       },
@@ -2240,7 +2244,7 @@ export class GameEngine {
    */
   private updateKnightVisuals(): void {
     if (!this.knightSpine) return;
-    const weaponId = this.equippedSlots['weapon'] || 'iron_kettlebell';
+    const weaponId = this.equippedSlots['weapon'] || this.equippedSlots['sword'] || 'iron_kettlebell';
     try {
       const slot = this.knightSpine.skeleton.findSlot('sword');
       if (slot) {
@@ -2261,13 +2265,46 @@ export class GameEngine {
     switch (weaponId) {
       case 'excalibur_bell':
       case 'excalibur_morningstar':
+      case 'belfry_mace':
         return { mainColor: 0xF4B41A, highlightColor: 0xFFFBEA, handleColor: 0x38B6FF, runeColor: 0x38B6FF };
       case 'dragon_kettlebell':
       case 'dragon_morningstar':
+      case 'dragon_sword':
+      case 'inferno_mace':
+      case 'hellhound_morningstar':
         return { mainColor: 0xDC2626, highlightColor: 0xF87171, handleColor: 0xF59E0B, runeColor: 0xFBBF24 };
       case 'void_bell':
       case 'void_morningstar':
+      case 'void_sword':
+      case 'eldritch_bell':
         return { mainColor: 0x6B21A8, highlightColor: 0xA855F7, handleColor: 0xC084FC, runeColor: 0x00EB88 };
+      case 'slime_morningstar':
+        return { mainColor: 0x16A34A, highlightColor: 0x86EFAC, handleColor: 0x15803D, runeColor: 0x4ADE80 };
+      case 'spider_morningstar':
+      case 'mushroom_bell':
+        return { mainColor: 0x7E22CE, highlightColor: 0xC084FC, handleColor: 0x581C87, runeColor: 0x14B8A6 };
+      case 'crypt_morningstar':
+      case 'skeleton_mace':
+        return { mainColor: 0x38BDF8, highlightColor: 0xE0F2FE, handleColor: 0x0284C7, runeColor: 0x38BDF8 };
+      case 'frost_morningstar':
+        return { mainColor: 0x60A5FA, highlightColor: 0xEFF6FF, handleColor: 0x1D4ED8, runeColor: 0x93C5FD };
+      case 'kraken_morningstar':
+        return { mainColor: 0x0D9488, highlightColor: 0x5EEAD4, handleColor: 0x115E59, runeColor: 0x14B8A6 };
+      case 'goblin_mace':
+      case 'treemon_bell':
+        return { mainColor: 0x65A30D, highlightColor: 0xBEF264, handleColor: 0x3F6212, runeColor: 0x84CC16 };
+      case 'golem_bell':
+        return { mainColor: 0x64748B, highlightColor: 0x38BDF8, handleColor: 0x334155, runeColor: 0x38BDF8 };
+      case 'boar_sword':
+        return { mainColor: 0xB91C1C, highlightColor: 0xFCA5A5, handleColor: 0x7F1D1D, runeColor: 0xF87171 };
+      case 'wolf_sword':
+        return { mainColor: 0x2563EB, highlightColor: 0xBFDBFE, handleColor: 0x1E3A8A, runeColor: 0xF59E0B };
+      case 'minotaur_sword':
+        return { mainColor: 0xB45309, highlightColor: 0xFDE68A, handleColor: 0x78350F, runeColor: 0xF59E0B };
+      case 'harpy_bell':
+        return { mainColor: 0xD97706, highlightColor: 0xFEF3C7, handleColor: 0x92400E, runeColor: 0xFBBF24 };
+      case 'cemetery_mace':
+      case 'troll_morningstar':
       case 'iron_morningstar':
       case 'iron_mace':
         return { mainColor: 0x4B5563, highlightColor: 0x9CA3AF, handleColor: 0x374151, runeColor: null };
@@ -2340,6 +2377,18 @@ export class GameEngine {
     try {
       // Execute skeleton attachment change
       this.skeleton.setAttachment(slotId, attachmentId);
+      if (this.knightSpine && (slotId === 'sword' || slotId === 'weapon')) {
+        const slot = this.knightSpine.skeleton.findSlot('sword');
+        if (slot) {
+          const attachment =
+            this.knightSpine.skeleton.getAttachmentByName('sword', attachmentId) ||
+            this.knightSpine.skeleton.getAttachmentByName('sword', 'iron_kettlebell') ||
+            this.knightSpine.skeleton.getAttachmentByName('sword', 'sword');
+          if (attachment) {
+            slot.setAttachment(attachment);
+          }
+        }
+      }
       audioManager.play('equip');
     } catch (err) {
       console.error('[GameEngine] previewEquipment error:', err);
@@ -2894,6 +2943,26 @@ export class GameEngine {
     });
   }
 
+  public debugKnightWeapon(name: string) {
+    const spine = this.knightSpine;
+    if (!spine) throw new Error('Knight rig not loaded');
+    const slot = spine.skeleton.findSlot('sword');
+    if (!slot) throw new Error('Slot sword not found');
+    const attachment = spine.skeleton.getAttachmentByName('sword', name);
+    if (!attachment) {
+      const slotData = spine.skeleton.data.findSlot('sword');
+      const skin = spine.skeleton.data.defaultSkin;
+      const atts: string[] = [];
+      if (skin && slotData) {
+        const skinEntry = skin.attachments[slotData.index];
+        if (skinEntry) atts.push(...Object.keys(skinEntry));
+      }
+      throw new Error(`Attachment "${name}" not found on slot "sword". Available: ${atts.join(', ')}`);
+    }
+    slot.setAttachment(attachment);
+    return attachment.name;
+  }
+
   /**
    * Dev bridge: freezes the knight on `animation` at `time` seconds (or returns it to IDLE when animation is
    * null). Returns the rig's animation list so callers can build contact sheets.
@@ -2913,6 +2982,7 @@ export class GameEngine {
     entry.mixDuration = 0;
     entry.trackTime = time;
     spine.state.timeScale = 0;
+    this.updateKnightVisuals();
     spine.update(0);
     return { animations };
   }

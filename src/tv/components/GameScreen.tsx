@@ -157,6 +157,7 @@ export const GameScreen: React.FC = () => {
       step: (frames: number) => engineRef.current?.debugStep(frames),
       resume: () => engineRef.current?.debugResume(),
       knightPose: (animation: string | null, time?: number) => engineRef.current?.debugPoseKnight(animation, time),
+      knightWeapon: (name: string) => engineRef.current?.debugKnightWeapon(name),
       knightAnims: () => engineRef.current?.debugKnightAnimations(),
       knightMoves: () => engineRef.current?.debugKnightMoves(),
       knightMove: (id: string, targets?: number[], damage?: number) => engineRef.current?.debugKnightMove(id, targets, damage),
