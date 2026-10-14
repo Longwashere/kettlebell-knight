@@ -1,4 +1,4 @@
-import { Application, Container, Graphics, Text, Assets, Sprite, Texture, Cache, Rectangle } from 'pixi.js';
+import { Application, Container, Graphics, Text, Assets, Sprite, Texture, Cache, Rectangle, TexturePool, type BindGroup } from 'pixi.js';
 import { Spine, SpineTexture, EventTimeline, RegionAttachment } from '@esotericsoftware/spine-pixi-v8';
 import type { TextureAtlas } from '@esotericsoftware/spine-core';
 import { audioManager } from '../../shared/AudioManager';
@@ -9,6 +9,7 @@ import { Timeline, lerp, type EmitOptions } from './choreo';
 import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { MoveTracer, type Box, type MoveTraceReport } from './moveTrace';
 import { VFX_RIGS, VFX_NAMES, type VfxName, type VfxOpts } from './vfx';
+import { OutlineFilter } from './outlineFilter';
 import {
   KNIGHT_MOVES, KNIGHT_MOVE_IDS, knightMoveFor, knightMoveCard,
   type KnightMoveId, type KnightMoveHost, type KnightMoveContext, type KnightTarget,
@@ -72,6 +73,7 @@ const KNIGHT_SKELETON_KEY = '/assets/spine/knight/HulkForm2.json';
 const KNIGHT_ATLAS_KEY = '/assets/spine/knight/HulkForm2.atlas';
 const KNIGHT_SCALE = 0.15;
 const KNIGHT_HOME = { x: 130, y: 168 }; // knight feet at rest (battlefield coords)
+const MONSTER_OUTLINE_COLOR = 0x0F0E17; // retro.dark
 // Battle arena background textures (clean 1:1 retro canvas match)
 export const BATTLE_MAPS = {
   CATHEDRAL_CRYPT: '/assets/backgrounds/cathedral_crypt.webp',
@@ -742,6 +744,8 @@ export class GameEngine {
 
   // Multi-Monster Encounters (1 to 3 monsters simultaneously)
   private monsterSlots: MonsterSlot[] = [];
+  /** Shared silhouette outline so monsters read against dark, busy backgrounds. */
+  private monsterOutline = new OutlineFilter({ color: MONSTER_OUTLINE_COLOR });
   private targetSlotIndex: number = 0;
   private targetReticle: Graphics | null = null;
   private queuedMonsters: MonsterSprite[] = ['SLIME'];
@@ -1254,6 +1258,7 @@ export class GameEngine {
         spine.scale.x *= -1; // face knight on the left
       }
       applyRigSkin(spine, rig);
+      spine.filters = [this.monsterOutline];
       if (rig.offY) {
         spine.y += rig.offY;
       }
@@ -1318,6 +1323,13 @@ export class GameEngine {
     this.monsterSlots = [];
     this.monsterSpine = null;
     this.monsterRig = null;
+    // Free the render targets the monster outline filter left pooled (~0.6 MB for a trio). The filter system
+    // still binds the last one as its input; point it at EMPTY first (Pixi warns about destroying bound textures).
+    const filterGroup = (this.app?.renderer.filter as unknown as { _globalFilterBindGroup?: BindGroup } | undefined)
+      ?._globalFilterBindGroup;
+    filterGroup?.setResource(Texture.EMPTY.source, 1);
+    filterGroup?.setResource(Texture.EMPTY.source.style, 2);
+    TexturePool.clear(true);
   }
 
   private clearMonster(): void {
@@ -3165,6 +3177,7 @@ export class GameEngine {
       eff.container.destroy({ children: true });
     }
     this.activeEffects = [];
+    this.monsterOutline.destroy();
 
     if (this.app) {
       try {
