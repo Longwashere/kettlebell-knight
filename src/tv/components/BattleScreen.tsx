@@ -31,20 +31,20 @@ interface BattleScreenProps {
 }
 
 const MONSTER_INTENTS: Record<string, MonsterIntent[]> = {
-  sloth_demon: [
-    { type: 'ATTACK', damage: 16, name: 'Sloth Whip', description: 'Fast lash of dark energy', durationSeconds: 4.5, remainingSeconds: 4.5 },
-    { type: 'HEAVY_ATTACK', damage: 28, name: 'Nightmare Claws', description: 'Heavy crushing slam', durationSeconds: 6.0, remainingSeconds: 6.0 },
-    { type: 'ATTACK', damage: 12, name: 'Torpor Pulse', description: 'Quick draining blast', durationSeconds: 3.5, remainingSeconds: 3.5 },
+  green_slime: [
+    { type: 'ATTACK', damage: 16, name: 'Slime Slap', description: 'Fast sticky smack', durationSeconds: 4.5, remainingSeconds: 4.5 },
+    { type: 'HEAVY_ATTACK', damage: 28, name: 'Ooze Slam', description: 'Heavy crushing belly flop', durationSeconds: 6.0, remainingSeconds: 6.0 },
+    { type: 'ATTACK', damage: 12, name: 'Acid Spit', description: 'Quick corrosive glob', durationSeconds: 3.5, remainingSeconds: 3.5 },
   ],
-  lactate_golem: [
-    { type: 'ATTACK', damage: 22, name: 'Iron Pummel', description: 'Heavy stone fist strike', durationSeconds: 4.2, remainingSeconds: 4.2 },
-    { type: 'HEAVY_ATTACK', damage: 38, name: 'Anvil Stomp', description: 'Cataclysmic shockwave', durationSeconds: 5.8, remainingSeconds: 5.8 },
-    { type: 'DEFEND', damage: 0, name: 'Harden Core', description: 'Fortifies stone armor (+25 Block)', durationSeconds: 4.0, remainingSeconds: 4.0 },
+  treemon: [
+    { type: 'ATTACK', damage: 22, name: 'Branch Whip', description: 'Heavy wooden fist strike', durationSeconds: 4.2, remainingSeconds: 4.2 },
+    { type: 'HEAVY_ATTACK', damage: 38, name: 'Root Stomp', description: 'Earth-splitting shockwave', durationSeconds: 5.8, remainingSeconds: 5.8 },
+    { type: 'DEFEND', damage: 0, name: 'Bark Skin', description: 'Hardens its bark (+25 Block)', durationSeconds: 4.0, remainingSeconds: 4.0 },
   ],
-  orc_warlord: [
-    { type: 'HEAVY_ATTACK', damage: 45, name: 'Guillotine Cleave', description: 'Fatal executioner chop', durationSeconds: 5.0, remainingSeconds: 5.0 },
-    { type: 'ATTACK', damage: 24, name: 'Savage Frenzy', description: 'Wild flailing strikes', durationSeconds: 3.2, remainingSeconds: 3.2 },
-    { type: 'ATTACK', damage: 32, name: 'Blood Roar', description: 'Shockwave of brute force', durationSeconds: 4.5, remainingSeconds: 4.5 },
+  hellhound: [
+    { type: 'HEAVY_ATTACK', damage: 45, name: 'Twin Maul', description: 'Both heads bite at once', durationSeconds: 5.0, remainingSeconds: 5.0 },
+    { type: 'ATTACK', damage: 24, name: 'Savage Frenzy', description: 'Wild snapping bites', durationSeconds: 3.2, remainingSeconds: 3.2 },
+    { type: 'ATTACK', damage: 32, name: 'Hellfire Howl', description: 'Shockwave of scorching breath', durationSeconds: 4.5, remainingSeconds: 4.5 },
   ],
 };
 
@@ -130,7 +130,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           executeMonsterAttack(prev);
 
           // Select next random intent for this monster
-          const intents = MONSTER_INTENTS[prev.id] || MONSTER_INTENTS.sloth_demon;
+          const intents = MONSTER_INTENTS[prev.id] || MONSTER_INTENTS.green_slime;
           const nextIntentTemplate = intents[Math.floor(Math.random() * intents.length)];
           const nextIntent = { ...nextIntentTemplate, remainingSeconds: nextIntentTemplate.durationSeconds };
 
@@ -160,6 +160,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     if (intent.type === 'DEFEND') {
       // Monster buffs armor
       setMonster((prev) => ({ ...prev, block: prev.block + 25 }));
+      engineRef.current?.playMonsterDefend?.();
       engineRef.current?.spawnFloatingText?.(`+25 BLOCK`, 300, 100, 0x38B6FF, 12);
       setRecentCombatLog(`${m.name} hardened their armor (+25 Block)!`);
       audioManager.play('equip');
@@ -188,13 +189,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       if (nextHp <= 0) {
         setBattleStatus('DEFEAT');
         setRecentCombatLog(`Sir Kettleburne was felled in battle!`);
+        engineRef.current?.playKnightDefeat?.();
         audioManager.play('hit');
       }
       return nextHp;
     });
 
     // Monster Visual Attack in Engine
-    engineRef.current?.monsterAttackLunge?.();
+    engineRef.current?.monsterAttackLunge?.(intent.type === 'HEAVY_ATTACK');
     setRecentCombatLog(`${m.name} used ${intent.name}! Dealt ${rawDamage} DMG.`);
     audioManager.play('hit');
   }, [engineRef]);
@@ -233,6 +235,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             setBattleStatus('VICTORY');
             setRecentCombatLog(`Victory! ${prev.name} has been vanquished!`);
             audioManager.play('level_up');
+            engineRef.current?.playKnightVictory?.();
+            engineRef.current?.playMonsterDeath?.();
           }
 
           return {
@@ -280,6 +284,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     setPlayerHp(100);
     setPlayerBlock(0);
     setBattleStatus('FIGHTING');
+    engineRef.current?.resetKnight?.();
     deckManagerRef.current.initDeck();
     setHand(deckManagerRef.current.dealInitialHand());
   };

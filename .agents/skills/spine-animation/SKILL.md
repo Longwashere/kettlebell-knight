@@ -24,18 +24,18 @@ Turn pre-existing 2D character assets into fully animated, interactive Spine ani
 ## Step 0: Set Up Scripts
 
 This skill includes Python scripts that do the heavy lifting. Claude MUST write them to disk
-before use. Each script is embedded below — Claude should save them to `.agents/skills/spine-animation/scripts/`
+before use. Each script is embedded below — Claude should save them to `/home/claude/spine-scripts/`
 at the start of every session.
 
 ```bash
-mkdir -p .agents/skills/spine-animation/scripts
+mkdir -p /home/claude/spine-scripts
 pip install opencv-python Pillow numpy google-generativeai --break-system-packages -q
 ```
 
 ### Embedded Scripts
 
 The following scripts are auto-injected from the repository's `scripts/` directory.
-**Claude: read these carefully, then write each one to `.agents/skills/spine-animation/scripts/`**
+**Claude: read these carefully, then write each one to `/home/claude/spine-scripts/`**
 before running the pipeline.
 
 <!-- EMBED:scripts/split_character.py -->
@@ -1764,7 +1764,7 @@ if __name__ == "__main__":
 
 After writing the scripts, verify:
 ```bash
-ls .agents/skills/spine-animation/scripts/
+ls /home/claude/spine-scripts/
 # Should show: split_character.py  position_parts.py  build_spine_json.py  make_atlas.py  generate_spine_player.py
 ```
 
@@ -1799,7 +1799,7 @@ automatically segment it into individual part PNGs.
 **Requires:** `GEMINI_API_KEY` environment variable (free key at https://aistudio.google.com/app/apikey).
 
 ```bash
-GEMINI_API_KEY=your_key python .agents/skills/spine-animation/scripts/split_character.py character.png \
+GEMINI_API_KEY=your_key python /home/claude/spine-scripts/split_character.py character.png \
   --output-dir parts/
 ```
 
@@ -1828,7 +1828,7 @@ Look at the uploaded files:
 If the user provides both separated body-part PNGs **and** an assembled reference image:
 
 ```bash
-python3 .agents/skills/spine-animation/scripts/position_parts.py \
+python3 /home/claude/spine-scripts/position_parts.py \
   --reference assembled_character.png \
   --parts parts_folder/ \
   --output layout.json \
@@ -1946,7 +1946,7 @@ The `curve` is a cubic bezier `[cx1, cy1, cx2, cy2]`. Use `[0.25, 0, 0.75, 1]` f
 ### Step 5: Build Atlas
 
 ```bash
-python3 .agents/skills/spine-animation/scripts/make_atlas.py \
+python3 /home/claude/spine-scripts/make_atlas.py \
   --parts parts_folder/ \
   --output . \
   --name character_name
@@ -1962,7 +1962,7 @@ and animation loop. No external dependencies needed.
 
 For an **official Spine Web Player preview**:
 ```bash
-python3 .agents/skills/spine-animation/scripts/generate_spine_player.py \
+python3 /home/claude/spine-scripts/generate_spine_player.py \
   --skeleton character.json \
   --atlas character.atlas \
   --atlas-image character.png \

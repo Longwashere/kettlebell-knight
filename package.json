@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@esotericsoftware/spine-pixi-v8": "^4.2.66",
+    "@esotericsoftware/spine-pixi-v8": "~4.2.66",
     "@mediapipe/tasks-vision": "^0.10.18",
     "howler": "^2.2.4",
     "lucide-react": "^0.475.0",

@@ -1,6 +1,9 @@
-import { Application, Container, Graphics, Text, Assets, Sprite, Texture } from 'pixi.js';
+import { Application, Container, Graphics, Text, Assets, Sprite, Texture, Cache } from 'pixi.js';
+import { Spine, SpineTexture } from '@esotericsoftware/spine-pixi-v8';
+import type { TextureAtlas } from '@esotericsoftware/spine-core';
 import { audioManager } from '../../shared/AudioManager';
 import { ExerciseType } from '../../types/game';
+import type { MonsterSprite } from '../../types/battle';
 
 interface FloatingCombatText {
   container: Container;
@@ -28,6 +31,84 @@ export interface SkeletonAttachmentMock {
   getAttachment: (slotName: string) => string | null;
 }
 
+// Spine knight rig (public/assets/spine/knight, Spine 4.2). Skeleton is ~540 units tall;
+// 0.15 gives a ~80px knight on the 426x240 canvas.
+const KNIGHT_SKELETON_KEY = '/assets/spine/knight/HulkForm2.json';
+const KNIGHT_ATLAS_KEY = '/assets/spine/knight/HulkForm2.atlas';
+const KNIGHT_SCALE = 0.15;
+// Lifts combatants + effects so they stand above the battle card hand (which covers the lower half).
+const SCENE_RAISE_Y = 40;
+let knightAssetRefs = 0; // engines currently holding the shared knight assets
+const KNIGHT_SWING_COMBO = ['ATTACK1', 'ATTACK2', 'ATTACK4'];
+const KNIGHT_HIT_REACTIONS = ['HIT1', 'HIT2', 'HIT3'];
+
+interface MonsterRig {
+  skeleton: string;
+  atlas: string;
+  scale: number; // sized against the ~80px knight; rigs carry their own ground shadow
+  idle: string;
+  appear?: string;
+  attack: string;
+  heavyAttack: string;
+  defend?: string;
+  hit: string;
+  death: string;
+}
+
+// Spine 4.2 monster rigs (public/assets/spine/monsters). They're authored facing right (or
+// front-on), so they're mirrored to face the knight. Only the current monster's rig is loaded.
+const MONSTER_DIR = '/assets/spine/monsters';
+const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
+  SLIME: {
+    skeleton: `${MONSTER_DIR}/greenSlime/TuXi01.json`,
+    atlas: `${MONSTER_DIR}/greenSlime/TuXi01.atlas`,
+    scale: 0.12,
+    idle: 'Idle',
+    attack: 'Atk1',
+    heavyAttack: 'Skl1',
+    hit: 'Hit',
+    death: 'Death',
+  },
+  TREEMON: {
+    skeleton: `${MONSTER_DIR}/Treemon/XiaoShuRen.json`,
+    atlas: `${MONSTER_DIR}/Treemon/XiaoShuRen.atlas`,
+    scale: 0.14,
+    idle: 'Idle',
+    appear: 'Appear',
+    attack: 'Atk1',
+    heavyAttack: 'Atk1',
+    defend: 'Stun',
+    hit: 'Hit',
+    death: 'Death',
+  },
+  HELLHOUND: {
+    skeleton: `${MONSTER_DIR}/2headedDog/DiYuShuangTouQuan.json`,
+    atlas: `${MONSTER_DIR}/2headedDog/DiYuShuangTouQuan.atlas`,
+    scale: 0.16,
+    idle: 'Idle',
+    appear: 'Appear_03',
+    attack: 'Attack',
+    heavyAttack: 'Skill',
+    hit: 'Hit',
+    death: 'Death',
+  },
+};
+const MONSTER_X = 300;
+const MONSTER_LUNGE_DISTANCE = 110; // how far toward the knight an attack dashes
+const monsterAssetRefs = new Map<string, number>(); // shared rig → engines holding it
+
+/**
+ * Unloads a Spine rig's skeleton + atlas. Spine.from() caches parsed SkeletonData under its own
+ * key and never evicts it, so drop that too or a later reload would reuse destroyed textures.
+ */
+async function unloadSpineRig(skeleton: string, atlas: string, scale: number): Promise<void> {
+  const skeletonDataKey = `${skeleton}-${atlas}-${scale}`;
+  if (Cache.has(skeletonDataKey)) Cache.remove(skeletonDataKey);
+  try {
+    await Assets.unload([skeleton, atlas]);
+  } catch (e) {}
+}
+
 /**
  * 32-Bit Retro PixiJS Game Engine for Amazon Fire TV (426x240 Virtual Resolution)
  * 
@@ -40,6 +121,7 @@ export interface SkeletonAttachmentMock {
 export class GameEngine {
   private app: Application | null = null;
   private containerElement: HTMLElement;
+  private resizeObserver: ResizeObserver | null = null;
   private isDestroyed: boolean = false;
 
   // Scene containers
@@ -51,11 +133,19 @@ export class GameEngine {
 
   // Visual Entities
   private knightContainer: Container | null = null;
-  private knightBody: Graphics | null = null;
-  private kettlebellWeapon: Graphics | null = null;
-  private shieldGraphic: Graphics | null = null;
-  private helmetGraphic: Graphics | null = null;
+  private knightSpine: Spine | null = null;
+  private attackComboIndex: number = 0;
+  private hitReactionIndex: number = 0;
+  private holdsKnightAssets: boolean = false;
+  private knightLocked: boolean = false; // true while on a terminal pose (victory / defeat)
   private enemyDummy: Container | null = null;
+  private monsterSpine: Spine | null = null;
+  private monsterRig: MonsterRig | null = null;
+  private monsterSprite: MonsterSprite = 'SLIME'; // requested monster; may arrive before init()
+  private heldMonsterRig: MonsterRig | null = null; // rig this engine holds an asset ref on
+  private monsterLoadToken = 0; // discards stale loads when monsters are switched quickly
+  private monsterLocked = false; // true once the death animation starts
+  private monsterLungeT = 1; // 0→1 during an attack dash; 1 = idle at home
   private flashOverlay: Graphics | null = null;
 
   // Animation States
@@ -132,15 +222,18 @@ export class GameEngine {
 
     // Apply strict CSS pixelated scaling for 32-bit retro look & Fire TV VRAM saving
     const canvas = app.canvas;
-    canvas.style.width = '100%';
-    canvas.style.height = '100%';
+    canvas.style.position = 'absolute';
     canvas.style.display = 'block';
     canvas.style.imageRendering = 'pixelated';
-    (canvas.style as any).imageRendering = 'crisp-edges';
 
     this.containerElement.replaceChildren(canvas);
+    this.fitCanvas();
+    this.resizeObserver = new ResizeObserver(() => this.fitCanvas());
+    this.resizeObserver.observe(this.containerElement);
 
     this.buildScene();
+    await this.loadKnightSpine();
+    if (this.isDestroyed) return;
     this.startTicker();
   }
 
@@ -154,6 +247,9 @@ export class GameEngine {
     this.gameLayer = new Container();
     this.effectsLayer = new Container();
     this.uiLayer = new Container();
+
+    this.gameLayer.y = -SCENE_RAISE_Y;
+    this.effectsLayer.y = -SCENE_RAISE_Y;
 
     this.rootStage.addChild(this.bgLayer);
     this.rootStage.addChild(this.gameLayer);
@@ -173,6 +269,7 @@ export class GameEngine {
     this.flashOverlay = new Graphics();
     this.flashOverlay.rect(0, 0, 426, 240).fill({ color: 0xFFFFFF, alpha: 1 });
     this.flashOverlay.alpha = 0;
+    this.flashOverlay.y = SCENE_RAISE_Y; // cancel the effects-layer raise so the flash stays fullscreen
     this.effectsLayer.addChild(this.flashOverlay);
   }
 
@@ -230,140 +327,258 @@ export class GameEngine {
 
     // Shadow
     const shadow = new Graphics();
-    shadow.ellipse(0, 0, 24, 6).fill({ color: 0x000000, alpha: 0.45 });
+    shadow.ellipse(0, 0, 28, 6).fill({ color: 0x000000, alpha: 0.45 });
     this.knightContainer.addChild(shadow);
 
-    // Body Graphics
-    this.knightBody = new Graphics();
-    this.knightContainer.addChild(this.knightBody);
-
-    // Helmet Graphics
-    this.helmetGraphic = new Graphics();
-    this.knightContainer.addChild(this.helmetGraphic);
-
-    // Shield Graphics (left arm)
-    this.shieldGraphic = new Graphics();
-    this.knightContainer.addChild(this.shieldGraphic);
-
-    // Kettlebell / Weapon Graphics (right hand / swing arm)
-    this.kettlebellWeapon = new Graphics();
-    this.knightContainer.addChild(this.kettlebellWeapon);
-
-    this.updateKnightVisuals();
     this.gameLayer.addChild(this.knightContainer);
+  }
+
+  /**
+   * Scales the 426x240 canvas by the largest whole number that fits and centres it on whole pixels.
+   * A fractional stretch (e.g. 4.507x at 1080p) makes some pixel columns wider than others.
+   */
+  private fitCanvas(): void {
+    if (!this.app) return;
+    const canvas = this.app.canvas;
+    const { width, height } = this.app.screen;
+    const boxW = this.containerElement.clientWidth;
+    const boxH = this.containerElement.clientHeight;
+    const fit = Math.min(boxW / width, boxH / height);
+    const scale = fit >= 1 ? Math.floor(fit) : fit; // tiny windows fall back to a fractional fit
+    const cssW = Math.round(width * scale);
+    const cssH = Math.round(height * scale);
+    canvas.style.width = `${cssW}px`;
+    canvas.style.height = `${cssH}px`;
+    canvas.style.left = `${Math.floor((boxW - cssW) / 2)}px`;
+    canvas.style.top = `${Math.floor((boxH - cssH) / 2)}px`;
+  }
+
+  /**
+   * Loads the Spine knight rig (HulkForm2, Spine 4.2) and mounts it in the knight container.
+   * Feet sit on the container origin; the rig faces right toward the enemy.
+   */
+  private async loadKnightSpine(): Promise<void> {
+    if (!this.knightContainer) return;
+
+    try {
+      // Asset URLs double as cache keys (no aliases), so Spine.from can resolve them directly.
+      knightAssetRefs++;
+      this.holdsKnightAssets = true;
+      await Assets.load([KNIGHT_SKELETON_KEY, KNIGHT_ATLAS_KEY]);
+      if (this.isDestroyed || !this.knightContainer) return;
+
+      const spine = Spine.from({
+        skeleton: KNIGHT_SKELETON_KEY,
+        atlas: KNIGHT_ATLAS_KEY,
+        scale: KNIGHT_SCALE,
+        autoUpdate: true,
+      });
+      // Animate on the same ticker that renders (default is Ticker.shared, a separate rAF loop).
+      if (this.app) spine.ticker = this.app.ticker;
+      // Atlas is exported at KNIGHT_SCALE (texel ≈ canvas pixel); re-export it if KNIGHT_SCALE changes.
+      // Linear, not nearest: the rig's parts are rotated, and nearest sampling of rotated texels
+      // drops/duplicates pixels into jagged cross-hatching. No mipmaps needed at ~1:1.
+      for (const page of Assets.get<TextureAtlas>(KNIGHT_ATLAS_KEY).pages) {
+        const source = (page.texture as SpineTexture).texture.source;
+        source.autoGenerateMipmaps = false;
+        source.style.scaleMode = 'linear';
+        source.style.update(); // invalidate the cached GPU sampler so the new filter applies
+      }
+      spine.state.data.defaultMix = 0.08;
+      spine.state.setAnimation(0, 'IDLE', true);
+
+      this.knightSpine = spine;
+      this.knightContainer.addChild(spine);
+    } catch (err) {
+      console.error('[GameEngine] Failed to load knight Spine rig:', err);
+    }
+  }
+
+  /**
+   * Plays a one-shot knight animation and returns to IDLE afterwards.
+   */
+  private playKnightAnimation(name: string): void {
+    const spine = this.knightSpine;
+    if (!spine || this.knightLocked) return;
+    if (!spine.skeleton.data.findAnimation(name)) return;
+
+    spine.state.setAnimation(0, name, false);
+    spine.state.addAnimation(0, 'IDLE', true, 0);
+  }
+
+  /** Knight hit reaction; cycles HIT1-3 so repeated hits don't look identical. */
+  public playKnightHit(): void {
+    this.playKnightAnimation(KNIGHT_HIT_REACTIONS[this.hitReactionIndex++ % KNIGHT_HIT_REACTIONS.length]);
+  }
+
+  /** Victory pose (WIN), held until resetKnight(). */
+  public playKnightVictory(): void {
+    const spine = this.knightSpine;
+    if (!spine || this.knightLocked) return;
+    this.knightLocked = true;
+    spine.state.setAnimation(0, 'WIN', false);
+    spine.state.addAnimation(0, 'IDLE', true, 0);
+  }
+
+  /** Defeat: DEAD_START then DEAD_LOOP, held until resetKnight(). */
+  public playKnightDefeat(): void {
+    const spine = this.knightSpine;
+    if (!spine || this.knightLocked) return;
+    this.knightLocked = true;
+    spine.state.setAnimation(0, 'DEAD_START', false);
+    spine.state.addAnimation(0, 'DEAD_LOOP', true, 0);
+  }
+
+  /** Level-up celebration (LEVEL_UP), then back to IDLE. */
+  public playKnightLevelUp(): void {
+    this.playKnightAnimation('LEVEL_UP');
+  }
+
+  /** Power-up / buff cast (BUFF), then back to IDLE. */
+  public playKnightBuff(): void {
+    this.playKnightAnimation('BUFF');
+  }
+
+  /** Clears victory/defeat lock and returns the knight to IDLE (new battle). */
+  public resetKnight(): void {
+    this.knightLocked = false;
+    this.knightSpine?.state.setAnimation(0, 'IDLE', true);
   }
 
   private createTrainingDummy(): void {
     if (!this.gameLayer) return;
 
     this.enemyDummy = new Container();
-    this.enemyDummy.x = 300;
+    this.enemyDummy.x = MONSTER_X;
     this.enemyDummy.y = 168;
-
-    this.setMonster('DEMON');
     this.gameLayer.addChild(this.enemyDummy);
+
+    void this.loadMonster(this.monsterSprite);
   }
 
   /**
-   * Renders specialized 32-bit pixel art monsters for Slay the Spire boss battles
+   * Swaps the enemy to the given Spine monster. Safe to call before init(): the request is
+   * remembered and loaded once the scene exists.
    */
-  public setMonster(type: 'DEMON' | 'GOLEM' | 'WARLORD' | 'MINOTAUR' = 'DEMON'): void {
-    if (!this.enemyDummy) return;
+  public setMonster(type: MonsterSprite = 'SLIME'): void {
+    // Already showing (or loading) this monster alive: nothing to do.
+    if (this.heldMonsterRig === MONSTER_RIGS[type] && !this.monsterLocked) return;
+    this.monsterSprite = type;
+    if (this.enemyDummy) void this.loadMonster(type);
+  }
 
-    this.enemyDummy.removeChildren();
-    const g = new Graphics();
+  /**
+   * Loads a monster rig, mounts it facing the knight, and releases the previous rig's
+   * textures so only one monster atlas is resident on the Fire TV at a time.
+   */
+  private async loadMonster(type: MonsterSprite): Promise<void> {
+    const token = ++this.monsterLoadToken;
+    const rig = MONSTER_RIGS[type];
 
-    // Shadow
-    g.ellipse(0, 0, 26, 6).fill({ color: 0x000000, alpha: 0.5 });
+    this.clearMonster();
+    monsterAssetRefs.set(rig.skeleton, (monsterAssetRefs.get(rig.skeleton) ?? 0) + 1);
+    this.heldMonsterRig = rig;
 
-    switch (type) {
-      case 'GOLEM': {
-        // LACTIC TITAN (Heavy Iron & Stone Golem)
-        // Granite legs
-        g.rect(-16, -14, 12, 14).fill({ color: 0x334155 });
-        g.rect(4, -14, 12, 14).fill({ color: 0x334155 });
-        // Massive Stone Torso
-        g.rect(-22, -48, 44, 34).fill({ color: 0x475569 });
-        g.rect(-18, -44, 36, 26).fill({ color: 0x64748B });
-        // Glowing Cyan Core Runes
-        g.rect(-6, -38, 12, 14).fill({ color: 0x38B6FF });
-        g.rect(-4, -36, 8, 10).fill({ color: 0xFFFFFF });
-        // Giant Stone Pauldrons
-        g.rect(-28, -52, 12, 16).fill({ color: 0x1E293B });
-        g.rect(16, -52, 12, 16).fill({ color: 0x1E293B });
-        // Golem Head with Glowing Eye Slit
-        g.rect(-12, -68, 24, 20).fill({ color: 0x334155 });
-        g.rect(-8, -60, 16, 4).fill({ color: 0x38B6FF });
-        break;
-      }
+    try {
+      await Assets.load([rig.skeleton, rig.atlas]);
+    } catch (err) {
+      console.error(`[GameEngine] Failed to load monster rig ${type}:`, err);
+      return;
+    }
+    if (this.isDestroyed || token !== this.monsterLoadToken || !this.enemyDummy) return;
 
-      case 'WARLORD': {
-        // WARLORD GORECLAW (Dungeon Executioner)
-        // Spiked boots
-        g.rect(-14, -14, 10, 14).fill({ color: 0x18181B });
-        g.rect(4, -14, 10, 14).fill({ color: 0x18181B });
-        // Orc Muscle & Spiked Plate
-        g.rect(-18, -46, 36, 32).fill({ color: 0x27272A });
-        g.rect(-14, -42, 28, 24).fill({ color: 0xDC2626 }); // Blood armor
-        // Spiked Shoulder Pauldrons
-        g.rect(-26, -50, 12, 14).fill({ color: 0x71717A });
-        g.rect(14, -50, 12, 14).fill({ color: 0x71717A });
-        // Giant Battleaxe
-        g.rect(20, -75, 4, 70).fill({ color: 0x52525B });
-        g.rect(14, -70, 16, 18).fill({ color: 0xDC2626 });
-        // Horned Iron Visor Head
-        g.circle(0, -62, 12).fill({ color: 0x27272A });
-        g.rect(-14, -76, 6, 16).fill({ color: 0xF4B41A }); // Horn
-        g.rect(8, -76, 6, 16).fill({ color: 0xF4B41A }); // Horn
-        g.rect(-6, -60, 12, 3).fill({ color: 0xFF3366 }); // Evil eye slit
-        break;
-      }
-
-      case 'DEMON':
-      default: {
-        // BELPHEGOR (The Sloth Demon)
-        // Demonic bat wings
-        g.poly([-20, -50, -45, -75, -30, -35]).fill({ color: 0x3B0764, alpha: 0.85 });
-        g.poly([20, -50, 45, -75, 30, -35]).fill({ color: 0x3B0764, alpha: 0.85 });
-        // Hooves
-        g.rect(-12, -12, 8, 12).fill({ color: 0x1E1B4B });
-        g.rect(4, -12, 8, 12).fill({ color: 0x1E1B4B });
-        // Dark Purple Chitin Body
-        g.rect(-16, -46, 32, 34).fill({ color: 0x581C87 });
-        g.rect(-12, -42, 24, 26).fill({ color: 0x7E22CE });
-        // Glowing Demonic Sigil
-        g.circle(0, -32, 5).fill({ color: 0xFF3366 });
-        // Demon Horns
-        g.poly([-8, -65, -18, -85, -4, -68]).fill({ color: 0xF4B41A });
-        g.poly([8, -65, 18, -85, 4, -68]).fill({ color: 0xF4B41A });
-        // Head & Glowing Red Eyes
-        g.circle(0, -58, 12).fill({ color: 0x3B0764 });
-        g.circle(-4, -58, 2.5).fill({ color: 0xFF3366 });
-        g.circle(4, -58, 2.5).fill({ color: 0xFF3366 });
-        break;
-      }
+    const spine = Spine.from({ skeleton: rig.skeleton, atlas: rig.atlas, scale: rig.scale, autoUpdate: true });
+    if (this.app) spine.ticker = this.app.ticker;
+    spine.scale.x *= -1; // face the knight
+    // Full-resolution atlases drawn at ~15-30%: linear mipmaps keep them from shimmering.
+    // (Pixi skips mipmaps where WebGL1 can't do them for non-power-of-two pages.)
+    for (const page of Assets.get<TextureAtlas>(rig.atlas).pages) {
+      const source = (page.texture as SpineTexture).texture.source;
+      source.autoGenerateMipmaps = true;
+      source.style.scaleMode = 'linear';
+      source.style.mipmapFilter = 'linear';
+      source.style.update();
+    }
+    spine.state.data.defaultMix = 0.1;
+    if (rig.appear) {
+      spine.state.setAnimation(0, rig.appear, false);
+      spine.state.addAnimation(0, rig.idle, true, 0);
+    } else {
+      spine.state.setAnimation(0, rig.idle, true);
     }
 
-    this.enemyDummy.addChild(g);
+    this.monsterSpine = spine;
+    this.monsterRig = rig;
+    this.monsterLocked = false;
+    this.monsterLungeT = 1;
+    this.enemyDummy.addChild(spine);
+  }
+
+  /** Destroys the current monster and unloads its assets once no engine holds them. */
+  private clearMonster(): void {
+    this.monsterSpine?.destroy();
+    this.monsterSpine = null;
+    this.monsterRig = null;
+
+    const held = this.heldMonsterRig;
+    if (!held) return;
+    this.heldMonsterRig = null;
+    const refs = (monsterAssetRefs.get(held.skeleton) ?? 1) - 1;
+    if (refs > 0) {
+      monsterAssetRefs.set(held.skeleton, refs);
+    } else {
+      monsterAssetRefs.delete(held.skeleton);
+      void unloadSpineRig(held.skeleton, held.atlas, held.scale);
+    }
+  }
+
+  /** Plays a one-shot monster animation and returns to idle afterwards. */
+  private playMonsterAnimation(name: string | undefined): void {
+    const spine = this.monsterSpine;
+    const rig = this.monsterRig;
+    if (!spine || !rig || !name || this.monsterLocked) return;
+    spine.state.setAnimation(0, name, false);
+    spine.state.addAnimation(0, rig.idle, true, 0);
+  }
+
+  /** Monster flinches when a card lands. */
+  public playMonsterHit(): void {
+    this.playMonsterAnimation(this.monsterRig?.hit);
+  }
+
+  /** Monster gains block (DEFEND intent). */
+  public playMonsterDefend(): void {
+    this.playMonsterAnimation(this.monsterRig?.defend);
+  }
+
+  /** Death animation, held on its last frame until the next monster loads. */
+  public playMonsterDeath(): void {
+    const spine = this.monsterSpine;
+    const rig = this.monsterRig;
+    if (!spine || !rig || this.monsterLocked) return;
+    this.monsterLocked = true;
+    this.monsterLungeT = 1;
+    spine.state.setAnimation(0, rig.death, false);
   }
 
   /**
-   * Animates a fierce monster attack lunge towards the player
+   * Monster attack: plays its attack animation while dashing toward the knight and back.
    */
-  public monsterAttackLunge(): void {
-    if (!this.enemyDummy) return;
-
-    const startX = 300;
-    const lungeX = 175; // Right in front of Sir Kettleburne
+  public monsterAttackLunge(heavy: boolean = false): void {
+    if (!this.enemyDummy || this.monsterLocked) return;
 
     this.flashAlpha = 0.65;
-    this.shakeIntensity = 8;
+    this.shakeIntensity = heavy ? 10 : 8;
 
-    // Fast forward lunge
-    this.enemyDummy.x = lungeX;
+    // Knight reels from the hit
+    this.playKnightHit();
+
+    this.playMonsterAnimation(heavy ? this.monsterRig?.heavyAttack : this.monsterRig?.attack);
+    this.monsterLungeT = 0;
 
     // Claw slash graphic
     if (this.effectsLayer) {
+      const lungeX = MONSTER_X - MONSTER_LUNGE_DISTANCE;
       const claw = new Graphics();
       claw.moveTo(lungeX - 25, 120);
       claw.lineTo(lungeX + 15, 160);
@@ -378,13 +593,6 @@ export class GameEngine {
         }
       }, 150);
     }
-
-    // Spring back
-    setTimeout(() => {
-      if (this.enemyDummy) {
-        this.enemyDummy.x = startX;
-      }
-    }, 200);
   }
 
   /**
@@ -392,6 +600,8 @@ export class GameEngine {
    */
   public playerShieldPulse(): void {
     if (!this.effectsLayer || !this.knightContainer) return;
+
+    this.playKnightAnimation('DEFENSE');
 
     const shieldG = new Graphics();
     this.effectsLayer.addChild(shieldG);
@@ -422,85 +632,11 @@ export class GameEngine {
   }
 
   /**
-   * Re-renders the 32-bit pixel knight based on equipped and previewed items.
+   * Equipment hook. The Spine knight currently ships a single fixed skin (sword, shield, helm),
+   * so equipped item ids are tracked in `equippedSlots` but not yet re-skinned on the rig.
    */
   private updateKnightVisuals(): void {
-    if (!this.knightBody || !this.kettlebellWeapon || !this.shieldGraphic || !this.helmetGraphic) return;
-
-    // Redraw Knight Armor Body (32-bit pixel aesthetic)
-    this.knightBody.clear();
-
-    const armorColor = this.getArmorColor(this.equippedSlots.armor);
-
-    // Legs / Boots
-    this.knightBody.rect(-10, -14, 8, 14).fill({ color: 0x222233 });
-    this.knightBody.rect(2, -14, 8, 14).fill({ color: 0x222233 });
-    this.knightBody.rect(-11, -4, 9, 4).fill({ color: 0x444455 });
-    this.knightBody.rect(2, -4, 9, 4).fill({ color: 0x444455 });
-
-    // Torso / Plate Armor
-    this.knightBody.rect(-12, -38, 24, 26).fill({ color: armorColor.main });
-    this.knightBody.rect(-9, -36, 18, 22).fill({ color: armorColor.highlight });
-    this.knightBody.rect(-12, -22, 24, 4).fill({ color: 0x1A1926 }); // Gold belt
-
-    // Cape (Royal Crimson / Arcane Blue)
-    this.knightBody.rect(-15, -36, 4, 32).fill({ color: 0x991B1B });
-
-    // Helmet Redraw
-    this.helmetGraphic.clear();
-    const helmColor = this.getHelmetColor(this.equippedSlots.helmet);
-    this.helmetGraphic.rect(-10, -56, 20, 18).fill({ color: helmColor.main });
-    this.helmetGraphic.rect(-8, -54, 16, 14).fill({ color: helmColor.highlight });
-    // Visor eye slit
-    this.helmetGraphic.rect(-7, -47, 14, 3).fill({ color: 0x0F0E17 });
-    // Visor glow
-    this.helmetGraphic.rect(-5, -46, 10, 1).fill({ color: 0x38B6FF });
-    // Crest / Plume
-    this.helmetGraphic.rect(-3, -64, 6, 8).fill({ color: helmColor.plume });
-
-    // Shield Redraw (Left Arm)
-    this.shieldGraphic.clear();
-    const shieldColor = this.getShieldColor(this.equippedSlots.shield);
-    this.shieldGraphic.rect(-20, -38, 8, 20).fill({ color: shieldColor.border });
-    this.shieldGraphic.rect(-19, -36, 6, 16).fill({ color: shieldColor.core });
-    this.shieldGraphic.circle(-16, -28, 2).fill({ color: 0xF4B41A });
-
-    // Kettlebell Weapon Redraw (Resting state, attached to swinging arm)
-    this.drawKettlebell(0);
-  }
-
-  private drawKettlebell(angleRad: number): void {
-    if (!this.kettlebellWeapon) return;
-
-    this.kettlebellWeapon.clear();
-
-    const weaponInfo = this.getWeaponInfo(this.equippedSlots.weapon);
-
-    // Hand anchor is at x=10, y=-26
-    const handX = 10;
-    const handY = -26;
-
-    // Kettlebell swings around hand anchor
-    const bellDistance = 22;
-    const bellX = handX + Math.sin(angleRad) * bellDistance;
-    const bellY = handY + Math.cos(angleRad) * bellDistance;
-
-    // Swinging Arm
-    this.kettlebellWeapon.rect(4, -34, 8, 8).fill({ color: 0x444455 });
-    // Forearm line to hand
-    this.kettlebellWeapon.circle(handX, handY, 4).fill({ color: 0xF4B41A }); // Gauntlet knuckle
-
-    // Kettlebell Handle (Arch)
-    this.kettlebellWeapon.circle(bellX, bellY - 8, 6).stroke({ width: 3, color: weaponInfo.handleColor });
-
-    // Kettlebell Solid Iron Bell Body
-    this.kettlebellWeapon.circle(bellX, bellY, 8).fill({ color: weaponInfo.mainColor });
-    this.kettlebellWeapon.circle(bellX - 2, bellY - 2, 4).fill({ color: weaponInfo.highlightColor });
-
-    // Arcane / Elemental Rune Engraving
-    if (weaponInfo.runeColor) {
-      this.kettlebellWeapon.circle(bellX, bellY, 2).fill({ color: weaponInfo.runeColor });
-    }
+    // Intentionally empty until equipment attachments exist on the Spine rig.
   }
 
   private getWeaponInfo(weaponId: string) {
@@ -610,6 +746,7 @@ export class GameEngine {
     // 1. Attack type specific visuals
     switch (exercise) {
       case 'SQUAT': {
+        this.playKnightAnimation('ATTACK3');
         // TITAN GROUND SLAM: Heavy tremor, shockwave along floor, earth particles
         this.shakeIntensity = Math.min(14, 6 + (power / 20));
         this.flashAlpha = 0.55;
@@ -623,6 +760,7 @@ export class GameEngine {
       }
 
       case 'OVERHEAD_PRESS': {
+        this.playKnightAnimation('SKILL1');
         // THUNDER SMITE: Lightning bolt from sky striking enemy, electric cyan sparks
         this.shakeIntensity = Math.min(10, 4 + (power / 25));
         this.flashAlpha = 0.7;
@@ -637,7 +775,8 @@ export class GameEngine {
 
       case 'SWING':
       default: {
-        // IRON CLEAVE: 32-bit kettlebell swing arc, gold slash sparks
+        // IRON CLEAVE: knight sword combo (ATTACK1/2/4 alternate), gold slash sparks
+        this.playKnightAnimation(KNIGHT_SWING_COMBO[this.attackComboIndex++ % KNIGHT_SWING_COMBO.length]);
         this.isSwinging = true;
         this.swingProgress = 0;
         this.swingVelocity = 0.05 + (power / 100) * 0.06;
@@ -651,6 +790,8 @@ export class GameEngine {
         break;
       }
     }
+
+    this.playMonsterHit();
 
     // Form feedback text
     if (form >= 0.94) {
@@ -793,25 +934,30 @@ export class GameEngine {
 
       const delta = ticker.deltaTime;
 
-      // 1. Update Kettlebell Swing Arc
+      // 1. Update swing timing (drives enemy impact reaction; the knight arc is a Spine animation)
+      let enemyShakeX = 0;
       if (this.isSwinging) {
         this.swingProgress += this.swingVelocity * delta;
 
-        // Swing trajectory: from hike (-0.8 rad) through drive up to lockout peak (2.2 rad) then back
-        const swingArc = Math.sin(this.swingProgress * Math.PI) * 2.6 - 0.5;
-        this.drawKettlebell(swingArc);
-
-        // Dummy impact react at peak
-        if (this.swingProgress >= 0.5 && this.enemyDummy) {
-          this.enemyDummy.x = 300 + Math.sin(this.swingProgress * 10) * 4;
+        // Monster impact react at peak
+        if (this.swingProgress >= 0.5) {
+          enemyShakeX = Math.sin(this.swingProgress * 10) * 4;
         }
 
         if (this.swingProgress >= 1.0) {
           this.isSwinging = false;
           this.swingProgress = 0;
-          this.drawKettlebell(0);
-          if (this.enemyDummy) this.enemyDummy.x = 300;
+          enemyShakeX = 0;
         }
+      }
+
+      // Monster attack dash: out toward the knight and back over ~0.5s
+      if (this.monsterLungeT < 1) {
+        this.monsterLungeT = Math.min(1, this.monsterLungeT + ticker.deltaMS / 500);
+      }
+      if (this.enemyDummy) {
+        const lunge = Math.sin(this.monsterLungeT * Math.PI) * MONSTER_LUNGE_DISTANCE;
+        this.enemyDummy.x = MONSTER_X - lunge + enemyShakeX;
       }
 
       // 2. Update Screen Flash Overlay Fade
@@ -881,6 +1027,19 @@ export class GameEngine {
    */
   public async destroy(): Promise<void> {
     this.isDestroyed = true;
+    this.knightSpine = null;
+    this.clearMonster();
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+
+    // Unload Spine knight textures/data to avoid VRAM leaks across scene changes
+    if (this.holdsKnightAssets) {
+      this.holdsKnightAssets = false;
+      knightAssetRefs--;
+      if (knightAssetRefs <= 0) {
+        await unloadSpineRig(KNIGHT_SKELETON_KEY, KNIGHT_ATLAS_KEY, KNIGHT_SCALE);
+      }
+    }
 
     // Unload preview asset if active
     if (this.currentPreviewAssetKey) {

@@ -38,8 +38,11 @@ export interface MonsterState {
   block: number;
   intent: MonsterIntent;
   level: number;
-  spriteType: 'DEMON' | 'GOLEM' | 'WARLORD' | 'MINOTAUR';
+  spriteType: MonsterSprite;
 }
+
+/** Spine monster rigs in public/assets/spine/monsters (see MONSTER_RIGS in GameEngine). */
+export type MonsterSprite = 'SLIME' | 'TREEMON' | 'HELLHOUND';
 
 export interface BattleState {
   playerHp: number;
@@ -446,27 +449,27 @@ export const CARD_CATALOG: CardTemplate[] = [
 
 export const MONSTER_CATALOG: Omit<MonsterState, 'currentHp' | 'block' | 'intent'>[] = [
   {
-    id: 'sloth_demon',
-    name: 'BELPHEGOR',
-    title: 'THE SLOTH DEMON',
+    id: 'green_slime',
+    name: 'GREEN SLIME',
+    title: 'DUNGEON OOZE',
     maxHp: 220,
     level: 5,
-    spriteType: 'DEMON',
+    spriteType: 'SLIME',
   },
   {
-    id: 'lactate_golem',
-    name: 'LACTIC TITAN',
-    title: 'HEAVY IRON GOLEM',
+    id: 'treemon',
+    name: 'TREEMON',
+    title: 'ROOTBOUND GUARDIAN',
     maxHp: 320,
     level: 8,
-    spriteType: 'GOLEM',
+    spriteType: 'TREEMON',
   },
   {
-    id: 'orc_warlord',
-    name: 'WARLORD GORECLAW',
-    title: 'DUNGEON EXECUTIONER',
+    id: 'hellhound',
+    name: 'HELLHOUND',
+    title: 'TWO-HEADED HOUND',
     maxHp: 450,
     level: 12,
-    spriteType: 'WARLORD',
+    spriteType: 'HELLHOUND',
   },
 ];

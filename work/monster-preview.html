@@ -1,0 +1,29 @@
+<!doctype html>
+<html><body style="margin:0;background:#222">
+<div id="out" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+<script type="module">
+import { Application, Assets, Graphics } from 'pixi.js';
+import { Spine } from '@esotericsoftware/spine-pixi-v8';
+const rigs = [
+  ['2headedDog', 'DiYuShuangTouQuan', 'Hit'],
+  ['Treemon', 'XiaoShuRen', 'Hit'],
+  ['greenSlime', 'TuXi01', 'Hit'],
+];
+for (const [dir, name, anim] of rigs) {
+  for (const which of ['Idle', anim]) {
+    const app = new Application();
+    await app.init({ width: 300, height: 300, background: 0x334455 });
+    document.getElementById('out').appendChild(app.canvas);
+    const base = `/assets/spine/monsters/${dir}/${name}`;
+    await Assets.load([base + '.json', base + '.atlas']);
+    const s = Spine.from({ skeleton: base + '.json', atlas: base + '.atlas', scale: 0.4, autoUpdate: false });
+    s.x = 150; s.y = 260;
+    s.state.setAnimation(0, which, false);
+    s.update(which === 'Idle' ? 0.01 : 0.15);
+    app.stage.addChild(new Graphics().rect(0, 260, 300, 1).fill(0xff0000).rect(150, 0, 1, 300).fill(0xff0000));
+    app.stage.addChild(s);
+    const b = s.getBounds();
+    console.warn(name, which, 'bounds', Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height));
+  }
+}
+</script></body></html>

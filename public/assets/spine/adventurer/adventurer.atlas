@@ -1,0 +1,89 @@
+adventurer.png
+size: 1024,512
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+torso
+  rotate: false
+  xy: 2, 2
+  size: 148, 235
+  orig: 148, 235
+  offset: 0, 0
+  index: -1
+r_thigh
+  rotate: false
+  xy: 152, 2
+  size: 101, 217
+  orig: 101, 217
+  offset: 0, 0
+  index: -1
+l_thigh
+  rotate: false
+  xy: 255, 2
+  size: 105, 214
+  orig: 105, 214
+  offset: 0, 0
+  index: -1
+r_forearm
+  rotate: false
+  xy: 362, 2
+  size: 79, 188
+  orig: 79, 188
+  offset: 0, 0
+  index: -1
+l_forearm
+  rotate: false
+  xy: 443, 2
+  size: 92, 146
+  orig: 92, 146
+  offset: 0, 0
+  index: -1
+l_shin
+  rotate: false
+  xy: 537, 2
+  size: 76, 135
+  orig: 76, 135
+  offset: 0, 0
+  index: -1
+head
+  rotate: false
+  xy: 615, 2
+  size: 115, 130
+  orig: 115, 130
+  offset: 0, 0
+  index: -1
+r_shin
+  rotate: false
+  xy: 732, 2
+  size: 61, 126
+  orig: 61, 126
+  offset: 0, 0
+  index: -1
+r_boot
+  rotate: false
+  xy: 795, 2
+  size: 89, 97
+  orig: 89, 97
+  offset: 0, 0
+  index: -1
+l_upper_arm
+  rotate: false
+  xy: 886, 2
+  size: 72, 96
+  orig: 72, 96
+  offset: 0, 0
+  index: -1
+l_boot
+  rotate: false
+  xy: 2, 239
+  size: 94, 94
+  orig: 94, 94
+  offset: 0, 0
+  index: -1
+r_upper_arm
+  rotate: false
+  xy: 98, 239
+  size: 63, 86
+  orig: 63, 86
+  offset: 0, 0
+  index: -1
