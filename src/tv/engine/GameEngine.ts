@@ -6,6 +6,7 @@ import { ExerciseType, EXERCISE_SKILLS } from '../../types/game';
 import type { MonsterSprite, MonsterMoveId } from '../../types/battle';
 import { MONSTER_MOVES, type MoveHost, type ImpactResult } from './monsterMoves';
 import { Timeline, type EmitOptions } from './choreo';
+import { MoveTracer, type Box, type MoveTraceReport } from './moveTrace';
 import {
   KNIGHT_MOVES, KNIGHT_MOVE_IDS, knightMoveFor, knightMoveCard,
   type KnightMoveId, type KnightMoveHost, type KnightMoveContext, type KnightTarget,
@@ -595,6 +596,21 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
     death: 'idle',
   },
 };
+/** Picks the rig's skin, or its first non-empty skin when the default one has no attachments. */
+function applyRigSkin(spine: Spine, rig: MonsterRig): void {
+  if (rig.skin) {
+    spine.skeleton.setSkinByName(rig.skin);
+    spine.skeleton.setSlotsToSetupPose();
+  } else if (!spine.skeleton.skin || spine.skeleton.skin.name === 'default') {
+    const skins = spine.skeleton.data.skins;
+    const nonDefault = skins.find((s) => s.name !== 'default');
+    if (nonDefault && (!spine.skeleton.skin || spine.skeleton.skin.attachments.length === 0)) {
+      spine.skeleton.setSkin(nonDefault);
+      spine.skeleton.setSlotsToSetupPose();
+    }
+  }
+}
+
 const MONSTER_X = 300;
 const MONSTER_LUNGE_DISTANCE = 110; // how far toward the knight an attack dashes
 const monsterAssetRefs = new Map<string, number>(); // shared rig → slots holding it
@@ -686,7 +702,7 @@ export interface MonsterSlot {
   kickX: number; // knockback / launch from knight hits, decays back to 0
   kickY: number;
   flashFrames: number; // hit-flash tint countdown (knight hits)
-  activeMove: { cancel: () => void } | null;
+  activeMove: { cancel: () => void; length: number } | null;
 }
 
 export class GameEngine {
@@ -773,6 +789,8 @@ export class GameEngine {
   private extraSpines: Set<Spine> = new Set(); // move-spawned rig clones (e.g. phantom wolves)
   private knightKnockX: number = 0;
   private debugClock: number = 0;
+  private pendingMoveTrace: MoveTracer | null = null; // armed by debugMonsterMove, consumed by the next playMonsterMove
+  private activeMoveTrace: MoveTracer | null = null;
 
   // Knight move choreography (knightMoves.ts)
   private activeKnightMove: { id: KnightMoveId; cancel: () => void } | null = null;
@@ -1222,17 +1240,7 @@ export class GameEngine {
       if (rig.flipX !== false) {
         spine.scale.x *= -1; // face knight on the left
       }
-      if (rig.skin) {
-        spine.skeleton.setSkinByName(rig.skin);
-        spine.skeleton.setSlotsToSetupPose();
-      } else if (!spine.skeleton.skin || spine.skeleton.skin.name === 'default') {
-        const skins = spine.skeleton.data.skins;
-        const nonDefault = skins.find((s) => s.name !== 'default');
-        if (nonDefault && (!spine.skeleton.skin || spine.skeleton.skin.attachments.length === 0)) {
-          spine.skeleton.setSkin(nonDefault);
-          spine.skeleton.setSlotsToSetupPose();
-        }
-      }
+      applyRigSkin(spine, rig);
       if (rig.offY) {
         spine.y += rig.offY;
       }
@@ -1450,10 +1458,16 @@ export class GameEngine {
     const knight = { x: this.knightContainer?.x ?? 130, y: this.knightContainer?.y ?? 168 };
     let impacted = false;
     let finished = false;
+    const tl = new Timeline();
+    const trace = this.pendingMoveTrace;
+    this.pendingMoveTrace = null;
+    if (trace) this.activeMoveTrace = trace;
+    const seen = new Set<Container>(); // move graphics that existed at the previous traced frame
 
     const impact = (knockback = 8) => {
       if (impacted) return;
       impacted = true;
+      trace?.impact(tl.frame, finished);
       const result = opts.onImpact?.();
       if (result?.at !== 'monster' && result?.hit !== false) this.knightHitReaction(knockback);
       if (result?.hit === false) this.spawnSparks(knight.x + 6, knight.y - 28, 10, [0x38B6FF, 0xFFFFFF]);
@@ -1468,6 +1482,7 @@ export class GameEngine {
       gfx: (layer = 'fx') => (layer === 'ground' ? ground : fx).addChild(new Graphics()),
       container: (layer = 'fx') => (layer === 'ground' ? ground : fx).addChild(new Container()),
       anim: (name, loop = false) => {
+        if (spine && !spine.skeleton.data.findAnimation(name)) trace?.missingAnim(name);
         if (!spine || !rig || slot.isLocked || !spine.skeleton.data.findAnimation(name)) return;
         spine.state.setAnimation(0, name, loop);
         if (!loop) spine.state.addAnimation(0, rig.idle, true, 0);
@@ -1480,12 +1495,15 @@ export class GameEngine {
         slot.offY = y;
       },
       lift: (height) => {
-        if (spine) spine.y = -height;
+        if (spine) spine.y = (rig?.offY ?? 0) - height; // keep floating rigs (rig.offY) at their hover height
         const s = Math.max(0.3, 1 - height / 160);
         slot.shadow.scale.set(s);
         slot.shadow.alpha = s;
       },
       stretch: (sx, sy) => spine?.scale.set(restScale.x * sx, restScale.y * sy),
+      tilt: (radians) => {
+        if (spine) spine.rotation = radians;
+      },
       alpha: (a) => {
         slot.container.alpha = a;
       },
@@ -1498,6 +1516,7 @@ export class GameEngine {
           const copy = Spine.from({ skeleton: rig.skeleton, atlas: rig.atlas, scale: rig.scale, autoUpdate: true });
           copy.ticker = this.app.ticker;
           if (rig.flipX !== false) copy.scale.x *= -1;
+          applyRigSkin(copy, rig);
           fx.addChild(copy);
           clones.push(copy);
           this.extraSpines.add(copy);
@@ -1513,7 +1532,10 @@ export class GameEngine {
         this.hitStopFrames = Math.max(this.hitStopFrames, frames);
       },
       dim: dimmer.dim,
-      knightHit: (knockback = 6) => this.knightHitReaction(knockback),
+      knightHit: (knockback = 6) => {
+        trace?.chip(tl.frame);
+        this.knightHitReaction(knockback);
+      },
       impact,
       sparks: (x, y, count, colors) => this.spawnSparks(x, y, count, colors),
       shockwave: (x, y, color) => this.spawnShockwave(x, y, color),
@@ -1528,6 +1550,20 @@ export class GameEngine {
       if (finished) return;
       finished = true;
       if (!cancelled && !impacted) impact(); // a move must always land once
+      if (trace) {
+        trace.length = tl.length;
+        trace.finish(spine && !spine.destroyed ? {
+          offX: slot.offX,
+          offY: slot.offY,
+          lift: (rig?.offY ?? 0) - spine.y,
+          alpha: slot.container.alpha,
+          tint: spine.tint,
+          rotation: spine.rotation,
+          scaleX: spine.scale.x / restScale.x,
+          scaleY: spine.scale.y / restScale.y,
+        } : null, cancelled);
+        if (this.activeMoveTrace === trace) this.activeMoveTrace = null;
+      }
       slot.activeMove = null;
       slot.offX = 0;
       slot.offY = 0;
@@ -1535,7 +1571,8 @@ export class GameEngine {
       slot.shadow.alpha = 1;
       if (spine && !spine.destroyed) {
         spine.x = 0;
-        spine.y = 0;
+        spine.y = rig?.offY ?? 0;
+        spine.rotation = 0;
         spine.scale.set(restScale.x, restScale.y);
         spine.tint = 0xFFFFFF;
         const current = spine.state.getCurrent(0);
@@ -1552,15 +1589,15 @@ export class GameEngine {
       dimmer.destroy();
     };
 
-    const tl = new Timeline();
     try {
       choreo(host, tl);
     } catch (err) {
       console.error(`[GameEngine] monster move ${move} failed to build:`, err);
+      trace?.fail(err);
       finish(false);
       return;
     }
-    slot.activeMove = { cancel: () => finish(true) };
+    slot.activeMove = { cancel: () => finish(true), length: tl.length };
 
     this.activeEffects.push({
       container: new Container(),
@@ -1572,11 +1609,69 @@ export class GameEngine {
           finish(true);
           return true;
         }
-        const done = tl.tick(delta);
+        let done: boolean;
+        try {
+          done = tl.tick(delta);
+        } catch (err) {
+          // A broken frame ends the move (it still lands) instead of stalling the ticker every frame
+          console.error(`[GameEngine] monster move ${move} threw at frame ${Math.round(tl.frame)}:`, err);
+          trace?.fail(err);
+          done = true;
+        }
+        if (trace && !finished) this.sampleMoveTrace(trace, tl.frame, [fx, ground], slot.container, seen);
         if (done) finish(false);
         return done;
       },
     });
+  }
+
+  /** Dev: records what a traced move put on screen this frame (see moveTrace.ts). */
+  private sampleMoveTrace(trace: MoveTracer, frame: number, layers: Container[], monster: Container, seen: Set<Container>): void {
+    const box = (c: Container): Box => {
+      const b = c.getBounds();
+      return { x: b.x, y: b.y, w: b.width, h: b.height };
+    };
+    // Only graphics that were already on screen last frame count, so a burst spawned on the impact
+    // frame itself can't pass for the attack reaching the knight
+    const fxBoxes: Box[] = [];
+    const now = new Set<Container>();
+    for (const layer of layers) {
+      for (const child of layer.children) {
+        now.add(child);
+        if (seen.has(child) && child.visible && child.alpha > 0.05) fxBoxes.push(box(child));
+      }
+    }
+    seen.clear();
+    for (const c of now) seen.add(c);
+    const knight = this.knightContainer ? box(this.knightContainer) : { x: 0, y: 0, w: 0, h: 0 };
+    const screen = { x: 0, y: 0, w: this.app?.screen.width ?? 426, h: this.app?.screen.height ?? 240 };
+    trace.sample(frame, fxBoxes, monster.alpha > 0.05 ? box(monster) : null, knight, screen);
+  }
+
+  /**
+   * Dev bridge: plays monster move `move` on a slot without touching battle state and arms a tracer.
+   * `selfTarget` marks DEFEND/BUFF moves (no contact check). Read the result with debugMoveTrace().
+   * Returns the timeline length in frames, or null if the move didn't start.
+   */
+  public debugMonsterMove(slotIndex: number, move: MonsterMoveId, selfTarget = false): number | null {
+    if (!MONSTER_MOVES[move]) throw new Error(`Unknown monster move "${move}"`);
+    const tracer = new MoveTracer(move, selfTarget);
+    this.pendingMoveTrace = tracer;
+    this.playMonsterMove(slotIndex, move, {
+      onImpact: () => (selfTarget ? { label: '+BLOCK', color: 0x38B6FF, at: 'monster' } : { label: '-20', color: 0xF97316 }),
+    });
+    this.pendingMoveTrace = null;
+    this.lastMoveTrace = tracer;
+    if (tracer.done) return tracer.length;
+    return this.activeMoveTrace === tracer ? (this.monsterSlots[slotIndex]?.activeMove?.length ?? null) : null;
+  }
+
+  private lastMoveTrace: MoveTracer | null = null;
+
+  /** Dev bridge: the last debugMonsterMove()'s trace (`done` false while it's still playing). */
+  public debugMoveTrace(): (MoveTraceReport & { done: boolean }) | null {
+    const t = this.lastMoveTrace;
+    return t ? { ...t.report(), done: t.done } : null;
   }
 
   /**
@@ -2623,10 +2718,14 @@ export class GameEngine {
     const spine = slot?.spine;
     if (!slot || !spine || !slot.rig) throw new Error(`No loaded monster in slot ${slotIndex}`);
     const animations = spine.skeleton.data.animations.map((a) => ({ name: a.name, duration: Number(a.duration.toFixed(3)) }));
+    const bounds = () => {
+      const r = slot.container.getBounds();
+      return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) };
+    };
     if (animation === null) {
       spine.state.timeScale = 1;
       spine.state.setAnimation(0, slot.rig.idle, true);
-      return { type: slot.spriteType, animations };
+      return { type: slot.spriteType, animations, bounds: bounds() };
     }
     if (!spine.skeleton.data.findAnimation(animation)) throw new Error(`${slot.spriteType} has no animation "${animation}"`);
     spine.skeleton.setToSetupPose();
@@ -2635,7 +2734,7 @@ export class GameEngine {
     entry.trackTime = time;
     spine.state.timeScale = 0;
     spine.update(0);
-    return { type: slot.spriteType, animations };
+    return { type: slot.spriteType, animations, bounds: bounds() };
   }
 
   /**

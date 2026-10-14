@@ -55,7 +55,71 @@ export type MonsterMoveId =
   // Demon Monk
   | 'monk_cursed_palm' | 'monk_hellfire_orb' | 'monk_abyssal_edict' | 'monk_chains_of_penance' | 'monk_forbidden_ward'
   // Hellhound
-  | 'hound_twin_maul' | 'hound_savage_frenzy' | 'hound_hellfire_breath' | 'hound_magma_rampage' | 'hound_brimstone_rain';
+  | 'hound_twin_maul' | 'hound_savage_frenzy' | 'hound_hellfire_breath' | 'hound_magma_rampage' | 'hound_brimstone_rain'
+  // Cave Bat
+  | 'bat_wing_buffet' | 'bat_screech_dive' | 'bat_blood_drain' | 'bat_echo_swarm'
+  // Goblin Scout
+  | 'goblin_rusty_shank' | 'goblin_sneak_pounce' | 'goblin_sling_stone' | 'goblin_firebomb'
+  // Spore Mushroom
+  | 'shroom_spore_cloud' | 'shroom_toxic_burst' | 'shroom_fungal_guard' | 'shroom_mycelium_snare'
+  // Restless Ghost
+  | 'ghost_chilling_grasp' | 'ghost_banshee_wail' | 'ghost_phantasmal_bolt' | 'ghost_possession'
+  // Brood Spider
+  | 'spider_venom_fangs' | 'spider_silk_cocoon' | 'spider_skitter_lunge' | 'spider_brood_swarm'
+  // Skeleton Archer
+  | 'archer_bone_arrow' | 'archer_piercing_volley' | 'archer_poison_shaft' | 'archer_soul_arrow'
+  // Skeleton Warrior
+  | 'skwar_scimitar_slash' | 'skwar_shield_bash' | 'skwar_bone_phalanx' | 'skwar_bone_ambush'
+  // Cliff Harpy
+  | 'harpy_talon_rake' | 'harpy_cyclone' | 'harpy_aerial_dive' | 'harpy_feather_storm'
+  // Lizardman
+  | 'lizard_trident_thrust' | 'lizard_tail_whip' | 'lizard_scale_guard' | 'lizard_swamp_ambush'
+  // Orc Berserker
+  | 'orc_axe_chop' | 'orc_blood_frenzy' | 'orc_war_cry_slam' | 'orc_axe_throw'
+  // Corrupted Mage
+  | 'mage_shadow_bolt' | 'mage_doom_curse' | 'mage_nether_ward' | 'mage_raven_storm'
+  // Water Elemental
+  | 'water_tidal_strike' | 'water_geyser' | 'water_aqua_barrier' | 'water_bubble_prison'
+  // Nightmare Stag
+  | 'stag_spectral_antlers' | 'stag_ethereal_trample' | 'stag_mist_veil' | 'stag_moon_bellow'
+  // Stone Golem
+  | 'golem_stone_hammer' | 'golem_earthquake' | 'golem_granite_skin' | 'golem_crystal_barrage'
+  // Vault Guardian
+  | 'vault_iron_cleaver' | 'vault_core_discharge' | 'vault_aegis_lockdown' | 'vault_piston_slam'
+  // Dungeon Wraith
+  | 'wraith_soul_siphon' | 'wraith_shadow_vortex' | 'wraith_death_chill' | 'wraith_reaper_scythe'
+  // Stone Gargoyle
+  | 'garg_talon' | 'garg_rampart_dive' | 'garg_stone_form' | 'garg_rubble_hurl'
+  // Dark Knight
+  | 'dk_black_blade' | 'dk_abyssal_cleave' | 'dk_dread_bastion' | 'dk_shadow_step'
+  // Minotaur
+  | 'mino_horn_gore' | 'mino_labyrinth_charge' | 'mino_club_crush' | 'mino_bellow'
+  // Skeleton Knight
+  | 'skknight_dread_lance' | 'skknight_phantom_trample' | 'skknight_death_crest' | 'skknight_grave_hands'
+  // Grave Colossus
+  | 'colossus_corpse_slam' | 'colossus_tomb_collapse' | 'colossus_ossuary' | 'colossus_bile'
+  // Void Prophet
+  | 'prophet_eldritch_sigil' | 'prophet_cosmic_rift' | 'prophet_singularity' | 'prophet_void_tendrils'
+  // Troll Warlord
+  | 'troll_burl_club' | 'troll_berserk_flail' | 'troll_regrowth' | 'troll_boulder_toss'
+  // Bone Golem
+  | 'bgolem_ossuary_strike' | 'bgolem_bone_spire' | 'bgolem_marrow_armor' | 'bgolem_skull_cannon'
+  // Ancient Treant
+  | 'treant_elder_bough' | 'treant_forest_wrath' | 'treant_ironwood' | 'treant_seed_meteor'
+  // Crypt Lord
+  | 'lich_frostbolt' | 'lich_death_nova' | 'lich_phylactery' | 'lich_glacial_tomb'
+  // Abyssal Kraken
+  | 'kraken_tentacle_lash' | 'kraken_maelstrom' | 'kraken_ink_cloud' | 'kraken_tidal_crash'
+  // Archbishop of Ash
+  | 'bishop_ash_liturgy' | 'bishop_profane_pillar' | 'bishop_aegis' | 'bishop_brimstone_censer'
+  // Inferno Titan
+  | 'titan_magma_hammer' | 'titan_apocalypse' | 'titan_igneous' | 'titan_skull_pyre'
+  // Dark Emperor
+  | 'emperor_imperial_slash' | 'emperor_sovereign_ruin' | 'emperor_crown_shadows' | 'emperor_shadow_legion'
+  // Magma Dragon
+  | 'dragon_tail_whip' | 'dragon_inferno_breath' | 'dragon_scales' | 'dragon_meteor_storm'
+  // Eldritch Horror
+  | 'horror_tentacle_grasp' | 'horror_cosmic_madness' | 'horror_void_distortion' | 'horror_abyssal_gaze';
 
 export interface MonsterIntent {
   type: 'ATTACK' | 'HEAVY_ATTACK' | 'DEFEND' | 'BUFF';

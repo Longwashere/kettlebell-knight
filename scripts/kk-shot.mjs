@@ -11,7 +11,8 @@
  * Steps run in order:
  *   ready                     wait for engine init + asset loads (implicit after page load)
  *   goto:<VIEW>               HUB | BLACKSMITH | COMBAT | ALCHEMIST | SANCTUARY
- *   encounter:<id|index>      ENCOUNTERS id/index, or comma list of monsters: encounter:wolf,boar
+ *   encounter:<id|index>      ENCOUNTERS id/index, a monster id for a solo fight (encounter:kraken),
+ *                             or a comma list of monsters: encounter:wolf,boar
  *   bg:<BATTLE_MAPS key>      e.g. bg:BLOOD_CEMETERY
  *   freeze | unfreeze         pause/resume monster ATB timers
  *   rep[:EXERCISE[:power]]    inject one rep via the telemetry path (defaults to focused card)
@@ -26,6 +27,14 @@
  *   sheet[:slot[:frames]]     contact sheet of every animation on a monster slot (freezes timers)
  *   attack:<slot>:<move>      play a monster move now (move id or name, e.g. attack:0:wolf_throat_bite)
  *   film:<slot>:<move>[:n[:step]]  film strip of a move: n frames, every `step` 60fps frames (default 16, 6)
+ *   moves[:slot]              list a slot's choreographed moves (id, name, intent type)
+ *   films:<monster|slot>[:n]  one sheet with every move of a monster: a row per move, n shots spread over
+ *                             it (default 6) plus the impact frame (red), trace findings in each row label.
+ *                             A monster id starts a solo fight first: films:kraken
+ *   movecheck[:ids]           play every move of each monster (comma list, default: whole bestiary) frame by
+ *                             frame and report errors (threw, never landed) and warnings (missing rig anim,
+ *                             nothing reached the knight before impact, not back at rest, overlong). Fails on errors.
+ *   portraits[:ids]           tight idle portrait of each monster (default: all) → work/rigs/<id>.png
  *   kanims | kmoves           print knight animations (frames + Spine events) / knight move ids (knightMoves.ts)
  *   kmove:<id>[:slots]        play a knight move now, no battle state change (slots: comma list, hit order)
  *   ksheet[:frames[:regex]]   contact sheet of knight animations, e.g. ksheet:6:ATTACK|SKILL
@@ -204,12 +213,12 @@ function onMessage(e) {
 }
 
 /** Evaluates a JS expression in the page, awaiting promises, and returns the JSON value. */
-async function evaluate(expression) {
+async function evaluate(expression, timeout = opts.timeout) {
   const res = await send('Runtime.evaluate', {
     expression,
     awaitPromise: true,
     returnByValue: true,
-    timeout: opts.timeout,
+    timeout,
   });
   if (res.exceptionDetails) {
     const d = res.exceptionDetails;
@@ -218,12 +227,13 @@ async function evaluate(expression) {
   return res.result.value;
 }
 
-const kk = (expr) => evaluate(`(async () => { if (!window.__kk) throw new Error('window.__kk missing (dev server only, /tv route)'); return ${expr}; })()`);
+const kk = (expr, timeout) => evaluate(`(async () => { if (!window.__kk) throw new Error('window.__kk missing (dev server only, /tv route)'); return ${expr}; })()`, timeout);
+const LONG = () => Math.max(opts.timeout, 120000); // film sheets and move checks step hundreds of frames
 const js = (v) => JSON.stringify(v);
 
-function save(name, base64) {
-  fs.mkdirSync(outDir, { recursive: true });
-  const file = path.join(outDir, `${name}.png`);
+function save(name, base64, dir = outDir) {
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${name}.png`);
   fs.writeFileSync(file, Buffer.from(base64, 'base64'));
   return path.relative(ROOT, file);
 }
@@ -317,6 +327,59 @@ async function runStep(step) {
       const [slot, move, count, step] = arg.split(':');
       const url = await kk(`__kk.film(${Number(slot) || 0}, ${js(move)}, ${Number(count) || 16}, ${Number(step) || 6})`);
       return save(`film-${move}`, url.replace(/^data:image\/png;base64,/, ''));
+    }
+    case 'moves': {
+      const moves = await kk(`__kk.moves(${Number(arg) || 0})`);
+      return '\n' + moves.map((m) => `    ${m.move.padEnd(26)} ${m.type.padEnd(13)} ${m.name}`).join('\n');
+    }
+    case 'films': {
+      const [who, frames] = arg.split(':');
+      let slot = Number(who) || 0;
+      let label = `slot${slot}`;
+      if (who && !/^\d+$/.test(who)) {
+        await kk(`__kk.encounter(${js(who)})`);
+        slot = 0;
+        label = who;
+      }
+      const url = await kk(`__kk.films(${slot}, ${Number(frames) || 6})`, LONG());
+      return save(`films-${label}`, url.replace(/^data:image\/png;base64,/, ''));
+    }
+    case 'movecheck': {
+      const all = await kk('__kk.monsterIds()');
+      const ids = arg ? arg.split(',') : all;
+      let errors = 0;
+      let warnings = 0;
+      const lines = [];
+      for (const id of ids) {
+        await kk(`__kk.encounter(${js(id)})`);
+        const { reports } = await kk('__kk.moveCheck(0)', LONG());
+        if (!reports.length) {
+          lines.push(`  ${id}: no choreographed moves`);
+          continue;
+        }
+        for (const r of reports) {
+          errors += r.errors.length;
+          warnings += r.warnings.length;
+          const mark = r.errors.length ? '✗' : r.warnings.length ? '!' : '✓';
+          lines.push(`  ${mark} ${id.padEnd(17)} ${r.move.padEnd(26)} ${String(r.length).padStart(4)}f  impact @f${String(r.impactFrame ?? '—').padEnd(4)}${r.chipFrames.length ? ` hits @f${r.chipFrames.join(',')}` : ''}`);
+          for (const e of r.errors) lines.push(`        ERROR ${e}`);
+          for (const w of r.warnings) lines.push(`        warn  ${w}`);
+        }
+      }
+      const summary = `${ids.length} monster(s): ${errors} error(s), ${warnings} warning(s)`;
+      if (errors) throw new Error(`${summary}\n${lines.join('\n')}`);
+      return `${summary}\n${lines.join('\n')}`;
+    }
+    case 'portraits': {
+      const ids = arg ? arg.split(',') : await kk('__kk.monsterIds()');
+      const dir = path.join(ROOT, 'work', 'rigs');
+      for (const id of ids) {
+        await kk(`__kk.encounter(${js(id)})`);
+        await kk('__kk.idle(5000, 100)').catch(() => {});
+        const url = await kk('__kk.portrait(0, 2)');
+        save(id, url.replace(/^data:image\/png;base64,/, ''), dir);
+      }
+      return `${ids.length} portrait(s) → ${path.relative(ROOT, dir)}/`;
     }
     case 'kanims': {
       const anims = await kk('__kk.knightAnims()');

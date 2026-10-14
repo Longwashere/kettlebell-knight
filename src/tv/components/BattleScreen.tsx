@@ -402,6 +402,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           engineRef.current?.setMonsters(createEncounterFromTemplate(template));
           return;
         }
+        // A single monster id (e.g. 'kraken') that isn't an encounter id starts a solo fight with it
+        if (typeof which === 'string' && !ENCOUNTERS.some((e) => e.id === which) && MONSTER_CATALOG.some((c) => c.id === which || c.spriteType === which.toUpperCase())) {
+          const cat = MONSTER_CATALOG.find((c) => c.id === which || c.spriteType === which.toUpperCase())!;
+          const template: EncounterTemplate = { id: 'debug', name: 'Debug Encounter', description: '', monsterIds: [cat.id] };
+          startEncounter(template, currentEncounterIndex);
+          engineRef.current?.setMonsters(createEncounterFromTemplate(template));
+          return;
+        }
         const index = typeof which === 'number' ? which : ENCOUNTERS.findIndex((e) => e.id === which);
         if (!ENCOUNTERS[index]) throw new Error(`Unknown encounter "${which}". Known: ${ENCOUNTERS.map((e) => e.id).join(', ')}`);
         startEncounter(ENCOUNTERS[index], index);

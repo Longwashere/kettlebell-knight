@@ -26,12 +26,20 @@ npm run shot -- "encounter:boar,demon_monk,wolf" bg:BLOOD_CEMETERY freeze idle c
 # Texture/VRAM leak check across a scene change (Fire TV has 1 GB RAM)
 npm run shot -- encounter:solo_monk idle textures goto:HUB idle textures
 
-# A monster move, as a deterministic film strip (ticker is stepped frame-by-frame, 16 shots every 6 frames)
+# Monster moves: automated check of every move (whole bestiary in ~1 min; fails on errors), then one review
+# sheet per monster (a row per move, impact frame boxed red, trace findings in each row label)
+npm run shot -- movecheck
+npm run shot -- movecheck:kraken,wolf
+npm run shot -- films:kraken films:wolf:8
+
+# A single monster move, as a deterministic film strip (ticker is stepped frame-by-frame, 16 shots every 6 frames)
+npm run shot -- encounter:kraken idle moves film:0:kraken_tidal_crash
 npm run shot -- encounter:solo_wolf idle film:0:wolf_phantom_pack
 npm run shot -- "encounter:wolf,boar,slime" idle film:2:slime_ooze_slam:10:10   # from a back formation slot
 
-# Every animation in a monster's Spine rig as a contact sheet (pick animations for new moves)
-npm run shot -- encounter:solo_boar idle sheet:0
+# Every animation in a monster's Spine rig as a contact sheet, cropped to that monster (pick animations for new moves).
+# For names/lengths/events without a browser use `npm run rigs -- boar`; portraits: `npm run shot -- portraits`
+npm run shot -- encounter:boar idle sheet:0
 
 # Knight attacks (knightMoves.ts): list moves + rig timing, see poses, film a move (default 16 shots every 3 frames)
 npm run shot -- encounter:solo_wolf idle kmoves kanims
@@ -63,9 +71,12 @@ Defined in `src/tv/debug/agentBridge.ts`. Components register into it with `regi
 actions)` from a `useEffect`; the engine exposes `getDebugState()`, `getTextureStats()` and `snapshot()`.
 When you add a new screen or engine system, register its state there so it stays observable.
 
-Monster moves live in `src/tv/engine/monsterMoves.ts` (one timeline function per move, ids in
-`MonsterMoveId`); movesets are `MOVESETS` in `BattleScreen.tsx`. `__kk.call('attack', slot, moveId)` plays one
-now; `__kk.call('moves', slot)` lists a slot's moves. Use `film:` to review a move instead of real-time `shot:`s.
+Monster moves live in `src/tv/engine/monsterMoves.ts` and `src/tv/engine/moves/*.ts` (one timeline function per
+move, ids in `MonsterMoveId`, helpers in `monsterKit.ts`); movesets are `MOVESETS` in `src/shared/monsterMovesets.ts`.
+`__kk.call('attack', slot, moveId)` plays one through the battle (applies damage); `__kk.moves(slot)` lists a slot's
+moves. `__kk.moveCheck(slot)` and `__kk.films(slot)` play moves via `engine.debugMonsterMove` instead, which leaves
+battle state alone and arms the tracer in `src/tv/engine/moveTrace.ts` (impact frame, lesser hits, contact with the
+knight before impact, rest state at the end, missing rig animations). Add new checks there.
 
 Knight moves live in `src/tv/engine/knightMoves.ts`: one Timeline choreography per battle card, keyed by
 CARD_CATALOG `templateId`, built from the VFX kit in `fxKit.ts`. Contact goes through `land()` (hit-stop,
@@ -75,7 +86,8 @@ plays one without changing battle state. `kanims` lists rig anim lengths in fram
 Film multi-target cards against a trio with their real hit order (ALL `0,1,2`, BACK `1`, PIERCE `0,1`), and keep
 leaps under ~40px of lift: the knight is ~65px tall and clips off the top of the screen.
 
-`state() · actions() · call(name, ...args) · film(slot, move, count?, step?) · sheet(slot, frames?) ·
+`state() · actions() · call(name, ...args) · moves(slot) · moveCheck(slot, only?) · films(slot, frames?) ·
+portrait(slot, scale?) · monsterIds() · film(slot, move, count?, step?) · sheet(slot, frames?) ·
 knightFilm(move, count?, step?, slots?) · knightSheet(frames?, regex?) · knightAnims() · knightMoves() ·
 knightMove(id, slots?, damage?) · goto(view) · encounter(idOrIndexOrList) · rep(exercise?, power?,
 form?) · cast(count?) · freeze(on) · background(key) · ready() · idle(timeoutMs?, settleMs?) ·

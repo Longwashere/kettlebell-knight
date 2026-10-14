@@ -10,7 +10,9 @@
  */
 import type { RepTelemetry, ExerciseType } from '../../types/game';
 import { networkManager } from '../../shared/NetworkManager';
-import { CARD_CATALOG } from '../../types/battle';
+import { CARD_CATALOG, MONSTER_CATALOG } from '../../types/battle';
+import { MOVESETS } from '../../shared/monsterMovesets';
+import type { MoveTraceReport } from '../engine/moveTrace';
 import { getCardArt, CARD_ART_W, CARD_ART_H } from '../components/cardArt';
 import { EXERCISE_GUIDES, getExerciseFrames, POSE_W, POSE_H } from '../components/exerciseGuide';
 
@@ -125,7 +127,8 @@ async function contactSheet(
         await img.decode();
         ctx.drawImage(img, crop.x, crop.y, crop.w, crop.h, f * crop.w, y0 + labelH, crop.w, crop.h);
         ctx.fillStyle = '#F4B41A';
-        ctx.fillText(`${title} ${anim.name} f${Math.round(t * 60)}/${Math.round(anim.duration * 60)}`, f * crop.w + 3, y0 + 10);
+        // Name once per row (long names would overrun the cells), then just the frame
+        ctx.fillText(f === 0 ? `${title} ${anim.name} f0/${Math.round(anim.duration * 60)}` : `f${Math.round(t * 60)}`, f * crop.w + 3, y0 + 10);
       }
       if (anim.events?.length) {
         ctx.fillStyle = '#38B6FF';
@@ -136,6 +139,44 @@ async function contactSheet(
     pose(null);
   }
   return out.toDataURL('image/png');
+}
+
+type MoveInfo = { move: string; name: string; type: string };
+type TraceState = MoveTraceReport & { done: boolean };
+
+/** The moveset (choreographed moves only) of the monster in `slot`, from MOVESETS. */
+function slotMoves(slot: number): { id: string; moves: MoveInfo[] } {
+  const m = (state().battle as any)?.monsters?.[slot];
+  if (!m) throw new Error(`[__kk] no monster in slot ${slot}`);
+  const moves = (MOVESETS[m.id] ?? []).filter((t) => t.move).map((t) => ({ move: t.move as string, name: t.name, type: t.type }));
+  return { id: m.id, moves };
+}
+
+const selfTargeted = (type: string) => type === 'DEFEND' || type === 'BUFF';
+
+/**
+ * Plays `move` on `slot` with the ticker under manual control, one frame at a time, calling `onFrame`
+ * after each. Stops when the move's trace is done. Returns the final trace.
+ */
+async function runTracedMove(slot: number, move: MoveInfo, onFrame?: (frame: number, trace: TraceState, length: number) => Promise<void> | void): Promise<TraceState> {
+  call('step', 1);
+  const length = call('monsterMove', slot, move.move, selfTargeted(move.type)) as number | null;
+  if (length === null) throw new Error(`[__kk] ${move.move} did not start on slot ${slot}`);
+  let trace = call('moveTrace') as TraceState;
+  for (let f = 1; f <= length + 60 && !trace.done; f++) {
+    call('step', 1);
+    trace = call('moveTrace') as TraceState;
+    await onFrame?.(f, trace, length);
+  }
+  call('step', 30); // let hit reactions and particles clear before the next move
+  return trace;
+}
+
+async function grab(): Promise<HTMLImageElement> {
+  const img = new Image();
+  img.src = await api.snapshot();
+  await img.decode();
+  return img;
 }
 
 /** Polls until `predicate(state())` is truthy. Rejects with the last state on timeout. */
@@ -241,8 +282,30 @@ const api = {
     const engine = (state().engine as any);
     const monster = engine?.monsters?.[slot];
     if (!monster?.loaded) throw new Error(`[__kk] no loaded monster in slot ${slot}`);
-    const { animations, type } = call('pose', slot, null) as { type: string; animations: { name: string; duration: number }[] };
-    const crop = { x: 170, y: 0, w: 230, h: 175 }; // around the solo formation slot (x≈310)
+    type Posed = { type: string; animations: { name: string; duration: number }[]; bounds: { x: number; y: number; w: number; h: number } };
+    const { animations, type } = call('pose', slot, null) as Posed;
+    // Crop to this monster: the union of its bounds across a few poses of every animation
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    try {
+      for (const a of animations) {
+        for (const u of [0, 0.5, 0.99]) {
+          const { bounds: b } = call('pose', slot, a.name, a.duration * u) as Posed;
+          if (b.w <= 0 || b.h <= 0) continue;
+          x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.w); y1 = Math.max(y1, b.y + b.h);
+        }
+      }
+    } finally {
+      call('pose', slot, null);
+    }
+    const pad = 6;
+    const cx = Math.max(0, Math.floor((Number.isFinite(x0) ? x0 : 170) - pad));
+    const cy = Math.max(0, Math.floor((Number.isFinite(y0) ? y0 : 0) - pad));
+    const crop = {
+      x: cx,
+      y: cy,
+      w: Math.max(60, Math.min(426 - cx, Math.ceil((Number.isFinite(x1) ? x1 : 400) + pad - cx))),
+      h: Math.max(60, Math.min(240 - cy, Math.ceil((Number.isFinite(y1) ? y1 : 175) + pad - cy))),
+    };
     return contactSheet(type, animations, (name, t) => call('pose', slot, name, t), crop, frames);
   },
 
@@ -253,6 +316,110 @@ const api = {
   async film(slot: number, move: string, count = 16, step = 6): Promise<string> {
     return filmStrip(move, () => call('attack', slot, move), count, step);
   },
+
+  /** Choreographed moves of the monster in `slot`: [{ move, name, type }]. */
+  moves: (slot = 0) => slotMoves(slot).moves,
+
+  /**
+   * Plays every move of the monster in `slot` (or just `only`) frame by frame without touching battle
+   * state, and returns a trace report per move: impact frame, length, lesser hits, plus errors (threw,
+   * never called h.impact) and warnings (missing rig animation, nothing reached the knight just before
+   * impact, monster not back at rest, damage label before lesser hits, very long).
+   */
+  async moveCheck(slot = 0, only?: string[]): Promise<{ monster: string; reports: MoveTraceReport[] }> {
+    freezeBattle(true);
+    const { id, moves } = slotMoves(slot);
+    const reports: MoveTraceReport[] = [];
+    try {
+      for (const m of moves) {
+        if (only?.length && !only.includes(m.move)) continue;
+        const { done: _done, ...report } = await runTracedMove(slot, m);
+        reports.push(report);
+      }
+    } finally {
+      call('resume');
+    }
+    return { monster: id, reports };
+  },
+
+  /**
+   * One sheet with every move of the monster in `slot`: a row per move, `frames` shots spread over the
+   * move plus the exact impact frame (red border). Row labels carry the trace findings. PNG data URL.
+   */
+  async films(slot = 0, frames = 6): Promise<string> {
+    freezeBattle(true);
+    const { id, moves } = slotMoves(slot);
+    const cw = 284; // 2/3 of the 426×240 canvas
+    const ch = 160;
+    const labelH = 28;
+    const cols = frames + 1;
+    const out = document.createElement('canvas');
+    out.width = cw * cols;
+    out.height = (ch + labelH) * moves.length;
+    const ctx = out.getContext('2d')!;
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = '#0F0E17';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.font = '11px monospace';
+    try {
+      for (const [row, m] of moves.entries()) {
+        const shots: { frame: number; img: HTMLImageElement; impact: boolean }[] = [];
+        let schedule: number[] = [];
+        let impactSeen = false;
+        const trace = await runTracedMove(slot, m, async (f, t, length) => {
+          if (!schedule.length) schedule = Array.from({ length: frames }, (_, k) => Math.max(1, Math.round(((k + 0.5) * length) / frames)));
+          const isImpact = !impactSeen && t.impactFrame !== null;
+          if (isImpact) impactSeen = true;
+          if (isImpact || schedule.includes(f)) shots.push({ frame: f, img: await grab(), impact: isImpact });
+        });
+        shots.sort((a, b) => a.frame - b.frame);
+        const y0 = row * (ch + labelH);
+        const findings = [...trace.errors.map((e) => `ERR ${e}`), ...trace.warnings];
+        ctx.fillStyle = trace.errors.length ? '#FF3366' : findings.length ? '#FBBF24' : '#00EB88';
+        ctx.fillText(`${id} · ${m.move} (${m.name}, ${m.type}) · ${trace.length}f · impact @f${trace.impactFrame ?? '—'}`, 4, y0 + 11);
+        ctx.fillStyle = '#A8A29E';
+        ctx.fillText(findings.length ? findings.join(' | ').slice(0, 220) : 'no findings', 4, y0 + 24);
+        for (const [col, shot] of shots.slice(0, cols).entries()) {
+          const x = col * cw;
+          ctx.drawImage(shot.img, x, y0 + labelH, cw, ch);
+          ctx.fillStyle = '#0F0E17';
+          ctx.fillRect(x, y0 + labelH, shot.impact ? 70 : 34, 13);
+          ctx.fillStyle = shot.impact ? '#FF3366' : '#F4B41A';
+          ctx.fillText(shot.impact ? `f${shot.frame} IMPACT` : `f${shot.frame}`, x + 3, y0 + labelH + 10);
+          if (shot.impact) {
+            ctx.strokeStyle = '#FF3366';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(x + 1.5, y0 + labelH + 1.5, cw - 3, ch - 3);
+          }
+        }
+      }
+    } finally {
+      call('resume');
+    }
+    return out.toDataURL('image/png');
+  },
+
+  /** The monster in `slot` cropped tight from the canvas (idle pose), at `scale`x. PNG data URL. */
+  async portrait(slot = 0, scale = 2): Promise<string> {
+    freezeBattle(true);
+    const { bounds } = call('pose', slot, null) as { bounds: { x: number; y: number; w: number; h: number } };
+    const pad = 6;
+    const x = Math.max(0, bounds.x - pad);
+    const y = Math.max(0, bounds.y - pad);
+    const w = Math.min(426 - x, bounds.w + pad * 2);
+    const h = Math.min(240 - y, bounds.h + pad * 2);
+    const img = await grab();
+    const out = document.createElement('canvas');
+    out.width = w * scale;
+    out.height = h * scale;
+    const ctx = out.getContext('2d')!;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, x, y, w, h, 0, 0, w * scale, h * scale);
+    return out.toDataURL('image/png');
+  },
+
+  /** MONSTER_CATALOG ids (for looping over the bestiary). */
+  monsterIds: () => MONSTER_CATALOG.map((c) => c.id),
 
   /**
    * Knight rig animations with durations and Spine events, in seconds and 60 fps frames

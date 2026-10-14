@@ -20,6 +20,7 @@ npm run build     # tsc type-check + vite build — run this to verify changes; 
 npm run preview
 npm run shot -- <steps>   # headless /tv run: screenshots + state + console errors → work/shots/ (see kk-verify skill)
 npm run balance [-- N cards]  # combat balance simulator: win rate / fight length / HP left per encounter
+npm run rigs [-- ids]         # monster rig reference → work/rigs.md: anims + frame lengths + events, moveset, portraits
 ```
 
 Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test` (alias `/lab`) motion-detection lab.
@@ -27,7 +28,9 @@ Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test
 ## Layout
 
 - `src/tv/` — TV app. `engine/GameEngine.ts` is the imperative PixiJS engine; `engine/monsterMoves.ts` holds the
-  choreographed monster attacks (frame timelines of Spine anims, movement, camera and VFX; damage lands on `impact()`);
+  choreographed monster attacks (frame timelines of Spine anims, movement, camera and VFX; damage lands on `impact()`)
+  for the first six monsters and the `MONSTER_MOVES` registry; the rest of the bestiary is in `engine/moves/*.ts`
+  (grouped by theme), all built on the helpers in `engine/monsterKit.ts`;
   `engine/knightMoves.ts` does the same for knight attacks (one move per card templateId; VFX kit in `engine/fxKit.ts`,
   shared primitives in `engine/choreo.ts`); `components/` are React
   overlays (hub, battle, blacksmith, QR pairing); `hooks/useTVRemote.ts` handles D-pad/remote keys.
@@ -85,6 +88,28 @@ Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test
   screen and the simulator share all of it.
 - After any balance change run `npm run balance` and keep: single monsters ≥95% win in ~50–90s, pairs ~90%,
   trios 85–95%, boss trios ~65–80%, for the simulated average player.
+
+## Monster moves
+
+Every intent in `MOVESETS` (src/shared/monsterMovesets.ts) names a choreography (`move`), registered in `MONSTER_MOVES`.
+Workflow for new or changed moves:
+
+1. `npm run rigs -- <monster>` (or read `work/rigs.md`) for the rig's animation names, frame lengths, Spine events,
+   facing and height, and which animations existing moves already use. `work/rigs/<id>.png` shows what it looks like
+   (`npm run shot -- portraits` regenerates them). Don't guess animation names: `h.anim()` silently ignores missing ones.
+2. Write the move in the matching `engine/moves/*.ts` file with the `monsterKit.ts` helpers: `land()` for the
+   damage-dealing contact (hit-stop, shake, flash, camera punch, sparks, `impact()`), `chip()` for lesser hits before it,
+   `warnRing()` to telegraph floor strikes, `blink()` teleports, `dimSpan()` / `chargeTint()` / `tremble()` / `lean()`,
+   `guard()` for DEFEND moves, and draw primitives (`beam`, `tentacle`, `dart`, `flier`, `crawler`, `graspingHand`,
+   `orbitRing`, `hexWard`, plus everything in `fxKit.ts`). Positions: `chest(h)` / `head(h)` / `feet(h)` on the knight,
+   `crown(h, up)` on the monster, `contact(h, gap)` for a melee offset.
+3. `npm run shot -- movecheck:<ids>` — must report 0 errors. Fix its warnings too: damage landing before anything
+   reaches the knight, missing rig animations, the monster not back at rest when the move ends (it visibly snaps),
+   lesser hits after the damage label.
+4. `npm run shot -- films:<monster>` — one sheet per monster, a row per move with the impact frame boxed in red. Look
+   at it: the red frame should show the hit connecting.
+5. New intents change damage per second: keep `damage / durationSeconds` near the monster's existing average and run
+   `npm run balance`.
 
 ## Spine assets
 

@@ -11,6 +11,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { EquipmentItem, HubLocation, RepTelemetry, ExerciseType } from '../../types/game';
 import { audioManager } from '../../shared/AudioManager';
 import { registerDebug } from '../debug/agentBridge';
+import type { MonsterMoveId } from '../../types/battle';
 import { BATTLE_MAPS, BattleMapId } from '../engine/GameEngine';
 import { 
   Tv, 
@@ -158,6 +159,8 @@ export const GameScreen: React.FC = () => {
       knightAnims: () => engineRef.current?.debugKnightAnimations(),
       knightMoves: () => engineRef.current?.debugKnightMoves(),
       knightMove: (id: string, targets?: number[], damage?: number) => engineRef.current?.debugKnightMove(id, targets, damage),
+      monsterMove: (slot: number, move: MonsterMoveId, selfTarget?: boolean) => engineRef.current?.debugMonsterMove(slot, move, selfTarget),
+      moveTrace: () => engineRef.current?.debugMoveTrace() ?? null,
       background: (key: string) =>
         engineRef.current?.loadBackground(BATTLE_MAPS[key.toUpperCase() as BattleMapId] ?? key),
     },
