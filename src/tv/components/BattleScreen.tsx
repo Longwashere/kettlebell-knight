@@ -7,6 +7,7 @@ import { audioManager } from '../../shared/AudioManager';
 import { GameEngine } from '../engine/GameEngine';
 import { useTVRemote } from '../hooks/useTVRemote';
 import { registerDebug } from '../debug/agentBridge';
+import { CombatCardView } from './CombatCardView';
 import { 
   Shield, 
   Swords, 
@@ -755,92 +756,18 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           </span>
         </div>
 
-        {/* 5 Slay The Spire Cards Grid */}
-        <div className="grid grid-cols-5 gap-3">
-          {hand.map((card, index) => {
-            const isFocused = focusedCardIndex === index;
-            const progressPercent = Math.min(100, (card.currentReps / card.requiredReps) * 100);
-
-            return (
-              <div
-                key={card.id}
-                onClick={() => setFocusedCardIndex(index)}
-                className={`relative p-3 rounded border-4 transition-all duration-150 flex flex-col justify-between h-64 bg-[#1A1926]/95 backdrop-blur-md cursor-pointer ${
-                  isFocused
-                    ? 'tv-focused scale-105 z-10'
-                    : 'hover:scale-102 opacity-95'
-                }`}
-                style={{
-                  borderColor: isFocused ? '#F4B41A' : card.colorHex,
-                  boxShadow: isFocused ? `0 0 20px ${card.colorHex}66` : undefined,
-                }}
-              >
-                {/* Top Card Type Badge & Cost */}
-                <div>
-                  <div className="flex items-center justify-between border-b border-[#2E2B44] pb-1.5 mb-2">
-                    <span
-                      className="font-pixel text-[8px] uppercase tracking-wider font-bold"
-                      style={{ color: card.colorHex }}
-                    >
-                      {card.type}
-                    </span>
-                    <span className="text-base">{card.icon}</span>
-                  </div>
-
-                  {/* Card Title */}
-                  <h3 className="font-pixel text-[11px] text-white leading-tight truncate">
-                    {card.name}
-                  </h3>
-                  <span className="text-[8px] font-pixel text-[#A7A9BE] block mt-0.5 uppercase">
-                    {card.rarity}
-                  </span>
-
-                  {/* Effect Text */}
-                  <p className="text-[10px] font-mono text-[#A7A9BE] mt-2 line-clamp-3">
-                    {card.effectDesc}
-                  </p>
-                </div>
-
-                {/* Bottom Exercise Requirement & Rep Progress */}
-                <div>
-                  {/* Stats Pill */}
-                  <div className="flex items-center justify-between text-[9px] font-pixel mb-2">
-                    {card.damage > 0 && (
-                      <span className="text-[#FF3366] flex items-center gap-1">
-                        ⚔️ {card.damage}
-                      </span>
-                    )}
-                    {card.block > 0 && (
-                      <span className="text-[#38B6FF] flex items-center gap-1">
-                        🛡️ {card.block}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Exercise Name Badge */}
-                  <div className="bg-[#0F0E17] border border-[#2E2B44] p-1.5 rounded mb-1 text-center">
-                    <span className="font-pixel text-[8px] text-[#F4B41A] block truncate">
-                      {card.exerciseLabel}
-                    </span>
-                    <span className="text-[10px] font-mono text-white font-bold">
-                      {card.currentReps} / {card.requiredReps} REPS
-                    </span>
-                  </div>
-
-                  {/* Segmented Rep Progress Bar */}
-                  <div className="w-full h-2.5 bg-[#0F0E17] border border-[#2E2B44] overflow-hidden rounded-sm">
-                    <div
-                      className="h-full transition-all duration-300"
-                      style={{
-                        width: `${progressPercent}%`,
-                        backgroundColor: card.colorHex,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        {/* Hand of cards (CombatCardView), fanned; the focused card lifts */}
+        <div className="kk-hand">
+          {hand.map((card, index) => (
+            <CombatCardView
+              key={card.id}
+              card={card}
+              index={index}
+              handSize={hand.length}
+              focused={focusedCardIndex === index}
+              onSelect={() => setFocusedCardIndex(index)}
+            />
+          ))}
         </div>
       </div>
     </div>

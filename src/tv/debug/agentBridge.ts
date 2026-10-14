@@ -10,6 +10,8 @@
  */
 import type { RepTelemetry, ExerciseType } from '../../types/game';
 import { networkManager } from '../../shared/NetworkManager';
+import { CARD_CATALOG } from '../../types/battle';
+import { getCardArt, CARD_ART_W, CARD_ART_H } from '../components/cardArt';
 
 type StateProvider = () => unknown;
 type Action = (...args: any[]) => unknown;
@@ -210,6 +212,32 @@ const api = {
       ctx.fillText(`${move} f${(i + 1) * step}`, x + 3, y + 12);
     }
     call('resume');
+    return out.toDataURL('image/png');
+  },
+
+  /** Every card illustration (cardArt.ts) in a 5-column grid at `scale`x, labelled. Returns a PNG data URL. */
+  async cardArtSheet(scale = 3): Promise<string> {
+    const cols = 5;
+    const w = CARD_ART_W * scale;
+    const h = CARD_ART_H * scale + 14;
+    const out = document.createElement('canvas');
+    out.width = w * cols;
+    out.height = h * Math.ceil(CARD_CATALOG.length / cols);
+    const ctx = out.getContext('2d')!;
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = '#0F0E17';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.font = '11px monospace';
+    for (const [i, card] of CARD_CATALOG.entries()) {
+      const img = new Image();
+      img.src = getCardArt(card.templateId);
+      await img.decode();
+      const x = (i % cols) * w;
+      const y = Math.floor(i / cols) * h;
+      ctx.drawImage(img, x, y + 14, CARD_ART_W * scale, CARD_ART_H * scale);
+      ctx.fillStyle = '#F4B41A';
+      ctx.fillText(`${card.name} (${card.templateId})`, x + 3, y + 11);
+    }
     return out.toDataURL('image/png');
   },
 
