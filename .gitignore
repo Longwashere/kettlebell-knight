@@ -1,4 +1,25 @@
-node_modules
-dist
+# Dependencies & build output
+node_modules/
+dist/
+.cache/
+
+# Local test scratch space & generated test screenshots/reports
+work/shots/
+work/monsters-shots/
+work/rigs/
+work/rigs.md
+work/*.png
+
+# OS & Editor files
 .DS_Store
+**/.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local environment & backups
 *.local
+.env*.local
+*.bak
+*.tmp
+*.log
