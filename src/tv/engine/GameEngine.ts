@@ -1114,6 +1114,8 @@ export class GameEngine {
     const spine = this.knightSpine;
     if (!spine || this.knightLocked) return;
     this.knightLocked = true;
+    audioManager.play('hurt', { pan: -0.3 });
+    audioManager.play('thud', { pan: -0.3, delay: 0.45, rate: 0.8 }); // armour hits the floor
     spine.state.setAnimation(0, 'DEAD_START', false);
     spine.state.addAnimation(0, 'DEAD_LOOP', true, 0);
   }
@@ -1161,6 +1163,7 @@ export class GameEngine {
    * Sets multiple monsters (1 to 3) in formation on the battlefield.
    */
   public setMonsters(monstersInput: (MonsterSprite | { spriteType: MonsterSprite })[]): Promise<void> {
+    audioManager.prewarm(); // render the sound bank in the background while the rigs load
     return this.trackLoad(this.loadMonsters(monstersInput));
   }
 
@@ -1377,6 +1380,26 @@ export class GameEngine {
    * remove themselves when their animation ends. Returns the Spine, or null while the rigs are loading
    * (callers keep their Graphics VFX, so a missing rig never leaves a move without effects).
    */
+  /**
+   * The sound each Spine VFX makes when a move spawns it, so every burst, slam and spell is heard even
+   * when its move adds nothing of its own. Played even while the rigs load (spawnVfx returns null).
+   */
+  private vfxSound(name: VfxName, o: VfxOpts, pan: number): void {
+    const vol = Math.min(1.2, 0.55 + 0.45 * (o.size ?? 1)) * (o.alpha ?? 1);
+    const ground = o.layer === 'ground' || (o.squash ?? 1) < 0.7;
+    switch (name) {
+      case 'explosion': return audioManager.play('explosion', { vol, pan });
+      case 'shockwave': return audioManager.play(o.anim === 'ShockWave_2' ? 'quake' : 'stomp', { vol, pan });
+      case 'ice': return audioManager.play('ice', { vol, pan });
+      case 'poison': return audioManager.play('poison', { vol, pan });
+      case 'fire': return audioManager.play(o.loop ? 'fire' : 'fire_burst', { vol, pan });
+      case 'slash': return audioManager.play('slash', { vol: vol * 0.8, pan });
+      case 'summon': return audioManager.play(ground ? 'rune' : 'portal', { vol: vol * 0.8, pan });
+      case 'heal': return audioManager.play('heal', { vol, pan });
+      default: // hitSpark: the hit's own impact sound covers it
+    }
+  }
+
   private spawnVfx(parent: Container, name: VfxName, x: number, y: number, o: VfxOpts = {}): Spine | null {
     const rig = VFX_RIGS[name];
     if (!this.vfxReady || !rig || !this.app || parent.destroyed) return null;
@@ -1472,6 +1495,7 @@ export class GameEngine {
     slot.isLocked = true;
     slot.isAlive = false;
     slot.lungeT = 1;
+    audioManager.play('death', { pan: 0.3, delay: 0.1 });
 
     if (slot.spine && slot.rig) {
       const deathAnim = slot.rig.death && slot.spine.skeleton.data.findAnimation(slot.rig.death)
@@ -1575,8 +1599,14 @@ export class GameEngine {
       impacted = true;
       trace?.impact(tl.frame, finished);
       const result = opts.onImpact?.();
-      if (result?.at !== 'monster' && result?.hit !== false) this.knightHitReaction(knockback);
-      if (result?.hit === false) this.spawnSparks(knight.x + 6, knight.y - 28, 10, [0x38B6FF, 0xFFFFFF]);
+      if (result?.at !== 'monster' && result?.hit !== false) {
+        this.knightHitReaction(knockback);
+        audioManager.play('hurt', { pan: -0.3 });
+      }
+      if (result?.hit === false) {
+        this.spawnSparks(knight.x + 6, knight.y - 28, 10, [0x38B6FF, 0xFFFFFF]);
+        audioManager.play('block', { pan: -0.3 });
+      }
       this.showImpactLabel(result, slot);
     };
 
@@ -1588,6 +1618,7 @@ export class GameEngine {
       gfx: (layer = 'fx') => (layer === 'ground' ? ground : fx).addChild(new Graphics()),
       vfx: (name, x, y, o = {}) => {
         trace?.vfx(name);
+        this.vfxSound(name, o, 0.3);
         return this.spawnVfx(o.layer === 'ground' ? ground : fx, name, x, y, o);
       },
       container: (layer = 'fx') => (layer === 'ground' ? ground : fx).addChild(new Container()),
@@ -1645,6 +1676,7 @@ export class GameEngine {
       knightHit: (knockback = 6) => {
         trace?.chip(tl.frame);
         this.knightHitReaction(knockback);
+        audioManager.play('hurt', { pan: -0.3, vol: 0.6 });
       },
       impact,
       sparks: (x, y, count, colors) => this.spawnSparks(x, y, count, colors),
@@ -1653,7 +1685,7 @@ export class GameEngine {
       emit: (x, y, o) => this.emitParticles(x, y, o),
       slashArc: (g, cx, cy, r, a0, a1, shadow, body, core) => this.drawPainterlySlashArc(g, cx, cy, r, a0, a1, shadow, body, core),
       text: (content, x, y, color, size) => this.spawnFloatingText(content, x, y, color, size),
-      sound: (name) => audioManager.play(name),
+      sound: (name, o) => audioManager.play(name, { pan: 0.3, ...o }),
     };
 
     const finish = (cancelled: boolean) => {
@@ -1875,7 +1907,10 @@ export class GameEngine {
       ctx,
       pos: () => ({ x: home.x + offX, y: home.y + offY - liftH }),
       gfx: (layer = 'fx') => ({ fx, ground, back })[layer].addChild(new Graphics()),
-      vfx: (name, x, y, o = {}) => this.spawnVfx({ fx, ground, back }[o.layer ?? 'fx'], name, x, y, o),
+      vfx: (name, x, y, o = {}) => {
+        this.vfxSound(name, o, 0.25);
+        return this.spawnVfx({ fx, ground, back }[o.layer ?? 'fx'], name, x, y, o);
+      },
       container: (layer = 'fx') => ({ fx, ground, back })[layer].addChild(new Container()),
       anim: (name, loop = false) => {
         const animation = spine?.skeleton.data.findAnimation(name);
@@ -1962,7 +1997,7 @@ export class GameEngine {
       emit: (x, y, o) => this.emitParticles(x, y, o),
       slashArc: (g, cx, cy, r, a0, a1, shadowColor, body, core) => this.drawPainterlySlashArc(g, cx, cy, r, a0, a1, shadowColor, body, core),
       text: (content, x, y, color, size) => this.spawnFloatingText(content, x, y, color, size),
-      sound: (name) => audioManager.play(name),
+      sound: (name, o) => audioManager.play(name, { pan: 0.1, ...o }),
     };
 
     const cleanup = () => {
@@ -2147,7 +2182,7 @@ export class GameEngine {
         return false;
       },
     });
-    audioManager.play('equip');
+    audioManager.play('ward', { pan: -0.2 });
   }
 
   private moveShake(intensity: number): void {
@@ -2290,7 +2325,7 @@ export class GameEngine {
       }
     };
     animateShield();
-    audioManager.play('equip');
+    audioManager.play('ward', { pan: -0.2 });
   }
 
   /**

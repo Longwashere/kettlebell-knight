@@ -3,7 +3,12 @@
  * the frame Timeline both run on, particle options, easing and the battle VFX palette.
  */
 
-export type SfxName = 'swing' | 'hit' | 'crit' | 'equip' | 'level_up';
+import type { SfxName, PlayOptions } from '../../shared/AudioManager';
+
+/** Any sound in the procedural bank (src/shared/sfx/bank.ts); `npm run sfx` renders them to listen to. */
+export type { SfxName };
+/** Per-call level / pitch / delay for h.sound(). */
+export type SoundOpts = Pick<PlayOptions, 'vol' | 'rate' | 'delay'>;
 
 export interface EmitOptions {
   count: number;

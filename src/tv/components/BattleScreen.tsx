@@ -217,6 +217,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         setBattleStatus('DEFEAT');
         setRecentCombatLog(`Sir Kettleburne was felled by ${intent.name}!`);
         engineRef.current?.playKnightDefeat?.();
+        audioManager.play('defeat', { delay: 0.6 });
       } else {
         setRecentCombatLog(`${m.name}'s ${intent.name} hits for ${actualDamageToHp}!${absorbed ? ` (${absorbed} blocked)` : ''}`);
       }
@@ -244,6 +245,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
     if (result.activated && result.card) {
       const card = result.card;
+      audioManager.play('card'); // the knight move brings its own swings and impacts
 
       const slotIndex = handRef.current.findIndex((c) => c.id === card.id);
       if (slotIndex !== -1) {
@@ -283,7 +285,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         battleStatusRef.current = 'VICTORY';
         setBattleStatus('VICTORY');
         setRecentCombatLog(`Victory! All enemies in the encounter have been vanquished!`);
-        audioManager.play('level_up');
+        audioManager.play('victory', { delay: 0.5 });
         window.setTimeout(() => engineRef.current?.playKnightVictory?.(), 400);
       } else if (res.monsters[targetedIndexRef.current]?.currentHp <= 0) {
         // Target died: move to the next living foe, front row first
@@ -310,7 +312,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           [dealt ? `${dealt} DMG${res.hits.length > 1 ? ` across ${res.hits.length} hits` : ''}` : '', kills ? `${kills} slain` : '',
             res.block ? `+${res.block} Block` : '', res.heal ? `+${res.heal} HP` : ''].filter(Boolean).join(' • '),
       );
-      audioManager.play(card.rarity === 'legendary' || card.rarity === 'epic' ? 'crit' : 'hit');
+    } else {
+      audioManager.play('hike', { vol: 0.7 }); // rep counted toward a card
     }
 
     setHand(result.hand);

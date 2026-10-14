@@ -67,10 +67,14 @@ function meteor(g: Graphics, tx: number, ty: number, t: number, r: number) {
 
 const golemStoneHammer: MoveFn = (h, tl) => {
   const c = contact(h, 32);
-  tl.at(0, () => h.anim('run', true));
+  tl.at(0, () => {
+    h.anim('run', true);
+    h.sound('rock', { rate: 0.6, vol: 0.5 });
+  });
   travel(h, tl, 0, 22, { x: 0, y: 0 }, c, easeInOut);
   tl.every(2, 22, 7, () => {
     h.shake(3);
+    h.sound('step', { rate: 0.7 });
     dustAtFeet(h, 3, 1);
   });
   tl.at(22, () => {
@@ -78,13 +82,15 @@ const golemStoneHammer: MoveFn = (h, tl) => {
     h.camera(1.22, h.knight.x + 14, h.knight.y - 30, 40);
   });
   tl.during(22, 44, (t) => h.lift(easeOut(t) * 16));
-  tl.at(40, () => h.sound('swing'));
+  tl.at(24, () => h.sound('rock', { rate: 0.8, vol: 0.4 })); // grinding joints
+  tl.at(40, () => h.sound('whoosh_heavy', { rate: 0.6 }));
   tl.during(44, 50, (t) => h.lift(lerp(16, 0, easeIn(t))));
   tl.at(50, () => {
     h.stretch(1.15, 0.88);
     h.emit(feet(h).x + 8, feet(h).y - 6, { count: 20, colors: [...ROCK, ...CRYSTAL], speed: [1.2, 3.5], angle: -Math.PI / 2, spread: 1.2, gravity: 0.2, size: 3, life: [14, 24] });
     crater(h, feet(h).x + 8, feet(h).y, 1.1, 'ShockWave_3');
-    land(h, { kb: 14, shake: 15, stop: 7, flash: 0.35, colors: [...ROCK, ...CRYSTAL], ring: 0x78716C });
+    land(h, { kb: 14, shake: 15, stop: 7, flash: 0.35, colors: [...ROCK, ...CRYSTAL], ring: 0x78716C, sound: 'stomp' });
+    h.sound('ice', { rate: 0.7, vol: 0.4 }); // crystal core rings
   });
   drawSpan(h, tl, 50, 64, (g, t) => fx.starburst(g, chest(h).x + 6, chest(h).y - 8, 28 * easeOut(t), 7, 0.4, fx.pal(0x78716C, 0xCFFAFE), 1 - t));
   tl.during(50, 60, (t) => h.stretch(lerp(1.15, 1, t), lerp(0.88, 1, t)));
@@ -98,11 +104,12 @@ const golemEarthquake: MoveFn = (h, tl) => {
   tl.at(0, () => {
     h.anim('summon');
     h.camera(1.15, h.home.x, h.home.y - 40, 30);
+    h.sound('rock', { rate: 0.6 });
   });
   // Rises high, crystal core flaring
   tl.during(0, 30, (t) => h.lift(easeOut(t) * 50));
   chargeTint(h, tl, 6, 30, 0xA5F3FC, 0.6);
-  tl.at(30, () => h.sound('swing'));
+  tl.at(30, () => h.sound('whoosh_heavy', { rate: 0.5 }));
   tl.during(30, 36, (t) => h.lift(lerp(50, 0, easeIn(t))));
   tl.at(36, () => {
     h.stretch(1.25, 0.8);
@@ -111,7 +118,8 @@ const golemEarthquake: MoveFn = (h, tl) => {
     crater(h, h.home.x - 8, h.home.y, 1.4, 'ShockWave_2');
     h.flash(0.3);
     h.shake(16);
-    h.sound('crit');
+    h.sound('impact_heavy', { rate: 0.7 });
+    h.sound('crack');
     h.camera(1.04, 213, 130, 70);
   });
   tl.during(36, 46, (t) => h.stretch(lerp(1.25, 1, t), lerp(0.8, 1, t)));
@@ -128,23 +136,29 @@ const golemEarthquake: MoveFn = (h, tl) => {
   [48, 56, 64, 72].forEach((f, i) => {
     const last = i === 3;
     const dx = last ? 6 : [-30, 34, -6][i];
+    tl.at(f - 10, () => h.sound('whistle', { rate: 1.1, vol: 0.4 }));
     projectile(h, tl, f - 10, 10, () => ({ x: h.knight.x + dx, y: 40 }), () => ({ x: h.knight.x + dx, y: h.knight.y - 10 }), 0,
       (g, x, y) => rock(g, x, y, last ? 13 : 8, tl.frame * 0.2),
       () => {
         h.emit(h.knight.x + dx, h.knight.y - 6, { count: 12, colors: ROCK, speed: [1, 3], angle: -Math.PI / 2, spread: 1.1, gravity: 0.2, size: 3, life: [14, 22] });
         crater(h, h.knight.x + dx, h.knight.y, last ? 1.1 : 0.7, 'ShockWave_3');
         if (!last) {
-          h.sound('hit');
+          h.sound('rock');
           if (Math.abs(dx) < 20) h.knightHit(4);
-        } else land(h, { kb: 16, shake: 17, stop: 8, flash: 0.4, zoom: 1.24, colors: [...ROCK, BONE] });
+        } else land(h, { kb: 16, shake: 17, stop: 8, flash: 0.4, zoom: 1.24, colors: [...ROCK, BONE], sound: 'rock' });
       });
   });
-  tl.at(52, () => chip(h, ROCK, 6, 8));
+  tl.at(52, () => chip(h, ROCK, 6, 8, 'rock'));
   tl.end(122);
 };
 
 const golemGraniteSkin: MoveFn = (h, tl) => {
-  tl.at(0, () => h.anim('summon'));
+  tl.at(0, () => {
+    h.anim('summon');
+    h.sound('rock', { rate: 0.7 });
+    h.sound('spin', { rate: 0.5, vol: 0.4 });
+  });
+  tl.at(22, () => h.sound('stomp', { rate: 1.3, vol: 0.5 }));
   guard(h, tl, 8, [...ROCK, ...CRYSTAL], (g, cx, cy, grow, fade, f) => {
     orbitRing(g, cx, cy, lerp(70, 26, grow), 8, f * 0.1, 6, ROCK[1], ROCK[2], fade);
     hexWard(g, cx, cy, 34 * grow, 0, 0x78716C, 0xCFFAFE, fade);
@@ -159,6 +173,7 @@ const golemCrystalBarrage: MoveFn = (h, tl) => {
   tl.at(0, () => {
     h.anim('atk');
     h.camera(1.15, h.home.x - 10, h.home.y - 30, 40);
+    h.sound('frost', { rate: 0.7 });
   });
   // Crystals grow out of its core
   drawSpan(h, tl, 0, 44, (g, t, f) => {
@@ -170,7 +185,7 @@ const golemCrystalBarrage: MoveFn = (h, tl) => {
     }
   });
   tl.at(44, () => {
-    h.sound('swing');
+    h.sound('ice', { rate: 1.3, vol: 0.5 });
     h.camera(1.1, (h.home.x + h.knight.x) / 2, h.knight.y - 30, 40);
   });
   // A spray of shards
@@ -178,6 +193,7 @@ const golemCrystalBarrage: MoveFn = (h, tl) => {
     const f = 44 + i * 2;
     const last = i === 7;
     let prev = { x: 0, y: 0 };
+    if (i % 2 === 0) tl.at(f, () => h.sound('arrow', { rate: 1.6, vol: 0.5 }));
     projectile(h, tl, f, 12, core, () => ({ x: chest(h).x + rand(-4, 6), y: chest(h).y + (i - 3.5) * 5 }), (i - 3.5) * 3,
       (g, x, y, t) => {
         if (t === 0) prev = { x: x + 1, y };
@@ -190,11 +206,11 @@ const golemCrystalBarrage: MoveFn = (h, tl) => {
       () => {
         if (!last) {
           h.sparks(chest(h).x, chest(h).y, 4, CRYSTAL);
-          if (i % 3 === 0) chip(h, CRYSTAL, 3, 4);
+          if (i % 3 === 0) chip(h, CRYSTAL, 3, 4, 'stab');
         } else {
           h.emit(chest(h).x, chest(h).y, { count: 26, colors: CRYSTAL, speed: [1.5, 4], spread: Math.PI, gravity: 0.15, size: 2, life: [14, 24] });
           shatter(h, chest(h).x, chest(h).y, 1);
-          land(h, { kb: 12, shake: 12, stop: 6, flash: 0.4, color: 0x67E8F9, colors: [...CRYSTAL, BONE] });
+          land(h, { kb: 12, shake: 12, stop: 6, flash: 0.4, color: 0x67E8F9, colors: [...CRYSTAL, BONE], sound: 'stab' });
         }
       });
   }
@@ -205,30 +221,36 @@ const golemCrystalBarrage: MoveFn = (h, tl) => {
 // VAULT GUARDIAN: an armoured automaton. Pistons, steam, and a mana reactor in its chest.
 
 function steam(h: MoveHost, x: number, y: number, dir = -Math.PI / 2, n = 4) {
+  h.sound('hiss', { vol: 0.25 + n * 0.05, rate: 0.8 });
   h.emit(x, y, { count: n, colors: STEAM, speed: [0.8, 1.8], angle: dir, spread: 0.4, gravity: -0.04, size: 4, life: [16, 26] });
 }
 
 const vaultIronCleaver: MoveFn = (h, tl) => {
   const c = contact(h, 42);
-  tl.at(0, () => h.anim('move', true));
+  tl.at(0, () => {
+    h.anim('move', true);
+    h.sound('gears');
+  });
   travel(h, tl, 0, 24, { x: 0, y: 0 }, c, easeInOut);
   tl.every(2, 24, 8, () => {
     h.shake(3);
-    h.sound('hit');
+    h.sound('step', { rate: 0.8 });
+    h.sound('impact_metal', { vol: 0.3, rate: 0.7 });
     steam(h, h.pos().x + 10, h.pos().y - h.height * 0.7, -Math.PI / 2, 3);
   });
   // Two mechanical slashes, perfectly identical, timed like a machine
   [26, 40].forEach((f, i) => {
     tl.at(f, () => {
       h.anim('attack');
-      h.sound('swing');
+      h.sound('gears', { rate: 1.3, vol: 0.6 });
+      h.sound('whoosh_heavy', { delay: 0.15 });
     });
     drawSpan(h, tl, f + 10, f + 20, (g, t) => {
       const p = chest(h);
       const a0 = i ? Math.PI * 0.75 : -Math.PI * 0.75;
       fx.crescent(g, p.x + 8, p.y, 30, a0, a0 + (i ? -1 : 1) * Math.PI * 1.2 * easeOut(Math.min(1, t * 2)), 8, fx.pal(0xA1A1AA, 0xFFFFFF), 1 - t * 0.6);
     });
-    tl.at(f + 14, () => (i === 0 ? chip(h, [...IRON, BLOOD], 5, 7) : land(h, { kb: 12, shake: 13, stop: 6, flash: 0.3, zoom: 1.24, colors: [...IRON, BLOOD] })));
+    tl.at(f + 14, () => (i === 0 ? chip(h, [...IRON, BLOOD], 5, 7, 'slash') : land(h, { kb: 12, shake: 13, stop: 6, flash: 0.3, zoom: 1.24, colors: [...IRON, BLOOD], sound: 'slash_heavy' })));
   });
   tl.at(66, () => h.anim('move', true));
   retreat(h, tl, 66, 92, c);
@@ -241,10 +263,12 @@ const vaultCoreDischarge: MoveFn = (h, tl) => {
   tl.at(0, () => {
     h.anim('idle', true);
     h.camera(1.25, core().x, core().y, 50);
-    h.sound('level_up');
+    h.sound('gears', { rate: 0.7 });
+    h.sound('charge_long', { rate: 1.1, vol: 0.6 });
   });
   dimSpan(h, tl, 0, 120, 0.5, 0x0A0A12);
   // Reactor spins up: steam vents, core glows hotter
+  tl.every(0, 50, 12, () => h.sound('zap', { vol: 0.3, rate: rand(0.8, 1.2) }));
   tl.every(0, 50, 5, () => {
     const p = h.pos();
     steam(h, p.x + rand(-16, 16), p.y - h.height * rand(0.4, 0.9), -Math.PI / 2 + rand(-0.6, 0.6), 3);
@@ -261,7 +285,9 @@ const vaultCoreDischarge: MoveFn = (h, tl) => {
   chargeTint(h, tl, 20, 54, 0xA5F3FC, 0.9);
   tl.at(54, () => {
     h.anim('attack');
-    h.sound('crit');
+    h.sound('beam', { rate: 0.8 });
+    h.sound('zap');
+    h.sound('beam', { rate: 0.8, delay: 0.5, vol: 0.7 });
     h.camera(1.1, (h.home.x + h.knight.x) / 2, h.knight.y - 34, 50);
   });
   // The discharge: a thick arcing beam with lightning wrapped around it
@@ -276,20 +302,23 @@ const vaultCoreDischarge: MoveFn = (h, tl) => {
     fx.bolt(g, s.x, s.y, ex, ey, 8, 8, fx.pal(0xCFFAFE, 0xFFFFFF), 2, f, fade);
   });
   tl.every(54, 84, 1, () => h.shake(4));
-  [60, 70].forEach((f) => tl.at(f, () => chip(h, [...CRYSTAL, 0xFFFFFF], 6, 7)));
+  [60, 70].forEach((f) => tl.at(f, () => chip(h, [...CRYSTAL, 0xFFFFFF], 6, 7, 'zap')));
   tl.at(82, () => boom(h, chest(h).x, chest(h).y, 1.2));
-  tl.at(82, () => land(h, { kb: 20, shake: 18, stop: 9, flash: 0.7, color: 0xCFFAFE, colors: [...CRYSTAL, 0xFFFFFF], ring: 0x22D3EE }));
+  tl.at(82, () => land(h, { kb: 20, shake: 18, stop: 9, flash: 0.7, color: 0xCFFAFE, colors: [...CRYSTAL, 0xFFFFFF], ring: 0x22D3EE, sound: 'thunder' }));
   tl.every(84, 116, 4, () => steam(h, h.pos().x + rand(-16, 16), h.pos().y - h.height * 0.6, -Math.PI / 2, 2));
   tl.end(122);
 };
 
 const vaultAegisLockdown: MoveFn = (h, tl) => {
-  tl.at(0, () => h.anim('idle', true));
+  tl.at(0, () => {
+    h.anim('idle', true);
+    h.sound('gears');
+  });
   // Plates slam shut with three heavy clanks
   [6, 14, 22].forEach((f) => tl.at(f, () => {
     h.stretch(1.03, 0.97);
     h.shake(4);
-    h.sound('hit');
+    h.sound('block', { rate: 0.7, vol: 0.7 }); // plate clank
     steam(h, h.pos().x + rand(-20, 20), h.pos().y - h.height * 0.5, rand(-Math.PI, 0), 4);
   }));
   [9, 17, 25].forEach((f) => tl.at(f, () => h.stretch(1, 1)));
@@ -310,7 +339,10 @@ const vaultAegisLockdown: MoveFn = (h, tl) => {
 
 const vaultPistonSlam: MoveFn = (h, tl) => {
   const c = contact(h, 46);
-  tl.at(0, () => h.anim('move', true));
+  tl.at(0, () => {
+    h.anim('move', true);
+    h.sound('gears');
+  });
   travel(h, tl, 0, 20, { x: 0, y: 0 }, c, easeInOut);
   tl.at(20, () => {
     h.anim('idle', true);
@@ -322,14 +354,15 @@ const vaultPistonSlam: MoveFn = (h, tl) => {
     tl.at(f, () => {
       steam(h, h.pos().x - 16, h.pos().y - 4, Math.PI, 5);
       steam(h, h.pos().x + 16, h.pos().y - 4, 0, 5);
-      h.sound('hit');
+      h.sound('impact_metal', { rate: 1.1 + i * 0.1, vol: 0.5 });
+      h.sound('gears', { rate: 1.2 + i * 0.15, vol: 0.4 });
       h.shake(3);
     });
   });
   warnRing(h, tl, 30, 54, GOLD, 30);
   tl.at(52, () => {
     h.anim('attack');
-    h.sound('swing');
+    h.sound('whoosh_heavy', { rate: 0.7 });
   });
   tl.during(52, 56, (t) => h.lift(lerp(42, 0, easeIn(t))));
   tl.at(56, () => {
@@ -338,10 +371,12 @@ const vaultPistonSlam: MoveFn = (h, tl) => {
     h.shockwave(feet(h).x, feet(h).y, GOLD);
     crater(h, feet(h).x, feet(h).y, 1.4, 'ShockWave_2');
     h.emit(feet(h).x, feet(h).y - 4, { count: 24, colors: [...ROCK, GOLD], speed: [1.5, 4], angle: -Math.PI / 2, spread: 1.4, gravity: 0.2, size: 3, life: [14, 24] });
-    land(h, { kb: 16, shake: 18, stop: 9, flash: 0.45, zoom: 1.28, colors: [...IRON, GOLD, BONE] });
+    land(h, { kb: 16, shake: 18, stop: 9, flash: 0.45, zoom: 1.28, colors: [...IRON, GOLD, BONE], sound: 'stomp' });
+    h.sound('impact_metal', { rate: 0.6 });
   });
   tl.during(56, 66, (t) => h.stretch(lerp(1.2, 1, t), lerp(0.82, 1, t)));
   // Rivets pop off and rattle on the floor
+  tl.at(62, () => h.sound('rattle', { rate: 1.6, vol: 0.5 })); // rivets on the floor
   tl.at(58, () => h.emit(h.pos().x, h.pos().y - h.height * 0.5, { count: 10, colors: [GOLD, 0xA1A1AA], speed: [1.5, 3], angle: -Math.PI / 2, spread: 1.4, gravity: 0.22, size: 2, life: [20, 30] }));
   tl.at(74, () => h.anim('move', true));
   retreat(h, tl, 74, 98, c);
@@ -354,7 +389,11 @@ const vaultPistonSlam: MoveFn = (h, tl) => {
 
 const gargTalon: MoveFn = (h, tl) => {
   const c = contact(h, 30);
-  tl.at(0, () => h.anim('move', true));
+  tl.at(0, () => {
+    h.anim('move', true);
+    h.sound('flap', { rate: 0.7 });
+    h.sound('screech', { rate: 0.7, vol: 0.5 });
+  });
   tl.during(0, 18, (t) => {
     const e = easeIn(t);
     h.offset(lerp(0, c.x, e), lerp(0, c.y, e));
@@ -364,7 +403,7 @@ const gargTalon: MoveFn = (h, tl) => {
   [20, 30].forEach((f, i) => {
     tl.at(f, () => {
       h.anim('attack');
-      h.sound('swing');
+      h.sound('whoosh', { rate: 0.9 });
     });
     drawSpan(h, tl, f + 4, f + 14, (g, t) => {
       const p = chest(h);
@@ -374,9 +413,12 @@ const gargTalon: MoveFn = (h, tl) => {
         g.moveTo(p.x + ox - 10, p.y - 12 + i * 6).lineTo(p.x + ox + 10, p.y + 12 + i * 6).stroke({ width: 2.5, color: 0xA8A29E, alpha: 1 - t });
       }
     });
-    tl.at(f + 6, () => (i === 0 ? chip(h, [...ROCK, BLOOD], 4, 6) : land(h, { kb: 10, shake: 11, stop: 5, zoom: 1.2, colors: [...ROCK, BLOOD, BONE] })));
+    tl.at(f + 6, () => (i === 0 ? chip(h, [...ROCK, BLOOD], 4, 6, 'claw') : land(h, { kb: 10, shake: 11, stop: 5, zoom: 1.2, colors: [...ROCK, BLOOD, BONE], sound: 'claw' })));
   });
-  tl.at(46, () => h.anim('move', true));
+  tl.at(46, () => {
+    h.anim('move', true);
+    h.sound('flap', { rate: 0.7 });
+  });
   tl.during(46, 68, (t) => {
     const e = easeInOut(t);
     h.offset(lerp(c.x, 0, e), lerp(c.y, 0, e));
@@ -390,10 +432,12 @@ const gargRampartDive: MoveFn = (h, tl) => {
   tl.at(0, () => {
     h.anim('wakeup');
     h.camera(1.15, h.home.x, h.home.y - 40, 30);
+    h.sound('crack', { rate: 1.3, vol: 0.5 }); // stone skin cracking awake
   });
   tl.at(18, () => {
     h.anim('move', true);
-    h.sound('swing');
+    h.sound('flap', { rate: 0.6 });
+    h.sound('flap', { rate: 0.65, delay: 0.25 });
   });
   tl.during(18, 40, (t) => h.lift(easeIn(t) * 220));
   tl.at(40, () => {
@@ -403,6 +447,7 @@ const gargRampartDive: MoveFn = (h, tl) => {
   warnRing(h, tl, 40, 66, BLOOD, 26);
   ceilingDust(h, tl, 44, 66);
   // Plummets like a falling statue: stone tint, no flapping
+  tl.at(56, () => h.sound('whistle', { rate: 0.8 }));
   tl.at(58, () => {
     h.anim('stun', true);
     h.tint(0xA8A29E);
@@ -418,7 +463,8 @@ const gargRampartDive: MoveFn = (h, tl) => {
     h.emit(feet(h).x, feet(h).y - 6, { count: 34, colors: [...ROCK, ...DIRT], speed: [1.5, 4.5], angle: -Math.PI / 2, spread: 1.3, gravity: 0.2, size: 3, life: [16, 28] });
     h.shockwave(feet(h).x, feet(h).y, 0x78716C);
     crater(h, feet(h).x, feet(h).y, 1.5, 'ShockWave_2');
-    land(h, { kb: 18, shake: 20, stop: 10, flash: 0.55, colors: [...ROCK, BONE, BLOOD], ring: 0xA8A29E });
+    land(h, { kb: 18, shake: 20, stop: 10, flash: 0.55, colors: [...ROCK, BONE, BLOOD], ring: 0xA8A29E, sound: 'stomp' });
+    h.sound('rock');
   });
   drawSpan(h, tl, 66, 130, (g, t) => {
     const p = feet(h);
@@ -442,7 +488,10 @@ function ceilingDust(h: MoveHost, tl: Parameters<MoveFn>[1], from: number, to: n
 }
 
 const gargStoneForm: MoveFn = (h, tl) => {
-  tl.at(0, () => h.anim('immobilization'));
+  tl.at(0, () => {
+    h.anim('immobilization');
+    h.sound('crack', { rate: 1.2 });
+  });
   tl.during(0, 24, (t, f) => h.tint(f % 6 < 3 ? 0xA8A29E : 0xFFFFFF));
   tl.at(24, () => h.tint(0x9CA3AF));
   guard(h, tl, 8, ROCK, (g, cx, cy, grow, fade) => {
@@ -465,13 +514,15 @@ const gargRubbleHurl: MoveFn = (h, tl) => {
   tl.at(0, () => {
     h.anim('push');
     h.camera(1.15, h.home.x, h.home.y - 40, 30);
+    h.sound('flap', { rate: 0.6 });
   });
   tl.during(0, 20, (t) => h.lift(easeOut(t) * 30));
   // Tears a chunk of rampart out of the wall behind it
   tl.at(10, () => {
     h.emit(h.home.x + 30, h.home.y - 70, { count: 14, colors: ROCK, speed: [1, 2.5], angle: Math.PI, spread: 0.8, gravity: 0.2, size: 3, life: [14, 22] });
     h.shake(6);
-    h.sound('hit');
+    h.sound('rock');
+    h.sound('crack', { vol: 0.5 });
   });
   drawSpan(h, tl, 10, 32, (g, t) => {
     const p = claws();
@@ -480,14 +531,15 @@ const gargRubbleHurl: MoveFn = (h, tl) => {
   warnRing(h, tl, 28, 54, EMBER, 26);
   tl.at(32, () => {
     h.anim('attack');
-    h.sound('swing');
+    h.sound('whoosh_heavy', { rate: 0.7 });
+    h.sound('screech', { rate: 0.6, vol: 0.4 });
     h.camera(1.1, (h.home.x + h.knight.x) / 2, h.knight.y - 50, 40);
   });
   projectile(h, tl, 32, 20, () => ({ x: claws().x, y: claws().y - 10 }), () => chest(h), 30,
     (g, x, y) => rock(g, x, y, 12, tl.frame * 0.25),
     () => {
       h.emit(chest(h).x, chest(h).y, { count: 30, colors: [...ROCK, ...DIRT], speed: [1.5, 4.5], spread: Math.PI, gravity: 0.2, size: 3, life: [16, 26] });
-      land(h, { kb: 16, shake: 15, stop: 7, flash: 0.35, zoom: 1.26, colors: [...ROCK, BONE] });
+      land(h, { kb: 16, shake: 15, stop: 7, flash: 0.35, zoom: 1.26, colors: [...ROCK, BONE], sound: 'rock' });
     },
     (x, y) => h.emit(x, y, { count: 1, colors: ROCK, speed: [0, 0.3], spread: Math.PI, gravity: 0.1, size: 2, life: [8, 12] }));
   tl.during(56, 76, (t) => h.lift(lerp(30, 0, easeInOut(t))));
@@ -500,10 +552,14 @@ const gargRubbleHurl: MoveFn = (h, tl) => {
 
 const treantElderBough: MoveFn = (h, tl) => {
   const near = contact(h, 70);
-  tl.at(0, () => h.anim('Run', true));
+  tl.at(0, () => {
+    h.anim('Run', true);
+    h.sound('wood', { rate: 0.5 });
+  });
   travel(h, tl, 0, 26, { x: 0, y: 0 }, near, easeInOut);
   tl.every(2, 26, 9, () => {
     h.shake(4);
+    h.sound('step', { rate: 0.6 });
     dustAtFeet(h, 4, 1);
   });
   tl.at(26, () => {
@@ -511,6 +567,8 @@ const treantElderBough: MoveFn = (h, tl) => {
     h.camera(1.15, (h.knight.x + h.pos().x) / 2, h.knight.y - 40, 50);
   });
   // A great bough sweeps through in a wide, low arc
+  tl.at(26, () => h.sound('wood', { rate: 0.45, vol: 0.6 })); // creaking
+  tl.at(48, () => h.sound('whoosh_heavy', { rate: 0.5 }));
   drawSpan(h, tl, 50, 70, (g, t, f) => {
     const p = h.pos();
     const sx = p.x - 10;
@@ -530,7 +588,7 @@ const treantElderBough: MoveFn = (h, tl) => {
   });
   tl.at(56, () => {
     h.emit(chest(h).x, chest(h).y, { count: 24, colors: [...LEAF, ...WOOD], speed: [1.5, 4], angle: Math.PI, spread: 0.8, gravity: 0.06, size: 3, life: [20, 34] });
-    land(h, { kb: 20, shake: 15, stop: 7, flash: 0.3, zoom: 1.24, colors: [...LEAF, BONE] });
+    land(h, { kb: 20, shake: 15, stop: 7, flash: 0.3, zoom: 1.24, colors: [...LEAF, BONE], sound: 'wood' });
   });
   tl.at(74, () => h.anim('Run', true));
   retreat(h, tl, 74, 102, near);
@@ -542,14 +600,16 @@ const treantForestWrath: MoveFn = (h, tl) => {
   tl.at(0, () => {
     h.anim('Skill_A');
     h.camera(1.15, h.home.x, h.home.y - 40, 26);
-    h.sound('level_up');
+    h.sound('roar', { rate: 0.5 });
+    h.sound('wood', { rate: 0.4 });
   });
   dimSpan(h, tl, 0, 130, 0.45, 0x052E16);
   tl.at(22, () => {
     h.shockwave(h.home.x, h.home.y, 0x4D7C0F);
     h.shake(12);
     crater(h, h.home.x - 10, h.home.y, 1.4, 'ShockWave_3');
-    h.sound('crit');
+    h.sound('stomp', { rate: 0.8 });
+    h.sound('quake', { delay: 0.1 });
     h.camera(1.04, 213, 130, 50);
   });
   // Roots surge across the floor in three waves
@@ -567,6 +627,8 @@ const treantForestWrath: MoveFn = (h, tl) => {
     }
   }
   tl.every(26, 70, 4, () => h.shake(3));
+  tl.every(24, 54, 10, () => h.sound('rock', { vol: 0.45, rate: 1.1 }));
+  tl.at(60, () => h.sound('squelch', { rate: 0.6 }));
   tl.at(56, () => h.camera(1.28, h.knight.x + 6, h.knight.y - 34, 40));
   // Ancient roots seize the knight and an elder thorn impales from below
   [-20, 22].forEach((dx, i) => {
@@ -578,7 +640,7 @@ const treantForestWrath: MoveFn = (h, tl) => {
       tentacle(g, x, h.knight.y + 3, lerp(x, p.x, up * (1 - sink)), lerp(h.knight.y, p.y + i * 10, up * (1 - sink)), 9, dx * 0.8, WOOD[0], LEAF[2], false);
     });
   });
-  tl.at(66, () => chip(h, [...WOOD, ...LEAF], 2, 6));
+  tl.at(66, () => chip(h, [...WOOD, ...LEAF], 2, 6, 'wood'));
   drawSpan(h, tl, 78, 112, (g, t, f) => {
     const up = f < 5 ? easeOut(f / 5) : f > 22 ? 1 - (f - 22) / 12 : 1;
     spike(g, feet(h).x, h.knight.y + 4, 74 * up, 10, WOOD[3], WOOD[1], LEAF[3]);
@@ -586,13 +648,18 @@ const treantForestWrath: MoveFn = (h, tl) => {
   tl.at(78, () => {
     h.emit(feet(h).x, feet(h).y - 12, { count: 30, colors: [...WOOD, ...LEAF, ...DIRT], speed: [1.5, 4.5], angle: -Math.PI / 2, spread: 1, gravity: 0.18, size: 3, life: [18, 30] });
     crater(h, feet(h).x, feet(h).y, 1.2, 'ShockWave_3');
-    land(h, { kb: 16, shake: 18, stop: 9, flash: 0.5, color: 0xD9F99D, colors: [...LEAF, ...WOOD, BONE] });
+    land(h, { kb: 16, shake: 18, stop: 9, flash: 0.5, color: 0xD9F99D, colors: [...LEAF, ...WOOD, BONE], sound: 'stab' });
+    h.sound('wood', { rate: 0.6 });
   });
   tl.end(132);
 };
 
 const treantIronwood: MoveFn = (h, tl) => {
-  tl.at(0, () => h.anim('Skill_A'));
+  tl.at(0, () => {
+    h.anim('Skill_A');
+    h.sound('wood', { rate: 0.5 });
+  });
+  tl.at(16, () => h.sound('rattle', { rate: 0.5, vol: 0.6 }));
   const shards = 10;
   for (let i = 0; i < shards; i++) {
     const a = (i / shards) * Math.PI * 2;
@@ -617,6 +684,7 @@ const treantSeedMeteor: MoveFn = (h, tl) => {
   tl.at(0, () => {
     h.anim('Jump_Spawn');
     h.camera(1.06, 213, 120, 120);
+    h.sound('roar', { rate: 0.55, vol: 0.6 });
   });
   // A colossal leap: the treant vanishes skyward, the canopy shakes loose its seed-pods
   tl.during(4, 22, (t) => h.lift(easeIn(t) * 220));
@@ -624,12 +692,14 @@ const treantSeedMeteor: MoveFn = (h, tl) => {
     h.shockwave(h.home.x, h.home.y, 0x4D7C0F);
     dustAtFeet(h, 12, -1);
     dustAtFeet(h, 12, 1);
-    h.sound('swing');
+    h.sound('stomp');
+    h.sound('whoosh_heavy', { rate: 0.5 });
   });
   dimSpan(h, tl, 10, 120, 0.35, 0x052E16);
   tl.every(20, 80, 2, () => h.emit(rand(60, 400), 50, { count: 1, colors: LEAF, speed: [0.5, 1], angle: Math.PI / 2, spread: 0.6, gravity: 0.02, size: 2, life: [50, 70] }));
   const pods = [{ dx: -34, f: 40 }, { dx: 30, f: 48 }, { dx: -10, f: 56 }, { dx: 14, f: 64 }];
   pods.forEach(({ dx, f }) => {
+    tl.at(f - 12, () => h.sound('whistle', { rate: 1.3, vol: 0.4 }));
     drawSpan(h, tl, f - 14, f, (g, t) => fx.groundRing(g, h.knight.x + 6 + dx, h.knight.y + 1, 12 + 6 * t, 1.5, LEAF[2], 0.4 + 0.6 * t), 'ground');
     drawSpan(h, tl, f - 14, f, (g, t) => {
       const x = h.knight.x + 6 + dx;
@@ -642,7 +712,7 @@ const treantSeedMeteor: MoveFn = (h, tl) => {
       h.shockwave(h.knight.x + 6 + dx, h.knight.y, 0x65A30D);
       crater(h, h.knight.x + 6 + dx, h.knight.y, 0.8, 'ShockWave_3');
       h.shake(7);
-      h.sound('hit');
+      h.sound('wood', { rate: 0.8 });
       if (Math.abs(dx) < 20) h.knightHit(5);
     });
   });
@@ -653,12 +723,13 @@ const treantSeedMeteor: MoveFn = (h, tl) => {
     h.camera(1.24, h.knight.x + 10, h.knight.y - 40, 40);
   });
   warnRing(h, tl, 70, 86, BLOOD, 30);
+  tl.at(78, () => h.sound('whistle', { rate: 0.6 }));
   tl.during(80, 88, (t) => h.lift(lerp(220, 0, easeIn(t))));
   tl.at(88, () => {
     h.stretch(1.2, 0.85);
     h.emit(feet(h).x, feet(h).y - 6, { count: 34, colors: [...DIRT, ...LEAF], speed: [1.5, 4.5], angle: -Math.PI / 2, spread: 1.3, gravity: 0.2, size: 3, life: [16, 28] });
     crater(h, feet(h).x, feet(h).y, 1.5, 'ShockWave_2');
-    land(h, { kb: 18, shake: 20, stop: 10, flash: 0.45, colors: [...LEAF, ...WOOD, BONE], ring: 0x4D7C0F });
+    land(h, { kb: 18, shake: 20, stop: 10, flash: 0.45, colors: [...LEAF, ...WOOD, BONE], ring: 0x4D7C0F, sound: 'stomp' });
   });
   tl.during(88, 98, (t) => h.stretch(lerp(1.2, 1, t), lerp(0.85, 1, t)));
   tl.at(104, () => h.anim('Run', true));
@@ -672,25 +743,30 @@ const treantSeedMeteor: MoveFn = (h, tl) => {
 
 const titanMagmaHammer: MoveFn = (h, tl) => {
   const c = contact(h, 50);
-  tl.at(0, () => h.anim('2_2Run', true));
+  tl.at(0, () => {
+    h.anim('2_2Run', true);
+    h.sound('fire', { rate: 0.6, vol: 0.5 });
+  });
   travel(h, tl, 0, 24, { x: 0, y: 0 }, c, easeInOut);
   tl.every(2, 24, 8, () => {
     h.shake(4);
+    h.sound('step', { rate: 0.6 });
     h.emit(h.pos().x, h.pos().y - 2, { count: 4, colors: MAGMA, speed: [0.5, 1.5], angle: -Math.PI / 2, spread: 0.8, gravity: 0.1, size: 2, life: [12, 20] });
   });
   tl.at(24, () => {
     h.anim('3_Kill');
     h.camera(1.2, h.knight.x + 20, h.knight.y - 40, 70);
+    h.sound('roar', { rate: 0.7, vol: 0.6 });
   });
   chargeTint(h, tl, 24, 58, 0xFFC48A, 0.7);
   flame(h, tl, 24, 38, () => crown(h, 0.8, -22), 0.8);
-  tl.at(54, () => h.sound('swing'));
+  tl.at(54, () => h.sound('whoosh_heavy', { rate: 0.55 }));
   tl.at(62, () => {
     h.emit(feet(h).x + 6, feet(h).y - 6, { count: 34, colors: MAGMA, speed: [1.5, 4.5], angle: -Math.PI / 2, spread: 1.2, gravity: 0.15, size: 3, life: [16, 28] });
     h.shockwave(feet(h).x, feet(h).y, EMBER);
     crater(h, feet(h).x, feet(h).y, 1.4, 'ShockWave_2');
     boom(h, feet(h).x + 4, feet(h).y - 20, 1.2);
-    land(h, { kb: 18, shake: 18, stop: 9, flash: 0.55, color: EMBER, colors: [...MAGMA, BONE], ring: GOLD });
+    land(h, { kb: 18, shake: 18, stop: 9, flash: 0.55, color: EMBER, colors: [...MAGMA, BONE], ring: GOLD, sound: 'impact_crit' });
   });
   drawSpan(h, tl, 62, 76, (g, t) => fx.starburst(g, chest(h).x + 6, chest(h).y - 6, 36 * easeOut(t), 9, 0.4, fx.pal(EMBER, GOLD), 1 - t));
   puddle(h, tl, 62, 130, 30, 0x7F1D1D, EMBER);
@@ -704,12 +780,16 @@ const titanApocalypse: MoveFn = (h, tl) => {
   tl.at(0, () => {
     h.anim('4_Summon');
     h.camera(1.2, h.home.x, h.home.y - 40, 40);
-    h.sound('level_up');
+    h.sound('roar', { rate: 0.5 });
   });
   dimSpan(h, tl, 0, 160, 0.6, 0x2A0A0A);
   tremble(h, tl, 10, 50, { x: 0, y: 0 }, 1.5, 3);
   tl.every(10, 140, 3, () => h.shake(3));
-  tl.at(40, () => h.camera(1.02, 213, 130, 100));
+  tl.at(40, () => {
+    h.camera(1.02, 213, 130, 100);
+    h.sound('quake');
+    h.sound('crack', { rate: 0.8 });
+  });
   // The floor splits open across the whole arena
   const cracks = [{ y: -8, s: 2 }, { y: 0, s: 3 }, { y: 8, s: 5 }];
   drawSpan(h, tl, 40, 140, (g, t, f) => {
@@ -730,7 +810,7 @@ const titanApocalypse: MoveFn = (h, tl) => {
     });
     tl.at(f, () => h.emit(x, h.knight.y - 10, { count: 12, colors: MAGMA, speed: [1.5, 4], angle: -Math.PI / 2, spread: 0.4, gravity: 0.15, size: 3, life: [18, 28] }));
   });
-  [70, 84].forEach((f) => tl.at(f, () => chip(h, MAGMA, 6, 8)));
+  [70, 84].forEach((f) => tl.at(f, () => chip(h, MAGMA, 6, 8, 'fire_burst')));
   geysers.forEach(({ x, f }) => tl.at(f, () => crater(h, x, h.knight.y, 1, 'ShockWave_2')));
   flame(h, tl, 96, 34, () => ({ x: feet(h).x, y: h.knight.y - 24 }), 1.4);
   tl.at(98, () => boom(h, feet(h).x, h.knight.y - 20, 1.7));
@@ -744,13 +824,17 @@ const titanApocalypse: MoveFn = (h, tl) => {
     g.rect(x - 4, y - hgt * 0.9, 8, hgt * 0.9).fill({ color: GOLD });
     g.circle(x, y - hgt, 14).fill({ color: EMBER, alpha: 0.8 });
   });
-  tl.at(98, () => land(h, { kb: 20, shake: 24, stop: 12, flash: 0.85, color: EMBER, zoom: 1.24, colors: [...MAGMA, BONE], ring: GOLD }));
+  tl.at(98, () => land(h, { kb: 20, shake: 24, stop: 12, flash: 0.85, color: EMBER, zoom: 1.24, colors: [...MAGMA, BONE], ring: GOLD, sound: 'impact_crit' }));
   tl.at(140, () => h.idle());
   tl.end(162);
 };
 
 const titanIgneous: MoveFn = (h, tl) => {
-  tl.at(0, () => h.anim('4_Summon'));
+  tl.at(0, () => {
+    h.anim('4_Summon');
+    h.sound('hiss', { rate: 0.6 }); // lava hardening
+    h.sound('crack', { rate: 1.2, vol: 0.5 });
+  });
   tl.during(0, 20, (t, f) => h.tint(f % 6 < 3 ? 0x6B6B6B : 0xFFFFFF));
   tl.at(20, () => h.tint(0x8A7A7A));
   guard(h, tl, 6, [0x1C1917, 0x44403C, EMBER], (g, cx, cy, grow, fade, f) => {
@@ -779,7 +863,8 @@ const titanSkullPyre: MoveFn = (h, tl) => {
   tl.at(0, () => {
     h.anim('4_Summon');
     h.camera(1.18, h.home.x, h.home.y - 40, 50);
-    h.sound('level_up');
+    h.sound('roar', { rate: 0.6, vol: 0.6 });
+    h.sound('wail', { rate: 0.7, vol: 0.5, delay: 0.2 });
   });
   dimSpan(h, tl, 0, 120, 0.45, 0x2A0A0A);
   // Five burning skulls orbit the titan
@@ -802,11 +887,14 @@ const titanSkullPyre: MoveFn = (h, tl) => {
       () => {
         h.emit(chest(h).x, chest(h).y, { count: last ? 30 : 10, colors: [...FIRE, BONE], speed: [1, 3.5], spread: Math.PI, gravity: -0.02, size: 3, life: [12, 22] });
         boom(h, chest(h).x, chest(h).y, last ? 1.3 : 0.7);
-        if (!last) chip(h, FIRE, 4, 6);
-        else land(h, { kb: 14, shake: 15, stop: 7, flash: 0.5, color: EMBER, zoom: 1.24, colors: [...FIRE, BONE], ring: EMBER });
+        if (!last) chip(h, FIRE, 4, 6, 'fire_burst');
+        else land(h, { kb: 14, shake: 15, stop: 7, flash: 0.5, color: EMBER, zoom: 1.24, colors: [...FIRE, BONE], ring: EMBER, sound: 'impact_heavy' });
       },
       (x, y) => h.emit(x + 4, y, { count: 2, colors: FIRE, speed: [0.3, 0.8], angle: 0, spread: 0.6, gravity: -0.04, size: 3, life: [10, 16] }));
-    tl.at(launch[i], () => h.sound('swing'));
+    tl.at(launch[i], () => {
+      h.sound('fire', { rate: 1.2 + i * 0.06, vol: 0.6 });
+      h.sound('wail', { rate: 1.6 + i * 0.1, vol: 0.25 });
+    });
   }
   tl.at(110, () => h.idle());
   tl.end(122);
@@ -822,13 +910,17 @@ const dragonTailWhip: MoveFn = (h, tl) => {
   tl.at(0, () => {
     h.anim('idle2');
     h.camera(1.14, (h.home.x + h.knight.x) / 2, h.knight.y - 30, 70);
+    h.sound('growl', { rate: 0.6 });
   });
   travel(h, tl, 0, 20, { x: 0, y: 0 }, c, easeInOut);
-  tl.every(0, 20, 6, () => h.shake(3));
+  tl.every(0, 20, 6, () => {
+    h.shake(3);
+    h.sound('step', { rate: 0.6 });
+  });
   // Turns, the spiked tail whips round low and trails sparks
   tl.at(22, () => {
     h.stretch(-1, 1);
-    h.sound('swing');
+    h.sound('whoosh_heavy', { rate: 0.6 });
   });
   drawSpan(h, tl, 26, 44, (g, t) => {
     const p = feet(h);
@@ -836,7 +928,7 @@ const dragonTailWhip: MoveFn = (h, tl) => {
   });
   tl.every(26, 40, 1, () => h.emit(feet(h).x + rand(-20, 30), feet(h).y - rand(0, 30), { count: 2, colors: MAGMA, speed: [1, 3], angle: Math.PI, spread: 0.6, gravity: 0.1, size: 2, life: [12, 20] }));
   tl.at(28, () => blaze(h, feet(h).x + 22, feet(h).y - 18, 1.7, true));
-  tl.at(32, () => land(h, { kb: 20, shake: 16, stop: 8, flash: 0.45, color: EMBER, zoom: 1.24, colors: [...MAGMA, BONE], ring: EMBER, at: { x: feet(h).x, y: feet(h).y - 14 } }));
+  tl.at(32, () => land(h, { kb: 20, shake: 16, stop: 8, flash: 0.45, color: EMBER, zoom: 1.24, colors: [...MAGMA, BONE], ring: EMBER, at: { x: feet(h).x, y: feet(h).y - 14 }, sound: 'lash' }));
   tl.at(48, () => h.stretch(1, 1));
   retreat(h, tl, 52, 80, c);
   tl.end(82);
@@ -846,6 +938,7 @@ const dragonInfernoBreath: MoveFn = (h, tl) => {
   tl.at(0, () => {
     h.anim('open');
     h.camera(1.25, dragonMaw(h).x, dragonMaw(h).y, 40);
+    h.sound('hiss', { rate: 0.45 }); // the great inhale
   });
   // A deep inhale pulling embers from the whole arena
   tl.every(0, 44, 1, () => {
@@ -857,7 +950,10 @@ const dragonInfernoBreath: MoveFn = (h, tl) => {
   tremble(h, tl, 20, 44, { x: 0, y: 0 }, 1.2, 3);
   tl.at(44, () => {
     h.anim('attack');
-    h.sound('crit');
+    h.sound('roar', { rate: 0.7, vol: 1.1 });
+    h.sound('fire', { rate: 0.6 });
+    h.sound('fire', { rate: 0.55, delay: 0.4 });
+    h.sound('fire', { rate: 0.6, delay: 0.8 });
     h.camera(1.05, 213, 130, 80);
   });
   dimSpan(h, tl, 40, 130, 0.45, 0x2A0A0A);
@@ -890,17 +986,20 @@ const dragonInfernoBreath: MoveFn = (h, tl) => {
     h.emit(m.x, m.y, { count: 3, colors: FIRE, speed: [5, 8], angle: Math.atan2(e.y - m.y, e.x - m.x), spread: 0.22, gravity: -0.05, size: 4, life: [16, 22] });
     h.shake(4);
   });
-  [60, 74, 88].forEach((f) => tl.at(f, () => chip(h, FIRE, 4, 7)));
+  [60, 74, 88].forEach((f) => tl.at(f, () => chip(h, FIRE, 4, 7, 'fire_burst')));
   flame(h, tl, 56, 56, () => chest(h), 1.3);
   tl.at(102, () => boom(h, chest(h).x, chest(h).y, 1.5));
-  tl.at(102, () => land(h, { kb: 18, shake: 18, stop: 8, flash: 0.6, color: EMBER, colors: [...FIRE, BONE], ring: GOLD }));
+  tl.at(102, () => land(h, { kb: 18, shake: 18, stop: 8, flash: 0.6, color: EMBER, colors: [...FIRE, BONE], ring: GOLD, sound: 'impact_crit' }));
   puddle(h, tl, 70, 150, 40, 0x1C1917, EMBER);
   tl.every(108, 140, 3, () => h.emit(chest(h).x + rand(-14, 14), chest(h).y, { count: 2, colors: SMOKE, speed: [0.3, 0.7], angle: -Math.PI / 2, spread: 0.4, gravity: -0.03, size: 5, life: [26, 40] }));
   tl.end(150);
 };
 
 const dragonScales: MoveFn = (h, tl) => {
-  tl.at(0, () => h.anim('idle2'));
+  tl.at(0, () => {
+    h.anim('idle2');
+    h.sound('growl', { rate: 0.6, vol: 0.6 });
+  });
   guard(h, tl, 4, MAGMA, (g, cx, cy, grow, fade, f) => {
     // Scales flare open in rows of glowing plates
     for (let row = 0; row < 3; row++) {
@@ -913,6 +1012,8 @@ const dragonScales: MoveFn = (h, tl) => {
     }
   });
   tl.at(16, () => {
+    h.sound('rattle', { rate: 0.5 });
+    h.sound('fire_burst', { rate: 0.8, vol: 0.5 });
     h.emit(h.pos().x, h.pos().y - h.height * 0.5, { count: 20, colors: MAGMA, speed: [1, 3], spread: Math.PI, gravity: -0.03, size: 2, life: [14, 22] });
   });
   tl.end(62);
@@ -922,12 +1023,13 @@ const dragonMeteorStorm: MoveFn = (h, tl) => {
   tl.at(0, () => {
     h.anim('open');
     h.camera(1.15, h.home.x, h.home.y - 40, 26);
-    h.sound('level_up');
+    h.sound('roar', { rate: 0.65 });
   });
   // Takes wing, shaking the arena with each beat
   tl.during(10, 36, (t) => h.lift(easeIn(t) * 220));
   tl.every(10, 36, 6, () => {
     h.shake(5);
+    h.sound('flap', { rate: 0.45 });
     dustAtFeet(h, 8, -1);
     dustAtFeet(h, 8, 1);
   });
@@ -939,6 +1041,7 @@ const dragonMeteorStorm: MoveFn = (h, tl) => {
     const last = i === falls.length - 1;
     const tx = () => h.knight.x + 6 + dx;
     drawSpan(h, tl, f - 14, f + 4, (g, t) => fx.groundRing(g, tx(), h.knight.y + 1, 10 + 6 * t, 1.5, EMBER, 0.4 + 0.6 * t), 'ground');
+    tl.at(f - 12, () => h.sound('whistle', { rate: last ? 0.7 : 1, vol: 0.5 }));
     drawSpan(h, tl, f - 12, f, (g, t) => meteor(g, tx(), h.knight.y - 6, easeIn(t), last ? 10 : 7));
     tl.at(f, () => {
       h.emit(tx(), h.knight.y - 6, { count: last ? 40 : 20, colors: [...MAGMA, 0x1C1917], speed: [1.5, 4.5], angle: -Math.PI / 2, spread: 1.2, gravity: 0.18, size: 3, life: [14, 26] });
@@ -947,9 +1050,9 @@ const dragonMeteorStorm: MoveFn = (h, tl) => {
       crater(h, tx(), h.knight.y, last ? 1.4 : 0.9, 'ShockWave_2');
       if (!last) {
         h.shake(8);
-        h.sound('hit');
+        h.sound('impact', { vol: 0.5 });
         if (Math.abs(dx) < 26) h.knightHit(5);
-      } else land(h, { kb: 18, shake: 20, stop: 10, flash: 0.7, color: EMBER, zoom: 1.24, colors: [...MAGMA, BONE], ring: GOLD });
+      } else land(h, { kb: 18, shake: 20, stop: 10, flash: 0.7, color: EMBER, zoom: 1.24, colors: [...MAGMA, BONE], ring: GOLD, sound: 'impact_crit' });
     });
     drawSpan(h, tl, f, f + 60, (g, t) => fx.scorch(g, tx(), h.knight.y + 1, last ? 20 : 12, EMBER, 1 - t), 'ground');
   });
@@ -958,6 +1061,7 @@ const dragonMeteorStorm: MoveFn = (h, tl) => {
   tl.at(130, () => {
     h.shockwave(h.home.x, h.home.y, EMBER);
     h.shake(8);
+    h.sound('stomp');
   });
   tl.end(152);
 };

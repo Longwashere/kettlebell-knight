@@ -22,6 +22,7 @@ npm run shot -- <steps>   # headless /tv run: screenshots + state + console erro
 npm run balance [-- N cards]  # combat balance simulator: win rate / fight length / HP left per encounter
 npm run rigs [-- ids]         # monster rig reference → work/rigs.md: anims + frame lengths + events, moveset, portraits
 npm run vfx:shrink            # TV-sized copies of the Spine VFX: public/assets/spine/vfx → vfx-tv (rerun after adding one)
+npm run sfx [-- ids]          # render the procedural sound bank to work/sfx/*.wav + index.html to audition
 ```
 
 Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test` (alias `/lab`) motion-detection lab.
@@ -130,6 +131,21 @@ Workflow for new or changed moves:
    Ground-layer rigs are hidden behind bodies at their feet; bursts at someone's feet go on the fx layer.
 6. New intents change damage per second: keep `damage / durationSeconds` near the monster's existing average and run
    `npm run balance`.
+
+## Sound
+
+- No audio files ship. `src/shared/sfx/bank.ts` holds ~75 procedural recipes (built from `dsp.ts`) that render a small
+  mono 22 kHz buffer the first time they play; `AudioManager` prewarms the whole bank when monsters load, caps
+  voices at 12, softens or drops the same sound stacked within 45 ms, and runs everything through one compressor.
+- Moves call `h.sound(id, { vol, rate, delay })` with a bank id (`chomp`, `claw`, `roar`, `zap`, `splash`, …). The kits
+  already add the common layers: `land()` picks an impact by weight (monsters) or rarity/crit plus an iron clang for
+  non-sword weapons (knight; pass `sfx:` / `sound:` for the attack's own contact sound), `chip()` takes a sound,
+  `slashFx`/`crackFx`/`chargeFx`/`chargeTint`/`warnRing`/`guard`/`backstep` sound themselves, and every `h.vfx()`
+  plays its element (explosion, ice, poison, fire, shockwave, portal, rune, heal). Knight impact on the player adds
+  `hurt`, or `block` when fully blocked. Use `swingSound(h, big)` for knight weapon swings.
+- Give each new move a wind-up/voice cue, a travel or launch cue, and its contact sound. Add a recipe to the bank
+  only when nothing fits; audition it with `npm run sfx -- <id>`. `__kk.call('audioReset')` returns and clears the
+  per-sound play counts (`state().audio`), which is how to check a move's sounds headlessly.
 
 ## Spine assets
 

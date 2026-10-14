@@ -7,7 +7,7 @@ import type { Container, Graphics } from 'pixi.js';
 import type { Spine } from '@esotericsoftware/spine-pixi-v8';
 import { sparkAnim, themeColor, type VfxName, type VfxOpts } from './vfx';
 import {
-  Timeline, type EmitOptions, type SfxName,
+  Timeline, type EmitOptions, type SfxName, type SoundOpts,
   lerp, easeIn, easeOut, easeInOut, arc, rand,
   INK, BONE, BLOOD,
 } from './choreo';
@@ -60,7 +60,8 @@ export interface MoveHost {
   emit(x: number, y: number, opts: EmitOptions): void;
   slashArc(g: Graphics, cx: number, cy: number, r: number, a0: number, a1: number, shadow: number, body: number, core: number): void;
   text(content: string, x: number, y: number, color: number, size: number): void;
-  sound(name: SfxName): void;
+  /** Plays a bank sound; `o.delay` (s) offsets it, `o.rate` pitches it, `o.vol` scales it. */
+  sound(name: SfxName, o?: SoundOpts): void;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -245,7 +246,7 @@ export interface LandOpts {
   sparks?: number;
   colors?: number[];
   ring?: number; // floor shockwave colour
-  sound?: SfxName;
+  sound?: SfxName; // the attack's own contact sound (chomp, claw, slash…); an impact thump of the hit's weight plays under it
   at?: { x: number; y: number };
   spark?: number | false; // hitSpark colour (default: the flash colour, else the palette's theme colour); false = none
 }
@@ -263,12 +264,17 @@ export function land(h: MoveHost, o: LandOpts = {}) {
     const heavy = (o.stop ?? 0) >= 7;
     h.vfx('hitSpark', p.x, p.y, { anim: sparkAnim(o.spark ?? o.color ?? themeColor(o.colors, BLOOD), heavy), size: heavy ? 1 : 0.8 });
   }
-  h.sound(o.sound ?? 'crit');
+  const heavy = (o.stop ?? 0) >= 6 || (o.shake ?? 10) >= 13;
+  const thump: SfxName = heavy ? 'impact_heavy' : 'impact';
+  if (o.sound && o.sound !== thump) {
+    h.sound(o.sound);
+    if (!/^(impact|crit|hit)/.test(o.sound)) h.sound(thump, { vol: 0.6 });
+  } else h.sound(thump);
   h.impact(o.kb ?? 10);
 }
 
-/** A lesser hit ahead of the final one: reaction, sparks and a small shake. */
-export function chip(h: MoveHost, colors: number[], kb = 3, shake = 5) {
+/** A lesser hit ahead of the final one: reaction, sparks, a small shake and `sound` (a light impact by default). */
+export function chip(h: MoveHost, colors: number[], kb = 3, shake = 5, sound: SfxName = 'impact') {
   const p = chest(h);
   const x = p.x + rand(-4, 4);
   const y = p.y + rand(-10, 8);
@@ -276,7 +282,7 @@ export function chip(h: MoveHost, colors: number[], kb = 3, shake = 5) {
   h.vfx('hitSpark', x, y, { anim: sparkAnim(themeColor(colors, BLOOD)), size: 0.5 });
   h.knightHit(kb);
   h.shake(shake);
-  h.sound('hit');
+  h.sound(sound, { vol: sound === 'impact' ? 0.7 : 0.85 });
 }
 
 /** Dims the arena over [from, to], easing in and out over `ramp` frames. */
@@ -288,8 +294,12 @@ export function dimSpan(h: MoveHost, tl: Timeline, from: number, to: number, pea
   });
 }
 
-/** Pulsing charge tint over [from, to]; cleared at `to`. */
-export function chargeTint(h: MoveHost, tl: Timeline, from: number, to: number, color: number, rate = 0.5) {
+/** Charge-up riser sized to a wind-up of `frames` (60 fps): the long one for big tells. */
+export const chargeSound = (h: MoveHost, frames: number, vol = 1) => h.sound(frames > 70 ? 'charge_long' : 'charge', { vol, rate: Math.min(1.6, Math.max(0.85, (frames > 70 ? 102 : 54) / frames)) });
+
+/** Pulsing charge tint over [from, to] with a riser (`sound` false to skip it); cleared at `to`. */
+export function chargeTint(h: MoveHost, tl: Timeline, from: number, to: number, color: number, rate = 0.5, sound = true) {
+  if (sound && to - from >= 16) tl.at(from, () => chargeSound(h, to - from, 0.8));
   tl.during(from, to, (t, f) => h.tint(t >= 1 ? 0xFFFFFF : Math.sin(f * rate) > 0 ? color : 0xFFFFFF));
 }
 
@@ -307,8 +317,7 @@ export function puff(h: MoveHost, x: number, y: number, colors: number[], count 
 export function blink(h: MoveHost, tl: Timeline, at: number, to: { x: number; y: number }, colors: number[], dur = 10) {
   tl.at(at, () => {
     puff(h, h.pos().x, h.pos().y, colors);
-    portal(h, h.pos().x, h.pos().y - h.height * 0.5, 0.7);
-    h.sound('swing');
+    portal(h, h.pos().x, h.pos().y - h.height * 0.5, 0.7); // portal() sounds the vanish
   });
   tl.during(at, at + dur, (t) => {
     h.alpha(1 - t);
@@ -327,6 +336,7 @@ export function blink(h: MoveHost, tl: Timeline, at: number, to: { x: number; y:
 
 /** Pulsing danger ring on the floor under the knight, shrinking onto the strike point. */
 export function warnRing(h: MoveHost, tl: Timeline, from: number, to: number, color: number, r = 22) {
+  tl.at(from, () => h.sound('warn'));
   drawSpan(h, tl, from, to, (g, t, f) => {
     const p = feet(h);
     const pulse = 0.5 + 0.5 * Math.sin(f * 0.7);
@@ -491,7 +501,7 @@ export function guard(
   tl.at(from + 16, () => {
     h.sparks(h.pos().x, h.pos().y - h.height * 0.5, 12, colors);
     h.camera(1.15, h.pos().x, h.pos().y - h.height * 0.5, 16);
-    h.sound('equip');
+    h.sound('ward');
     h.impact();
   });
 }

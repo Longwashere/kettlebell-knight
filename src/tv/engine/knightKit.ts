@@ -11,7 +11,7 @@ import { sparkAnim, type VfxName, type VfxOpts } from './vfx';
 import type { ExerciseType } from '../../types/game';
 import { CARD_CATALOG, type CardRarity, type CardTarget } from '../../types/battle';
 import {
-  Timeline, type EmitOptions, type SfxName,
+  Timeline, type EmitOptions, type SfxName, type SoundOpts,
   lerp, easeIn, easeOut, easeInOut, arc, rand,
   INK, BONE, BLOOD, BLOOD_DARK, EMBER, GOLD, DIRT, SHADOW, FIRE, SMOKE,
 } from './choreo';
@@ -105,7 +105,8 @@ export interface KnightMoveHost {
   emit(x: number, y: number, opts: EmitOptions): void;
   slashArc(g: Graphics, cx: number, cy: number, r: number, a0: number, a1: number, shadow: number, body: number, core: number): void;
   text(content: string, x: number, y: number, color: number, size: number): void;
-  sound(name: SfxName): void;
+  /** Plays a bank sound; `o.delay` (s) offsets it, `o.rate` pitches it, `o.vol` scales it. */
+  sound(name: SfxName, o?: SoundOpts): void;
 }
 
 export type KnightMove = (h: KnightMoveHost, tl: Timeline) => void;
@@ -181,7 +182,28 @@ export function land(h: KnightMoveHost, i: number | undefined, o: { scale?: numb
   h.flash(w.flash * s, o.flash);
   const idx = i === undefined ? h.targets.map((_, k) => k) : [i];
   for (const k of idx) h.flashTarget(k, o.tint ?? 0xFF6A6A, 7);
-  h.sound(o.sfx ?? (h.ctx.rarity === 'common' && !h.ctx.crit ? 'hit' : 'crit'));
+  impactSound(h, s, o.sfx);
+}
+
+/** Impact weight by rarity: a punch for commons, a heavy crunch for rare/epic, the ringing finisher for legendaries and crits. */
+export function impactSound(h: KnightMoveHost, scale = 1, sfx?: SfxName) {
+  const { rarity, crit } = h.ctx;
+  const base: SfxName = crit || rarity === 'legendary' || scale >= 1.4 ? 'impact_crit'
+    : rarity === 'common' && scale < 1.15 ? 'impact' : 'impact_heavy';
+  const vol = Math.min(1.15, 0.75 + 0.25 * scale);
+  if (sfx && !/^(impact|crit|hit)/.test(sfx)) {
+    // A themed contact sound (chomp, zap…) rides on top of a softer body thump
+    h.sound(sfx);
+    h.sound(base === 'impact_crit' ? 'impact_heavy' : base, { vol: vol * 0.6 });
+  } else h.sound(sfx ?? base, { vol });
+  // Weapon material: iron heads clang as they connect
+  if (!/sword/.test(h.weaponId) && scale >= 0.8) h.sound('impact_metal', { vol: 0.35 + 0.15 * scale });
+}
+
+/** The weapon's swing: blades hiss, heavy iron heads (bells, maces, flails) push air. `big` for wind-ups and finishers. */
+export function swingSound(h: KnightMoveHost, big = false, o: SoundOpts = {}) {
+  const sword = /sword/.test(h.weaponId);
+  h.sound(sword ? (big ? 'whoosh_heavy' : 'whoosh_fast') : big ? 'whoosh_heavy' : 'whoosh', o);
 }
 
 /**
@@ -217,7 +239,11 @@ export const HOME: P = { x: 0, y: 0 };
 
 /** Hops back home over [from, to] facing the enemy (a backstep). */
 export function backstep(h: KnightMoveHost, tl: Timeline, from: number, to: number, hop = 18) {
-  tl.at(from, () => h.anim('JUMP_BACK_START'));
+  tl.at(from, () => {
+    h.anim('JUMP_BACK_START');
+    h.sound('jump', { vol: 0.6 });
+  });
+  tl.at(to, () => h.sound('thud', { vol: 0.45 }));
   tl.at(Math.max(from + 1, to - 6), () => h.anim('JUMP_BACK_END'));
   travel(h, tl, from, to, here(h), HOME, easeInOut, hop);
 }
@@ -238,8 +264,9 @@ export function drawSpan(h: KnightMoveHost, tl: Timeline, from: number, to: numb
 }
 
 /** Animated slash: the leading edge sweeps a0→a1 in 3 frames, then the tail chases it and it thins out. */
-export function slashFx(h: KnightMoveHost, tl: Timeline, at: number, o: { x: number; y: number; r: number; a0: number; a1: number; thick: number; p: Pal; dur?: number }) {
+export function slashFx(h: KnightMoveHost, tl: Timeline, at: number, o: { x: number; y: number; r: number; a0: number; a1: number; thick: number; p: Pal; dur?: number; sound?: boolean }) {
   const dur = o.dur ?? 9;
+  if (o.sound !== false) tl.at(at, () => h.sound(o.thick >= 10 || o.r >= 40 ? 'slash_heavy' : 'slash', { vol: 0.8 }));
   drawSpan(h, tl, at, at + dur, (g, _t, f) => {
     const sweep = Math.min(1, f / 3);
     const tail = f < 3 ? 0 : Math.min(1, (f - 3) / (dur - 3));
@@ -270,6 +297,7 @@ export function ringFx(h: KnightMoveHost, tl: Timeline, at: number, where: P | (
 
 /** Glowing crack racing along the floor from a to b, then cooling. */
 export function crackFx(h: KnightMoveHost, tl: Timeline, at: number, a: P, b: P, p: Pal, grow = 10, dur = 46) {
+  tl.at(at, () => h.sound('crack', { vol: 0.8 }));
   const pts: number[] = [];
   const n = Math.max(4, Math.round(Math.abs(b.x - a.x) / 12));
   for (let i = 0; i <= n; i++) pts.push(lerp(a.x, b.x, i / n), lerp(a.y, b.y, i / n) + (i % 2 ? -2 : 2) * rand(0.4, 1.6));
@@ -286,6 +314,7 @@ export function crackFx(h: KnightMoveHost, tl: Timeline, at: number, a: P, b: P,
 
 /** Motes spiralling inward to a point (charge-up). */
 export function chargeFx(h: KnightMoveHost, tl: Timeline, from: number, to: number, at: () => P, p: Pal, radius = 40, n = 12) {
+  if (to - from >= 16) tl.at(from, () => chargeSound(h, to - from));
   drawSpan(h, tl, from, to, (g, t, f) => {
     const c = at();
     for (let k = 0; k < n; k++) {
@@ -298,6 +327,10 @@ export function chargeFx(h: KnightMoveHost, tl: Timeline, from: number, to: numb
     orb(g, c.x, c.y, 2 + 3 * t + Math.sin(f * 0.8), p, 0.8);
   });
 }
+
+/** Charge-up riser sized to a wind-up of `frames` (60 fps). */
+export const chargeSound = (h: KnightMoveHost, frames: number, vol = 0.85) =>
+  h.sound(frames > 70 ? 'charge_long' : 'charge', { vol, rate: Math.min(1.6, Math.max(0.85, (frames > 70 ? 102 : 54) / frames)) });
 
 /** Rising healing / magic motes around a point. */
 export function motesFx(h: KnightMoveHost, tl: Timeline, from: number, to: number, at: () => P, colors: number[], step = 3, spread = 18) {

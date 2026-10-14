@@ -10,6 +10,7 @@
  */
 import type { RepTelemetry, ExerciseType } from '../../types/game';
 import { networkManager } from '../../shared/NetworkManager';
+import { audioManager } from '../../shared/AudioManager';
 import { CARD_CATALOG, MONSTER_CATALOG } from '../../types/battle';
 import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { MOVESETS } from '../../shared/monsterMovesets';
@@ -54,6 +55,9 @@ function state(): Record<string, unknown> {
   }
   return out;
 }
+
+// Sound bank: what played (state().audio), and `call('audioReset')` to count a single move's sounds
+registerDebug('audio', () => audioManager.debugState(), { audioReset: () => audioManager.debugState(true) });
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
