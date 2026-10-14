@@ -84,8 +84,45 @@ export interface MonsterState {
   damageScale?: number; // pack scaling applied to rolled intents (see PACK_SCALING)
 }
 
-/** Spine monster rigs in public/assets/spine/monsters (see MONSTER_RIGS in GameEngine). */
-export type MonsterSprite = 'SLIME' | 'TREEMON' | 'HELLHOUND' | 'BOAR' | 'DEMON_MONK' | 'WOLF';
+export type MonsterSprite =
+  | 'SLIME'
+  | 'TREEMON'
+  | 'HELLHOUND'
+  | 'BOAR'
+  | 'DEMON_MONK'
+  | 'WOLF'
+  | 'BAT'
+  | 'BONE_GOLEM'
+  | 'CRYPT_LORD'
+  | 'DARK_EMPEROR'
+  | 'DARK_KNIGHT'
+  | 'DARK_MAGE'
+  | 'DEMON_ARCHBISHOP'
+  | 'ELDRITCH_HORROR'
+  | 'GARGOYLE'
+  | 'GHOST'
+  | 'GIANT_SPIDER'
+  | 'GOBLIN'
+  | 'GOLEM'
+  | 'GRAVE_COLOSSUS'
+  | 'HARPY'
+  | 'INFERNO_TITAN'
+  | 'KRAKEN'
+  | 'LIZARDMAN'
+  | 'MAGMA_DRAGON'
+  | 'MINOTAUR'
+  | 'MUSHROOM'
+  | 'NIGHTMARE_STAG'
+  | 'ORC'
+  | 'SKELETON_ARCHER'
+  | 'SKELETON_KNIGHT'
+  | 'SKELETON_WARRIOR'
+  | 'ANCIENT_TREANT'
+  | 'TROLL'
+  | 'VAULT_GUARDIAN'
+  | 'VOID_PROPHET'
+  | 'WATER_ELEMENTAL'
+  | 'WRAITH';
 
 export interface BattleState {
   playerHp: number;
@@ -213,6 +250,38 @@ export const MONSTER_CATALOG: Omit<MonsterState, 'currentHp' | 'block' | 'intent
     level: 12,
     spriteType: 'HELLHOUND',
   },
+  { id: 'bat', name: 'CAVE BAT', title: 'NIGHT STALKER', maxHp: 100, level: 3, spriteType: 'BAT' },
+  { id: 'goblin', name: 'GOBLIN SCOUT', title: 'WOODLAND THIEF', maxHp: 120, level: 4, spriteType: 'GOBLIN' },
+  { id: 'mushroom', name: 'SPORE MUSHROOM', title: 'TOXIC FUNGUS', maxHp: 130, level: 4, spriteType: 'MUSHROOM' },
+  { id: 'ghost', name: 'RESTLESS GHOST', title: 'HAUNTING SPECTER', maxHp: 130, level: 5, spriteType: 'GHOST' },
+  { id: 'giant_spider', name: 'BROOD SPIDER', title: 'WEB WEAVER', maxHp: 150, level: 5, spriteType: 'GIANT_SPIDER' },
+  { id: 'skeleton_archer', name: 'SKELETON ARCHER', title: 'CRYPT MARKSMAN', maxHp: 140, level: 6, spriteType: 'SKELETON_ARCHER' },
+  { id: 'skeleton_warrior', name: 'SKELETON WARRIOR', title: 'UNDYING FOOTMAN', maxHp: 160, level: 6, spriteType: 'SKELETON_WARRIOR' },
+  { id: 'harpy', name: 'CLIFF HARPY', title: 'WINGED SCREAMER', maxHp: 150, level: 7, spriteType: 'HARPY' },
+  { id: 'lizardman', name: 'LIZARDMAN SLAYER', title: 'SWAMP SKIRMISHER', maxHp: 180, level: 8, spriteType: 'LIZARDMAN' },
+  { id: 'orc', name: 'ORC BERSERKER', title: 'SAVAGE WARRIOR', maxHp: 200, level: 8, spriteType: 'ORC' },
+  { id: 'dark_mage', name: 'CORRUPTED MAGE', title: 'SHADOW CASTER', maxHp: 170, level: 9, spriteType: 'DARK_MAGE' },
+  { id: 'water_elemental', name: 'WATER ELEMENTAL', title: 'TIDAL SURGE', maxHp: 210, level: 9, spriteType: 'WATER_ELEMENTAL' },
+  { id: 'nightmare_stag', name: 'NIGHTMARE STAG', title: 'FOREST PHANTOM', maxHp: 190, level: 9, spriteType: 'NIGHTMARE_STAG' },
+  { id: 'golem', name: 'STONE GOLEM', title: 'EARTHEN SENTINEL', maxHp: 240, level: 10, spriteType: 'GOLEM' },
+  { id: 'vault_guardian', name: 'VAULT GUARDIAN', title: 'ARMORED AUTOMATON', maxHp: 250, level: 10, spriteType: 'VAULT_GUARDIAN' },
+  { id: 'wraith', name: 'DUNGEON WRAITH', title: 'CHILLING PHANTASM', maxHp: 190, level: 10, spriteType: 'WRAITH' },
+  { id: 'gargoyle', name: 'STONE GARGOYLE', title: 'RAMPART DEFENDER', maxHp: 230, level: 11, spriteType: 'GARGOYLE' },
+  { id: 'dark_knight', name: 'DARK KNIGHT', title: 'FALLEN CHAMPION', maxHp: 260, level: 11, spriteType: 'DARK_KNIGHT' },
+  { id: 'minotaur', name: 'LABYRINTH MINOTAUR', title: 'HORNED CRUSHER', maxHp: 270, level: 12, spriteType: 'MINOTAUR' },
+  { id: 'skeleton_knight', name: 'SKELETON KNIGHT', title: 'DREAD CAVALIER', maxHp: 250, level: 12, spriteType: 'SKELETON_KNIGHT' },
+  { id: 'grave_colossus', name: 'GRAVE COLOSSUS', title: 'CORPSE TANK', maxHp: 290, level: 13, spriteType: 'GRAVE_COLOSSUS' },
+  { id: 'void_prophet', name: 'VOID PROPHET', title: 'FORBIDDEN HERALD', maxHp: 240, level: 13, spriteType: 'VOID_PROPHET' },
+  { id: 'troll', name: 'TROLL WARLORD', title: 'REGENERATING BRUTE', maxHp: 300, level: 13, spriteType: 'TROLL' },
+  { id: 'bone_golem', name: 'BONE GOLEM', title: 'OSSEOUS MONSTROSITY', maxHp: 310, level: 14, spriteType: 'BONE_GOLEM' },
+  { id: 'ancient_treant', name: 'ANCIENT TREANT', title: 'ELDER OF THE GROVE', maxHp: 320, level: 14, spriteType: 'ANCIENT_TREANT' },
+  { id: 'crypt_lord', name: 'CRYPT LORD', title: 'LICH ARCHMAGE', maxHp: 340, level: 15, spriteType: 'CRYPT_LORD' },
+  { id: 'kraken', name: 'ABYSSAL KRAKEN', title: 'LEVIATHAN OF THE DEEP', maxHp: 350, level: 16, spriteType: 'KRAKEN' },
+  { id: 'demon_archbishop', name: 'ARCHBISHOP OF ASH', title: 'HIGH INQUISITOR', maxHp: 360, level: 16, spriteType: 'DEMON_ARCHBISHOP' },
+  { id: 'inferno_titan', name: 'INFERNO TITAN', title: 'COLOSSUS OF FLAME', maxHp: 380, level: 17, spriteType: 'INFERNO_TITAN' },
+  { id: 'dark_emperor', name: 'DARK EMPEROR', title: 'SOVEREIGN OF RUIN', maxHp: 400, level: 18, spriteType: 'DARK_EMPEROR' },
+  { id: 'magma_dragon', name: 'MAGMA DRAGON', title: 'SCORCHED WYRM', maxHp: 420, level: 19, spriteType: 'MAGMA_DRAGON' },
+  { id: 'eldritch_horror', name: 'ELDRITCH HORROR', title: 'CTHULHU INCARNATE', maxHp: 450, level: 20, spriteType: 'ELDRITCH_HORROR' },
 ];
 
 export interface EncounterTemplate {
@@ -230,6 +299,18 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   { id: 'solo_treemon', name: 'Rootbound Guardian', description: 'An ancient animated wood golem emerges from the roots.', monsterIds: ['treemon'] },
   { id: 'solo_monk', name: 'The Corrupted Priest', description: 'A demonic monk chanting forbidden curses.', monsterIds: ['demon_monk'] },
   { id: 'solo_hellhound', name: 'The Twin-Headed Beast', description: 'A terrifying volcanic hellhound hungry for flesh.', monsterIds: ['hellhound'] },
+  { id: 'solo_bat', name: 'Cave Stalker', description: 'A giant cave bat drops silently from the cavern ceiling.', monsterIds: ['bat'] },
+  { id: 'solo_goblin', name: 'Goblin Scout', description: 'A sneaky goblin scout waving a jagged blade.', monsterIds: ['goblin'] },
+  { id: 'solo_orc', name: 'Orc Berserker', description: 'A towering greenskin warrior hungry for combat.', monsterIds: ['orc'] },
+  { id: 'solo_skeleton_warrior', name: 'Undying Sentry', description: 'A reanimated skeleton soldier guarding an ancient crypt.', monsterIds: ['skeleton_warrior'] },
+  { id: 'solo_golem', name: 'Stone Colossus', description: 'A heavy ancient stone sentinel grinding to life.', monsterIds: ['golem'] },
+  { id: 'solo_troll', name: 'Troll Warlord', description: 'A savage regenerative brute wielding an entire tree trunk.', monsterIds: ['troll'] },
+  { id: 'solo_bone_golem', name: 'Bone Monstrosity', description: 'A horrific amalgamation of fused skeletons.', monsterIds: ['bone_golem'] },
+  { id: 'solo_crypt_lord', name: 'Crypt Lich', description: 'An undying archmage wielding frost and necrotic curses.', monsterIds: ['crypt_lord'] },
+  { id: 'solo_kraken', name: 'Abyssal Terror', description: 'A leviathan from the deep cistern waters.', monsterIds: ['kraken'] },
+  { id: 'solo_magma_dragon', name: 'Scorched Wyrm', description: 'A terrifying dragon bathed in flowing lava.', monsterIds: ['magma_dragon'] },
+  { id: 'solo_dark_emperor', name: 'Sovereign of Ruin', description: 'The dark emperor clad in shadowed plate armor.', monsterIds: ['dark_emperor'] },
+  { id: 'solo_eldritch_horror', name: 'Cthulhu Incarnate', description: 'An ancient dread god that defies comprehension.', monsterIds: ['eldritch_horror'] },
 
   // 2-Monsters (Duo Encounters)
   { id: 'duo_slimes', name: 'Twin Slimes', description: 'Two corrosive oozes working in tandem.', monsterIds: ['green_slime', 'green_slime'] },
@@ -239,6 +320,9 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   { id: 'unholy_covenant', name: 'Unholy Covenant', description: 'A Demon Monk chanting behind a giant Treemon.', monsterIds: ['treemon', 'demon_monk'] },
   { id: 'hound_pack', name: 'Hounds of Fire & Ooze', description: 'A ferocious Hellhound supported by a dungeon slime.', monsterIds: ['hellhound', 'green_slime'] },
   { id: 'iron_tusks_fire', name: 'Tusks of Hellfire', description: 'A brutal duo: Hellhound and Razorback Boar!', monsterIds: ['hellhound', 'boar'] },
+  { id: 'crypt_duo', name: 'Grave Watchers', description: 'A Skeleton Warrior backed by a Skeleton Archer.', monsterIds: ['skeleton_warrior', 'skeleton_archer'] },
+  { id: 'orc_and_goblin', name: 'Raiding Duo', description: 'A berserk Orc backed by a shifty Goblin Scout.', monsterIds: ['orc', 'goblin'] },
+  { id: 'winged_nightmares', name: 'Sky Terrors', description: 'A Cliff Harpy and a Stone Gargoyle dive from above.', monsterIds: ['gargoyle', 'harpy'] },
 
   // 3-Monsters (Trio Encounters)
   { id: 'slime_swarm', name: 'Ooze Swarm', description: 'A triple swarm of hungry dungeon slimes!', monsterIds: ['green_slime', 'green_slime', 'green_slime'] },
@@ -246,5 +330,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   { id: 'beast_stampede', name: 'Woodland Stampede', description: 'Two heavy boars led by a fierce shadow wolf.', monsterIds: ['boar', 'wolf', 'boar'] },
   { id: 'forest_trio', name: 'Sylvan Syndicate', description: 'A fortified Treemon supported by two stinging slimes.', monsterIds: ['green_slime', 'treemon', 'green_slime'] },
   { id: 'demonic_conclave', name: 'Demonic Conclave', description: 'A Demon Monk casting from behind a Hellhound and an acid slime.', monsterIds: ['hellhound', 'demon_monk', 'green_slime'] },
+  { id: 'undead_trio', name: 'Catacomb Vanguard', description: 'Skeleton Warrior and Skeleton Archer led by a Dark Knight.', monsterIds: ['skeleton_warrior', 'dark_knight', 'skeleton_archer'] },
   { id: 'boss_trio', name: 'The Dread Menagerie', description: 'A legendary trio: Treemon and Hellhound guard a Demon Monk!', monsterIds: ['treemon', 'demon_monk', 'hellhound'] },
+  { id: 'abyssal_trio', name: 'Abyssal Lords', description: 'Bone Golem and Crypt Lord guarding the Void Prophet!', monsterIds: ['bone_golem', 'void_prophet', 'crypt_lord'] },
 ];

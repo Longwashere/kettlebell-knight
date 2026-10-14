@@ -95,6 +95,38 @@ const MONSTER_BACKGROUNDS: Record<MonsterSprite, string> = {
   BOAR: BATTLE_MAPS.VERDANT_FOREST,
   DEMON_MONK: BATTLE_MAPS.ELDRITCH_ALTAR,
   WOLF: BATTLE_MAPS.BLOOD_CEMETERY,
+  BAT: BATTLE_MAPS.CATHEDRAL_CRYPT,
+  BONE_GOLEM: BATTLE_MAPS.BLOOD_CEMETERY,
+  CRYPT_LORD: BATTLE_MAPS.CATHEDRAL_CRYPT,
+  DARK_EMPEROR: BATTLE_MAPS.CATHEDRAL_VAULT,
+  DARK_KNIGHT: BATTLE_MAPS.BELFRY_RAMPARTS,
+  DARK_MAGE: BATTLE_MAPS.ELDRITCH_ALTAR,
+  DEMON_ARCHBISHOP: BATTLE_MAPS.ELDRITCH_ALTAR,
+  ELDRITCH_HORROR: BATTLE_MAPS.ELDRITCH_ALTAR,
+  GARGOYLE: BATTLE_MAPS.BELFRY_RAMPARTS,
+  GHOST: BATTLE_MAPS.BLOOD_CEMETERY,
+  GIANT_SPIDER: BATTLE_MAPS.DARK_FOREST,
+  GOBLIN: BATTLE_MAPS.VERDANT_FOREST,
+  GOLEM: BATTLE_MAPS.CATHEDRAL_VAULT,
+  GRAVE_COLOSSUS: BATTLE_MAPS.BLOOD_CEMETERY,
+  HARPY: BATTLE_MAPS.BELFRY_RAMPARTS,
+  INFERNO_TITAN: BATTLE_MAPS.VOLCANIC_FORGE,
+  KRAKEN: BATTLE_MAPS.SUNKEN_CISTERN,
+  LIZARDMAN: BATTLE_MAPS.SUNKEN_CISTERN,
+  MAGMA_DRAGON: BATTLE_MAPS.VOLCANIC_FORGE,
+  MINOTAUR: BATTLE_MAPS.CATHEDRAL_VAULT,
+  MUSHROOM: BATTLE_MAPS.DARK_FOREST,
+  NIGHTMARE_STAG: BATTLE_MAPS.DARK_FOREST,
+  ORC: BATTLE_MAPS.VERDANT_FOREST,
+  SKELETON_ARCHER: BATTLE_MAPS.CATHEDRAL_CRYPT,
+  SKELETON_KNIGHT: BATTLE_MAPS.CATHEDRAL_CRYPT,
+  SKELETON_WARRIOR: BATTLE_MAPS.CATHEDRAL_CRYPT,
+  ANCIENT_TREANT: BATTLE_MAPS.DARK_FOREST,
+  TROLL: BATTLE_MAPS.VERDANT_FOREST,
+  VAULT_GUARDIAN: BATTLE_MAPS.CATHEDRAL_VAULT,
+  VOID_PROPHET: BATTLE_MAPS.ELDRITCH_ALTAR,
+  WATER_ELEMENTAL: BATTLE_MAPS.SUNKEN_CISTERN,
+  WRAITH: BATTLE_MAPS.BLOOD_CEMETERY,
 };
 // Lifts combatants + effects so they stand above the battle card hand (which covers the lower half).
 const SCENE_RAISE_Y = 50; // lifts the fighters above the card hand at the bottom of the screen
@@ -114,10 +146,13 @@ interface MonsterRig {
   death: string;
   flipX?: boolean;
   height: number; // approximate on-screen height in px, used to aim move VFX at heads/mouths
+  skin?: string;
+  offY?: number;
 }
 
-// Spine 4.2 monster rigs (public/assets/spine/monsters). They're authored facing right (or
-// front-on), so they're mirrored to face the knight. Only the current monster's rig is loaded.
+// Spine 4.2 monster rigs (public/assets/spine/monsters).
+// Rigs authored facing right are flipped (scale.x *= -1) by default to face the knight.
+// Rigs authored facing left have flipX: false to preserve their left-facing orientation.
 const MONSTER_DIR = '/assets/spine/monsters';
 const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   SLIME: {
@@ -193,6 +228,371 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
     hit: 'hurt',
     death: 'death',
     flipX: false, // wolf is authored facing left toward the knight
+  },
+  BAT: {
+    skeleton: `${MONSTER_DIR}/bat/CaveBat.json`,
+    atlas: `${MONSTER_DIR}/bat/CaveBat.atlas`,
+    scale: 0.038,
+    height: 40,
+    idle: 'idle',
+    attack: 'attack',
+    heavyAttack: 'attack',
+    hit: 'hurt',
+    death: 'death',
+    flipX: false, // authored facing left
+    skin: 'normal',
+    offY: -15, // float above ground
+  },
+  BONE_GOLEM: {
+    skeleton: `${MONSTER_DIR}/bone-golem/Boss_Swamp_golem.json`,
+    atlas: `${MONSTER_DIR}/bone-golem/Boss_Swamp_golem.atlas`,
+    scale: 0.058,
+    height: 68,
+    idle: 'Idle',
+    attack: 'Attack01',
+    heavyAttack: 'Attack01',
+    hit: 'Hit',
+    death: 'Dead',
+  },
+  CRYPT_LORD: {
+    skeleton: `${MONSTER_DIR}/crypt-lord/Lich.json`,
+    atlas: `${MONSTER_DIR}/crypt-lord/Lich.atlas`,
+    scale: 0.029,
+    height: 72,
+    idle: 'Idle',
+    attack: 'Attack01',
+    heavyAttack: 'Skill01',
+    hit: 'Hit',
+    death: 'Dead',
+  },
+  DARK_EMPEROR: {
+    skeleton: `${MONSTER_DIR}/dark-emperor/DeathKnight.json`,
+    atlas: `${MONSTER_DIR}/dark-emperor/DeathKnight.atlas`,
+    scale: 0.045,
+    height: 75,
+    idle: 'idle',
+    attack: 'pose_attack',
+    heavyAttack: 'pose_cast_spell',
+    hit: 'pose_hurt',
+    death: 'pose_death',
+    flipX: false, // authored facing left
+    skin: 'normal',
+  },
+  DARK_KNIGHT: {
+    skeleton: `${MONSTER_DIR}/dark-knight/Darkknight_monster05.json`,
+    atlas: `${MONSTER_DIR}/dark-knight/Darkknight_monster05.atlas`,
+    scale: 0.09,
+    height: 65,
+    idle: 'Idle',
+    attack: 'Attack01',
+    heavyAttack: 'Attack01',
+    hit: 'Hit',
+    death: 'Dead',
+  },
+  DARK_MAGE: {
+    skeleton: `${MONSTER_DIR}/dark-mage/Unit_Spine_BirdMageSpe1Skin1.json`,
+    atlas: `${MONSTER_DIR}/dark-mage/Unit_Spine_BirdMageSpe1Skin1.atlas`,
+    scale: 0.09,
+    height: 52,
+    idle: 'stand',
+    attack: 'attack',
+    heavyAttack: 'skill1',
+    hit: 'hurt',
+    death: 'death',
+  },
+  DEMON_ARCHBISHOP: {
+    skeleton: `${MONSTER_DIR}/demon-monk/Boss_Archbishop.json`,
+    atlas: `${MONSTER_DIR}/demon-monk/Boss_Archbishop.atlas`,
+    scale: 0.066,
+    height: 75,
+    idle: 'BOSS_Archbishop/001A_Idle',
+    attack: 'BOSS_Archbishop/003A_Attack_A',
+    heavyAttack: 'BOSS_Archbishop/003C_Attack_B',
+    hit: 'BOSS_Archbishop/001A_Idle',
+    death: 'BOSS_Archbishop/001A_Idle',
+    flipX: false, // authored facing left
+  },
+  ELDRITCH_HORROR: {
+    skeleton: `${MONSTER_DIR}/eldritch-horror/BS_Cthulhu.json`,
+    atlas: `${MONSTER_DIR}/eldritch-horror/BS_Cthulhu.atlas`,
+    scale: 0.024,
+    height: 80,
+    idle: 'idle',
+    attack: 'attack',
+    heavyAttack: 'bigat',
+    hit: '1Hit',
+    death: '1Hit',
+    flipX: false, // authored facing left
+  },
+  GARGOYLE: {
+    skeleton: `${MONSTER_DIR}/gargoyle/GargoyleEnemy.json`,
+    atlas: `${MONSTER_DIR}/gargoyle/GargoyleEnemy.atlas`,
+    scale: 0.016,
+    height: 65,
+    idle: 'move',
+    attack: 'attack',
+    heavyAttack: 'attack',
+    hit: 'damage',
+    death: 'death',
+  },
+  GHOST: {
+    skeleton: `${MONSTER_DIR}/ghost/ghost.json`,
+    atlas: `${MONSTER_DIR}/ghost/ghost.atlas`,
+    scale: 0.455,
+    height: 45,
+    idle: 'idle',
+    attack: 'attack_middle',
+    heavyAttack: 'attack_end',
+    hit: 'get_hit',
+    death: 'get_hit',
+  },
+  GIANT_SPIDER: {
+    skeleton: `${MONSTER_DIR}/giant-spider/spider_anim_85.json`,
+    atlas: `${MONSTER_DIR}/giant-spider/spider_anim_85.atlas`,
+    scale: 0.791,
+    height: 45,
+    idle: 'spider_anim_85_idle',
+    attack: 'spider_anim_85_idle',
+    heavyAttack: 'spider_anim_85_idle',
+    hit: 'spider_anim_85_idle',
+    death: 'spider_anim_85_idle',
+  },
+  GOBLIN: {
+    skeleton: `${MONSTER_DIR}/goblin/goblin.json`,
+    atlas: `${MONSTER_DIR}/goblin/goblin.atlas`,
+    scale: 0.039,
+    height: 50,
+    idle: 'Idle',
+    attack: 'Attack',
+    heavyAttack: 'Attack',
+    hit: 'Hit',
+    death: 'Dead',
+  },
+  GOLEM: {
+    skeleton: `${MONSTER_DIR}/golem/StoneGolem.json`,
+    atlas: `${MONSTER_DIR}/golem/StoneGolem.atlas`,
+    scale: 0.215,
+    height: 60,
+    idle: 'idle',
+    attack: 'atk',
+    heavyAttack: 'atk',
+    hit: 'idle',
+    death: 'die',
+    skin: 'i',
+  },
+  GRAVE_COLOSSUS: {
+    skeleton: `${MONSTER_DIR}/grave-colossus/zombie_CL_tank.json`,
+    atlas: `${MONSTER_DIR}/grave-colossus/zombie_CL_tank.atlas`,
+    scale: 0.258,
+    height: 65,
+    idle: 'idle',
+    attack: 'atk',
+    heavyAttack: 'atk',
+    hit: 'idle',
+    death: 'die',
+  },
+  HARPY: {
+    skeleton: `${MONSTER_DIR}/harpy/Harpy.json`,
+    atlas: `${MONSTER_DIR}/harpy/Harpy.atlas`,
+    scale: 0.8,
+    height: 55,
+    idle: 'Move',
+    attack: 'Attack_01',
+    heavyAttack: 'Attack_01',
+    hit: 'Move',
+    death: 'Die',
+    flipX: false, // authored facing left
+  },
+  INFERNO_TITAN: {
+    skeleton: `${MONSTER_DIR}/inferno-titan/Demogorgon.json`,
+    atlas: `${MONSTER_DIR}/inferno-titan/Demogorgon.atlas`,
+    scale: 0.143,
+    height: 75,
+    idle: '1_Ready',
+    attack: '3_Kill',
+    heavyAttack: '4_Summon',
+    hit: '1_Ready',
+    death: '1_Ready',
+  },
+  KRAKEN: {
+    skeleton: `${MONSTER_DIR}/abyssal-kraken/Octopus_Anim_01.json`,
+    atlas: `${MONSTER_DIR}/abyssal-kraken/Octopus_Anim_01.atlas`,
+    scale: 0.036,
+    height: 75,
+    idle: 'Idle',
+    attack: 'Action',
+    heavyAttack: 'Thirsty Action',
+    hit: 'Lose',
+    death: 'Lose2 Burn',
+    flipX: false, // authored facing left
+  },
+  LIZARDMAN: {
+    skeleton: `${MONSTER_DIR}/lizardman/lizardman.json`,
+    atlas: `${MONSTER_DIR}/lizardman/lizardman.atlas`,
+    scale: 0.089,
+    height: 58,
+    idle: 'Idle',
+    attack: 'Attack01',
+    heavyAttack: 'Attack01',
+    hit: 'Hit',
+    death: 'Dead',
+  },
+  MAGMA_DRAGON: {
+    skeleton: `${MONSTER_DIR}/magma-dragon/Mission_104_dragon.json`,
+    atlas: `${MONSTER_DIR}/magma-dragon/Mission_104_dragon.atlas`,
+    scale: 0.212,
+    height: 75,
+    idle: 'idle1',
+    attack: 'attack',
+    heavyAttack: 'attack',
+    hit: 'idle1',
+    death: 'idle1',
+  },
+  MINOTAUR: {
+    skeleton: `${MONSTER_DIR}/minotaur/BlackBullhead.json`,
+    atlas: `${MONSTER_DIR}/minotaur/BlackBullhead.atlas`,
+    scale: 0.42,
+    height: 65,
+    idle: 'idle',
+    attack: 'active1',
+    heavyAttack: 'quickly',
+    hit: 'idle',
+    death: 'idle',
+  },
+  MUSHROOM: {
+    skeleton: `${MONSTER_DIR}/mushroom-creature/M_Mushroom.json`,
+    atlas: `${MONSTER_DIR}/mushroom-creature/M_Mushroom.atlas`,
+    scale: 0.256,
+    height: 42,
+    idle: 'idle',
+    attack: 'action_1',
+    heavyAttack: 'action_1',
+    hit: 'idle',
+    death: 'idle',
+  },
+  NIGHTMARE_STAG: {
+    skeleton: `${MONSTER_DIR}/nightmare-stag/AnimalAnim5.json`,
+    atlas: `${MONSTER_DIR}/nightmare-stag/AnimalAnim5.atlas`,
+    scale: 0.293,
+    height: 60,
+    idle: 'body/idle',
+    attack: 'body/action1',
+    heavyAttack: 'body/action2',
+    hit: 'body/idle',
+    death: 'body/idle',
+  },
+  ORC: {
+    skeleton: `${MONSTER_DIR}/orc/orc_warrior.json`,
+    atlas: `${MONSTER_DIR}/orc/orc_warrior.atlas`,
+    scale: 0.048,
+    height: 60,
+    idle: 'Idle',
+    attack: 'Attack',
+    heavyAttack: 'Attack',
+    hit: 'Hit',
+    death: 'Dead',
+  },
+  SKELETON_ARCHER: {
+    skeleton: `${MONSTER_DIR}/skeleton-archer/skeleton.json`,
+    atlas: `${MONSTER_DIR}/skeleton-archer/skeleton.atlas`,
+    scale: 0.099,
+    height: 55,
+    idle: 'Idle',
+    attack: 'Attack1',
+    heavyAttack: 'Attack1',
+    hit: 'Hit',
+    death: 'Dead',
+  },
+  SKELETON_KNIGHT: {
+    skeleton: `${MONSTER_DIR}/skeleton-knight/title_knight_740.json`,
+    atlas: `${MONSTER_DIR}/skeleton-knight/title_knight_740.atlas`,
+    scale: 0.045,
+    height: 65,
+    idle: 'movement_ide',
+    attack: 'movement_ide',
+    heavyAttack: 'movement_ide',
+    hit: 'movement_ide',
+    death: 'movement_ide',
+  },
+  SKELETON_WARRIOR: {
+    skeleton: `${MONSTER_DIR}/skeleton-warrior/skeleton_worrior.json`,
+    atlas: `${MONSTER_DIR}/skeleton-warrior/skeleton_worrior.atlas`,
+    scale: 0.047,
+    height: 58,
+    idle: 'Idle',
+    attack: 'Attack',
+    heavyAttack: 'Attack',
+    hit: 'Hit',
+    death: 'Dead',
+  },
+  ANCIENT_TREANT: {
+    skeleton: `${MONSTER_DIR}/ancient-treant/Treant.json`,
+    atlas: `${MONSTER_DIR}/ancient-treant/Treant.atlas`,
+    scale: 0.682,
+    height: 70,
+    idle: 'Idle',
+    attack: 'Atk',
+    heavyAttack: 'Skill_A',
+    hit: 'Idle',
+    death: 'Dead',
+  },
+  TROLL: {
+    skeleton: `${MONSTER_DIR}/troll/troll_boss.json`,
+    atlas: `${MONSTER_DIR}/troll/troll_boss.atlas`,
+    scale: 0.055,
+    height: 72,
+    idle: 'Idle',
+    attack: 'Attack01',
+    heavyAttack: 'Attack01',
+    hit: 'Hit',
+    death: 'Dead',
+  },
+  VAULT_GUARDIAN: {
+    skeleton: `${MONSTER_DIR}/vault-guardian/BS_small_armormonster_Ani.json`,
+    atlas: `${MONSTER_DIR}/vault-guardian/BS_small_armormonster_Ani.atlas`,
+    scale: 0.114,
+    height: 62,
+    idle: 'idle',
+    attack: 'attack',
+    heavyAttack: 'attack',
+    hit: '1Hit',
+    death: '1Hit',
+  },
+  VOID_PROPHET: {
+    skeleton: `${MONSTER_DIR}/void-prophet/CultistFollower.json`,
+    atlas: `${MONSTER_DIR}/void-prophet/CultistFollower.atlas`,
+    scale: 0.048,
+    height: 64,
+    idle: 'idle',
+    attack: 'pose_attack',
+    heavyAttack: 'pose_cast_spell',
+    hit: 'pose_hurt',
+    death: 'pose_death',
+    flipX: false, // authored facing left
+    skin: 'normal',
+  },
+  WATER_ELEMENTAL: {
+    skeleton: `${MONSTER_DIR}/water-elemental/water_elemental.json`,
+    atlas: `${MONSTER_DIR}/water-elemental/water_elemental.atlas`,
+    scale: 0.101,
+    height: 60,
+    idle: 'Idle',
+    attack: 'Attack01',
+    heavyAttack: 'Attack01',
+    hit: 'Hit',
+    death: 'Dead',
+    flipX: false, // authored facing left
+  },
+  WRAITH: {
+    skeleton: `${MONSTER_DIR}/wraith/specter.json`,
+    atlas: `${MONSTER_DIR}/wraith/specter.atlas`,
+    scale: 0.37,
+    height: 50,
+    idle: 'idle',
+    attack: 'attack',
+    heavyAttack: 'attack',
+    hit: 'idle',
+    death: 'idle',
   },
 };
 const MONSTER_X = 300;
@@ -762,13 +1162,8 @@ export class GameEngine {
     const coords = formations[count - 1];
 
     // Pick appropriate arena background
-    if (requestedTypes.includes('HELLHOUND')) {
-      void this.loadBackground(BATTLE_MAPS.VOLCANIC_FORGE);
-    } else if (requestedTypes.includes('TREEMON')) {
-      void this.loadBackground(BATTLE_MAPS.DARK_FOREST);
-    } else {
-      void this.loadBackground(BATTLE_MAPS.CATHEDRAL_CRYPT);
-    }
+    const bg = MONSTER_BACKGROUNDS[requestedTypes[0]] ?? BATTLE_MAPS.CATHEDRAL_CRYPT;
+    void this.loadBackground(bg);
 
     for (let i = 0; i < count; i++) {
       const type = requestedTypes[i];
@@ -826,6 +1221,20 @@ export class GameEngine {
       if (this.app) spine.ticker = this.app.ticker;
       if (rig.flipX !== false) {
         spine.scale.x *= -1; // face knight on the left
+      }
+      if (rig.skin) {
+        spine.skeleton.setSkinByName(rig.skin);
+        spine.skeleton.setSlotsToSetupPose();
+      } else if (!spine.skeleton.skin || spine.skeleton.skin.name === 'default') {
+        const skins = spine.skeleton.data.skins;
+        const nonDefault = skins.find((s) => s.name !== 'default');
+        if (nonDefault && (!spine.skeleton.skin || spine.skeleton.skin.attachments.length === 0)) {
+          spine.skeleton.setSkin(nonDefault);
+          spine.skeleton.setSlotsToSetupPose();
+        }
+      }
+      if (rig.offY) {
+        spine.y += rig.offY;
       }
 
       for (const page of Assets.get<TextureAtlas>(rig.atlas).pages) {
