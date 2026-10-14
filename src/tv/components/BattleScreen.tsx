@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { CombatCard, MonsterState, BattleState, MonsterIntent, MONSTER_CATALOG, ENCOUNTERS, EncounterTemplate } from '../../types/battle';
+import { CombatCard, MonsterState, BattleState, MonsterIntent, MONSTER_CATALOG, ENCOUNTERS, EncounterTemplate, CARD_CATALOG } from '../../types/battle';
 import { MOVESETS, rollIntent, createEncounterFromTemplate } from '../../shared/monsterMovesets';
 import { resolveCard, frontTarget } from '../../shared/combat';
 import { PLAYER_MAX_HP } from '../../shared/combatRules';
 import type { ImpactResult } from '../engine/monsterMoves';
 import { ExerciseType, RepTelemetry } from '../../types/game';
 import { CardDeckManager } from '../../shared/CardDeckManager';
+import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { audioManager } from '../../shared/AudioManager';
 import { GameEngine } from '../engine/GameEngine';
 import { useTVRemote } from '../hooks/useTVRemote';
@@ -30,6 +31,7 @@ import {
 interface BattleScreenProps {
   engineRef: React.RefObject<GameEngine | null>;
   isEngineReady?: boolean;
+  weaponId?: string; // equipped weapon: its spells join the deck
   onExitBattle: () => void;
   onBattleStateSync?: (state: {
     hand: CombatCard[];
@@ -42,11 +44,14 @@ interface BattleScreenProps {
 export const BattleScreen: React.FC<BattleScreenProps> = ({
   engineRef,
   isEngineReady,
+  weaponId,
   onExitBattle,
   onBattleStateSync,
 }) => {
   // Deck Manager initialized
-  const deckManagerRef = useRef<CardDeckManager>(new CardDeckManager());
+  const deckManagerRef = useRef<CardDeckManager>(new CardDeckManager(weaponId));
+  const weaponIdRef = useRef(weaponId);
+  weaponIdRef.current = weaponId;
 
   // Combat State
   const [playerHp, setPlayerHp] = useState<number>(PLAYER_MAX_HP);
@@ -335,7 +340,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     setPlayerBlock(0);
     setBattleStatus('FIGHTING');
     engineRef.current?.resetKnight?.();
-    deckManagerRef.current.initDeck();
+    deckManagerRef.current.initDeck(weaponIdRef.current);
     setHand(deckManagerRef.current.dealInitialHand());
   };
 
@@ -427,6 +432,16 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       moves: (slotIndex: number) => (MOVESETS[monstersRef.current[slotIndex]?.id] ?? []).map((t) => t.move),
       freeze: (on: boolean) => { atbFrozenRef.current = on; },
       focusCard: (index: number) => setFocusedCardIndex(Math.max(0, Math.min(hand.length - 1, index))),
+      // Deck contents (template ids) and the equipped weapon whose spells it carries
+      deck: () => ({ weaponId: weaponIdRef.current, cards: deckManagerRef.current.debugDeck() }),
+      // Puts a card (CARD_CATALOG or weapon spell templateId) in the hand and focuses it, ready to cast()
+      giveCard: (templateId: string) => {
+        const t = [...CARD_CATALOG, ...ALL_WEAPON_SPELLS].find((c) => c.templateId === templateId);
+        if (!t) throw new Error(`Unknown card "${templateId}"`);
+        const next = deckManagerRef.current.debugPutInHand(t);
+        setHand(next);
+        setFocusedCardIndex(next.findIndex((c) => c.templateId === templateId));
+      },
       flip: () => {
         setFocusedCardIndex(actionCardIndex);
         toggleFlip(hand[actionCardIndex]?.id);

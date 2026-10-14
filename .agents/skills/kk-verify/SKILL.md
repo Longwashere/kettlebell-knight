@@ -50,6 +50,11 @@ npm run shot -- encounter:solo_wolf idle "ksheet:6:ATTACK|SKILL"
 npm run shot -- encounter:solo_wolf idle kfilm:swing_cleave
 npm run shot -- "encounter:wolf,boar,slime" idle kfilm:halo_cyclone:16:3:0,1,2   # multi-target, hit order 0,1,2
 
+# Weapon spells: film one (preview equips its weapon), review all spell card art, cast one in a real battle
+npm run shot -- "encounter:wolf,boar,slime" idle kfilm:spell_event_horizon:12:8:0,1,2
+npm run shot -- spellart
+npm run shot -- "eval:__kk.call('equip','void_bell')" "encounter:wolf,boar,slime" freeze idle "eval:__kk.call('giveCard','spell_gravity_snap')" cast idle state
+
 # Card art and exercise technique poses as review sheets
 npm run shot -- cardart
 npm run shot -- guides:4

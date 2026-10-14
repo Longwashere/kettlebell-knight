@@ -11,6 +11,7 @@
 import type { RepTelemetry, ExerciseType } from '../../types/game';
 import { networkManager } from '../../shared/NetworkManager';
 import { CARD_CATALOG, MONSTER_CATALOG } from '../../types/battle';
+import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { MOVESETS } from '../../shared/monsterMovesets';
 import type { MoveTraceReport } from '../engine/moveTrace';
 import { VFX_NAMES } from '../engine/vfx';
@@ -533,20 +534,21 @@ const api = {
     return out.toDataURL('image/png');
   },
 
-  /** Every card illustration (cardArt.ts) in a 5-column grid at `scale`x, labelled. Returns a PNG data URL. */
-  async cardArtSheet(scale = 3): Promise<string> {
+  /** Every card illustration (cardArt.ts) in a 5-column grid at `scale`x, labelled; `spells` = the weapon spell cards. Returns a PNG data URL. */
+  async cardArtSheet(scale = 3, spells = false): Promise<string> {
+    const cards = spells ? ALL_WEAPON_SPELLS : CARD_CATALOG;
     const cols = 5;
     const w = CARD_ART_W * scale;
     const h = CARD_ART_H * scale + 14;
     const out = document.createElement('canvas');
     out.width = w * cols;
-    out.height = h * Math.ceil(CARD_CATALOG.length / cols);
+    out.height = h * Math.ceil(cards.length / cols);
     const ctx = out.getContext('2d')!;
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = '#0F0E17';
     ctx.fillRect(0, 0, out.width, out.height);
     ctx.font = '11px monospace';
-    for (const [i, card] of CARD_CATALOG.entries()) {
+    for (const [i, card] of cards.entries()) {
       const img = new Image();
       img.src = getCardArt(card.templateId);
       await img.decode();

@@ -33,6 +33,7 @@ export interface CombatCard {
   effectDesc: string;
   rarity: CardRarity;
   colorHex: string;
+  weaponId?: string; // weapon spell: granted by this equipped weapon (src/types/weaponSpells.ts)
   icon: string;
   /** Running totals of the reps' power/form, so the cast scales with the whole set, not the last rep. */
   powerSum?: number;

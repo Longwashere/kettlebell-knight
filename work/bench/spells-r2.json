@@ -1,0 +1,569 @@
+{
+  "idle": {
+    "avg": 0.59,
+    "p95": 1.8,
+    "max": 2.3
+  },
+  "moves": {
+    "spell_iron_pendulum": {
+      "avg": 1.24,
+      "p95": 2.7,
+      "max": 11.2,
+      "peakObjs": 36,
+      "over16": 0,
+      "over33": 0
+    },
+    "spell_caustic_deluge": {
+      "avg": 4.39,
+      "p95": 7.8,
+      "max": 237,
+      "peakObjs": 48,
+      "over16": 5,
+      "over33": 3
+    },
+    "spell_brood_sac": {
+      "avg": 2.15,
+      "p95": 4.7,
+      "max": 124.7,
+      "peakObjs": 25,
+      "over16": 1,
+      "over33": 1
+    },
+    "spell_requiem_censer": {
+      "avg": 2.66,
+      "p95": 7,
+      "max": 125.4,
+      "peakObjs": 54,
+      "over16": 1,
+      "over33": 1
+    },
+    "spell_brimstone_comet": {
+      "avg": 2.44,
+      "p95": 7.3,
+      "max": 123.1,
+      "peakObjs": 64,
+      "over16": 1,
+      "over33": 1
+    },
+    "spell_permafrost": {
+      "avg": 2.59,
+      "p95": 5.3,
+      "max": 69.3,
+      "peakObjs": 56,
+      "over16": 2,
+      "over33": 2
+    },
+    "spell_boulder_bowl": {
+      "avg": 2.42,
+      "p95": 4.8,
+      "max": 148.5,
+      "peakObjs": 60,
+      "over16": 2,
+      "over33": 1
+    },
+    "spell_abyssal_anchor": {
+      "avg": 2.3,
+      "p95": 7.6,
+      "max": 40.9,
+      "peakObjs": 61,
+      "over16": 2,
+      "over33": 1
+    },
+    "spell_maelstrom": {
+      "avg": 2.57,
+      "p95": 9.1,
+      "max": 17,
+      "peakObjs": 62,
+      "over16": 1,
+      "over33": 0
+    },
+    "spell_sunflare": {
+      "avg": 1,
+      "p95": 2.5,
+      "max": 4.9,
+      "peakObjs": 10,
+      "over16": 0,
+      "over33": 0
+    },
+    "spell_wyrmchain": {
+      "avg": 3.71,
+      "p95": 7.9,
+      "max": 183.9,
+      "peakObjs": 93,
+      "over16": 3,
+      "over33": 1
+    },
+    "spell_molten_meteor": {
+      "avg": 1.29,
+      "p95": 3.9,
+      "max": 11.7,
+      "peakObjs": 57,
+      "over16": 0,
+      "over33": 0
+    },
+    "spell_event_horizon": {
+      "avg": 2.55,
+      "p95": 6.2,
+      "max": 92.4,
+      "peakObjs": 30,
+      "over16": 2,
+      "over33": 2
+    },
+    "spell_gravity_well": {
+      "avg": 2.82,
+      "p95": 9.8,
+      "max": 143.7,
+      "peakObjs": 69,
+      "over16": 1,
+      "over33": 1
+    },
+    "spell_iron_toll": {
+      "avg": 2.91,
+      "p95": 15.6,
+      "max": 75.3,
+      "peakObjs": 19,
+      "over16": 6,
+      "over33": 2
+    },
+    "spell_spore_bloom": {
+      "avg": 2.67,
+      "p95": 10.8,
+      "max": 95.6,
+      "peakObjs": 49,
+      "over16": 3,
+      "over33": 1
+    },
+    "spell_talon_gale": {
+      "avg": 0.87,
+      "p95": 1.9,
+      "max": 6.1,
+      "peakObjs": 24,
+      "over16": 0,
+      "over33": 0
+    },
+    "spell_ironwood_grasp": {
+      "avg": 1.6,
+      "p95": 5.5,
+      "max": 32,
+      "peakObjs": 29,
+      "over16": 1,
+      "over33": 0
+    },
+    "spell_ley_fault": {
+      "avg": 2.09,
+      "p95": 4.8,
+      "max": 72.4,
+      "peakObjs": 45,
+      "over16": 3,
+      "over33": 2
+    },
+    "spell_all_seeing_gaze": {
+      "avg": 2.65,
+      "p95": 6.4,
+      "max": 27.1,
+      "peakObjs": 38,
+      "over16": 1,
+      "over33": 0
+    },
+    "spell_writhing_dark": {
+      "avg": 3.67,
+      "p95": 7.1,
+      "max": 177.6,
+      "peakObjs": 14,
+      "over16": 3,
+      "over33": 2
+    },
+    "spell_excalibur_decree": {
+      "avg": 1.14,
+      "p95": 2.6,
+      "max": 8.6,
+      "peakObjs": 37,
+      "over16": 0,
+      "over33": 0
+    },
+    "spell_dragon_breath": {
+      "avg": 2.57,
+      "p95": 7.5,
+      "max": 135.5,
+      "peakObjs": 41,
+      "over16": 2,
+      "over33": 1
+    },
+    "spell_wyrmheart_drive": {
+      "avg": 2.56,
+      "p95": 8.5,
+      "max": 146.4,
+      "peakObjs": 55,
+      "over16": 2,
+      "over33": 1
+    },
+    "spell_fallen_star": {
+      "avg": 2.55,
+      "p95": 8.2,
+      "max": 109.6,
+      "peakObjs": 51,
+      "over16": 2,
+      "over33": 2
+    },
+    "spell_gravity_snap": {
+      "avg": 2.57,
+      "p95": 9.9,
+      "max": 75.1,
+      "peakObjs": 58,
+      "over16": 3,
+      "over33": 2
+    },
+    "spell_scrap_shrapnel": {
+      "avg": 1.44,
+      "p95": 2.4,
+      "max": 89.2,
+      "peakObjs": 31,
+      "over16": 1,
+      "over33": 1
+    },
+    "spell_flanged_crush": {
+      "avg": 2.16,
+      "p95": 5.4,
+      "max": 98.8,
+      "peakObjs": 41,
+      "over16": 3,
+      "over33": 1
+    },
+    "spell_ossuary_rattle": {
+      "avg": 1.73,
+      "p95": 10.7,
+      "max": 40.7,
+      "peakObjs": 24,
+      "over16": 2,
+      "over33": 1
+    },
+    "spell_gravestone_toll": {
+      "avg": 2.89,
+      "p95": 14.9,
+      "max": 55.2,
+      "peakObjs": 49,
+      "over16": 5,
+      "over33": 1
+    },
+    "spell_cathedral_toll": {
+      "avg": 2.15,
+      "p95": 4.9,
+      "max": 97.3,
+      "peakObjs": 7,
+      "over16": 1,
+      "over33": 1
+    },
+    "spell_basalt_fissure": {
+      "avg": 2.5,
+      "p95": 4.2,
+      "max": 153.6,
+      "peakObjs": 57,
+      "over16": 1,
+      "over33": 1
+    },
+    "spell_core_breach": {
+      "avg": 1.87,
+      "p95": 5.1,
+      "max": 43,
+      "peakObjs": 75,
+      "over16": 4,
+      "over33": 1
+    },
+    "spell_kettleburne_oath": {
+      "avg": 2.62,
+      "p95": 13.1,
+      "max": 92.6,
+      "peakObjs": 20,
+      "over16": 5,
+      "over33": 2
+    },
+    "spell_lunar_hunt": {
+      "avg": 2.56,
+      "p95": 3.8,
+      "max": 144.5,
+      "peakObjs": 9,
+      "over16": 2,
+      "over33": 1
+    },
+    "spell_tusk_gore": {
+      "avg": 2.18,
+      "p95": 5.4,
+      "max": 114.3,
+      "peakObjs": 25,
+      "over16": 2,
+      "over33": 1
+    },
+    "spell_labyrinth_execution": {
+      "avg": 2.58,
+      "p95": 10,
+      "max": 93.5,
+      "peakObjs": 37,
+      "over16": 3,
+      "over33": 1
+    },
+    "spell_dragonheart_rend": {
+      "avg": 2.52,
+      "p95": 8.2,
+      "max": 88.3,
+      "peakObjs": 19,
+      "over16": 2,
+      "over33": 2
+    },
+    "spell_scorched_earth": {
+      "avg": 3.13,
+      "p95": 11.9,
+      "max": 102.6,
+      "peakObjs": 17,
+      "over16": 4,
+      "over33": 2
+    },
+    "spell_severed_moment": {
+      "avg": 2.42,
+      "p95": 5.7,
+      "max": 135.4,
+      "peakObjs": 32,
+      "over16": 1,
+      "over33": 1
+    },
+    "spell_singularity_edge": {
+      "avg": 2.22,
+      "p95": 6.4,
+      "max": 47.7,
+      "peakObjs": 7,
+      "over16": 3,
+      "over33": 2
+    },
+    "swing_cleave": {
+      "avg": 1.96,
+      "p95": 1.8,
+      "max": 160.3,
+      "peakObjs": 18,
+      "over16": 1,
+      "over33": 1
+    },
+    "swing_whirlwind": {
+      "avg": 2.61,
+      "p95": 12.4,
+      "max": 39.6,
+      "peakObjs": 71,
+      "over16": 3,
+      "over33": 1
+    },
+    "swing_flow": {
+      "avg": 2.46,
+      "p95": 4.4,
+      "max": 148.9,
+      "peakObjs": 28,
+      "over16": 2,
+      "over33": 1
+    },
+    "squat_slam": {
+      "avg": 2.24,
+      "p95": 6.1,
+      "max": 100.3,
+      "peakObjs": 36,
+      "over16": 2,
+      "over33": 1
+    },
+    "squat_bastion": {
+      "avg": 2.53,
+      "p95": 8.6,
+      "max": 145,
+      "peakObjs": 25,
+      "over16": 1,
+      "over33": 1
+    },
+    "squat_earthquake": {
+      "avg": 1.4,
+      "p95": 3.2,
+      "max": 9.4,
+      "peakObjs": 96,
+      "over16": 0,
+      "over33": 0
+    },
+    "press_smite": {
+      "avg": 2.67,
+      "p95": 7.9,
+      "max": 167.4,
+      "peakObjs": 25,
+      "over16": 1,
+      "over33": 1
+    },
+    "press_judgement": {
+      "avg": 2.56,
+      "p95": 12.6,
+      "max": 43.5,
+      "peakObjs": 56,
+      "over16": 2,
+      "over33": 2
+    },
+    "press_sanctuary": {
+      "avg": 2.83,
+      "p95": 4.8,
+      "max": 141.4,
+      "peakObjs": 55,
+      "over16": 2,
+      "over33": 2
+    },
+    "clean_breaker": {
+      "avg": 2.15,
+      "p95": 3.7,
+      "max": 113.9,
+      "peakObjs": 65,
+      "over16": 2,
+      "over33": 1
+    },
+    "clean_stormbreaker": {
+      "avg": 2.35,
+      "p95": 5.7,
+      "max": 102,
+      "peakObjs": 49,
+      "over16": 2,
+      "over33": 2
+    },
+    "snatch_phoenix": {
+      "avg": 2.53,
+      "p95": 6,
+      "max": 158,
+      "peakObjs": 64,
+      "over16": 1,
+      "over33": 1
+    },
+    "snatch_solar": {
+      "avg": 2.54,
+      "p95": 5.4,
+      "max": 121.1,
+      "peakObjs": 79,
+      "over16": 2,
+      "over33": 2
+    },
+    "windmill_astral": {
+      "avg": 1.91,
+      "p95": 7,
+      "max": 37.1,
+      "peakObjs": 28,
+      "over16": 3,
+      "over33": 1
+    },
+    "windmill_cosmic": {
+      "avg": 2.61,
+      "p95": 7,
+      "max": 106.5,
+      "peakObjs": 54,
+      "over16": 3,
+      "over33": 1
+    },
+    "deadlift_colossus": {
+      "avg": 2.29,
+      "p95": 6.6,
+      "max": 117.1,
+      "peakObjs": 41,
+      "over16": 2,
+      "over33": 1
+    },
+    "deadlift_sunder": {
+      "avg": 2.52,
+      "p95": 7,
+      "max": 99.2,
+      "peakObjs": 179,
+      "over16": 3,
+      "over33": 1
+    },
+    "thruster_eruption": {
+      "avg": 2.72,
+      "p95": 7.2,
+      "max": 172.3,
+      "peakObjs": 90,
+      "over16": 1,
+      "over33": 1
+    },
+    "thruster_supernova": {
+      "avg": 2.29,
+      "p95": 11.8,
+      "max": 38.4,
+      "peakObjs": 73,
+      "over16": 4,
+      "over33": 1
+    },
+    "row_beast_maw": {
+      "avg": 2.64,
+      "p95": 11.9,
+      "max": 148.1,
+      "peakObjs": 26,
+      "over16": 2,
+      "over33": 1
+    },
+    "row_shadow_ripper": {
+      "avg": 1.99,
+      "p95": 4.4,
+      "max": 109.9,
+      "peakObjs": 44,
+      "over16": 1,
+      "over33": 1
+    },
+    "halo_barrier": {
+      "avg": 2.5,
+      "p95": 8.4,
+      "max": 137.7,
+      "peakObjs": 29,
+      "over16": 2,
+      "over33": 1
+    },
+    "halo_vortex": {
+      "avg": 2.62,
+      "p95": 6.7,
+      "max": 110.5,
+      "peakObjs": 68,
+      "over16": 2,
+      "over33": 1
+    },
+    "rdl_valkyrie": {
+      "avg": 2.25,
+      "p95": 6.6,
+      "max": 138.1,
+      "peakObjs": 29,
+      "over16": 1,
+      "over33": 1
+    },
+    "rdl_crane": {
+      "avg": 1.8,
+      "p95": 3,
+      "max": 102.5,
+      "peakObjs": 42,
+      "over16": 1,
+      "over33": 1
+    },
+    "clean_uppercut": {
+      "avg": 1.26,
+      "p95": 2,
+      "max": 61.3,
+      "peakObjs": 19,
+      "over16": 1,
+      "over33": 1
+    },
+    "clean_ricochet": {
+      "avg": 2.69,
+      "p95": 14.5,
+      "max": 37,
+      "peakObjs": 38,
+      "over16": 5,
+      "over33": 2
+    },
+    "lunge_lancer": {
+      "avg": 2.2,
+      "p95": 4.6,
+      "max": 124.8,
+      "peakObjs": 42,
+      "over16": 1,
+      "over33": 1
+    },
+    "lunge_vanguard": {
+      "avg": 2.92,
+      "p95": 7.7,
+      "max": 156.1,
+      "peakObjs": 32,
+      "over16": 3,
+      "over33": 2
+    }
+  }
+}

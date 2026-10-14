@@ -153,6 +153,7 @@ const CardFront: React.FC<{ card: CombatCard; newPip?: number }> = ({ card, newP
       <div className="kk-card__art">
         <img src={art} alt="" className="pixelated" draggable={false} />
         {rarity.foil && <div className="kk-card__foil" />}
+        {card.weaponId && <div className="kk-card__spell">✦ Weapon Spell</div>}
       </div>
 
       <div className="kk-card__type">

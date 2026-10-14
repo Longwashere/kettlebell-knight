@@ -9,6 +9,8 @@
  * Display the result with `image-rendering: pixelated`.
  */
 
+import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
+
 export const CARD_ART_W = 96;
 export const CARD_ART_H = 52;
 const W = CARD_ART_W;
@@ -928,6 +930,215 @@ const SCENES: Record<string, Scene> = {
     },
   },
 };
+
+// ---------------------------------------------------------------------------------------------
+// Weapon spell cards (src/types/weaponSpells.ts): the granting weapon's silhouette, tinted in the
+// spell's colours, over a sky and effect that match its element.
+
+type Family = 'flail' | 'bell' | 'mace' | 'sword';
+type SpellFx = 'flames' | 'bolts' | 'sparks' | 'spiral' | 'shards' | 'drips' | 'beam' | 'rings' | 'wings' | 'eye' | 'rocks' | 'tentacles' | 'skulls' | 'roots';
+
+/** Four-step ramp (shadow → highlight) from a card colour. */
+const tone = (c: number) => [mix(c, INK, 0.65), mix(c, INK, 0.3), c, mix(c, 0xFFFFFF, 0.55)];
+
+function flailMotif(m: Layer, c: number[], swing: number): void {
+  // Handle low-left, chain arcing up, spiked head top-right
+  m.line(18, 46, 26, 34, BARK[2], 3);
+  m.rect(16, 45, 5, 3, GOLD[2]);
+  const hx = 54 + Math.cos(swing) * 6;
+  const hy = 18 + Math.sin(swing) * 4;
+  for (let i = 0; i <= 10; i++) {
+    const t = i / 10;
+    const x = 26 + (hx - 26) * t;
+    const y = 34 + (hy - 34) * t - Math.sin(t * Math.PI) * 8;
+    m.disc(x, y, 1.2, i % 2 ? STEEL[2] : STEEL[1]);
+  }
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    m.line(hx + Math.cos(a) * 6, hy + Math.sin(a) * 6, hx + Math.cos(a) * 11, hy + Math.sin(a) * 11, c[3], 2);
+  }
+  m.disc(hx, hy, 8, c[1]);
+  m.disc(hx - 2, hy - 2, 4, c[2]);
+}
+
+function maceMotif(m: Layer, c: number[]): void {
+  m.line(22, 48, 46, 22, BARK[2], 3);
+  m.rect(20, 46, 4, 4, GOLD[2]);
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2 + 0.3;
+    m.poly([50 + Math.cos(a - 0.25) * 6, 18 + Math.sin(a - 0.25) * 6, 50 + Math.cos(a) * 14, 18 + Math.sin(a) * 14, 50 + Math.cos(a + 0.25) * 6, 18 + Math.sin(a + 0.25) * 6], c[2]);
+  }
+  m.disc(50, 18, 9, c[1]);
+  m.disc(48, 16, 4, c[3]);
+}
+
+function spellMotif(family: Family, m: Layer, c: number[], rng: Rng): void {
+  if (family === 'flail') flailMotif(m, c, rng() * 0.6);
+  else if (family === 'mace') maceMotif(m, c);
+  else if (family === 'sword') sword(m, 26, 44, -0.75, 46, [c[0], c[1], c[2], c[3]], GOLD);
+  else kettlebell(m, 48, 30, 12, c[1], c[2]);
+}
+
+function spellFx(kind: SpellFx, fx: Layer, rng: Rng, c: number[]): void {
+  const hot = [c[2], c[3], 0xFFFFFF];
+  switch (kind) {
+    case 'flames':
+      for (let i = 0; i < 5; i++) flame(fx, 14 + i * 17, 52, 14 + rng() * 12, 5 + rng() * 3, rng, [INK, c[1], c[2], c[3], 0xFFFBEA]);
+      sparks(fx, rng, 20, 8, 2, 80, 30, hot);
+      break;
+    case 'bolts':
+      bolt(fx, 70, 0, 60, 46, rng, [INK, c[2], c[3], 0xFFFFFF]);
+      bolt(fx, 20, 0, 30, 30, rng, [INK, c[2], c[3], 0xFFFFFF]);
+      sparks(fx, rng, 12, 50, 30, 30, 20, hot);
+      break;
+    case 'spiral':
+      spiral(fx, 66, 26, 22, 2.2, [c[3], c[2], c[1], c[0]], 3, 0.6);
+      sparks(fx, rng, 16, 40, 4, 50, 40, hot);
+      break;
+    case 'shards':
+      for (let i = 0; i < 9; i++) {
+        const x = 8 + rng() * 80;
+        const h = 6 + rng() * 14;
+        fx.poly([x - 3, 52, x, 52 - h, x + 3, 52], c[2]);
+        fx.line(x, 52 - h, x - 1, 50, c[3]);
+      }
+      sparks(fx, rng, 16, 10, 4, 76, 36, hot);
+      break;
+    case 'drips':
+      for (let i = 0; i < 10; i++) {
+        const x = 10 + rng() * 76;
+        const y = 4 + rng() * 40;
+        fx.disc(x, y, 1.5 + rng() * 1.5, c[2]);
+        fx.set(x - 1, y - 1, c[3]);
+      }
+      fx.rect(0, 48, 96, 4, c[1]);
+      break;
+    case 'beam':
+      for (let y = 0; y < 52; y++) {
+        const w = 3 + y * 0.12;
+        fx.line(68 - w, y, 68 + w, y, c[2]);
+        fx.line(68 - w * 0.45, y, 68 + w * 0.45, y, c[3]);
+      }
+      fx.line(68, 0, 68, 52, 0xFFFFFF);
+      sparks(fx, rng, 14, 52, 20, 32, 30, hot);
+      break;
+    case 'rings':
+      for (let r = 6; r < 40; r += 8) fx.ring(66, 26, r, r % 16 ? c[2] : c[3], 1);
+      sparks(fx, rng, 10, 40, 4, 50, 44, hot);
+      break;
+    case 'wings':
+      wings(fx, 66, 26, 22, 0.5, [c[3], c[2], c[1]]);
+      sparks(fx, rng, 14, 40, 4, 50, 40, hot);
+      break;
+    case 'eye':
+      fx.poly([50, 20, 66, 10, 82, 20, 66, 30], 0xF5E6D3);
+      fx.disc(66, 20, 6, c[2]);
+      fx.rect(65, 15, 2, 10, INK);
+      for (let k = 0; k < 6; k++) fx.line(66 + Math.cos(k) * 18, 20 + Math.sin(k) * 12, 66 + Math.cos(k) * 28, 20 + Math.sin(k) * 20, c[1], 2);
+      break;
+    case 'rocks':
+      for (let i = 0; i < 4; i++) {
+        const x = 52 + i * 11;
+        const h = 14 + rng() * 18;
+        fx.poly([x - 6, 52, x - 2, 52 - h, x + 4, 52 - h * 0.8, x + 6, 52], ROCK[1 + (i % 2)]);
+        fx.line(x - 1, 52, x, 52 - h * 0.8, c[2]);
+      }
+      sparks(fx, rng, 12, 48, 10, 40, 30, hot);
+      break;
+    case 'tentacles':
+      for (let k = 0; k < 4; k++) {
+        const x0 = 50 + k * 12;
+        for (let i = 0; i < 20; i++) {
+          const t = i / 20;
+          fx.disc(x0 + Math.sin(t * 5 + k) * 5, 52 - t * 36, 3 * (1 - t) + 0.8, i % 4 ? c[1] : c[2]);
+        }
+      }
+      break;
+    case 'skulls':
+      for (let i = 0; i < 4; i++) {
+        const x = 52 + i * 10;
+        const y = 12 + (i % 2) * 14;
+        fx.disc(x, y, 3.5, 0xE2E8F0);
+        fx.set(x - 1, y, INK);
+        fx.set(x + 1, y, INK);
+        fx.line(x - 8, y + 1, x - 4, y + 1, c[2]);
+      }
+      break;
+    case 'roots':
+      for (let k = 0; k < 4; k++) {
+        let x = 40 + k * 12;
+        for (let y = 52; y > 20; y -= 2) {
+          x += (rng() - 0.5) * 3;
+          fx.disc(x, y, 1.6, k % 2 ? BARK[2] : c[1]);
+        }
+      }
+      sparks(fx, rng, 10, 40, 10, 50, 30, hot);
+      break;
+    default:
+      sparks(fx, rng, 26, 30, 4, 60, 40, hot);
+  }
+}
+
+/** Per spell: sky, horizon and the element effect drawn over the weapon. */
+const SPELL_ART: Record<string, { sky: Sky; horizon: Horizon; fx: SpellFx; stars?: number }> = {
+  spell_iron_pendulum: { sky: 'steel', horizon: 'spires', fx: 'rings', stars: 10 },
+  spell_caustic_deluge: { sky: 'nature', horizon: 'forest', fx: 'drips' },
+  spell_brood_sac: { sky: 'shadow', horizon: 'forest', fx: 'sparks' },
+  spell_requiem_censer: { sky: 'storm', horizon: 'spires', fx: 'skulls', stars: 16 },
+  spell_brimstone_comet: { sky: 'fire', horizon: 'peaks', fx: 'flames' },
+  spell_permafrost: { sky: 'storm', horizon: 'peaks', fx: 'shards', stars: 12 },
+  spell_boulder_bowl: { sky: 'earth', horizon: 'hills', fx: 'rocks' },
+  spell_abyssal_anchor: { sky: 'water', horizon: 'none', fx: 'beam' },
+  spell_maelstrom: { sky: 'water', horizon: 'none', fx: 'tentacles' },
+  spell_sunflare: { sky: 'holy', horizon: 'hills', fx: 'beam' },
+  spell_wyrmchain: { sky: 'fire', horizon: 'peaks', fx: 'flames' },
+  spell_molten_meteor: { sky: 'fire', horizon: 'peaks', fx: 'rocks' },
+  spell_event_horizon: { sky: 'arcane', horizon: 'none', fx: 'spiral', stars: 24 },
+  spell_gravity_well: { sky: 'arcane', horizon: 'peaks', fx: 'rings', stars: 20 },
+  spell_iron_toll: { sky: 'steel', horizon: 'spires', fx: 'rings', stars: 8 },
+  spell_spore_bloom: { sky: 'nature', horizon: 'forest', fx: 'sparks' },
+  spell_talon_gale: { sky: 'dawn', horizon: 'peaks', fx: 'wings' },
+  spell_ironwood_grasp: { sky: 'nature', horizon: 'forest', fx: 'roots' },
+  spell_ley_fault: { sky: 'storm', horizon: 'hills', fx: 'rocks' },
+  spell_all_seeing_gaze: { sky: 'arcane', horizon: 'none', fx: 'eye', stars: 16 },
+  spell_writhing_dark: { sky: 'shadow', horizon: 'none', fx: 'tentacles', stars: 8 },
+  spell_excalibur_decree: { sky: 'holy', horizon: 'spires', fx: 'beam' },
+  spell_dragon_breath: { sky: 'fire', horizon: 'peaks', fx: 'flames' },
+  spell_wyrmheart_drive: { sky: 'fire', horizon: 'hills', fx: 'spiral' },
+  spell_fallen_star: { sky: 'arcane', horizon: 'peaks', fx: 'beam', stars: 30 },
+  spell_gravity_snap: { sky: 'arcane', horizon: 'hills', fx: 'rings', stars: 20 },
+  spell_scrap_shrapnel: { sky: 'earth', horizon: 'forest', fx: 'sparks' },
+  spell_flanged_crush: { sky: 'steel', horizon: 'spires', fx: 'shards', stars: 8 },
+  spell_ossuary_rattle: { sky: 'shadow', horizon: 'spires', fx: 'skulls', stars: 10 },
+  spell_gravestone_toll: { sky: 'shadow', horizon: 'spires', fx: 'rocks', stars: 12 },
+  spell_cathedral_toll: { sky: 'holy', horizon: 'spires', fx: 'rings' },
+  spell_basalt_fissure: { sky: 'fire', horizon: 'peaks', fx: 'beam' },
+  spell_core_breach: { sky: 'fire', horizon: 'hills', fx: 'flames' },
+  spell_kettleburne_oath: { sky: 'steel', horizon: 'spires', fx: 'sparks', stars: 10 },
+  spell_lunar_hunt: { sky: 'storm', horizon: 'forest', fx: 'sparks', stars: 20 },
+  spell_tusk_gore: { sky: 'dawn', horizon: 'forest', fx: 'shards' },
+  spell_labyrinth_execution: { sky: 'earth', horizon: 'spires', fx: 'beam' },
+  spell_dragonheart_rend: { sky: 'fire', horizon: 'peaks', fx: 'flames' },
+  spell_scorched_earth: { sky: 'fire', horizon: 'hills', fx: 'flames' },
+  spell_severed_moment: { sky: 'arcane', horizon: 'none', fx: 'rings', stars: 24 },
+  spell_singularity_edge: { sky: 'arcane', horizon: 'none', fx: 'spiral', stars: 24 },
+};
+
+for (const spell of ALL_WEAPON_SPELLS) {
+  const art = SPELL_ART[spell.templateId];
+  if (!art) continue;
+  const w = spell.weaponId ?? '';
+  const family: Family = w.includes('morningstar') ? 'flail' : w.includes('mace') ? 'mace' : w.includes('sword') ? 'sword' : 'bell';
+  const c = tone(parseInt(spell.colorHex.slice(1), 16));
+  SCENES[spell.templateId] = {
+    sky: art.sky,
+    horizon: art.horizon,
+    stars: art.stars,
+    glow: { x: 52, y: 24, r: 30, colors: [c[0], c[1], c[2]], strength: 0.8 },
+    motif: (m, rng) => spellMotif(family, m, c, rng),
+    fx: (fx, rng) => spellFx(art.fx, fx, rng, c),
+  };
+}
 
 const FALLBACK: Scene = {
   sky: 'steel', horizon: 'spires', stars: 12,

@@ -43,6 +43,7 @@
  *   kfilm:<id>[:n[:step[:slots]]]  film strip of a knight move (default 16 frames, every 3)
  *   guides[:scale]            sheet of every exercise guide pose (src/tv/components/exerciseGuide.ts)
  *   cardart[:scale]           sheet of every card illustration (src/tv/components/cardArt.ts)
+ *   spellart[:scale]          sheet of every weapon spell card illustration (src/types/weaponSpells.ts)
  *   state | textures          print __kk.state() / GPU texture stats as JSON
  *   eval:<js>                 evaluate an expression in the page (awaited) and print it
  *
@@ -418,6 +419,10 @@ async function runStep(step) {
     case 'guides': {
       const url = await kk(`__kk.guideSheet(${Number(arg) || 3})`);
       return save('exercise-guides', url.replace(/^data:image\/png;base64,/, ''));
+    }
+    case 'spellart': {
+      const url = await kk(`__kk.cardArtSheet(${Number(arg) || 3}, true)`);
+      return save('spell-art', url.replace(/^data:image\/png;base64,/, ''));
     }
     case 'cardart': {
       const url = await kk(`__kk.cardArtSheet(${Number(arg) || 3})`);

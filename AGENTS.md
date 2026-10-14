@@ -33,7 +33,8 @@ Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test
   for the first six monsters and the `MONSTER_MOVES` registry; the rest of the bestiary is in `engine/moves/*.ts`
   (grouped by theme), all built on the helpers in `engine/monsterKit.ts`;
   `engine/knightMoves.ts` does the same for knight attacks (one move per card templateId; VFX kit in `engine/fxKit.ts`,
-  shared primitives in `engine/choreo.ts`); `components/` are React
+  shared primitives in `engine/choreo.ts`, knight host + helpers in `engine/knightKit.ts`); `engine/spellMoves.ts` holds
+  the weapon spells' choreography; `components/` are React
   overlays (hub, battle, blacksmith, QR pairing); `hooks/useTVRemote.ts` handles D-pad/remote keys.
 - `src/phone/` — phone app. `utils/KinematicTracker.ts` is the per-exercise rep state machine (13 exercises);
   `utils/KnightArmorRenderer.ts` draws the knight overlay; `components/PhoneView.tsx` wires camera → tracker → network.
@@ -89,6 +90,17 @@ Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test
   screen and the simulator share all of it.
 - After any balance change run `npm run balance` and keep: single monsters ≥95% win in ~50–90s, pairs ~90%,
   trios 85–95%, boss trios ~65–80%, for the simulated average player.
+
+## Weapon spells
+
+Every weapon in `SHOP_ITEMS` grants 1 spell (legendaries 2), listed in `WEAPON_SPELLS` (src/types/weaponSpells.ts) and
+built with `designCard` like any card. `CardDeckManager` shuffles two copies of each into the deck of the equipped
+weapon. Each spell needs a choreography in `SPELL_MOVES` (src/tv/engine/spellMoves.ts) and art in `SPELL_ART`
+(src/tv/components/cardArt.ts). Moves follow the weapon's motion: morning stars whirl (`whirl()`) and hurl their head
+(hide the hand-held one with `h.weaponShown(false)`), bells drive and press, maces crush, swords cut. Anchor VFX to the
+real weapon head with `h.weaponTip()`. Check with `kfilm:<id>` (the preview swaps in the granting weapon), `spellart`,
+and `WEAPON=<id> npm run balance`: a weapon's deck should stay within a few points of `WEAPON=` (none). Keep spell reps
+at 4–6 so big single hits don't overkill.
 
 ## Monster moves
 

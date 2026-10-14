@@ -1,4 +1,5 @@
 import { CombatCard, CardTemplate, CARD_CATALOG } from '../types/battle';
+import { spellsForWeapon } from '../types/weaponSpells';
 import { ExerciseType } from '../types/game';
 
 /**
@@ -14,15 +15,18 @@ export class CardDeckManager {
   private discardPile: CombatCard[] = [];
   private idCounter: number = 0;
 
-  constructor() {
+  /** `weaponId` is the equipped weapon; its spells are shuffled into every deck built. */
+  constructor(private weaponId?: string) {
     this.initDeck();
     this.dealInitialHand();
   }
 
   /**
-   * Initializes a balanced 24-card combat deck from the catalog
+   * Initializes a balanced combat deck from the catalog, plus two copies of each spell the equipped
+   * weapon grants (src/types/weaponSpells.ts).
    */
-  public initDeck(): void {
+  public initDeck(weaponId: string | undefined = this.weaponId): void {
+    this.weaponId = weaponId;
     this.drawPile = [];
     this.hand = [];
     this.discardPile = [];
@@ -32,6 +36,7 @@ export class CardDeckManager {
     const deckTemplates: CardTemplate[] = [
       ...CARD_CATALOG,
       ...CARD_CATALOG.filter(c => c.rarity === 'common'), // Extra commons
+      ...spellsForWeapon(weaponId).flatMap((spell) => [spell, spell]),
     ];
 
     this.drawPile = deckTemplates.map(template => this.createCardInstance(template));
@@ -118,6 +123,18 @@ export class CardDeckManager {
     const [card] = this.drawPile.splice(candidateIndex, 1);
     card.currentReps = 0;
     return card;
+  }
+
+  /** Dev: template ids of every card in the deck (draw pile, hand and discard). */
+  public debugDeck(): string[] {
+    return [...this.drawPile, ...this.hand, ...this.discardPile].map((c) => c.templateId);
+  }
+
+  /** Dev: puts a fresh copy of `template` in the hand, replacing the card with the same exercise (else slot 0). */
+  public debugPutInHand(template: CardTemplate): CombatCard[] {
+    const i = Math.max(0, this.hand.findIndex((c) => c.exercise === template.exercise));
+    this.hand[i] = this.createCardInstance(template);
+    return [...this.hand];
   }
 
   public getHand(): CombatCard[] {

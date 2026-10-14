@@ -174,6 +174,13 @@ export const GameScreen: React.FC = () => {
     'screen',
     () => ({ view: currentView, net: netState, roomId, qrOpen: isQrModalOpen, sessionReps, highestPower, gold: playerGold }),
     {
+      // Equips a SHOP_ITEMS item for free (its slot's previous item is unequipped), e.g. equip('void_bell')
+      equip: (id: string) => {
+        const item = SHOP_ITEMS.find((si) => si.id === id);
+        if (!item) throw new Error(`Unknown item "${id}". Known: ${SHOP_ITEMS.map((si) => si.id).join(', ')}`);
+        setEquippedItems((prev) => new Set([...[...prev].filter((e) => SHOP_ITEMS.find((si) => si.id === e)?.slot !== item.slot), id]));
+        engineRef.current?.previewEquipment(item.slot, item.attachmentId);
+      },
       goto: (view: typeof currentView) => {
         setIsQrModalOpen(false);
         setCurrentView(view);
@@ -342,6 +349,7 @@ export const GameScreen: React.FC = () => {
         <BattleScreen
           engineRef={engineRef}
           isEngineReady={isEngineReady}
+          weaponId={SHOP_ITEMS.find((si) => si.slot === 'weapon' && equippedItems.has(si.id))?.id ?? 'iron_kettlebell'}
           onExitBattle={() => setCurrentView('HUB')}
         />
       ) : (

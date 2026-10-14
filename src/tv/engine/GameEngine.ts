@@ -1,11 +1,12 @@
 import { Application, Container, Graphics, Text, Assets, Sprite, Texture, Cache, Rectangle } from 'pixi.js';
-import { Spine, SpineTexture, EventTimeline } from '@esotericsoftware/spine-pixi-v8';
+import { Spine, SpineTexture, EventTimeline, RegionAttachment } from '@esotericsoftware/spine-pixi-v8';
 import type { TextureAtlas } from '@esotericsoftware/spine-core';
 import { audioManager } from '../../shared/AudioManager';
 import { ExerciseType, EXERCISE_SKILLS } from '../../types/game';
 import type { MonsterSprite, MonsterMoveId } from '../../types/battle';
 import { MONSTER_MOVES, type MoveHost, type ImpactResult } from './monsterMoves';
-import { Timeline, type EmitOptions } from './choreo';
+import { Timeline, lerp, type EmitOptions } from './choreo';
+import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { MoveTracer, type Box, type MoveTraceReport } from './moveTrace';
 import { VFX_RIGS, VFX_NAMES, type VfxName, type VfxOpts } from './vfx';
 import {
@@ -1911,6 +1912,12 @@ export class GameEngine {
         if (spine) spine.tint = color;
       },
       ghost: (color, alpha = 0.45, life = 10) => this.spawnKnightAfterimage(color, alpha, life),
+      weaponId: this.equippedSlots['weapon'] || this.equippedSlots['sword'] || 'iron_kettlebell',
+      weaponTip: () => this.knightWeaponTip() ?? { x: home.x + offX + 26, y: home.y + offY - liftH - 22 },
+      weaponShown: (shown) => {
+        const slot = spine?.skeleton.findSlot('sword');
+        if (slot) slot.color.a = shown ? 1 : 0;
+      },
       knock: (i, dx, lift = 0) => {
         const slot = targets[i] ? this.monsterSlots[targets[i].slot] : undefined;
         if (!slot || slot.isLocked) return;
@@ -1957,6 +1964,8 @@ export class GameEngine {
       if (shadow) shadow.alpha = 1;
       this.knightTimeScale = 1;
       if (spine && !spine.destroyed) {
+        const weaponSlot = spine.skeleton.findSlot('sword');
+        if (weaponSlot) weaponSlot.color.a = 1;
         spine.y = 0;
         spine.scale.set(restScale.x, restScale.y);
         spine.tint = 0xFFFFFF;
@@ -2014,6 +2023,39 @@ export class GameEngine {
         return true;
       },
     });
+  }
+
+  /**
+   * Battlefield position of the far end of the knight's weapon (bell, flail head or blade tip) on the
+   * current frame: the midpoint of the weapon attachment's edge farthest from the hand bone.
+   */
+  private knightWeaponTip(): { x: number; y: number } | null {
+    const spine = this.knightSpine;
+    const slot = spine?.skeleton.findSlot('sword');
+    const att = slot?.getAttachment();
+    if (!spine || !slot || !(att instanceof RegionAttachment) || !this.gameLayer) return null;
+    const v = new Float32Array(8);
+    att.computeWorldVertices(slot, v, 0, 2);
+    const bx = slot.bone.worldX;
+    const by = slot.bone.worldY;
+    let best = { x: 0, y: 0 };
+    let bestD = -1;
+    for (let i = 0; i < 4; i++) {
+      const j = (i + 1) % 4;
+      const mx = (v[i * 2] + v[j * 2]) / 2;
+      const my = (v[i * 2 + 1] + v[j * 2 + 1]) / 2;
+      const d = (mx - bx) ** 2 + (my - by) ** 2;
+      if (d > bestD) {
+        bestD = d;
+        best = { x: mx, y: my };
+      }
+    }
+    // Pull back from the very edge toward the weapon's centre, onto the head itself
+    const cx = (v[0] + v[2] + v[4] + v[6]) / 4;
+    const cy = (v[1] + v[3] + v[5] + v[7]) / 4;
+    const p = { x: lerp(best.x, cx, 0.3), y: lerp(best.y, cy, 0.3) };
+    spine.skeletonToPixiWorldCoordinates(p);
+    return this.gameLayer.toLocal(p);
   }
 
   /** Afterimage of the knight's current pose: a frozen rig copy (shares textures), additive-tinted and fading. */
@@ -2943,6 +2985,16 @@ export class GameEngine {
     });
   }
 
+  /** Puts a weapon's art on the knight's sword slot (no-op when the rig has no attachment for it). */
+  private showWeaponAttachment(weaponId: string): void {
+    const spine = this.knightSpine;
+    const slot = spine?.skeleton.findSlot('sword');
+    const att = spine?.skeleton.getAttachmentByName('sword', weaponId === 'knight_sword' ? 'sword' : weaponId);
+    if (slot && att) slot.setAttachment(att);
+    this.equippedSlots.weapon = weaponId;
+    this.equippedSlots.sword = weaponId;
+  }
+
   public debugKnightWeapon(name: string) {
     const spine = this.knightSpine;
     if (!spine) throw new Error('Knight rig not loaded');
@@ -3000,6 +3052,9 @@ export class GameEngine {
     if (!KNIGHT_MOVE_IDS.includes(id)) {
       throw new Error(`Unknown knight move "${id}". Known: ${KNIGHT_MOVE_IDS.join(', ')}`);
     }
+    // Weapon spells: the dev preview swaps the knight to the weapon that grants them
+    const spell = ALL_WEAPON_SPELLS.find((c) => c.templateId === id);
+    if (spell?.weaponId) this.showWeaponAttachment(spell.weaponId);
     const slots = targets ?? undefined;
     this.playKnightMove(id, {
       targets: slots,

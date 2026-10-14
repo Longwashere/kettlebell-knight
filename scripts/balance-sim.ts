@@ -31,6 +31,7 @@ const TIMEOUT = 360;
 const DMG = Number(process.env.DMG ?? 1);
 const HP = Number(process.env.HP ?? 1);
 const ENC = process.env.ENC ? process.env.ENC.split(',') : null;
+const WEAPON = process.env.WEAPON; // equipped weapon id: its spell cards join the deck (src/types/weaponSpells.ts)
 
 const gauss = () => {
   let u = 0;
@@ -49,7 +50,7 @@ interface Result {
 }
 
 function fight(encounterIndex: number): Result {
-  const deck = new CardDeckManager();
+  const deck = new CardDeckManager(WEAPON);
   let hand = deck.dealInitialHand();
   let monsters: MonsterState[] = createEncounterFromTemplate(ENCOUNTERS[encounterIndex]).map((m) => ({
     ...m,
