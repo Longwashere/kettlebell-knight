@@ -1,0 +1,147 @@
+{
+  "idle": {
+    "avg": 0.08,
+    "p95": 0.2,
+    "max": 0.9
+  },
+  "moves": {
+    "swing_cleave": {
+      "avg": 0.11,
+      "p95": 0.2,
+      "max": 0.8,
+      "peakObjs": 17
+    },
+    "swing_whirlwind": {
+      "avg": 0.1,
+      "p95": 0.2,
+      "max": 0.7,
+      "peakObjs": 28
+    },
+    "squat_ground_slam": {
+      "avg": 2.33,
+      "p95": 0.3,
+      "max": 255.6,
+      "peakObjs": 28
+    },
+    "squat_quake": {
+      "avg": 2.47,
+      "p95": 0.5,
+      "max": 242.6,
+      "peakObjs": 28
+    },
+    "press_shoulder_ram": {
+      "avg": 2.03,
+      "p95": 0.4,
+      "max": 220.7,
+      "peakObjs": 36
+    },
+    "press_cleaver": {
+      "avg": 3.05,
+      "p95": 0.6,
+      "max": 329.1,
+      "peakObjs": 36
+    },
+    "snatch_rising_slash": {
+      "avg": 3.3,
+      "p95": 0.5,
+      "max": 330.3,
+      "peakObjs": 30
+    },
+    "snatch_talon": {
+      "avg": 3.47,
+      "p95": 0.4,
+      "max": 384.7,
+      "peakObjs": 30
+    },
+    "windmill_parry": {
+      "avg": 4.36,
+      "p95": 0.4,
+      "max": 492.5,
+      "peakObjs": 22
+    },
+    "windmill_ward": {
+      "avg": 3.73,
+      "p95": 0.4,
+      "max": 413.5,
+      "peakObjs": 22
+    },
+    "deadlift_sunder": {
+      "avg": 0.43,
+      "p95": 0.4,
+      "max": 17.5,
+      "peakObjs": 40
+    },
+    "ohp_smite": {
+      "avg": 1.43,
+      "p95": 10.3,
+      "max": 32.3,
+      "peakObjs": 28
+    },
+    "ohp_pillar": {
+      "avg": 0.39,
+      "p95": 0.3,
+      "max": 25.5,
+      "peakObjs": 28
+    },
+    "thruster_coiled_slash": {
+      "avg": 3.17,
+      "p95": 0.3,
+      "max": 337.7,
+      "peakObjs": 30
+    },
+    "thruster_supernova": {
+      "avg": 3.23,
+      "p95": 0.8,
+      "max": 331.3,
+      "peakObjs": 30
+    },
+    "row_flurry": {
+      "avg": 3.83,
+      "p95": 26.4,
+      "max": 70.5,
+      "peakObjs": 37
+    },
+    "row_shadow": {
+      "avg": 3.64,
+      "p95": 0.3,
+      "max": 439.4,
+      "peakObjs": 37
+    },
+    "halo_cyclone": {
+      "avg": 3.75,
+      "p95": 0.4,
+      "max": 425.4,
+      "peakObjs": 26
+    },
+    "halo_vortex": {
+      "avg": 3.04,
+      "p95": 0.4,
+      "max": 326.1,
+      "peakObjs": 26
+    },
+    "rdl_needle_thrust": {
+      "avg": 3.34,
+      "p95": 0.4,
+      "max": 370.6,
+      "peakObjs": 24
+    },
+    "rdl_crane": {
+      "avg": 4.21,
+      "p95": 0.5,
+      "max": 435.8,
+      "peakObjs": 24
+    },
+    "clean_anvil_cleave": {
+      "avg": 3.95,
+      "p95": 0.5,
+      "max": 443.7,
+      "peakObjs": 26
+    },
+    "lunge_cross_dash": {
+      "avg": 3.35,
+      "p95": 21.8,
+      "max": 36.5,
+      "peakObjs": 24
+    }
+  }
+}

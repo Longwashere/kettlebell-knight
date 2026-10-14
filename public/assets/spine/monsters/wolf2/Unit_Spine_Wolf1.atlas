@@ -1,0 +1,52 @@
+Unit_Spine_Wolf1.png
+pma: false
+size:880,880
+filter:Linear,Linear
+Unit_Spine_Wolf2_1
+bounds:493,645,83,127
+offsets:0,8,83,127
+rotate: 90
+Unit_Spine_Wolf2_2
+bounds:265,645,66,111
+Unit_Spine_Wolf2_3
+bounds:668,645,78,103
+offsets:0,1,78,104
+rotate: 90
+Unit_Spine_Wolf2_4
+bounds:379,645,66,111
+Unit_Spine_Wolf2_5
+bounds:144,645,73,111
+offsets:1,1,74,111
+Unit_Spine_Wolf2_6
+bounds:779,411,66,124
+Unit_Spine_Wolf2_7
+bounds:647,411,84,126
+Unit_Spine_Wolf2_8
+bounds:311,411,75,143
+Unit_Spine_Wolf2_YZ
+bounds:0,0,363,95
+rotate: 90
+Unit_Spine_Wolf2_biyan
+bounds:175,411,146,88
+offsets:0,8,146,88
+rotate: 90
+Unit_Spine_Wolf2_body
+bounds:143,0,295,210
+offsets:0,0,255,160
+rotate: 90
+Unit_Spine_Wolf2_head
+bounds:401,0,214,191
+offsets:1,0,215,191
+rotate: 90
+Unit_Spine_Wolf2_mao
+bounds:640,0,189,214
+Unit_Spine_Wolf2_weiba
+bounds:434,411,165,128
+offsets:0,0,165,112
+Unit_Spine_Wolf2_yan1
+bounds:0,411,186,127
+offsets:20,-11,186,127
+rotate: 90
+Unit_Spine_Wolf2_zuiba
+bounds:0,645,117,96
+rotate: 90

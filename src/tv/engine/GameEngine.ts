@@ -7,7 +7,7 @@ import type { MonsterSprite, MonsterMoveId } from '../../types/battle';
 import { MONSTER_MOVES, type MoveHost, type ImpactResult } from './monsterMoves';
 import { Timeline, type EmitOptions } from './choreo';
 import {
-  KNIGHT_MOVES, KNIGHT_MOVE_IDS, knightMoveFor,
+  KNIGHT_MOVES, KNIGHT_MOVE_IDS, knightMoveFor, knightMoveCard,
   type KnightMoveId, type KnightMoveHost, type KnightMoveContext, type KnightTarget,
 } from './knightMoves';
 
@@ -99,7 +99,6 @@ const MONSTER_BACKGROUNDS: Record<MonsterSprite, string> = {
 // Lifts combatants + effects so they stand above the battle card hand (which covers the lower half).
 const SCENE_RAISE_Y = 50; // lifts the fighters above the card hand at the bottom of the screen
 let knightAssetRefs = 0; // engines currently holding the shared knight assets
-const KNIGHT_SWING_COMBO = ['ATTACK1', 'ATTACK2', 'ATTACK4'];
 const KNIGHT_HIT_REACTIONS = ['HIT1', 'HIT2', 'HIT3'];
 
 interface MonsterRig {
@@ -284,6 +283,9 @@ export interface MonsterSlot {
   shakeX: number;
   offX: number; // choreography displacement from base (monster moves)
   offY: number;
+  kickX: number; // knockback / launch from knight hits, decays back to 0
+  kickY: number;
+  flashFrames: number; // hit-flash tint countdown (knight hits)
   activeMove: { cancel: () => void } | null;
 }
 
@@ -303,7 +305,6 @@ export class GameEngine {
   // Visual Entities
   private knightContainer: Container | null = null;
   private knightSpine: Spine | null = null;
-  private attackComboIndex: number = 0;
   private hitReactionIndex: number = 0;
   private holdsKnightAssets: boolean = false;
   private knightLocked: boolean = false; // true while on a terminal pose (victory / defeat)
@@ -376,6 +377,8 @@ export class GameEngine {
   // Knight move choreography (knightMoves.ts)
   private activeKnightMove: { id: KnightMoveId; cancel: () => void } | null = null;
   private knightVictoryPending = false; // victory pose waits for the finishing blow's move to end
+  private knightShieldPending = false; // Block pulse requested during a move
+  private knightGuardShown = false; // the current move drew its own Block ward (guard())
   private knightTimeScale = 1; // Spine playback speed set by a move (hit-stop overrides it)
 
   // Dev automation (window.__kk): ready once init() finishes; loadsInFlight counts pending asset loads
@@ -797,6 +800,9 @@ export class GameEngine {
         shakeX: 0,
         offX: 0,
         offY: 0,
+        kickX: 0,
+        kickY: 0,
+        flashFrames: 0,
         activeMove: null,
       };
 
@@ -863,26 +869,6 @@ export class GameEngine {
     if (index >= 0 && index < this.monsterSlots.length) {
       this.targetSlotIndex = index;
     }
-  }
-
-  /**
-   * Returns the coordinates of the currently targeted alive monster (or first alive monster).
-   */
-  public getTargetMonsterPos(): { x: number; y: number } {
-    const slot = this.monsterSlots[this.targetSlotIndex] ?? this.monsterSlots.find(s => s.isAlive);
-    if (slot && slot.isAlive) {
-      return { x: slot.baseX, y: slot.baseY };
-    }
-    return { x: 300, y: 168 };
-  }
-
-  /**
-   * Returns positions of all alive monsters for AOE cleave attacks.
-   */
-  public getAllAliveMonsterPositions(): { x: number; y: number; slotIndex: number }[] {
-    return this.monsterSlots
-      .filter(s => s.isAlive && !s.isLocked)
-      .map(s => ({ x: s.baseX, y: s.baseY, slotIndex: s.slotIndex }));
   }
 
   /** Destroys all current monster slots and unloads their assets. */
@@ -1188,14 +1174,13 @@ export class GameEngine {
    * Plays a choreographed knight move (see knightMoves.ts) at `targets` (monster slot indices, in hit
    * order; defaults to the targeted monster). `onImpact(i)` runs when hit `i` lands; every hit lands
    * exactly once, even if the move is cut short. When a move lands all hits at once they are spaced
-   * `stagger` frames apart (CHAIN cards use a longer stagger). Moves without choreography fall back to
-   * the legacy `execute*` methods, with hits landing from ~8 frames in.
+   * `stagger` frames apart (CHAIN cards use a longer stagger).
    */
   public playKnightMove(
     id: KnightMoveId,
     opts: { targets?: number[]; ctx?: Partial<KnightMoveContext>; onImpact?: (i: number) => void; stagger?: number } = {},
   ): void {
-    const ctx: KnightMoveContext = { power: 100, form: 1, crit: false, damage: 0, ...opts.ctx };
+    const ctx: KnightMoveContext = { power: 100, form: 1, crit: false, damage: 0, ...knightMoveCard(id), ...opts.ctx };
     const defaultSlot = (this.monsterSlots[this.targetSlotIndex]?.isAlive ? this.monsterSlots[this.targetSlotIndex] : null)
       ?? this.monsterSlots.find((s) => s.isAlive);
     const targets: KnightTarget[] = (opts.targets ?? (defaultSlot ? [defaultSlot.slotIndex] : [])).map((i) => {
@@ -1222,16 +1207,7 @@ export class GameEngine {
     }
     this.activeKnightMove?.cancel();
 
-    const choreo = KNIGHT_MOVES[id];
-    if (!choreo) {
-      const restoreTarget = this.targetSlotIndex;
-      if (targets[0]) this.targetSlotIndex = targets[0].slot;
-      this.playLegacyKnightMove(id, ctx);
-      this.targetSlotIndex = restoreTarget;
-      tl.at(8, landStaggered); // legacy moves connect ~6 frames in
-      this.runKnightTimeline(id, tl, landAll);
-      return;
-    }
+    const choreo = KNIGHT_MOVES[id] ?? KNIGHT_MOVES.swing_cleave;
 
     const spine = this.knightSpine;
     const shadow = this.knightShadow;
@@ -1241,10 +1217,14 @@ export class GameEngine {
     const ground = new Container();
     ground.zIndex = -100; // decals: above the dim overlay, below the characters
     this.gameLayer.addChild(ground);
+    const back = new Container();
+    back.zIndex = -40; // behind the knight (wings, auras), above his afterimages
+    this.gameLayer.addChild(back);
     const dimmer = this.createDimmer();
     const restScale = spine ? { x: spine.scale.x, y: spine.scale.y } : { x: 1, y: 1 };
     let offX = 0;
     let offY = 0;
+    let liftH = 0;
     let stretchX = 1;
     let stretchY = 1;
     let facing = 1;
@@ -1255,9 +1235,9 @@ export class GameEngine {
       targets,
       target: targets[0] ?? { slot: -1, x: MONSTER_X, y: 168, height: 40 },
       ctx,
-      pos: () => ({ x: home.x + offX, y: home.y + offY }),
-      gfx: (layer = 'fx') => (layer === 'ground' ? ground : fx).addChild(new Graphics()),
-      container: (layer = 'fx') => (layer === 'ground' ? ground : fx).addChild(new Container()),
+      pos: () => ({ x: home.x + offX, y: home.y + offY - liftH }),
+      gfx: (layer = 'fx') => ({ fx, ground, back })[layer].addChild(new Graphics()),
+      container: (layer = 'fx') => ({ fx, ground, back })[layer].addChild(new Container()),
       anim: (name, loop = false) => {
         const animation = spine?.skeleton.data.findAnimation(name);
         if (!spine || !animation) {
@@ -1283,6 +1263,7 @@ export class GameEngine {
         knight.y = home.y + y;
       },
       lift: (height) => {
+        liftH = height;
         if (spine) spine.y = -height;
         const s = Math.max(0.3, 1 - height / 160);
         shadow?.scale.set(s);
@@ -1304,7 +1285,23 @@ export class GameEngine {
         if (spine) spine.tint = color;
       },
       ghost: (color, alpha = 0.45, life = 10) => this.spawnKnightAfterimage(color, alpha, life),
-      camera: (zoom, x, y, holdFrames) => this.moveCamera(zoom, x, y, holdFrames),
+      knock: (i, dx, lift = 0) => {
+        const slot = targets[i] ? this.monsterSlots[targets[i].slot] : undefined;
+        if (!slot || slot.isLocked) return;
+        slot.kickX += dx;
+        slot.kickY -= lift;
+      },
+      flashTarget: (i, color = 0xFF5555, frames = 6) => {
+        const slot = targets[i] ? this.monsterSlots[targets[i].slot] : undefined;
+        if (!slot?.spine || slot.spine.destroyed) return;
+        slot.spine.tint = color;
+        slot.flashFrames = frames;
+      },
+      guard: (color) => {
+        this.knightGuardShown = true;
+        this.drawGuardRing(color);
+      },
+      camera: (zoom, x, y, holdFrames, snap) => this.moveCamera(zoom, x, y, holdFrames, snap),
       shake: (intensity) => this.moveShake(intensity),
       flash: (alpha, color) => this.moveFlash(alpha, color),
       hitStop: (frames) => {
@@ -1343,6 +1340,7 @@ export class GameEngine {
       }
       fx.destroy({ children: true });
       ground.destroy({ children: true });
+      back.destroy({ children: true });
       dimmer.destroy();
     };
 
@@ -1366,6 +1364,10 @@ export class GameEngine {
         finished = true;
         if (this.activeKnightMove === handle) this.activeKnightMove = null;
         cleanup();
+        if (this.knightShieldPending && !this.activeKnightMove) {
+          this.knightShieldPending = false;
+          if (!this.knightGuardShown) this.playerShieldPulse();
+        }
         if (this.knightVictoryPending && !this.activeKnightMove) {
           this.knightVictoryPending = false;
           this.playKnightVictory();
@@ -1373,6 +1375,7 @@ export class GameEngine {
       },
     };
     this.activeKnightMove = handle;
+    this.knightGuardShown = false;
     this.activeEffects.push({
       container: new Container(),
       life: 0,
@@ -1383,36 +1386,6 @@ export class GameEngine {
         return true;
       },
     });
-  }
-
-  /** Pre-choreography knight attacks (GameEngine.execute*), kept until each is ported to knightMoves.ts. */
-  private playLegacyKnightMove(id: KnightMoveId, c: KnightMoveContext): void {
-    const p = [c.power, c.crit, c.damage] as const;
-    switch (id) {
-      case 'swing_cleave': return this.executePhysicalSlash(...p, false);
-      case 'swing_whirlwind': return this.executePhysicalSlash(...p, true);
-      case 'squat_ground_slam': return this.executeLeapingGroundSlam(...p, false);
-      case 'squat_quake': return this.executeLeapingGroundSlam(...p, true);
-      case 'press_shoulder_ram': return this.executeShoulderRamUppercut(...p, false);
-      case 'press_cleaver': return this.executeShoulderRamUppercut(...p, true);
-      case 'snatch_rising_slash': return this.executeRisingDragonSlash(...p, false);
-      case 'snatch_talon': return this.executeRisingDragonSlash(...p, true);
-      case 'windmill_parry': return this.executeParryCounterSlash(...p, false);
-      case 'windmill_ward': return this.executeParryCounterSlash(...p, true);
-      case 'deadlift_sunder': return this.executeGroundDragSunder(...p);
-      case 'ohp_smite': return this.executeSkywardSmitePlunge(...p, false);
-      case 'ohp_pillar': return this.executeSkywardSmitePlunge(...p, true);
-      case 'thruster_coiled_slash': return this.executeCoiledSupernovaSlash(...p, false);
-      case 'thruster_supernova': return this.executeCoiledSupernovaSlash(...p, true);
-      case 'row_flurry': return this.executeFrenziedHackingFlurry(...p, false);
-      case 'row_shadow': return this.executeFrenziedHackingFlurry(...p, true);
-      case 'halo_cyclone': return this.executeOrbitalCycloneSweep(...p, false);
-      case 'halo_vortex': return this.executeOrbitalCycloneSweep(...p, true);
-      case 'rdl_needle_thrust': return this.executeNeedleLungeThrust(...p, false);
-      case 'rdl_crane': return this.executeNeedleLungeThrust(...p, true);
-      case 'clean_anvil_cleave': return this.executeAnvilCrusherCleave(...p);
-      case 'lunge_cross_dash': return this.executePhantomCrossDash(...p);
-    }
   }
 
   /** Afterimage of the knight's current pose: a frozen rig copy (shares textures), additive-tinted and fading. */
@@ -1452,12 +1425,47 @@ export class GameEngine {
   }
 
   /** Move camera: battlefield → stage coords, clamped so the zoomed view stays over the background. */
-  private moveCamera(zoom: number, x: number, y: number, holdFrames: number): void {
+  private moveCamera(zoom: number, x: number, y: number, holdFrames: number, snap = false): void {
     const halfW = 213 / zoom;
     const halfH = 120 / zoom;
     const fx = Math.min(Math.max(x, halfW), 426 - halfW);
     const fy = Math.min(Math.max(y - SCENE_RAISE_Y, halfH - 32), 240 - halfH);
     this.triggerCameraZoom(zoom, fx, fy, holdFrames);
+    if (snap) {
+      // Hard cut (impact punch-in) instead of easing toward the framing
+      this.cameraZoom = zoom;
+      this.cameraFocusX = fx;
+      this.cameraFocusY = fy;
+    }
+  }
+
+  /** Block ward around the knight in a move's colour: a bright ring that swells and fades. */
+  private drawGuardRing(color: number): void {
+    const knight = this.knightContainer;
+    if (!knight || !this.effectsLayer) return;
+    const g = new Graphics();
+    this.effectsLayer.addChild(g);
+    this.activeEffects.push({
+      container: g,
+      life: 0,
+      maxLife: 22,
+      onUpdate: (eff) => {
+        const t = eff.life / 22;
+        const r = 22 + 14 * (1 - Math.pow(1 - t, 3));
+        const cx = knight.x + 2;
+        const cy = knight.y - 24;
+        g.clear();
+        g.ellipse(cx, cy, r, r * 1.08).stroke({ width: 4, color: 0x0F0E17, alpha: 0.6 * (1 - t) });
+        g.ellipse(cx, cy, r, r * 1.08).stroke({ width: 2, color, alpha: 0.95 * (1 - t) });
+        g.ellipse(cx, cy, r - 3, (r - 3) * 1.08).fill({ color, alpha: 0.12 * (1 - t) });
+        for (let k = 0; k < 6; k++) {
+          const a = (k / 6) * Math.PI * 2 + t * 1.5;
+          g.rect(cx + Math.cos(a) * r - 1, cy + Math.sin(a) * r * 1.08 - 1, 3, 3).fill({ color: 0xFFFBEA, alpha: 1 - t });
+        }
+        return false;
+      },
+    });
+    audioManager.play('equip');
   }
 
   private moveShake(intensity: number): void {
@@ -1567,6 +1575,11 @@ export class GameEngine {
    */
   public playerShieldPulse(): void {
     if (!this.effectsLayer || !this.knightContainer) return;
+    // During a knight move the Block shows when it ends (or not at all if the move drew its own guard())
+    if (this.activeKnightMove) {
+      this.knightShieldPending = true;
+      return;
+    }
 
     this.playKnightAnimation('DEFENSE');
 
@@ -1710,7 +1723,8 @@ export class GameEngine {
     exercise: ExerciseType = 'SWING',
     skillName?: string,
     displayDamage?: number, // the real damage dealt (battle); otherwise a showcase number from power/form
-    hits: { targets?: number[]; onImpact?: (i: number) => void; stagger?: number } = {}, // battle: slots hit, in order
+    // battle: the card's move (templateId), slots hit in order, Block/heal granted
+    hits: { move?: string; targets?: number[]; onImpact?: (i: number) => void; stagger?: number; ctx?: Partial<KnightMoveContext> } = {},
   ): void {
     this.totalRepsCount++;
     this.currentCombo++;
@@ -1719,9 +1733,10 @@ export class GameEngine {
     const isCrit = power >= 95;
     const damageNum = displayDamage ?? Math.round(power * form * 14);
     const name = skillName || EXERCISE_SKILLS[exercise]?.skillName || '';
-    this.playKnightMove(knightMoveFor(exercise, name), {
-      ...hits,
-      ctx: { power, form, crit: isCrit, damage: damageNum, skillName: name },
+    const { move, ctx, ...rest } = hits;
+    this.playKnightMove(knightMoveFor(exercise, name, move), {
+      ...rest,
+      ctx: { power, form, crit: isCrit, damage: damageNum, skillName: name, ...ctx },
     });
 
     // Form feedback text
@@ -1799,974 +1814,6 @@ export class GameEngine {
     setTimeout(() => {
       if (!this.isDestroyed) g.destroy();
     }, 100);
-  }
-
-  /**
-   * Helper: Spawns a fading motion afterimage silhouette of the knight during dashes/leaps
-   */
-  private spawnKnightGhost(x: number, y: number, tint: number, alpha: number = 0.45): void {
-    if (!this.effectsLayer) return;
-    const g = new Graphics();
-    g.roundRect(-12, -45, 24, 45, 4).fill({ color: tint, alpha });
-    g.rect(4, -30, 14, 20).fill({ color: tint, alpha: alpha * 0.8 });
-    g.x = x;
-    g.y = y;
-    this.effectsLayer.addChild(g);
-    setTimeout(() => {
-      if (!this.isDestroyed) g.destroy();
-    }, 130);
-  }
-
-  /**
-   * 1. SWING: Dash into melee range, brutal greatsword cleave / dragon whirlwind, camera punch zoom
-   */
-  private executePhysicalSlash(power: number, isCrit: boolean, damageNum: number, isWhirlwind: boolean): void {
-    if (!this.knightContainer || !this.effectsLayer) return;
-
-    this.playKnightAnimation(isWhirlwind ? 'ATTACK4' : KNIGHT_SWING_COMBO[this.attackComboIndex++ % KNIGHT_SWING_COMBO.length]);
-    this.triggerCameraZoom(isWhirlwind ? 1.28 : 1.22, 255, 125, 18);
-
-    const container = new Container();
-    const g = new Graphics();
-    container.addChild(g);
-    this.effectsLayer.addChild(container);
-
-    const startX = 130;
-    const clashX = 235;
-    let impactFired = false;
-
-    this.activeEffects.push({
-      container,
-      life: 0,
-      maxLife: 22,
-      onUpdate: (eff) => {
-        if (!this.knightContainer) return true;
-
-        if (eff.life <= 6) {
-          const forwardT = eff.life / 6;
-          this.knightContainer.x = startX + (clashX - startX) * forwardT;
-          if (eff.life % 2 === 0) {
-            this.spawnKnightGhost(this.knightContainer.x, 168, isWhirlwind ? 0xDC2626 : 0xF4B41A);
-          }
-        } else {
-          const backT = (eff.life - 6) / 16;
-          this.knightContainer.x = clashX - (clashX - startX) * backT;
-        }
-
-        if (eff.life >= 6 && !impactFired) {
-          impactFired = true;
-          g.clear();
-
-          if (isWhirlwind) {
-            this.drawPainterlySlashArc(g, clashX + 10, 125, 48, -Math.PI * 0.45, Math.PI * 0.45, 0x450A0A, 0xDC2626, 0xFDE047);
-            this.drawPainterlySlashArc(g, clashX + 25, 125, 38, Math.PI * 0.55, Math.PI * 1.45, 0x450A0A, 0xF97316, 0xFFFBEA);
-            this.spawnSparks(MONSTER_X, 125, 24, [0xDC2626, 0xF97316, 0xFBBF24, 0xFFFFFF]);
-          } else {
-            this.drawPainterlySlashArc(g, clashX + 15, 125, 45, -Math.PI * 0.35, Math.PI * 0.35, 0x78350F, 0xF59E0B, 0xFFFBEA);
-            this.spawnSparks(MONSTER_X, 125, isCrit ? 20 : 12, [0xF4B41A, 0xFFFBEA, 0xDC2626]);
-          }
-
-          this.spawnSpeedStreaks(clashX + 30, 125, 45, isWhirlwind ? [0xDC2626, 0xFBBF24] : [0xF4B41A, 0xFFFFFF]);
-          this.shakeIntensity = isCrit ? 12 : 9;
-          this.flashAlpha = isCrit ? 0.65 : 0.45;
-          this.spawnFloatingText(isWhirlwind ? `DRAGON WHIRLWIND! +${damageNum}` : (isCrit ? `CRIT CLEAVE! +${damageNum}` : `IRON CLEAVE! +${damageNum}`), MONSTER_X, 100, isWhirlwind ? 0xDC2626 : 0xF4B41A, isCrit ? 14 : 11);
-          audioManager.play(isCrit || isWhirlwind ? 'crit' : 'hit');
-          this.playMonsterHit();
-        }
-
-        if (eff.life > 10) {
-          g.clear();
-        }
-
-        return eff.life >= 22;
-      },
-      onDestroy: () => {
-        if (this.knightContainer) {
-          this.knightContainer.x = startX;
-        }
-      },
-    });
-  }
-
-  /**
-   * 2. SQUAT: Vault high into air, downward greatsword ground plunge, erupting rock pillars, camera slam zoom
-   */
-  private executeLeapingGroundSlam(power: number, isCrit: boolean, damageNum: number, isQuake: boolean): void {
-    if (!this.knightContainer || !this.effectsLayer) return;
-
-    this.playKnightAnimation('ATTACK3');
-    this.triggerCameraZoom(1.34, 255, 130, 22);
-
-    const container = new Container();
-    const g = new Graphics();
-    container.addChild(g);
-    this.effectsLayer.addChild(container);
-
-    const startX = 130;
-    const landX = 240;
-    const peakHeight = 85;
-    let impactFired = false;
-    const accentColor = isQuake ? 0xA855F7 : 0xC49A45;
-    const shadowColor = isQuake ? 0x3B0764 : 0x451A03;
-
-    this.activeEffects.push({
-      container,
-      life: 0,
-      maxLife: 28,
-      onUpdate: (eff) => {
-        if (!this.knightContainer) return true;
-
-        if (eff.life <= 10) {
-          const t = eff.life / 10;
-          this.knightContainer.x = startX + (landX - startX) * t;
-          const arc = Math.sin(t * Math.PI) * peakHeight;
-          this.knightContainer.y = 168 - arc;
-          if (eff.life % 2 === 0) {
-            this.spawnKnightGhost(this.knightContainer.x, this.knightContainer.y, accentColor, 0.4);
-          }
-        } else {
-          this.knightContainer.y = 168;
-          const backT = (eff.life - 10) / 18;
-          this.knightContainer.x = landX - (landX - startX) * backT;
-        }
-
-        if (eff.life >= 10 && !impactFired) {
-          impactFired = true;
-          g.clear();
-
-          this.drawPainterlySlashArc(g, landX + 10, 160, 52, Math.PI * 0.1, Math.PI * 0.9, shadowColor, accentColor, 0xFFFFFF);
-          this.spawnShockwave(MONSTER_X, 168, accentColor);
-          this.spawnSparks(MONSTER_X, 155, 26, isQuake ? [0xA855F7, 0xC084FC, 0xFFFFFF] : [0xC49A45, 0x5C2B14, 0xF59E0B, 0xFF3366]);
-
-          this.shakeIntensity = Math.min(16, 10 + (power / 20));
-          this.flashAlpha = 0.7;
-          this.spawnFloatingText(isQuake ? `COLOSSUS QUAKE! +${damageNum}` : `TITAN SLAM! +${damageNum}`, MONSTER_X, 90, accentColor, isCrit ? 14 : 12);
-          audioManager.play('crit');
-          this.playMonsterHit();
-        }
-
-        if (eff.life >= 10 && eff.life <= 22) {
-          const spikeProgress = Math.min(1, (eff.life - 10) / 6);
-          const h = 45 * Math.sin(spikeProgress * Math.PI * 0.5);
-          const alpha = 1 - Math.max(0, (eff.life - 16) / 6);
-
-          g.clear();
-          g.moveTo(landX, 168).lineTo(MONSTER_X + 25, 168).stroke({ width: 3, color: accentColor, alpha });
-          g.poly([MONSTER_X - 10, 168, MONSTER_X, 168 - h, MONSTER_X + 10, 168])
-            .fill({ color: accentColor, alpha })
-            .stroke({ width: 2, color: shadowColor, alpha });
-          g.poly([MONSTER_X - 26, 168, MONSTER_X - 18, 168 - h * 0.7, MONSTER_X - 10, 168])
-            .fill({ color: accentColor, alpha })
-            .stroke({ width: 2, color: shadowColor, alpha });
-          g.poly([MONSTER_X + 8, 168, MONSTER_X + 18, 168 - h * 0.75, MONSTER_X + 28, 168])
-            .fill({ color: accentColor, alpha })
-            .stroke({ width: 2, color: shadowColor, alpha });
-        } else if (eff.life > 22) {
-          g.clear();
-        }
-
-        return eff.life >= 28;
-      },
-      onDestroy: () => {
-        if (this.knightContainer) {
-          this.knightContainer.x = startX;
-          this.knightContainer.y = 168;
-        }
-      },
-    });
-  }
-
-  /**
-   * 3. CLEAN & PRESS: Kinetic sprint shoulder ram into explosive rising electric greatsword uppercut
-   */
-  private executeShoulderRamUppercut(power: number, isCrit: boolean, damageNum: number, isCleaver: boolean): void {
-    if (!this.knightContainer || !this.effectsLayer) return;
-
-    this.playKnightAnimation('DASH');
-    this.triggerCameraZoom(1.26, 255, 125, 18);
-
-    const container = new Container();
-    const g = new Graphics();
-    container.addChild(g);
-    this.effectsLayer.addChild(container);
-
-    const startX = 130;
-    const ramX = 245;
-    let ramFired = false;
-    let uppercutFired = false;
-
-    this.activeEffects.push({
-      container,
-      life: 0,
-      maxLife: 24,
-      onUpdate: (eff) => {
-        if (!this.knightContainer) return true;
-
-        if (eff.life <= 6) {
-          const t = eff.life / 6;
-          this.knightContainer.x = startX + (ramX - startX) * t;
-          this.spawnKnightGhost(this.knightContainer.x, 168, 0xF97316, 0.4);
-        } else {
-          const backT = (eff.life - 6) / 18;
-          this.knightContainer.x = ramX - (ramX - startX) * backT;
-        }
-
-        if (eff.life >= 6 && !ramFired) {
-          ramFired = true;
-          this.shakeIntensity = 8;
-          audioManager.play('hit');
-          this.spawnSparks(ramX + 15, 140, 10, [0xF97316, 0xFFFFFF]);
-        }
-
-        if (eff.life >= 8 && !uppercutFired) {
-          uppercutFired = true;
-          this.playKnightAnimation('SKILL2RADON');
-          g.clear();
-
-          this.drawPainterlySlashArc(g, ramX + 10, 130, 50, -Math.PI * 0.7, -Math.PI * 0.05, 0x0369A1, 0x38B6FF, 0xFFFFFF);
-
-          for (let b = 0; b < 3; b++) {
-            this.spawnLightningBolt(MONSTER_X + (b - 1) * 14, 125);
-          }
-
-          this.spawnSparks(MONSTER_X, 125, 24, [0x38B6FF, 0x80D4FF, 0xFFFFFF, 0xF97316]);
-          this.shakeIntensity = 13;
-          this.flashAlpha = 0.75;
-          this.spawnFloatingText(isCleaver ? `STORMBREAKER! +${damageNum}` : `STORM BREAKER! +${damageNum}`, MONSTER_X, 90, 0xF97316, isCrit ? 14 : 12);
-          audioManager.play('crit');
-          this.playMonsterHit();
-        }
-
-        if (eff.life > 14) {
-          g.clear();
-        }
-
-        return eff.life >= 24;
-      },
-      onDestroy: () => {
-        if (this.knightContainer) {
-          this.knightContainer.x = startX;
-          this.knightContainer.y = 168;
-        }
-      },
-    });
-  }
-
-  /**
-   * 4. SNATCH: Soaring rising spiral dragon slash with flaming wings, mid-air apex cleave
-   */
-  private executeRisingDragonSlash(power: number, isCrit: boolean, damageNum: number, isTalon: boolean): void {
-    if (!this.knightContainer || !this.effectsLayer) return;
-
-    this.playKnightAnimation('SKILL3TULUC');
-    this.triggerCameraZoom(1.30, 255, 95, 20);
-
-    const container = new Container();
-    const g = new Graphics();
-    container.addChild(g);
-    this.effectsLayer.addChild(container);
-
-    const startX = 130;
-    const apexX = 250;
-    const apexY = 80;
-    let apexFired = false;
-
-    this.activeEffects.push({
-      container,
-      life: 0,
-      maxLife: 26,
-      onUpdate: (eff) => {
-        if (!this.knightContainer) return true;
-
-        if (eff.life <= 9) {
-          const t = eff.life / 9;
-          this.knightContainer.x = startX + (apexX - startX) * t;
-          this.knightContainer.y = 168 - (168 - apexY) * Math.sin(t * Math.PI * 0.5);
-          this.spawnKnightGhost(this.knightContainer.x, this.knightContainer.y, 0xEF4444, 0.45);
-        } else if (eff.life <= 13) {
-          this.knightContainer.x = apexX;
-          this.knightContainer.y = apexY;
-        } else {
-          const tLand = (eff.life - 13) / 13;
-          this.knightContainer.y = apexY + (168 - apexY) * tLand;
-          this.knightContainer.x = apexX - (apexX - startX) * tLand;
-        }
-
-        if (eff.life >= 9 && !apexFired) {
-          apexFired = true;
-          this.playKnightAnimation('ATTACK4');
-          g.clear();
-
-          this.drawPainterlySlashArc(g, apexX + 15, apexY + 25, 52, Math.PI * 0.1, Math.PI * 0.95, 0x450A0A, 0xEF4444, 0xFDE047);
-          this.drawPainterlySlashArc(g, apexX + 5, apexY + 15, 38, -Math.PI * 0.8, -Math.PI * 0.1, 0x7C2D12, 0xF97316, 0xFFFBEA);
-
-          this.spawnShockwave(MONSTER_X, 125, 0xEF4444);
-          this.spawnSparks(MONSTER_X, 125, 28, [0xEF4444, 0xDC2626, 0xF59E0B, 0xFFFBEA]);
-          this.shakeIntensity = 13;
-          this.flashAlpha = 0.75;
-          this.spawnFloatingText(isTalon ? `SOLAR TALON! +${damageNum}` : `PHOENIX ASCENSION! +${damageNum}`, MONSTER_X, 85, 0xEF4444, isCrit ? 14 : 12);
-          audioManager.play('crit');
-          this.playMonsterHit();
-        }
-
-        if (eff.life > 15) {
-          g.clear();
-        }
-
-        return eff.life >= 26;
-      },
-      onDestroy: () => {
-        if (this.knightContainer) {
-          this.knightContainer.x = startX;
-          this.knightContainer.y = 168;
-        }
-      },
-    });
-  }
-
-  /**
-   * 5. WINDMILL: 360-degree broadsword deflection parry ring into lunging physical counter-thrust
-   */
-  private executeParryCounterSlash(power: number, isCrit: boolean, damageNum: number, isWard: boolean): void {
-    if (!this.knightContainer || !this.effectsLayer) return;
-
-    this.playKnightAnimation('DEFENSE');
-    this.triggerCameraZoom(1.20, 245, 125, 18);
-
-    const container = new Container();
-    const g = new Graphics();
-    container.addChild(g);
-    this.effectsLayer.addChild(container);
-
-    const startX = 130;
-    const lungeX = 235;
-    let parryFired = false;
-    let strikeFired = false;
-
-    this.activeEffects.push({
-      container,
-      life: 0,
-      maxLife: 24,
-      onUpdate: (eff) => {
-        if (!this.knightContainer) return true;
-
-        if (eff.life <= 5) {
-          this.knightContainer.x = startX + (180 - startX) * (eff.life / 5);
-        } else if (eff.life <= 9) {
-          const t = (eff.life - 5) / 4;
-          this.knightContainer.x = 180 + (lungeX - 180) * t;
-        } else {
-          const backT = (eff.life - 9) / 15;
-          this.knightContainer.x = lungeX - (lungeX - startX) * backT;
-        }
-
-        if (eff.life >= 4 && !parryFired) {
-          parryFired = true;
-          g.clear();
-          g.circle(180, 130, 32).stroke({ width: 3, color: 0x00EB88, alpha: 0.9 });
-          g.circle(180, 130, 26).stroke({ width: 2, color: 0x38B6FF, alpha: 0.7 });
-          audioManager.play('swing');
-        }
-
-        if (eff.life >= 9 && !strikeFired) {
-          strikeFired = true;
-          this.playKnightAnimation('ATTACK1');
-          g.clear();
-
-          this.drawPainterlySlashArc(g, lungeX + 15, 125, 42, -Math.PI * 0.3, Math.PI * 0.3, 0x064E3B, 0x00EB88, 0xFFFFFF);
-          this.spawnSpeedStreaks(lungeX + 30, 125, 40, [0x00EB88, 0x38B6FF]);
-          this.spawnSparks(MONSTER_X, 125, 20, [0x00EB88, 0x38B6FF, 0x6EE7B7, 0xFFFFFF]);
-          this.shakeIntensity = 9;
-          this.flashAlpha = 0.5;
-          this.spawnFloatingText(isWard ? `COSMIC WARD! +${damageNum}` : `ASTRAL SPIRE! +${damageNum}`, MONSTER_X, 95, 0x00EB88, isCrit ? 13 : 11);
-          audioManager.play('hit');
-          this.playMonsterHit();
-        }
-
-        if (eff.life > 14) {
-          g.clear();
-        }
-
-        return eff.life >= 24;
-      },
-      onDestroy: () => {
-        if (this.knightContainer) {
-          this.knightContainer.x = startX;
-          this.knightContainer.y = 168;
-        }
-      },
-    });
-  }
-
-  /**
-   * 6. DEADLIFT: Low-stance greatsword floor drag with grinding sparks, colossal upward earth sunder
-   */
-  private executeGroundDragSunder(power: number, isCrit: boolean, damageNum: number): void {
-    if (!this.knightContainer || !this.effectsLayer) return;
-
-    this.playKnightAnimation('DASH');
-    this.triggerCameraZoom(1.32, 255, 130, 22);
-
-    const container = new Container();
-    const g = new Graphics();
-    container.addChild(g);
-    this.effectsLayer.addChild(container);
-
-    const startX = 130;
-    const sunderX = 235;
-    let impactFired = false;
-
-    this.activeEffects.push({
-      container,
-      life: 0,
-      maxLife: 28,
-      onUpdate: (eff) => {
-        if (!this.knightContainer) return true;
-
-        if (eff.life <= 7) {
-          const t = eff.life / 7;
-          this.knightContainer.x = startX + (sunderX - startX) * t;
-          this.spawnSparks(this.knightContainer.x - 10, 168, 2, [0xF59E0B, 0xD97706, 0xFFFFFF]);
-        } else {
-          const backT = (eff.life - 7) / 21;
-          this.knightContainer.x = sunderX - (sunderX - startX) * backT;
-        }
-
-        if (eff.life >= 7 && !impactFired) {
-          impactFired = true;
-          this.playKnightAnimation('ATTACK5');
-          g.clear();
-
-          this.drawPainterlySlashArc(g, sunderX + 15, 140, 55, -Math.PI * 0.85, -Math.PI * 0.15, 0x451A03, 0xD97706, 0xFFFBEA);
-          this.spawnShockwave(MONSTER_X, 168, 0xD97706);
-          this.spawnSparks(MONSTER_X, 140, 26, [0xD97706, 0xF59E0B, 0x78350F, 0xC49A45]);
-          this.shakeIntensity = 16;
-          this.flashAlpha = 0.7;
-          this.spawnFloatingText(`MOUNTAIN SUNDER! +${damageNum}`, MONSTER_X, 85, 0xD97706, isCrit ? 14 : 12);
-          audioManager.play('crit');
-          this.playMonsterHit();
-        }
-
-        if (eff.life >= 7 && eff.life <= 20) {
-          const riseT = Math.min(1, (eff.life - 7) / 6);
-          const currentYRise = 55 * Math.sin(riseT * Math.PI * 0.5);
-          const alpha = 1 - Math.max(0, (eff.life - 14) / 6);
-
-          g.poly([
-            MONSTER_X - 22, 175,
-            MONSTER_X - 10, 175 - currentYRise,
-            MONSTER_X + 5, 175 - currentYRise * 0.9,
-            MONSTER_X + 12, 175
-          ]).fill({ color: 0xD97706, alpha }).stroke({ width: 2, color: 0x78350F, alpha });
-
-          g.poly([
-            MONSTER_X - 2, 175,
-            MONSTER_X + 14, 175 - currentYRise * 0.8,
-            MONSTER_X + 26, 175 - currentYRise * 0.7,
-            MONSTER_X + 22, 175
-          ]).fill({ color: 0xB45309, alpha }).stroke({ width: 2, color: 0x5C2B14, alpha });
-        } else if (eff.life > 20) {
-          g.clear();
-        }
-
-        return eff.life >= 28;
-      },
-      onDestroy: () => {
-        if (this.knightContainer) {
-          this.knightContainer.x = startX;
-          this.knightContainer.y = 168;
-        }
-      },
-    });
-  }
-
-  /**
-   * 7. OVERHEAD PRESS: Vault skyward brandishing broadsword, divine lightning pillar crash onto monster crown
-   */
-  private executeSkywardSmitePlunge(power: number, isCrit: boolean, damageNum: number, isPillar: boolean): void {
-    if (!this.knightContainer || !this.effectsLayer) return;
-
-    this.playKnightAnimation('SKILL1');
-    this.triggerCameraZoom(1.28, 255, 120, 20);
-
-    const container = new Container();
-    const g = new Graphics();
-    container.addChild(g);
-    this.effectsLayer.addChild(container);
-
-    const startX = 130;
-    const plungeX = 240;
-    let impactFired = false;
-    const beamColor = isPillar ? 0xFBBF24 : 0x38B6FF;
-
-    this.activeEffects.push({
-      container,
-      life: 0,
-      maxLife: 26,
-      onUpdate: (eff) => {
-        if (!this.knightContainer) return true;
-
-        if (eff.life <= 8) {
-          const t = eff.life / 8;
-          this.knightContainer.x = startX + (plungeX - startX) * t;
-          this.knightContainer.y = 168 - 65 * Math.sin(t * Math.PI * 0.5);
-        } else {
-          this.knightContainer.y = 168;
-          const backT = (eff.life - 8) / 18;
-          this.knightContainer.x = plungeX - (plungeX - startX) * backT;
-        }
-
-        if (eff.life >= 8 && !impactFired) {
-          impactFired = true;
-          this.playKnightAnimation('ATTACK3');
-          g.clear();
-
-          g.rect(MONSTER_X - 14, 0, 28, 170).fill({ color: beamColor, alpha: 0.65 });
-          g.rect(MONSTER_X - 5, 0, 10, 170).fill({ color: 0xFFFFFF, alpha: 0.95 });
-
-          g.moveTo(MONSTER_X, 0)
-            .lineTo(MONSTER_X - 8, 40)
-            .lineTo(MONSTER_X + 6, 85)
-            .lineTo(MONSTER_X - 4, 130)
-            .lineTo(MONSTER_X, 168)
-            .stroke({ width: 2, color: 0xFFFFFF, alpha: 0.9 });
-
-          this.drawPainterlySlashArc(g, plungeX + 15, 155, 48, Math.PI * 0.05, Math.PI * 0.95, 0x0369A1, beamColor, 0xFFFFFF);
-          this.spawnShockwave(MONSTER_X, 168, beamColor);
-          this.spawnSparks(MONSTER_X, 130, 26, [beamColor, 0xFFFFFF, 0x80D4FF]);
-          this.shakeIntensity = 14;
-          this.flashAlpha = 0.8;
-          this.spawnFloatingText(isPillar ? `HEAVENLY PILLAR! +${damageNum}` : `THUNDER SMITE! +${damageNum}`, MONSTER_X, 85, beamColor, isCrit ? 14 : 11);
-          audioManager.play('crit');
-          this.playMonsterHit();
-        }
-
-        if (eff.life > 14) {
-          g.clear();
-        }
-
-        return eff.life >= 26;
-      },
-      onDestroy: () => {
-        if (this.knightContainer) {
-          this.knightContainer.x = startX;
-          this.knightContainer.y = 168;
-        }
-      },
-    });
-  }
-
-  /**
-   * 8. THRUSTER: Coiled deep squat, explosive forward missile leap, molten supernova cleave wave
-   */
-  private executeCoiledSupernovaSlash(power: number, isCrit: boolean, damageNum: number, isSupernova: boolean): void {
-    if (!this.knightContainer || !this.effectsLayer) return;
-
-    this.playKnightAnimation('SKILL3RADON');
-    this.triggerCameraZoom(1.30, 255, 125, 20);
-
-    const container = new Container();
-    const g = new Graphics();
-    container.addChild(g);
-    this.effectsLayer.addChild(container);
-
-    const startX = 130;
-    const strikeX = 240;
-    let slashFired = false;
-
-    this.activeEffects.push({
-      container,
-      life: 0,
-      maxLife: 24,
-      onUpdate: (eff) => {
-        if (!this.knightContainer) return true;
-
-        if (eff.life <= 4) {
-          this.knightContainer.y = 168 + 5;
-        } else if (eff.life <= 8) {
-          const t = (eff.life - 4) / 4;
-          this.knightContainer.x = startX + (strikeX - startX) * t;
-          this.knightContainer.y = 168 - 18 * Math.sin(t * Math.PI);
-          this.spawnKnightGhost(this.knightContainer.x, this.knightContainer.y, 0xF59E0B, 0.45);
-        } else {
-          this.knightContainer.y = 168;
-          const backT = (eff.life - 8) / 16;
-          this.knightContainer.x = strikeX - (strikeX - startX) * backT;
-        }
-
-        if (eff.life >= 8 && !slashFired) {
-          slashFired = true;
-          g.clear();
-
-          this.drawPainterlySlashArc(g, strikeX + 10, 125, 52, -Math.PI * 0.45, Math.PI * 0.45, 0x7F1D1D, 0xF59E0B, 0xFFFBEA);
-          this.drawPainterlySlashArc(g, strikeX + 25, 125, 38, -Math.PI * 0.35, Math.PI * 0.35, 0x991B1B, 0xDC2626, 0xFDE047);
-
-          this.spawnShockwave(MONSTER_X, 125, 0xF59E0B);
-          this.spawnSparks(MONSTER_X, 125, 28, [0xF59E0B, 0xDC2626, 0xFFFBEA, 0xFDE047]);
-          this.shakeIntensity = 14;
-          this.flashAlpha = 0.75;
-          this.spawnFloatingText(isSupernova ? `SUPERNOVA SURGE! +${damageNum}` : `SOLAR ERUPTION! +${damageNum}`, MONSTER_X, 90, 0xF59E0B, isCrit ? 14 : 12);
-          audioManager.play('crit');
-          this.playMonsterHit();
-        }
-
-        if (eff.life > 14) {
-          g.clear();
-        }
-
-        return eff.life >= 24;
-      },
-      onDestroy: () => {
-        if (this.knightContainer) {
-          this.knightContainer.x = startX;
-          this.knightContainer.y = 168;
-        }
-      },
-    });
-  }
-
-  /**
-   * 9. GORILLA ROW: Point-blank 4-hit rapid hacking combo with close-up jittering camera
-   */
-  private executeFrenziedHackingFlurry(power: number, isCrit: boolean, damageNum: number, isShadow: boolean): void {
-    if (!this.knightContainer || !this.effectsLayer) return;
-
-    this.playKnightAnimation('SKILL2TULUC');
-    this.triggerCameraZoom(1.32, 260, 125, 24);
-
-    const container = new Container();
-    const g = new Graphics();
-    container.addChild(g);
-    this.effectsLayer.addChild(container);
-
-    const startX = 130;
-    const hackX = 245;
-    let hitCount = 0;
-    const clawColor = isShadow ? 0x65A30D : 0x84CC16;
-
-    this.activeEffects.push({
-      container,
-      life: 0,
-      maxLife: 26,
-      onUpdate: (eff) => {
-        if (!this.knightContainer) return true;
-
-        if (eff.life <= 4) {
-          this.knightContainer.x = startX + (hackX - startX) * (eff.life / 4);
-        } else if (eff.life <= 17) {
-          this.knightContainer.x = hackX + (Math.random() - 0.5) * 4;
-        } else {
-          const backT = (eff.life - 17) / 9;
-          this.knightContainer.x = hackX - (hackX - startX) * backT;
-        }
-
-        if (eff.life >= 5 && hitCount === 0) {
-          hitCount = 1;
-          g.clear();
-          this.drawPainterlySlashArc(g, hackX + 15, 115, 36, -Math.PI * 0.4, 0, 0x14532D, clawColor, 0xFFFFFF);
-          this.spawnSparks(MONSTER_X, 115, 8, [clawColor, 0xFFFFFF]);
-          this.shakeIntensity = 6;
-          audioManager.play('hit');
-          this.playMonsterHit();
-        } else if (eff.life >= 8 && hitCount === 1) {
-          hitCount = 2;
-          g.clear();
-          this.drawPainterlySlashArc(g, hackX + 15, 135, 36, 0, Math.PI * 0.45, 0x14532D, clawColor, 0xFFFFFF);
-          this.spawnSparks(MONSTER_X, 135, 8, [clawColor, 0xFFFFFF]);
-          this.shakeIntensity = 7;
-          audioManager.play('hit');
-          this.playMonsterHit();
-        } else if (eff.life >= 12 && hitCount === 2) {
-          hitCount = 3;
-          g.clear();
-          this.drawPainterlySlashArc(g, hackX + 20, 125, 42, -Math.PI * 0.5, Math.PI * 0.5, 0x052E16, clawColor, 0xFFFFFF);
-          g.moveTo(MONSTER_X - 18, 105).lineTo(MONSTER_X + 18, 145).stroke({ width: 3.5, color: clawColor });
-          g.moveTo(MONSTER_X - 18, 145).lineTo(MONSTER_X + 18, 105).stroke({ width: 3.5, color: clawColor });
-
-          this.spawnSparks(MONSTER_X, 125, 20, [clawColor, 0xBEF264, 0xFFFFFF]);
-          this.shakeIntensity = 12;
-          this.flashAlpha = 0.55;
-          this.spawnFloatingText(isShadow ? `SHADOW RIPPER! +${damageNum}` : `BEAST MAW! +${damageNum}`, MONSTER_X, 90, clawColor, isCrit ? 14 : 11);
-          audioManager.play('crit');
-          this.playMonsterHit();
-        }
-
-        if (eff.life > 16) {
-          g.clear();
-        }
-
-        return eff.life >= 26;
-      },
-      onDestroy: () => {
-        if (this.knightContainer) {
-          this.knightContainer.x = startX;
-          this.knightContainer.y = 168;
-        }
-      },
-    });
-  }
-
-  /**
-   * 10. HALO: Centrifugal 360-degree orbital greatsword cyclone slashing through monster twice
-   */
-  private executeOrbitalCycloneSweep(power: number, isCrit: boolean, damageNum: number, isVortex: boolean): void {
-    if (!this.knightContainer || !this.effectsLayer) return;
-
-    this.playKnightAnimation('ATTACK4');
-    this.triggerCameraZoom(1.22, 245, 125, 18);
-
-    const container = new Container();
-    const g = new Graphics();
-    container.addChild(g);
-    this.effectsLayer.addChild(container);
-
-    const startX = 130;
-    const sweepX = 230;
-    let sweepFired = false;
-
-    this.activeEffects.push({
-      container,
-      life: 0,
-      maxLife: 24,
-      onUpdate: (eff) => {
-        if (!this.knightContainer) return true;
-
-        if (eff.life <= 7) {
-          const t = eff.life / 7;
-          this.knightContainer.x = startX + (sweepX - startX) * t;
-        } else {
-          const backT = (eff.life - 7) / 17;
-          this.knightContainer.x = sweepX - (sweepX - startX) * backT;
-        }
-
-        if (eff.life >= 7 && !sweepFired) {
-          sweepFired = true;
-          g.clear();
-
-          this.drawPainterlySlashArc(g, sweepX + 20, 125, 50, -Math.PI * 0.6, Math.PI * 0.6, 0x3B0764, 0x818CF8, 0xFFFFFF);
-          this.drawPainterlySlashArc(g, sweepX + 10, 125, 38, Math.PI * 0.4, Math.PI * 1.6, 0x581C87, 0xC084FC, 0xFFFBEA);
-
-          this.spawnShockwave(MONSTER_X, 125, 0x818CF8);
-          this.spawnSparks(MONSTER_X, 125, 24, [0x818CF8, 0xC084FC, 0xE9D5FF, 0xFFFFFF]);
-          this.shakeIntensity = 10;
-          this.flashAlpha = 0.55;
-          this.spawnFloatingText(isVortex ? `ASTRAL VORTEX! +${damageNum}` : `CELESTIAL WARD! +${damageNum}`, MONSTER_X, 95, 0x818CF8, isCrit ? 14 : 11);
-          audioManager.play('crit');
-          this.playMonsterHit();
-        }
-
-        if (eff.life > 14) {
-          g.clear();
-        }
-
-        return eff.life >= 24;
-      },
-      onDestroy: () => {
-        if (this.knightContainer) {
-          this.knightContainer.x = startX;
-          this.knightContainer.y = 168;
-        }
-      },
-    });
-  }
-
-  /**
-   * 11. SINGLE-LEG RDL: Deep needle lunge thrust with speed lines and 8-ray starburst flash
-   */
-  private executeNeedleLungeThrust(power: number, isCrit: boolean, damageNum: number, isCrane: boolean): void {
-    if (!this.knightContainer || !this.effectsLayer) return;
-
-    this.playKnightAnimation('ATTACK1');
-    this.triggerCameraZoom(1.24, 255, 125, 16);
-
-    const container = new Container();
-    const g = new Graphics();
-    container.addChild(g);
-    this.effectsLayer.addChild(container);
-
-    const startX = 130;
-    const lungeX = 242;
-    let thrustFired = false;
-
-    this.activeEffects.push({
-      container,
-      life: 0,
-      maxLife: 20,
-      onUpdate: (eff) => {
-        if (!this.knightContainer) return true;
-
-        if (eff.life <= 5) {
-          const t = eff.life / 5;
-          this.knightContainer.x = startX + (lungeX - startX) * t;
-          this.spawnKnightGhost(this.knightContainer.x, 168, 0xEC4899, 0.4);
-        } else {
-          const backT = (eff.life - 5) / 15;
-          this.knightContainer.x = lungeX - (lungeX - startX) * backT;
-        }
-
-        if (eff.life >= 5 && !thrustFired) {
-          thrustFired = true;
-          g.clear();
-
-          this.spawnSpeedStreaks(lungeX + 15, 125, 55, [0xEC4899, 0xFFFFFF]);
-
-          for (let a = 0; a < 8; a++) {
-            const ang = (a * Math.PI) / 4;
-            g.moveTo(MONSTER_X, 125)
-              .lineTo(MONSTER_X + Math.cos(ang) * 25, 125 + Math.sin(ang) * 25)
-              .stroke({ width: 2, color: 0xEC4899, alpha: 0.9 });
-          }
-
-          this.spawnSparks(MONSTER_X, 125, 22, [0xEC4899, 0xF472B6, 0xFFFFFF]);
-          this.shakeIntensity = 10;
-          this.flashAlpha = 0.55;
-          this.spawnFloatingText(isCrane ? `CRANE STRIKE! +${damageNum}` : `VALKYRIE BALANCE! +${damageNum}`, MONSTER_X, 95, 0xEC4899, isCrit ? 14 : 11);
-          audioManager.play('crit');
-          this.playMonsterHit();
-        }
-
-        if (eff.life > 10) {
-          g.clear();
-        }
-
-        return eff.life >= 20;
-      },
-      onDestroy: () => {
-        if (this.knightContainer) {
-          this.knightContainer.x = startX;
-          this.knightContainer.y = 168;
-        }
-      },
-    });
-  }
-
-  /**
-   * 12. CLEAN: Stomping heavy stride, 10-ton overhead greatsword hack with concussive anvil ring
-   */
-  private executeAnvilCrusherCleave(power: number, isCrit: boolean, damageNum: number): void {
-    if (!this.knightContainer || !this.effectsLayer) return;
-
-    this.playKnightAnimation('ATTACK5');
-    this.triggerCameraZoom(1.28, 255, 130, 20);
-
-    const container = new Container();
-    const g = new Graphics();
-    container.addChild(g);
-    this.effectsLayer.addChild(container);
-
-    const startX = 130;
-    const cleaveX = 238;
-    let impactFired = false;
-
-    this.activeEffects.push({
-      container,
-      life: 0,
-      maxLife: 24,
-      onUpdate: (eff) => {
-        if (!this.knightContainer) return true;
-
-        if (eff.life <= 6) {
-          const t = eff.life / 6;
-          this.knightContainer.x = startX + (cleaveX - startX) * t;
-        } else {
-          const backT = (eff.life - 6) / 18;
-          this.knightContainer.x = cleaveX - (cleaveX - startX) * backT;
-        }
-
-        if (eff.life >= 6 && !impactFired) {
-          impactFired = true;
-          g.clear();
-
-          this.drawPainterlySlashArc(g, cleaveX + 15, 140, 52, Math.PI * 0.1, Math.PI * 0.9, 0x431407, 0xF97316, 0xFFFBEA);
-          this.spawnShockwave(MONSTER_X, 125, 0xF97316);
-          this.spawnSparks(MONSTER_X, 125, 24, [0xF97316, 0xF4B41A, 0x7584A6, 0xFFFFFF]);
-          this.shakeIntensity = 14;
-          this.flashAlpha = 0.65;
-          this.spawnFloatingText(`ANVIL BREAKER! +${damageNum}`, MONSTER_X, 90, 0xF97316, isCrit ? 14 : 11);
-          audioManager.play('hit');
-          this.playMonsterHit();
-        }
-
-        if (eff.life > 12) {
-          g.clear();
-        }
-
-        return eff.life >= 24;
-      },
-      onDestroy: () => {
-        if (this.knightContainer) {
-          this.knightContainer.x = startX;
-          this.knightContainer.y = 168;
-        }
-      },
-    });
-  }
-
-  /**
-   * 13. LUNGE: Supersonic phantom dash with 3 afterimages and high-speed cross cleave
-   */
-  private executePhantomCrossDash(power: number, isCrit: boolean, damageNum: number): void {
-    if (!this.knightContainer || !this.effectsLayer) return;
-
-    this.playKnightAnimation('DASH');
-    this.triggerCameraZoom(1.24, 255, 125, 18);
-
-    const container = new Container();
-    const g = new Graphics();
-    container.addChild(g);
-    this.effectsLayer.addChild(container);
-
-    const startX = 130;
-    const peakX = 245;
-    let impactFired = false;
-
-    this.activeEffects.push({
-      container,
-      life: 0,
-      maxLife: 22,
-      onUpdate: (eff) => {
-        if (!this.knightContainer) return true;
-
-        if (eff.life <= 6) {
-          const forwardT = eff.life / 6;
-          this.knightContainer.x = startX + (peakX - startX) * forwardT;
-          this.spawnKnightGhost(this.knightContainer.x, 168, 0xEC4899, 0.45);
-        } else {
-          const backT = (eff.life - 6) / 16;
-          this.knightContainer.x = peakX - (peakX - startX) * backT;
-          if (eff.life === 7) {
-            this.playKnightAnimation('DASH_BACK');
-          }
-        }
-
-        if (eff.life >= 6 && !impactFired) {
-          impactFired = true;
-          g.clear();
-
-          this.drawPainterlySlashArc(g, peakX + 15, 125, 48, -Math.PI * 0.4, Math.PI * 0.4, 0x831843, 0xEC4899, 0xFFFFFF);
-          this.drawPainterlySlashArc(g, peakX + 25, 125, 38, Math.PI * 0.6, Math.PI * 1.4, 0x0369A1, 0x38B6FF, 0xFFFFFF);
-
-          this.spawnSparks(MONSTER_X, 125, 22, [0xEC4899, 0x38B6FF, 0xFFFFFF]);
-          this.shakeIntensity = 11;
-          this.flashAlpha = 0.55;
-          this.spawnFloatingText(`VALKYRIE DASH! +${damageNum}`, MONSTER_X, 95, 0xEC4899, isCrit ? 14 : 11);
-          audioManager.play(isCrit ? 'crit' : 'hit');
-          this.playMonsterHit();
-        }
-
-        if (eff.life > 12) {
-          g.clear();
-        }
-
-        return eff.life >= 22;
-      },
-      onDestroy: () => {
-        if (this.knightContainer) {
-          this.knightContainer.x = startX;
-          this.knightContainer.y = 168;
-        }
-      },
-    });
   }
 
   /**
@@ -2910,6 +1957,7 @@ export class GameEngine {
         this.hitStopFrames -= delta;
         if (!this.spinesFrozen) this.setSpinesFrozen(true);
         if (this.rootStage && this.shakeIntensity > 0) {
+          this.rootStage.scale.set(this.cameraZoom); // a snapped camera cut can land during hit-stop
           this.rootStage.x = (213 - this.cameraFocusX * this.cameraZoom) + (Math.random() - 0.5) * this.shakeIntensity * 2;
           this.rootStage.y = (120 - this.cameraFocusY * this.cameraZoom) + (Math.random() - 0.5) * this.shakeIntensity * 2;
         }
@@ -2942,8 +1990,16 @@ export class GameEngine {
         }
         const lunge = Math.sin(slot.lungeT * Math.PI) * MONSTER_LUNGE_DISTANCE;
         const shake = (slot.slotIndex === this.targetSlotIndex ? enemyShakeX : 0) + slot.shakeX;
-        slot.container.x = slot.baseX - lunge + shake + slot.offX;
-        slot.container.y = slot.baseY + slot.offY;
+        slot.container.x = slot.baseX - lunge + shake + slot.offX + slot.kickX;
+        slot.container.y = slot.baseY + slot.offY + slot.kickY;
+        if (slot.kickX !== 0 || slot.kickY !== 0) {
+          slot.kickX = Math.abs(slot.kickX) > 0.3 ? slot.kickX * Math.pow(0.86, delta) : 0;
+          slot.kickY = Math.abs(slot.kickY) > 0.3 ? slot.kickY * Math.pow(0.88, delta) : 0; // launches hang a beat
+        }
+        if (slot.flashFrames > 0) {
+          slot.flashFrames -= delta;
+          if (slot.flashFrames <= 0 && slot.spine && !slot.spine.destroyed) slot.spine.tint = 0xFFFFFF;
+        }
         if (slot.shakeX !== 0) {
           slot.shakeX = slot.shakeX > 0 ? Math.max(0, slot.shakeX - delta) : Math.min(0, slot.shakeX + delta);
         }
@@ -3130,7 +2186,7 @@ export class GameEngine {
       this.cameraZoom === 1.0 &&
       (this.knightLocked || knightAnimation === null || knightAnimation === 'IDLE') &&
       this.monsterSlots.every((s, i) => s.isLocked || !s.spine || monsters[i].animation === s.rig?.idle) &&
-      this.monsterSlots.every((s) => s.lungeT >= 1 && s.shakeX === 0);
+      this.monsterSlots.every((s) => s.lungeT >= 1 && s.shakeX === 0 && s.kickX === 0 && s.kickY === 0);
 
     return {
       ready: this.isReady,
@@ -3211,9 +2267,9 @@ export class GameEngine {
     return { animations };
   }
 
-  /** Dev bridge: knight move ids, and whether each is choreographed (knightMoves.ts) or still legacy. */
+  /** Dev bridge: knight move ids (CARD_CATALOG templateIds) with their card's rarity and targeting. */
   public debugKnightMoves() {
-    return KNIGHT_MOVE_IDS.map((id) => ({ id, choreographed: !!KNIGHT_MOVES[id] }));
+    return KNIGHT_MOVE_IDS.map((id) => ({ id, ...knightMoveCard(id) }));
   }
 
   /**
@@ -3221,11 +2277,11 @@ export class GameEngine {
    * hit. `targets` are monster slots in hit order (default: the targeted monster).
    */
   public debugKnightMove(id: string, targets?: number[], damage = 24) {
-    if (!(KNIGHT_MOVE_IDS as readonly string[]).includes(id)) {
+    if (!KNIGHT_MOVE_IDS.includes(id)) {
       throw new Error(`Unknown knight move "${id}". Known: ${KNIGHT_MOVE_IDS.join(', ')}`);
     }
     const slots = targets ?? undefined;
-    this.playKnightMove(id as KnightMoveId, {
+    this.playKnightMove(id, {
       targets: slots,
       ctx: { power: 90, form: 1, crit: false, damage },
       onImpact: (i) => {

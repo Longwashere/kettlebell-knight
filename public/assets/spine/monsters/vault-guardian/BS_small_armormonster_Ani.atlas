@@ -1,0 +1,43 @@
+BS_small_armormonster_Ani.png
+pma: false
+size:216,606
+filter:Linear,Linear
+jian
+bounds:3,270,168,99
+offsets:0,1,168,99
+jianjia_01
+bounds:3,56,93,76
+offsets:1,1,93,77
+jianjia_02
+bounds:141,96,50,71
+offsets:0,1,50,71
+rotate: 90
+shengti
+bounds:3,135,135,132
+tou
+bounds:3,372,230,197
+rotate: 90
+xiabai
+bounds:141,149,118,71
+rotate: 90
+youshou_01
+bounds:108,3,44,44
+offsets:1,1,44,44
+youshou_02
+bounds:99,50,43,56
+offsets:1,0,44,56
+rotate: 90
+youtui
+bounds:194,291,13,78
+zuoshou_01
+bounds:3,9,44,51
+offsets:0,1,44,51
+rotate: 90
+zuoshou_02
+bounds:57,6,48,41
+zuoshou_03
+bounds:158,48,45,51
+offsets:0,1,45,51
+rotate: 90
+zuotui
+bounds:174,290,17,79

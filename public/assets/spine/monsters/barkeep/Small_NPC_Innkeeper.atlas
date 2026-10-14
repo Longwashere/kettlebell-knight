@@ -1,0 +1,32 @@
+Small_NPC_Innkeeper.png
+pma: false
+size:848,848
+filter:Linear,Linear
+armL1_1
+bounds:733,471,124,93
+rotate: 90
+armL1_2
+bounds:350,694,102,96
+rotate: 180
+armL2_1
+bounds:500,694,117,81
+armL2_2
+bounds:665,694,76,127
+rotate: 90
+armR1
+bounds:0,694,108,121
+rotate: 90
+armR2
+bounds:169,694,133,104
+handL
+bounds:572,471,133,113
+rotate: 90
+head
+bounds:377,471,147,146
+shadow
+bounds:0,471,329,175
+skirt
+bounds:0,0,311,423
+torso
+bounds:359,0,192,199
+rotate: 180

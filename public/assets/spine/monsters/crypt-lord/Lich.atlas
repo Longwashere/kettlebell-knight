@@ -1,0 +1,102 @@
+Lich.png
+pma: false
+size:1536,1536
+filter:Linear,Linear
+Lich_L_arm
+bounds:144,3,48,93
+rotate: 90
+Lich_L_cape
+bounds:863,141,77,124
+rotate: 90
+Lich_L_cape2
+bounds:3,108,158,378
+Lich_L_foot
+bounds:144,54,35,44
+Lich_L_forearm
+bounds:1374,56,48,34
+Lich_L_hand
+bounds:1497,1277,29,48
+Lich_L_leg
+bounds:1374,93,69,126
+Lich_L_lowerleg
+bounds:503,54,39,102
+rotate: 90
+Lich_Orb
+bounds:755,111,105,107
+offsets:1,0,105,107
+Lich_R_arm
+bounds:1497,1328,32,99
+Lich_R_cape
+bounds:3,11,94,138
+rotate: 90
+Lich_R_cape2
+bounds:1179,359,189,420
+Lich_R_foot
+bounds:182,54,30,44
+Lich_R_forearm
+bounds:1497,1430,103,36
+rotate: 90
+Lich_R_hand
+bounds:990,170,48,42
+rotate: 90
+Lich_R_leg
+bounds:1374,222,63,134
+Lich_R_lowerleg
+bounds:240,59,39,93
+rotate: 90
+Lich_body
+bounds:1371,576,107,203
+Lich_cape1
+bounds:1371,359,123,67
+Lich_cape2
+bounds:863,99,114,39
+Lich_eye
+bounds:1440,230,90,25
+offsets:0,1,90,26
+Lich_hair
+bounds:503,96,154,134
+Lich_head
+bounds:336,69,161,164
+rotate: 90
+bone_Lcloth1_back
+bounds:467,653,276,880
+bone_Lcloth3_green
+bounds:1038,122,138,657
+bone_Rcloth1
+bounds:177,653,287,880
+bone_Rcloth2
+bounds:1010,782,232,486
+rotate: 90
+bone_Rcloth3_green
+bounds:746,774,261,759
+bone_Rcloth4_back
+bounds:177,233,417,579
+rotate: 90
+bone_head
+bounds:1010,1017,484,516
+offsets:1,0,485,516
+bone_rib1
+bounds:1179,42,314,192
+rotate: 90
+bone_rib2
+bounds:164,101,169,129
+offsets:1,1,170,129
+bone_rib3
+bounds:1371,429,144,129
+offsets:1,0,144,129
+rotate: 90
+bone_rib4
+bounds:240,14,42,96
+rotate: 90
+bone_spine
+bounds:3,489,171,1044
+bone_spine2
+bounds:1440,258,98,93
+offsets:1,0,98,93
+rotate: 90
+bone_spine3
+bounds:759,221,276,550
+horn2
+bounds:660,90,140,92
+offsets:1,0,140,93
+rotate: 90

@@ -1,0 +1,60 @@
+ghost.png
+pma: false
+size:1146,1146
+filter:Linear,Linear
+1176-1
+bounds:3,227,231,215
+offsets:24,40,282,285
+rotate: 90
+1176-10
+bounds:623,932,211,208
+offsets:38,45,282,285
+rotate: 90
+1176-11
+bounds:642,534,185,218
+offsets:57,41,282,285
+rotate: 90
+1176-12
+bounds:647,723,192,206
+offsets:49,46,282,285
+1176-13
+bounds:434,284,193,217
+offsets:42,40,282,285
+1176-14
+bounds:630,279,189,222
+offsets:36,39,282,285
+1176-15
+bounds:3,3,216,221
+offsets:28,39,282,285
+1176-2
+bounds:213,482,218,220
+offsets:24,41,282,285
+1176-3
+bounds:416,722,196,228
+offsets:44,40,282,285
+rotate: 90
+1176-4
+bounds:222,15,203,234
+offsets:39,40,282,285
+1176-5
+bounds:3,461,207,241
+offsets:37,36,282,285
+1176-6
+bounds:434,504,205,215
+offsets:38,41,282,285
+1176-7
+bounds:416,921,204,222
+offsets:38,41,282,285
+1176-8
+bounds:428,26,207,223
+offsets:38,42,282,285
+1176-9
+bounds:221,252,210,227
+offsets:37,42,282,285
+Group 4 copy
+bounds:834,1034,109,96
+offsets:2,2,113,99
+rotate: 90
+Layer 36
+bounds:3,705,410,438
+offsets:12,14,434,464

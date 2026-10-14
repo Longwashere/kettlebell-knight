@@ -1,0 +1,32 @@
+specter.png
+size:880,880
+filter:Linear,Linear
+pma: false
+arm
+bounds:749,374,103,175
+offsets:2,-6,107,178
+ball
+bounds:521,374,180,180
+offsets:18,18,215,215
+ball_blur
+bounds:0,650,173,212
+offsets:18,21,207,251
+rotate:90
+body
+bounds:256,374,224,217
+offsets:2,2,227,221
+rotate:90
+cape
+bounds:0,0,326,323
+rotate:90
+hand_l copy
+bounds:260,650,91,121
+offsets:2,2,95,125
+rotate:90
+head
+bounds:0,374,228,208
+offsets:2,6,231,216
+rotate:90
+shadow
+bounds:371,0,326,268
+offsets:13,13,350,293

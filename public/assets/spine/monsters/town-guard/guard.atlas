@@ -1,0 +1,74 @@
+guard.png
+pma: false
+size:1088,1088
+filter:Linear,Linear
+arm_l1
+bounds:818,711,73,172
+rotate: 90
+arm_l2
+bounds:686,843,138,63
+arm_l3
+bounds:376,843,94,70
+arm_r1
+bounds:0,711,84,173
+rotate: 90
+arm_r2
+bounds:486,244,112,161
+rotate: 90
+arm_r3
+bounds:908,244,104,162
+rotate: 90
+belt_1
+bounds:695,244,165,105
+belt_2
+bounds:636,0,143,56
+rotate: 90
+body_1
+bounds:0,244,174,133
+body_2
+bounds:740,0,135,264
+rotate: 90
+cloth
+bounds:222,244,128,216
+rotate: 90
+dun
+bounds:398,0,159,190
+rotate: 90
+head
+bounds:0,0,230,196
+kui_l1
+bounds:538,711,82,115
+rotate: 90
+kui_l2
+bounds:872,843,63,87
+rotate: 90
+kui_l3
+bounds:701,711,69,78
+kui_r1
+bounds:401,711,84,89
+rotate: 90
+kui_r2
+bounds:959,571,72,91
+kui_r3
+bounds:221,711,132,84
+leg_l1
+bounds:0,963,43,120
+rotate: 90
+leg_l2
+bounds:278,0,72,163
+leg_r1
+bounds:518,843,65,120
+rotate: 90
+leg_r2
+bounds:0,843,72,164
+rotate: 90
+mao_1
+bounds:0,425,136,98
+mao_2
+bounds:212,843,116,72
+neck
+bounds:184,425,98,106
+rotate: 90
+qiang
+bounds:0,571,92,911
+rotate: 90

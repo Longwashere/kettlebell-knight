@@ -1,0 +1,23 @@
+Tree Monster.png
+pma: false
+size:1024,1024
+filter:Linear,Linear
+body_3
+bounds:752,0,266,268
+offsets:0,0,241,252
+head_0
+bounds:0,0,411,437
+left_foot_6
+bounds:392,485,125,150
+rotate: 90
+left_hand_4
+bounds:201,485,146,143
+offsets:13,-12,146,143
+rotate: 90
+right_foot_5
+bounds:0,485,153,170
+right_hand_2
+bounds:590,485,101,101
+waepon_1
+bounds:459,0,306,245
+rotate: 90

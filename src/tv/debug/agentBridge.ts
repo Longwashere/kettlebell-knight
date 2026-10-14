@@ -259,8 +259,8 @@ const api = {
    * (e.g. DamToTarget marks hit frames). Use it to sync knight move timelines to the rig.
    */
   knightAnims: () => call('knightAnims') as { name: string; duration: number; frames: number; events: { name: string; time: number; frame: number }[] }[],
-  /** Knight move ids (knightMoves.ts) and whether each is choreographed yet or still a legacy execute* method. */
-  knightMoves: () => call('knightMoves') as { id: string; choreographed: boolean }[],
+  /** Knight move ids (knightMoves.ts, one per CARD_CATALOG templateId) with their card's rarity, targeting, Block and heal. */
+  knightMoves: () => call('knightMoves') as { id: string; rarity: string; target: string; block: number; heal: number }[],
   /**
    * Plays a knight move now without touching battle state (stand-in damage labels). `targets` are monster
    * slots in hit order; default is the targeted monster.

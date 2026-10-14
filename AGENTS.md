@@ -28,8 +28,8 @@ Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test
 
 - `src/tv/` — TV app. `engine/GameEngine.ts` is the imperative PixiJS engine; `engine/monsterMoves.ts` holds the
   choreographed monster attacks (frame timelines of Spine anims, movement, camera and VFX; damage lands on `impact()`);
-  `engine/knightMoves.ts` does the same for knight attacks (one move per exercise + variant; shared primitives in
-  `engine/choreo.ts`); `components/` are React
+  `engine/knightMoves.ts` does the same for knight attacks (one move per card templateId; VFX kit in `engine/fxKit.ts`,
+  shared primitives in `engine/choreo.ts`); `components/` are React
   overlays (hub, battle, blacksmith, QR pairing); `hooks/useTVRemote.ts` handles D-pad/remote keys.
 - `src/phone/` — phone app. `utils/KinematicTracker.ts` is the per-exercise rep state machine (13 exercises);
   `utils/KnightArmorRenderer.ts` draws the knight overlay; `components/PhoneView.tsx` wires camera → tracker → network.

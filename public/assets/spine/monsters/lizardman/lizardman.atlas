@@ -1,0 +1,61 @@
+lizardman.png
+pma: false
+size:768,768
+filter:Linear,Linear
+body
+bounds:296,506,258,285
+rotate: 90
+eye
+bounds:240,572,37,41
+offsets:1,0,38,41
+rotate: 90
+eye_2
+bounds:240,531,38,41
+offsets:0,1,38,41
+rotate: 90
+head
+bounds:3,23,290,115
+jaw
+bounds:165,542,222,72
+rotate: 90
+l_arm
+bounds:455,21,90,75
+offsets:1,0,90,75
+rotate: 90
+l_hand
+bounds:387,419,75,84
+offsets:1,0,75,84
+l_leg
+bounds:252,141,68,72
+rotate: 90
+l_shoulder
+bounds:165,437,66,102
+l_thigh
+bounds:165,141,84,68
+offsets:0,1,84,68
+r_arm
+bounds:378,114,95,86
+offsets:1,0,95,87
+rotate: 90
+r_hand
+bounds:234,437,66,74
+rotate: 90
+r_leg
+bounds:387,330,71,86
+r_shoulder
+bounds:378,3,74,108
+offsets:1,0,74,108
+r_thigh
+bounds:296,35,103,79
+offsets:1,1,104,80
+rotate: 90
+tail
+bounds:165,212,222,219
+rotate: 90
+under_tooth
+bounds:240,612,152,39
+offsets:2,0,152,39
+rotate: 90
+weapon
+bounds:3,141,159,623
+offsets:1,0,159,623

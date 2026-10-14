@@ -1,0 +1,193 @@
+{
+  "idle": {
+    "avg": 0.65,
+    "p95": 1.8,
+    "max": 2.5
+  },
+  "moves": {
+    "swing_cleave": {
+      "avg": 0.77,
+      "p95": 1.9,
+      "max": 5.8,
+      "peakObjs": 17,
+      "over16": 0,
+      "over33": 0
+    },
+    "swing_whirlwind": {
+      "avg": 0.79,
+      "p95": 1.9,
+      "max": 6.9,
+      "peakObjs": 28,
+      "over16": 0,
+      "over33": 0
+    },
+    "squat_ground_slam": {
+      "avg": 2.44,
+      "p95": 4,
+      "max": 165,
+      "peakObjs": 28,
+      "over16": 1,
+      "over33": 1
+    },
+    "squat_quake": {
+      "avg": 2.69,
+      "p95": 11.1,
+      "max": 173.5,
+      "peakObjs": 28,
+      "over16": 1,
+      "over33": 1
+    },
+    "press_shoulder_ram": {
+      "avg": 2.18,
+      "p95": 2.3,
+      "max": 166.9,
+      "peakObjs": 36,
+      "over16": 1,
+      "over33": 1
+    },
+    "press_cleaver": {
+      "avg": 2.56,
+      "p95": 14.2,
+      "max": 77.5,
+      "peakObjs": 36,
+      "over16": 6,
+      "over33": 1
+    },
+    "snatch_rising_slash": {
+      "avg": 3.66,
+      "p95": 9.2,
+      "max": 252.9,
+      "peakObjs": 30,
+      "over16": 3,
+      "over33": 1
+    },
+    "snatch_talon": {
+      "avg": 5.56,
+      "p95": 23.8,
+      "max": 335.1,
+      "peakObjs": 30,
+      "over16": 12,
+      "over33": 2
+    },
+    "windmill_parry": {
+      "avg": 2.02,
+      "p95": 3.2,
+      "max": 96.4,
+      "peakObjs": 22,
+      "over16": 2,
+      "over33": 1
+    },
+    "windmill_ward": {
+      "avg": 1.69,
+      "p95": 3.2,
+      "max": 93.9,
+      "peakObjs": 22,
+      "over16": 1,
+      "over33": 1
+    },
+    "deadlift_sunder": {
+      "avg": 1.17,
+      "p95": 3.3,
+      "max": 10.6,
+      "peakObjs": 40,
+      "over16": 0,
+      "over33": 0
+    },
+    "ohp_smite": {
+      "avg": 0.86,
+      "p95": 2,
+      "max": 4.2,
+      "peakObjs": 28,
+      "over16": 0,
+      "over33": 0
+    },
+    "ohp_pillar": {
+      "avg": 0.87,
+      "p95": 2.5,
+      "max": 5.3,
+      "peakObjs": 28,
+      "over16": 0,
+      "over33": 0
+    },
+    "thruster_coiled_slash": {
+      "avg": 4.04,
+      "p95": 15.2,
+      "max": 148.5,
+      "peakObjs": 30,
+      "over16": 4,
+      "over33": 2
+    },
+    "thruster_supernova": {
+      "avg": 3.46,
+      "p95": 5.8,
+      "max": 250,
+      "peakObjs": 30,
+      "over16": 3,
+      "over33": 1
+    },
+    "row_flurry": {
+      "avg": 3.28,
+      "p95": 2.7,
+      "max": 201.3,
+      "peakObjs": 37,
+      "over16": 2,
+      "over33": 2
+    },
+    "row_shadow": {
+      "avg": 3.59,
+      "p95": 3,
+      "max": 316.1,
+      "peakObjs": 37,
+      "over16": 1,
+      "over33": 1
+    },
+    "halo_cyclone": {
+      "avg": 3.7,
+      "p95": 9.8,
+      "max": 194.8,
+      "peakObjs": 26,
+      "over16": 4,
+      "over33": 2
+    },
+    "halo_vortex": {
+      "avg": 3.34,
+      "p95": 3.2,
+      "max": 239.6,
+      "peakObjs": 26,
+      "over16": 3,
+      "over33": 2
+    },
+    "rdl_needle_thrust": {
+      "avg": 3.91,
+      "p95": 18.5,
+      "max": 158,
+      "peakObjs": 24,
+      "over16": 8,
+      "over33": 2
+    },
+    "rdl_crane": {
+      "avg": 4.08,
+      "p95": 24.6,
+      "max": 49.8,
+      "peakObjs": 24,
+      "over16": 9,
+      "over33": 4
+    },
+    "clean_anvil_cleave": {
+      "avg": 4.49,
+      "p95": 10.7,
+      "max": 219,
+      "peakObjs": 26,
+      "over16": 6,
+      "over33": 3
+    },
+    "lunge_cross_dash": {
+      "avg": 4.56,
+      "p95": 20.5,
+      "max": 46.4,
+      "peakObjs": 24,
+      "over16": 9,
+      "over33": 3
+    }
+  }
+}

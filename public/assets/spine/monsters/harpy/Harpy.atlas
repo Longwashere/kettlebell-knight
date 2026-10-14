@@ -1,0 +1,29 @@
+Harpy.png
+pma: false
+size:384,48
+filter:Linear,Linear
+Body
+bounds:288,3,38,42
+offsets:1,0,38,42
+Head
+bounds:240,3,42,45
+rotate: 90
+L_Leg_01
+bounds:329,23,15,22
+offsets:1,1,15,23
+L_Leg_02
+bounds:3,3,14,29
+offsets:0,1,14,29
+rotate: 90
+L_Wing
+bounds:3,20,116,25
+R_Leg_01
+bounds:66,3,14,26
+offsets:0,1,14,26
+rotate: 90
+R_Leg_02
+bounds:35,3,14,28
+offsets:0,2,14,29
+rotate: 90
+R_Wing
+bounds:122,20,115,25

@@ -1,0 +1,241 @@
+{
+  "idle": {
+    "avg": 0.69,
+    "p95": 1.9,
+    "max": 2.6
+  },
+  "moves": {
+    "swing_cleave": {
+      "avg": 1.16,
+      "p95": 2.5,
+      "max": 9.4,
+      "peakObjs": 17,
+      "over16": 0,
+      "over33": 0
+    },
+    "swing_whirlwind": {
+      "avg": 2.16,
+      "p95": 6.1,
+      "max": 39.2,
+      "peakObjs": 65,
+      "over16": 1,
+      "over33": 1
+    },
+    "swing_flow": {
+      "avg": 2.43,
+      "p95": 3.4,
+      "max": 144,
+      "peakObjs": 27,
+      "over16": 1,
+      "over33": 1
+    },
+    "squat_slam": {
+      "avg": 2.25,
+      "p95": 7.6,
+      "max": 103.3,
+      "peakObjs": 33,
+      "over16": 1,
+      "over33": 1
+    },
+    "squat_bastion": {
+      "avg": 2.46,
+      "p95": 4.6,
+      "max": 142.4,
+      "peakObjs": 25,
+      "over16": 2,
+      "over33": 1
+    },
+    "squat_earthquake": {
+      "avg": 2.57,
+      "p95": 5,
+      "max": 125.8,
+      "peakObjs": 95,
+      "over16": 2,
+      "over33": 1
+    },
+    "press_smite": {
+      "avg": 2.22,
+      "p95": 3.6,
+      "max": 148.1,
+      "peakObjs": 24,
+      "over16": 1,
+      "over33": 1
+    },
+    "press_judgement": {
+      "avg": 2.65,
+      "p95": 12.8,
+      "max": 57.3,
+      "peakObjs": 54,
+      "over16": 3,
+      "over33": 2
+    },
+    "press_sanctuary": {
+      "avg": 2.44,
+      "p95": 7.5,
+      "max": 63,
+      "peakObjs": 51,
+      "over16": 3,
+      "over33": 2
+    },
+    "clean_breaker": {
+      "avg": 2.4,
+      "p95": 5,
+      "max": 139.6,
+      "peakObjs": 63,
+      "over16": 1,
+      "over33": 1
+    },
+    "clean_stormbreaker": {
+      "avg": 1.83,
+      "p95": 2.7,
+      "max": 105.3,
+      "peakObjs": 43,
+      "over16": 1,
+      "over33": 1
+    },
+    "snatch_phoenix": {
+      "avg": 2.76,
+      "p95": 4.6,
+      "max": 129.7,
+      "peakObjs": 65,
+      "over16": 4,
+      "over33": 1
+    },
+    "snatch_solar": {
+      "avg": 2.5,
+      "p95": 4.8,
+      "max": 104.1,
+      "peakObjs": 79,
+      "over16": 2,
+      "over33": 1
+    },
+    "windmill_astral": {
+      "avg": 2.34,
+      "p95": 10.8,
+      "max": 62.3,
+      "peakObjs": 28,
+      "over16": 5,
+      "over33": 1
+    },
+    "windmill_cosmic": {
+      "avg": 2.84,
+      "p95": 14.7,
+      "max": 31.6,
+      "peakObjs": 56,
+      "over16": 5,
+      "over33": 0
+    },
+    "deadlift_colossus": {
+      "avg": 2.33,
+      "p95": 3.6,
+      "max": 138.2,
+      "peakObjs": 40,
+      "over16": 2,
+      "over33": 1
+    },
+    "deadlift_sunder": {
+      "avg": 2.77,
+      "p95": 8.3,
+      "max": 105.5,
+      "peakObjs": 174,
+      "over16": 2,
+      "over33": 1
+    },
+    "thruster_eruption": {
+      "avg": 3.06,
+      "p95": 9.9,
+      "max": 169.5,
+      "peakObjs": 90,
+      "over16": 4,
+      "over33": 1
+    },
+    "thruster_supernova": {
+      "avg": 2.9,
+      "p95": 15.2,
+      "max": 42.8,
+      "peakObjs": 67,
+      "over16": 4,
+      "over33": 2
+    },
+    "row_beast_maw": {
+      "avg": 2.93,
+      "p95": 8.9,
+      "max": 160,
+      "peakObjs": 24,
+      "over16": 4,
+      "over33": 1
+    },
+    "row_shadow_ripper": {
+      "avg": 2.03,
+      "p95": 2.2,
+      "max": 122.7,
+      "peakObjs": 41,
+      "over16": 1,
+      "over33": 1
+    },
+    "halo_barrier": {
+      "avg": 3.08,
+      "p95": 5.9,
+      "max": 143.3,
+      "peakObjs": 28,
+      "over16": 4,
+      "over33": 3
+    },
+    "halo_vortex": {
+      "avg": 3.64,
+      "p95": 12.7,
+      "max": 131.7,
+      "peakObjs": 69,
+      "over16": 4,
+      "over33": 1
+    },
+    "rdl_valkyrie": {
+      "avg": 2.71,
+      "p95": 5.6,
+      "max": 144.5,
+      "peakObjs": 29,
+      "over16": 2,
+      "over33": 2
+    },
+    "rdl_crane": {
+      "avg": 2.28,
+      "p95": 4.3,
+      "max": 121.4,
+      "peakObjs": 41,
+      "over16": 2,
+      "over33": 1
+    },
+    "clean_uppercut": {
+      "avg": 2.03,
+      "p95": 12.4,
+      "max": 25.4,
+      "peakObjs": 20,
+      "over16": 3,
+      "over33": 0
+    },
+    "clean_ricochet": {
+      "avg": 2.86,
+      "p95": 15.3,
+      "max": 43.3,
+      "peakObjs": 41,
+      "over16": 5,
+      "over33": 1
+    },
+    "lunge_lancer": {
+      "avg": 2,
+      "p95": 3.7,
+      "max": 122.7,
+      "peakObjs": 39,
+      "over16": 2,
+      "over33": 1
+    },
+    "lunge_vanguard": {
+      "avg": 2.73,
+      "p95": 5.5,
+      "max": 139.4,
+      "peakObjs": 32,
+      "over16": 2,
+      "over33": 1
+    }
+  }
+}

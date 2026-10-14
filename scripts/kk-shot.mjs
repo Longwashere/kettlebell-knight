@@ -41,6 +41,7 @@
  *   --out <dir>       default work/shots/<timestamp>
  *   --size <WxH>      default 1278x720 (3x the 426x240 render)
  *   --timeout <ms>    per-step timeout, default 15000
+ *   --cpu <rate>      CPU throttling (e.g. 8 ≈ a Fire TV Stick on a fast laptop), default 1
  *   --verbose         also print console.log/info from the page
  *
  * Exit code is 1 if a step fails or the page throws an uncaught exception.
@@ -55,7 +56,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------- args ----------
-const opts = { base: 'http://localhost:5173', route: '/tv', out: null, size: '1278x720', timeout: 15000, verbose: false };
+const opts = { base: 'http://localhost:5173', route: '/tv', out: null, size: '1278x720', timeout: 15000, cpu: 1, verbose: false };
 const steps = [];
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
@@ -323,7 +324,7 @@ async function runStep(step) {
     }
     case 'kmoves': {
       const moves = await kk('__kk.knightMoves()');
-      return '\n' + moves.map((m) => `    ${m.id.padEnd(24)} ${m.choreographed ? 'choreographed' : 'legacy'}`).join('\n');
+      return '\n' + moves.map((m) => `    ${m.id.padEnd(22)} ${m.rarity.padEnd(10)} ${m.target.padEnd(7)}${m.block ? ' +Block' : ''}${m.heal ? ' +heal' : ''}`).join('\n');
     }
     case 'kmove': {
       const [move, slots] = arg.split(':');
@@ -370,6 +371,7 @@ await send('Runtime.enable');
 await send('Network.enable');
 await send('Page.enable');
 await send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false });
+if (Number(opts.cpu) > 1) await send('Emulation.setCPUThrottlingRate', { rate: Number(opts.cpu) });
 
 const url = new URL(opts.route, opts.base).href;
 console.log(`· ${url}  →  ${path.relative(ROOT, outDir)}/`);

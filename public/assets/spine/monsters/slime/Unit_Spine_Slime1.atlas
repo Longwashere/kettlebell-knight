@@ -1,0 +1,23 @@
+Unit_Spine_Slime1.png
+pma: false
+size:512,512
+filter:Linear,Linear
+Unit_Spine_Slime1_body
+bounds:0,0,235,179
+offsets:0,0,195,137
+rotate: 90
+Unit_Spine_Slime1_ty
+bounds:183,283,252,66
+Unit_Spine_Slime1_yan1
+bounds:0,398,126,57
+Unit_Spine_Slime1_yan2
+bounds:0,283,135,67
+offsets:0,0,135,51
+Unit_Spine_Slime1_yan3
+bounds:227,0,138,76
+offsets:0,0,138,60
+rotate: 90
+Unit_Spine_Slime1_yan4
+bounds:351,0,132,87
+offsets:0,0,132,71
+rotate: 90

@@ -1,0 +1,127 @@
+DeathKnight.png
+pma: false
+size:2618,2618
+filter:Linear,Linear
+elite/armL1
+bounds:3,56,307,447
+rotate: 90
+elite/armL1_crack
+bounds:1799,567,194,264
+rotate: 90
+elite/armL2
+bounds:2066,570,234,191
+elite/armL2_1
+bounds:848,23,199,291
+rotate: 90
+elite/armR1
+bounds:848,225,263,391
+rotate: 90
+elite/clothCenter
+bounds:957,761,184,558
+rotate: 90
+elite/clothL
+bounds:845,491,267,502
+rotate: 90
+elite/clothR
+bounds:339,387,101,464
+rotate: 90
+elite/footL
+bounds:2420,390,172,186
+elite/footR
+bounds:2043,291,273,198
+rotate: 90
+elite/handL
+bounds:2288,212,126,166
+elite/handL_1
+bounds:2303,579,187,188
+elite/handL_2
+bounds:1553,567,243,264
+elite/handL_3
+bounds:2079,32,256,206
+rotate: 90
+elite/head1
+bounds:1608,290,274,215
+rotate: 90
+elite/head2
+bounds:1608,72,275,215
+elite/legL2
+bounds:1874,1040,229,339
+elite/legR2
+bounds:2339,1037,229,331
+elite/ranseur
+bounds:200,843,193,1772
+elite/shield1
+bounds:821,1373,421,1242
+elite/shield2
+bounds:396,948,422,1242
+rotate: 90
+elite/torso
+bounds:1670,1382,391,615
+elite/waist
+bounds:2064,1844,387,384
+normal/armL1
+bounds:2064,1394,308,447
+normal/armL1_crack
+bounds:1641,834,194,264
+rotate: 90
+normal/armL2
+bounds:1886,53,234,190
+rotate: 90
+normal/armL2_1
+bounds:1350,467,200,291
+normal/armR1
+bounds:453,122,262,392
+rotate: 90
+normal/clothCenter
+bounds:396,761,184,558
+rotate: 90
+normal/clothL
+bounds:339,491,267,503
+rotate: 90
+normal/clothR
+bounds:2454,2151,101,464
+normal/footL
+bounds:2244,381,173,186
+normal/footR
+bounds:1908,764,273,198
+rotate: 90
+normal/groin
+bounds:1242,227,363,237
+elite/groin
+bounds:1242,227,363,237
+normal/handL
+bounds:2454,1982,126,166
+normal/handL_1
+bounds:1401,36,188,188
+normal/handL_2
+bounds:2327,770,243,264
+normal/handL_3
+bounds:1142,17,256,205
+normal/head1
+bounds:2109,782,274,215
+rotate: 90
+normal/head2
+bounds:1826,290,274,214
+rotate: 90
+normal/legL1
+bounds:3,366,333,474
+elite/legL1
+bounds:3,366,333,474
+normal/legL2
+bounds:1641,1031,230,339
+normal/legR1
+bounds:2375,1371,240,470
+elite/legR1
+bounds:2375,1371,240,470
+normal/legR2
+bounds:2106,1059,230,332
+normal/ranseur
+bounds:3,843,194,1772
+normal/shield1
+bounds:396,1373,422,1242
+normal/shield2
+bounds:1245,1373,422,1242
+normal/torso
+bounds:1670,2000,391,615
+normal/waist
+bounds:2064,2231,387,384

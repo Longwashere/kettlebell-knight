@@ -1,0 +1,31 @@
+Boss_Swamp_golem.png
+pma: false
+size:976,976
+filter:Linear,Linear
+body
+bounds:500,408,247,232
+offsets:20,-20,247,232
+rotate: 90
+eye
+bounds:503,734,28,35
+offsets:9,7,44,47
+head
+bounds:372,734,72,83
+offsets:8,1,72,83
+rotate: 90
+l_arm
+bounds:0,408,228,278
+l_body
+bounds:309,0,276,318
+l_leg
+bounds:276,408,176,265
+neck
+bounds:780,408,117,213
+offsets:8,-7,117,214
+r_arm
+bounds:633,0,165,288
+r_body
+bounds:0,0,261,360
+r_leg
+bounds:0,734,128,324
+rotate: 90

@@ -1,0 +1,24 @@
+RMW_lt_blackmerchant_ani.png
+size:784,784
+filter:Linear,Linear
+pma: false
+body
+bounds:363,282,201,241
+offsets:2,3,204,245
+rotate:90
+cloak
+bounds:0,282,315,203
+collar
+bounds:0,533,266,196
+collar-bg
+bounds:181,0,284,212
+eye
+bounds:585,533,118,46
+offsets:2,10,122,49
+rotate:90
+face
+bounds:314,533,223,157
+offsets:-7,11,226,160
+hat
+bounds:0,0,234,133
+rotate:90

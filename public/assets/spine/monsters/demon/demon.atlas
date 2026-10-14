@@ -1,0 +1,15 @@
+demon.png
+pma: false
+size:768,384
+filter:Linear,Linear
+body
+bounds:3,14,345,310
+offsets:1,1,345,311
+leg
+bounds:351,146,178,111
+offsets:1,0,179,111
+rotate: 90
+shadow
+bounds:351,3,140,45
+offsets:2,0,140,45
+rotate: 90

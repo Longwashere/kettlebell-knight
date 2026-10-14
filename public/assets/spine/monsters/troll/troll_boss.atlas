@@ -1,0 +1,58 @@
+troll_boss.png
+pma: false
+size:928,928
+filter:Linear,Linear
+b_hair
+bounds:656,438,99,61
+offsets:0,1,99,62
+rotate: 90
+body
+bounds:0,0,312,390
+hair
+bounds:153,776,64,69
+offsets:0,0,48,53
+rotate: 90
+head
+bounds:674,0,172,163
+offsets:-20,11,172,163
+jaw
+bounds:0,776,105,73
+offsets:1,-7,105,73
+l_arm
+bounds:0,631,97,165
+rotate: 90
+l_hand
+bounds:363,631,89,90
+l_leg
+bounds:392,776,55,58
+rotate: 90
+l_shoulder
+bounds:500,631,84,148
+rotate: 90
+l_thigh
+bounds:765,438,98,120
+offsets:0,0,58,64
+rotate: 90
+r_arm
+bounds:417,438,102,191
+rotate: 90
+r_hand
+bounds:213,631,102,94
+r_leg
+bounds:270,776,57,74
+rotate: 90
+r_shoulder
+bounds:186,438,112,183
+rotate: 90
+r_thigh
+bounds:696,631,79,99
+rotate: 90
+rock
+bounds:360,0,266,255
+offsets:4,1,270,255
+skirt
+bounds:0,438,138,145
+offsets:0,0,98,89
+tooth
+bounds:498,776,44,42
+offsets:0,1,44,43

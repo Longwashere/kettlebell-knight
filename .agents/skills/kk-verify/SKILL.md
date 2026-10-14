@@ -67,11 +67,13 @@ Monster moves live in `src/tv/engine/monsterMoves.ts` (one timeline function per
 `MonsterMoveId`); movesets are `MOVESETS` in `BattleScreen.tsx`. `__kk.call('attack', slot, moveId)` plays one
 now; `__kk.call('moves', slot)` lists a slot's moves. Use `film:` to review a move instead of real-time `shot:`s.
 
-Knight moves live in `src/tv/engine/knightMoves.ts` (a `KnightMoveHost` + Timeline per move, ids in
-`KNIGHT_MOVE_IDS`, picked per exercise by `knightMoveFor`). Ids not in `KNIGHT_MOVES` still run the legacy
-`execute*` methods in GameEngine. `kmoves` shows which. `__kk.knightMove(id, slots?)` plays one without
-changing battle state. `kanims` lists rig anim lengths in frames, plus Spine events such as `DamToTarget`
-hit frames. Sync `h.impact()` to the frame where the blade connects in `ksheet`, not to a guess.
+Knight moves live in `src/tv/engine/knightMoves.ts`: one Timeline choreography per battle card, keyed by
+CARD_CATALOG `templateId`, built from the VFX kit in `fxKit.ts`. Contact goes through `land()` (hit-stop,
+shake and flash scaled by rarity). `kmoves` lists them with rarity and targeting. `__kk.knightMove(id, slots?)`
+plays one without changing battle state. `kanims` lists rig anim lengths in frames, plus Spine events such as
+`DamToTarget` hit frames. Sync `h.impact()` to the frame where the blade connects in `ksheet`, not to a guess.
+Film multi-target cards against a trio with their real hit order (ALL `0,1,2`, BACK `1`, PIERCE `0,1`), and keep
+leaps under ~40px of lift: the knight is ~65px tall and clips off the top of the screen.
 
 `state() · actions() · call(name, ...args) · film(slot, move, count?, step?) · sheet(slot, frames?) ·
 knightFilm(move, count?, step?, slots?) · knightSheet(frames?, regex?) · knightAnims() · knightMoves() ·

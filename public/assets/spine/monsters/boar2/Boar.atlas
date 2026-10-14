@@ -1,0 +1,50 @@
+Boar.png
+pma: false
+size:3072,384
+filter:Linear,Linear
+bD1
+bounds:1533,134,244,206
+offsets:26,0,302,206
+rotate: 90
+bD2
+bounds:1533,134,244,206
+offsets:28,0,300,206
+rotate: 90
+bD3
+bounds:1533,134,244,206
+offsets:28,0,300,206
+rotate: 90
+bU1
+bounds:702,59,319,192
+offsets:1,0,320,192
+rotate: 90
+bU2
+bounds:897,59,319,192
+offsets:1,0,320,192
+rotate: 90
+bU3
+bounds:278,33,345,225
+offsets:3,2,348,236
+rotate: 90
+head1
+bounds:1092,120,258,218
+offsets:1,0,258,218
+rotate: 90
+head2
+bounds:1313,120,258,217
+offsets:0,1,258,218
+rotate: 90
+head3
+bounds:3,89,289,272
+offsets:2,0,297,273
+rotate: 90
+leg
+bounds:3,5,26,81
+offsets:1,1,26,81
+mouth1
+bounds:1092,3,234,114
+offsets:1,0,239,114
+weapon
+bounds:506,54,324,193
+offsets:0,1,324,194
+rotate: 90

@@ -1,0 +1,78 @@
+goblin.png
+pma: false
+size:768,768
+filter:Linear,Linear
+arm_L_1
+bounds:273,432,63,113
+offsets:0,1,63,113
+rotate: 90
+arm_L_2
+bounds:90,368,45,54
+offsets:0,1,47,54
+rotate: 90
+arm_R
+bounds:299,498,59,148
+rotate: 90
+bag
+bounds:3,530,293,235
+bag_2
+bounds:3,365,50,46
+belt
+bounds:153,488,117,39
+offsets:1,1,117,39
+body
+bounds:471,455,144,152
+rotate: 90
+center
+bounds:692,540,98,69
+rotate: 90
+ear
+bounds:153,399,93,86
+hand_L_1
+bounds:389,393,43,38
+offsets:1,6,44,45
+hand_L_2
+bounds:504,413,41,39
+offsets:0,1,41,39
+hand_R
+bounds:389,434,61,66
+rotate: 90
+hat
+bounds:3,414,84,56
+hat_ac_L
+bounds:626,432,48,127
+rotate: 90
+hat_ac_R
+bounds:299,560,39,169
+rotate: 90
+head
+bounds:299,602,163,193
+offsets:1,1,164,195
+rotate: 90
+head_2
+bounds:495,602,163,194
+offsets:1,1,164,195
+rotate: 90
+hip_sack
+bounds:90,416,54,57
+rotate: 90
+leg_L
+bounds:692,641,69,124
+leg_R
+bounds:626,483,54,139
+rotate: 90
+rock
+bounds:626,540,59,48
+rotate: 90
+skirt_1
+bounds:3,473,147,54
+skirt_2
+bounds:548,428,25,24
+offsets:1,0,26,24
+wrist_L
+bounds:458,413,43,39
+offsets:1,1,44,39
+wrist_R
+bounds:56,368,43,30
+offsets:1,0,44,30
+rotate: 90

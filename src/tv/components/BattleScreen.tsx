@@ -264,6 +264,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           if (hit.killed) engine.playMonsterDeath(hit.index);
         };
         engine.onRepCompleted(result.power, result.form, exercise, card.name, primary ? primary.damage + primary.blocked : 0, {
+          move: card.templateId,
+          ctx: { block: res.block, heal: res.heal },
           targets: res.hits.map((hit) => hit.index),
           onImpact: (i) => showHit(res.hits[i]),
           stagger: card.target === 'CHAIN' ? 8 : 2,

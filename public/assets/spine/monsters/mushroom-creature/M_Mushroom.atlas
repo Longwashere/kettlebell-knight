@@ -1,0 +1,12 @@
+M_Mushroom.png
+pma: false
+size:512,512
+filter:Linear,Linear
+Body
+bounds:0,0,302,219
+offsets:0,0,302,203
+Hat
+bounds:0,267,305,142
+offsets:0,1,305,143
+Shadow
+bounds:0,457,263,47
