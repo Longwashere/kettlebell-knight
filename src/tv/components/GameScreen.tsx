@@ -10,6 +10,8 @@ import { QRCodeModal } from './QRCodeModal';
 import { QRCodeSVG } from 'qrcode.react';
 import { EquipmentItem, HubLocation, RepTelemetry, ExerciseType } from '../../types/game';
 import { audioManager } from '../../shared/AudioManager';
+import { registerDebug } from '../debug/agentBridge';
+import { BATTLE_MAPS, BattleMapId } from '../engine/GameEngine';
 import { 
   Tv, 
   Smartphone, 
@@ -137,6 +139,33 @@ export const GameScreen: React.FC = () => {
       networkManager.cleanup();
     };
   }, []);
+
+  // Dev automation bridge (window.__kk): engine introspection + view navigation for agents/scripts
+  useEffect(() => registerDebug(
+    'engine',
+    () => engineRef.current?.getDebugState() ?? { ready: false, loading: 0, idle: false },
+    {
+      textures: () => engineRef.current?.getTextureStats(),
+      snapshot: () => engineRef.current?.snapshot(),
+      background: (key: string) =>
+        engineRef.current?.loadBackground(BATTLE_MAPS[key.toUpperCase() as BattleMapId] ?? key),
+    },
+  ), []);
+
+  useEffect(() => registerDebug(
+    'screen',
+    () => ({ view: currentView, net: netState, roomId, qrOpen: isQrModalOpen, sessionReps, highestPower, gold: playerGold }),
+    {
+      goto: (view: typeof currentView) => {
+        setIsQrModalOpen(false);
+        setCurrentView(view);
+        if (view === 'BLACKSMITH') {
+          setShopIndex(0);
+          engineRef.current?.previewEquipment(SHOP_ITEMS[0].slot, SHOP_ITEMS[0].attachmentId);
+        }
+      },
+    },
+  ), [currentView, netState, roomId, isQrModalOpen, sessionReps, highestPower, playerGold]);
 
   // 3. Blacksmith Equipment Preview Callback
   const handlePreviewShopItem = useCallback((item: EquipmentItem) => {

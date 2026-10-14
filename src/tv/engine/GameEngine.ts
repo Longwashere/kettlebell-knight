@@ -1,4 +1,4 @@
-import { Application, Container, Graphics, Text, Assets, Sprite, Texture, Cache } from 'pixi.js';
+import { Application, Container, Graphics, Text, Assets, Sprite, Texture, Cache, Rectangle } from 'pixi.js';
 import { Spine, SpineTexture } from '@esotericsoftware/spine-pixi-v8';
 import type { TextureAtlas } from '@esotericsoftware/spine-core';
 import { audioManager } from '../../shared/AudioManager';
@@ -299,6 +299,10 @@ export class GameEngine {
   private currentCombo: number = 0;
   private totalPowerAccumulated: number = 0;
 
+  // Dev automation (window.__kk): ready once init() finishes; loadsInFlight counts pending asset loads
+  private isReady: boolean = false;
+  private loadsInFlight: number = 0;
+
   constructor(containerElement: HTMLElement) {
     this.containerElement = containerElement;
 
@@ -356,6 +360,7 @@ export class GameEngine {
     await this.loadKnightSpine();
     if (this.isDestroyed) return;
     this.startTicker();
+    this.isReady = true;
   }
 
   private buildScene(): void {
@@ -440,7 +445,11 @@ export class GameEngine {
     void this.loadBackground();
   }
 
-  public async loadBackground(bgKey?: string): Promise<void> {
+  public loadBackground(bgKey?: string): Promise<void> {
+    return this.trackLoad(this.loadBackgroundNow(bgKey));
+  }
+
+  private async loadBackgroundNow(bgKey?: string): Promise<void> {
     if (!this.bgLayer) return;
     const targetKey = bgKey ?? MONSTER_BACKGROUNDS[this.monsterSprite] ?? BATTLE_BG_KEY;
     if (this.currentBgKey === targetKey && this.bgLayer.children.length > 0) return;
@@ -629,7 +638,11 @@ export class GameEngine {
   /**
    * Sets multiple monsters (1 to 3) in formation on the battlefield.
    */
-  public async setMonsters(monstersInput: (MonsterSprite | { spriteType: MonsterSprite })[]): Promise<void> {
+  public setMonsters(monstersInput: (MonsterSprite | { spriteType: MonsterSprite })[]): Promise<void> {
+    return this.trackLoad(this.loadMonsters(monstersInput));
+  }
+
+  private async loadMonsters(monstersInput: (MonsterSprite | { spriteType: MonsterSprite })[]): Promise<void> {
     const token = ++this.monsterLoadToken;
     const requestedTypes: MonsterSprite[] = monstersInput.map(t => typeof t === 'string' ? t : t.spriteType);
     this.queuedMonsters = requestedTypes;
@@ -2494,6 +2507,93 @@ export class GameEngine {
           this.activeEffects.splice(i, 1);
         }
       }
+    });
+  }
+
+  private async trackLoad(load: Promise<void>): Promise<void> {
+    this.loadsInFlight++;
+    try {
+      await load;
+    } finally {
+      this.loadsInFlight--;
+    }
+  }
+
+  /**
+   * JSON-safe snapshot for the dev automation bridge (window.__kk). Not used by gameplay.
+   */
+  public getDebugState() {
+    const anim = (spine: Spine | null) => spine?.state.getCurrent(0)?.animation?.name ?? null;
+    const knightAnimation = anim(this.knightSpine);
+    const monsters = this.monsterSlots.map((slot) => ({
+      slotIndex: slot.slotIndex,
+      type: slot.spriteType,
+      loaded: slot.spine !== null,
+      alive: slot.isAlive,
+      locked: slot.isLocked,
+      animation: anim(slot.spine),
+    }));
+    const vfx = {
+      effects: this.activeEffects.length,
+      projectiles: this.activeProjectiles.length,
+      particles: this.particles.length,
+      floatingTexts: this.floatingTexts.length,
+    };
+    const idle =
+      this.isReady &&
+      this.loadsInFlight === 0 &&
+      !this.isSwinging &&
+      vfx.effects + vfx.projectiles + vfx.particles + vfx.floatingTexts === 0 &&
+      this.flashAlpha === 0 &&
+      this.shakeIntensity === 0 &&
+      this.targetCameraZoom === 1.0 &&
+      this.cameraZoom === 1.0 &&
+      (this.knightLocked || knightAnimation === null || knightAnimation === 'IDLE') &&
+      this.monsterSlots.every((s, i) => s.isLocked || !s.spine || monsters[i].animation === s.rig?.idle) &&
+      this.monsterSlots.every((s) => s.lungeT >= 1 && s.shakeX === 0);
+
+    return {
+      ready: this.isReady,
+      loading: this.loadsInFlight,
+      idle,
+      fps: this.app ? Math.round(this.app.ticker.FPS) : 0,
+      background: this.currentBgKey,
+      knight: { animation: knightAnimation, locked: this.knightLocked },
+      monsters,
+      targetSlot: this.targetSlotIndex,
+      vfx,
+      camera: { zoom: Number(this.cameraZoom.toFixed(3)), shake: Number(this.shakeIntensity.toFixed(2)) },
+      equipped: { ...this.equippedSlots },
+      reps: { total: this.totalRepsCount, combo: this.currentCombo },
+    };
+  }
+
+  /**
+   * GPU-resident textures with an approximate VRAM total, for spotting leaks against the 1 GB Fire TV budget.
+   */
+  public getTextureStats() {
+    const managed: readonly any[] = (this.app?.renderer as any)?.texture?.managedTextures ?? [];
+    const textures = managed.filter(Boolean).map((src) => {
+      const w = src.pixelWidth ?? src.width ?? 0;
+      const h = src.pixelHeight ?? src.height ?? 0;
+      const mipFactor = src.autoGenerateMipmaps ? 4 / 3 : 1;
+      const url = src.resource?.currentSrc || src.resource?.src || undefined;
+      return { label: src.label || url || 'unnamed', width: w, height: h, bytes: Math.round(w * h * 4 * mipFactor) };
+    });
+    textures.sort((a, b) => b.bytes - a.bytes);
+    const totalBytes = textures.reduce((sum, t) => sum + t.bytes, 0);
+    return { count: textures.length, totalMB: Number((totalBytes / 1048576).toFixed(2)), textures };
+  }
+
+  /**
+   * PNG data URL of the Pixi stage at the native 426x240 resolution (React overlay excluded).
+   */
+  public async snapshot(): Promise<string> {
+    if (!this.app) throw new Error('[GameEngine] snapshot() before init');
+    return this.app.renderer.extract.base64({
+      target: this.app.stage,
+      frame: new Rectangle(0, 0, 426, 240),
+      format: 'png',
     });
   }
 

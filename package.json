@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "shot": "node scripts/kk-shot.mjs"
   },
   "dependencies": {
     "@esotericsoftware/spine-pixi-v8": "~4.2.66",

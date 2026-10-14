@@ -5,6 +5,7 @@ import { CardDeckManager } from '../../shared/CardDeckManager';
 import { audioManager } from '../../shared/AudioManager';
 import { GameEngine } from '../engine/GameEngine';
 import { useTVRemote } from '../hooks/useTVRemote';
+import { registerDebug } from '../debug/agentBridge';
 import { 
   Shield, 
   Swords, 
@@ -134,6 +135,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   playerBlockRef.current = playerBlock;
   const battleStatusRef = useRef<'FIGHTING' | 'VICTORY' | 'DEFEAT'>(battleStatus);
   battleStatusRef.current = battleStatus;
+  const atbFrozenRef = useRef<boolean>(false); // dev bridge: pause monster timers during captures
 
   // Initialize Battle & Sync with Engine
   useEffect(() => {
@@ -172,6 +174,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       const now = performance.now();
       const dt = (now - lastTime) / 1000;
       lastTime = now;
+      if (atbFrozenRef.current) return;
 
       setMonsters((prevMonsters) => {
         let anyAttacked = false;
@@ -372,8 +375,12 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   // Restart / Next Encounter (Cycles through 1 to 3 monster encounters)
   const handleNextEncounter = () => {
     const nextIdx = (currentEncounterIndex + 1) % ENCOUNTERS.length;
-    setCurrentEncounterIndex(nextIdx);
-    const newMonsters = createEncounterFromTemplate(ENCOUNTERS[nextIdx]);
+    startEncounter(ENCOUNTERS[nextIdx], nextIdx);
+  };
+
+  const startEncounter = (template: EncounterTemplate, index: number) => {
+    setCurrentEncounterIndex(index);
+    const newMonsters = createEncounterFromTemplate(template);
 
     setMonsters(newMonsters);
     setTargetedMonsterIndex(0);
@@ -384,6 +391,59 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     deckManagerRef.current.initDeck();
     setHand(deckManagerRef.current.dealInitialHand());
   };
+
+  // Dev automation bridge (window.__kk): battle state + encounter control
+  useEffect(() => registerDebug(
+    'battle',
+    () => ({
+      status: battleStatus,
+      playerHp,
+      playerBlock,
+      encounter: { index: currentEncounterIndex, id: ENCOUNTERS[currentEncounterIndex]?.id },
+      target: targetedMonsterIndex,
+      monsters: monsters.map((m) => ({
+        id: m.id,
+        instanceId: m.instanceId,
+        name: m.name,
+        spriteType: m.spriteType,
+        hp: m.currentHp,
+        maxHp: m.maxHp,
+        block: m.block,
+        alive: m.isAlive,
+        intent: { name: m.intent.name, type: m.intent.type, remaining: Number(m.intent.remainingSeconds.toFixed(2)) },
+      })),
+      hand: hand.map((c) => ({ name: c.name, exercise: c.exercise, currentReps: c.currentReps, requiredReps: c.requiredReps })),
+      focusedCard: hand[focusedCardIndex]
+        ? { index: focusedCardIndex, name: hand[focusedCardIndex].name, exercise: hand[focusedCardIndex].exercise,
+            currentReps: hand[focusedCardIndex].currentReps, requiredReps: hand[focusedCardIndex].requiredReps }
+        : null,
+      frozen: atbFrozenRef.current,
+      log: recentCombatLog,
+    }),
+    {
+      // ENCOUNTERS id or index, or an ad-hoc list of MONSTER_CATALOG ids / sprite types (e.g. ['wolf', 'BOAR'])
+      encounter: (which: string | number | string[]) => {
+        if (Array.isArray(which)) {
+          const monsterIds = which.map((w) => {
+            const cat = MONSTER_CATALOG.find((c) => c.id === w || c.spriteType === w.toUpperCase());
+            if (!cat) throw new Error(`Unknown monster "${w}". Known: ${MONSTER_CATALOG.map((c) => c.id).join(', ')}`);
+            return cat.id;
+          });
+          const template: EncounterTemplate = { id: 'debug', name: 'Debug Encounter', description: '', monsterIds };
+          startEncounter(template, currentEncounterIndex);
+          engineRef.current?.setMonsters(createEncounterFromTemplate(template));
+          return;
+        }
+        const index = typeof which === 'number' ? which : ENCOUNTERS.findIndex((e) => e.id === which);
+        if (!ENCOUNTERS[index]) throw new Error(`Unknown encounter "${which}". Known: ${ENCOUNTERS.map((e) => e.id).join(', ')}`);
+        startEncounter(ENCOUNTERS[index], index);
+        if (index === currentEncounterIndex) engineRef.current?.setMonsters(createEncounterFromTemplate(ENCOUNTERS[index]));
+      },
+      freeze: (on: boolean) => { atbFrozenRef.current = on; },
+      focusCard: (index: number) => setFocusedCardIndex(Math.max(0, Math.min(hand.length - 1, index))),
+      target: (index: number) => setTargetedMonsterIndex(index),
+    },
+  ));
 
   // TV Remote D-Pad Navigation for Hand Cards & Target Switching
   useTVRemote({

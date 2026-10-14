@@ -46,6 +46,11 @@ export class NetworkManager {
     return () => this.telemetryCallbacks.delete(cb);
   }
 
+  /** Delivers telemetry to local listeners as if it arrived from a phone (dev agent bridge / simulators). */
+  public injectTelemetry(telemetry: RepTelemetry): void {
+    this.telemetryCallbacks.forEach((cb) => cb(telemetry));
+  }
+
   public onStateChange(cb: StateChangeCallback): () => void {
     this.stateCallbacks.add(cb);
     cb(this.state, this.roomId);

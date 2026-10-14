@@ -18,6 +18,7 @@ MediaPipe Tasks Vision, PeerJS (WebRTC), Howler.
 npm run dev       # Vite on 0.0.0.0:5173 (reachable from phones on the LAN)
 npm run build     # tsc type-check + vite build — run this to verify changes; there is no test suite
 npm run preview
+npm run shot -- <steps>   # headless /tv run: screenshots + state + console errors → work/shots/ (see kk-verify skill)
 ```
 
 Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test` (alias `/lab`) motion-detection lab.
@@ -83,3 +84,6 @@ Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test
 
 For PixiJS work, start from the `pixijs` skill. It routes to the specific sub-skill. For rigging or animating
 characters, use `spine-animation`.
+After changing anything rendered on the TV, verify it with the `kk-verify` skill (`npm run shot`) and look at
+the screenshots. Don't rely on `npm run build` alone. In dev, `window.__kk` (`src/tv/debug/agentBridge.ts`) exposes
+game state and controls. Register new screens and engine systems there.
