@@ -183,18 +183,66 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
 };
 const MONSTER_X = 300;
 const MONSTER_LUNGE_DISTANCE = 110; // how far toward the knight an attack dashes
-const monsterAssetRefs = new Map<string, number>(); // shared rig → engines holding it
+const monsterAssetRefs = new Map<string, number>(); // shared rig → slots holding it
+const rigQueues = new Map<string, Promise<void>>(); // skeleton key → tail of its load/unload queue
+
+/**
+ * Runs load/unload tasks for one rig strictly in order. Without this, an unload issued while a load
+ * is in flight finds nothing in the cache, and the load then lands with no owner; and a load issued
+ * during an unload can get the cached copy the unload is about to evict. Either way the GPU
+ * textures are orphaned and never freed.
+ */
+function enqueueRigTask(skeleton: string, task: () => Promise<void>): Promise<void> {
+  const next = (rigQueues.get(skeleton) ?? Promise.resolve()).catch(() => {}).then(task);
+  rigQueues.set(skeleton, next);
+  const settle = () => {
+    if (rigQueues.get(skeleton) === next) rigQueues.delete(skeleton);
+  };
+  next.then(settle, settle);
+  return next;
+}
+
+/** Loads a Spine rig's skeleton + atlas (queued behind any pending unload of the same rig). */
+function loadSpineRig(skeleton: string, atlas: string): Promise<void> {
+  return enqueueRigTask(skeleton, async () => {
+    await Assets.load([skeleton, atlas]);
+  });
+}
 
 /**
  * Unloads a Spine rig's skeleton + atlas. Spine.from() caches parsed SkeletonData under its own
  * key and never evicts it, so drop that too or a later reload would reuse destroyed textures.
+ *
+ * The spine-pixi-v8 atlas loader fetches page images through Assets.loader directly, and its unload
+ * only destroys the Texture wrapper, so unload the page images as well or their GPU sources leak.
  */
-async function unloadSpineRig(skeleton: string, atlas: string, scale: number): Promise<void> {
-  const skeletonDataKey = `${skeleton}-${atlas}-${scale}`;
-  if (Cache.has(skeletonDataKey)) Cache.remove(skeletonDataKey);
-  try {
-    await Assets.unload([skeleton, atlas]);
-  } catch (e) {}
+function unloadSpineRig(skeleton: string, atlas: string, scale: number): Promise<void> {
+  return enqueueRigTask(skeleton, async () => {
+    const skeletonDataKey = `${skeleton}-${atlas}-${scale}`;
+    if (Cache.has(skeletonDataKey)) Cache.remove(skeletonDataKey);
+    const atlasDir = atlas.slice(0, atlas.lastIndexOf('/') + 1);
+    const pageUrls = Assets.cache.has(atlas)
+      ? Assets.get<TextureAtlas>(atlas).pages.map((page) => atlasDir + page.name)
+      : [];
+    try {
+      await Assets.unload([skeleton, atlas]);
+      await Assets.loader.unload(pageUrls);
+    } catch (e) {}
+  });
+}
+
+function retainMonsterRig(rig: MonsterRig): void {
+  monsterAssetRefs.set(rig.skeleton, (monsterAssetRefs.get(rig.skeleton) ?? 0) + 1);
+}
+
+function releaseMonsterRig(rig: MonsterRig): void {
+  const refs = (monsterAssetRefs.get(rig.skeleton) ?? 1) - 1;
+  if (refs > 0) {
+    monsterAssetRefs.set(rig.skeleton, refs);
+  } else {
+    monsterAssetRefs.delete(rig.skeleton);
+    void unloadSpineRig(rig.skeleton, rig.atlas, rig.scale);
+  }
 }
 
 /**
@@ -532,7 +580,7 @@ export class GameEngine {
       // Asset URLs double as cache keys (no aliases), so Spine.from can resolve them directly.
       knightAssetRefs++;
       this.holdsKnightAssets = true;
-      await Assets.load([KNIGHT_SKELETON_KEY, KNIGHT_ATLAS_KEY]);
+      await loadSpineRig(KNIGHT_SKELETON_KEY, KNIGHT_ATLAS_KEY);
       if (this.isDestroyed || !this.knightContainer) return;
 
       const spine = Spine.from({
@@ -649,9 +697,13 @@ export class GameEngine {
 
     if (!this.gameLayer) return;
 
+    const count = Math.min(3, Math.max(1, requestedTypes.length));
+
+    // Retain the new rigs before releasing the old ones so a rig shared by both encounters is
+    // never unloaded and immediately reloaded. Each ref passes to its slot once the slot is created.
+    for (const type of requestedTypes.slice(0, count)) retainMonsterRig(MONSTER_RIGS[type]);
     this.clearAllMonsters();
 
-    const count = Math.min(3, Math.max(1, requestedTypes.length));
     const formations: { x: number; y: number; zIndex: number }[][] = [
       // 1 monster (Solo boss/target)
       [{ x: 310, y: 168, zIndex: 10 }],
@@ -711,16 +763,18 @@ export class GameEngine {
       this.monsterSlots.push(slot);
       this.gameLayer.addChild(slotContainer);
 
-      monsterAssetRefs.set(rig.skeleton, (monsterAssetRefs.get(rig.skeleton) ?? 0) + 1);
-
       try {
-        await Assets.load([rig.skeleton, rig.atlas]);
+        await loadSpineRig(rig.skeleton, rig.atlas);
       } catch (err) {
         console.error(`[GameEngine] Failed to load monster rig ${type}:`, err);
         continue;
       }
 
-      if (this.isDestroyed || token !== this.monsterLoadToken) return;
+      if (this.isDestroyed || token !== this.monsterLoadToken) {
+        // Superseded: slots already created are released by clearAllMonsters; release the rest here.
+        for (const t of requestedTypes.slice(i + 1, count)) releaseMonsterRig(MONSTER_RIGS[t]);
+        return;
+      }
 
       const spine = Spine.from({ skeleton: rig.skeleton, atlas: rig.atlas, scale: rig.scale, autoUpdate: true });
       if (this.app) spine.ticker = this.app.ticker;
@@ -802,15 +856,7 @@ export class GameEngine {
         this.gameLayer.removeChild(slot.container);
         slot.container.destroy({ children: true });
       }
-      if (slot.rig) {
-        const refs = (monsterAssetRefs.get(slot.rig.skeleton) ?? 1) - 1;
-        if (refs > 0) {
-          monsterAssetRefs.set(slot.rig.skeleton, refs);
-        } else {
-          monsterAssetRefs.delete(slot.rig.skeleton);
-          void unloadSpineRig(slot.rig.skeleton, slot.rig.atlas, slot.rig.scale);
-        }
-      }
+      if (slot.rig) releaseMonsterRig(slot.rig);
     }
     this.monsterSlots = [];
     this.monsterSpine = null;
@@ -818,6 +864,15 @@ export class GameEngine {
   }
 
   private clearMonster(): void {
+    this.clearAllMonsters();
+  }
+
+  /**
+   * Removes all monsters and frees their rigs (e.g. when leaving battle). Also cancels any
+   * in-flight setMonsters() so a late load can't repopulate the stage.
+   */
+  public clearMonsters(): void {
+    this.monsterLoadToken++;
     this.clearAllMonsters();
   }
 
@@ -2565,6 +2620,7 @@ export class GameEngine {
       camera: { zoom: Number(this.cameraZoom.toFixed(3)), shake: Number(this.shakeIntensity.toFixed(2)) },
       equipped: { ...this.equippedSlots },
       reps: { total: this.totalRepsCount, combo: this.currentCombo },
+      assetRefs: { knight: knightAssetRefs, monsters: Object.fromEntries(monsterAssetRefs) },
     };
   }
 

@@ -147,6 +147,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     audioManager.play('level_up');
   }, [currentEncounterIndex, isEngineReady, engineRef]);
 
+  // Leaving battle: remove monsters from the stage and free their rigs
+  useEffect(() => {
+    return () => engineRef.current?.clearMonsters();
+  }, [engineRef]);
+
   // Update engine target when targetedMonsterIndex changes
   useEffect(() => {
     engineRef.current?.setTargetMonster?.(targetedMonsterIndex);
