@@ -254,21 +254,19 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       const engine = engineRef.current;
       const primary = res.hits[0];
 
-      // The attack animation plays toward the first foe hit (e.g. the back row for BACK cards)
+      // The attack plays at the foes hit, in order (e.g. the back row for BACK cards). The knight move
+      // lands each hit on its impact frame; damage labels and deaths show then.
       if (engine) {
-        const restoreTarget = targetedIndexRef.current;
-        if (primary) engine.setTargetMonster(primary.index);
-        engine.onRepCompleted(result.power, result.form, exercise, card.name, primary ? primary.damage + primary.blocked : 0);
-        engine.setTargetMonster(restoreTarget);
-        res.hits.forEach((hit, i) => {
-          const delay = 140 + i * (card.target === 'CHAIN' ? 140 : 40);
-          window.setTimeout(() => {
-            if (i > 0 || card.target === 'CHAIN') engine.playMonsterHit(hit.index);
-            const tags = [hit.blocked ? `(${hit.blocked} blocked)` : '', card.shatter ? 'SHATTER' : '', hit.staggered ? `STAGGER +${hit.staggered}s` : ''].filter(Boolean).join(' ');
-            engine.spawnMonsterText(hit.index, `-${hit.damage}`, hit.damage > 0 ? 0xFF3366 : 0x38B6FF, 12);
-            if (tags) engine.spawnMonsterText(hit.index, tags, 0xF4B41A, 7, 14);
-            if (hit.killed) engine.playMonsterDeath(hit.index);
-          }, delay);
+        const showHit = (hit: (typeof res.hits)[number]) => {
+          const tags = [hit.blocked ? `(${hit.blocked} blocked)` : '', card.shatter ? 'SHATTER' : '', hit.staggered ? `STAGGER +${hit.staggered}s` : ''].filter(Boolean).join(' ');
+          engine.spawnMonsterText(hit.index, `-${hit.damage}`, hit.damage > 0 ? 0xFF3366 : 0x38B6FF, 12);
+          if (tags) engine.spawnMonsterText(hit.index, tags, 0xF4B41A, 7, 14);
+          if (hit.killed) engine.playMonsterDeath(hit.index);
+        };
+        engine.onRepCompleted(result.power, result.form, exercise, card.name, primary ? primary.damage + primary.blocked : 0, {
+          targets: res.hits.map((hit) => hit.index),
+          onImpact: (i) => showHit(res.hits[i]),
+          stagger: card.target === 'CHAIN' ? 8 : 2,
         });
       }
 

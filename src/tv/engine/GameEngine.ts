@@ -1,10 +1,15 @@
 import { Application, Container, Graphics, Text, Assets, Sprite, Texture, Cache, Rectangle } from 'pixi.js';
-import { Spine, SpineTexture } from '@esotericsoftware/spine-pixi-v8';
+import { Spine, SpineTexture, EventTimeline } from '@esotericsoftware/spine-pixi-v8';
 import type { TextureAtlas } from '@esotericsoftware/spine-core';
 import { audioManager } from '../../shared/AudioManager';
 import { ExerciseType, EXERCISE_SKILLS } from '../../types/game';
 import type { MonsterSprite, MonsterMoveId } from '../../types/battle';
-import { MONSTER_MOVES, Timeline, type MoveHost, type ImpactResult, type EmitOptions } from './monsterMoves';
+import { MONSTER_MOVES, type MoveHost, type ImpactResult } from './monsterMoves';
+import { Timeline, type EmitOptions } from './choreo';
+import {
+  KNIGHT_MOVES, KNIGHT_MOVE_IDS, knightMoveFor,
+  type KnightMoveId, type KnightMoveHost, type KnightMoveContext, type KnightTarget,
+} from './knightMoves';
 
 interface FloatingCombatText {
   container: Container;
@@ -63,6 +68,7 @@ export interface SkeletonAttachmentMock {
 const KNIGHT_SKELETON_KEY = '/assets/spine/knight/HulkForm2.json';
 const KNIGHT_ATLAS_KEY = '/assets/spine/knight/HulkForm2.atlas';
 const KNIGHT_SCALE = 0.15;
+const KNIGHT_HOME = { x: 130, y: 168 }; // knight feet at rest (battlefield coords)
 // Battle arena background textures (clean 1:1 retro canvas match)
 export const BATTLE_MAPS = {
   CATHEDRAL_CRYPT: '/assets/backgrounds/cathedral_crypt.webp',
@@ -301,6 +307,7 @@ export class GameEngine {
   private hitReactionIndex: number = 0;
   private holdsKnightAssets: boolean = false;
   private knightLocked: boolean = false; // true while on a terminal pose (victory / defeat)
+  private knightShadow: Graphics | null = null;
 
   private enemyDummy: Container | null = null;
   private monsterSpine: Spine | null = null;
@@ -365,6 +372,11 @@ export class GameEngine {
   private extraSpines: Set<Spine> = new Set(); // move-spawned rig clones (e.g. phantom wolves)
   private knightKnockX: number = 0;
   private debugClock: number = 0;
+
+  // Knight move choreography (knightMoves.ts)
+  private activeKnightMove: { id: KnightMoveId; cancel: () => void } | null = null;
+  private knightVictoryPending = false; // victory pose waits for the finishing blow's move to end
+  private knightTimeScale = 1; // Spine playback speed set by a move (hit-stop overrides it)
 
   // Dev automation (window.__kk): ready once init() finishes; loadsInFlight counts pending asset loads
   private isReady: boolean = false;
@@ -564,6 +576,7 @@ export class GameEngine {
     const shadow = new Graphics();
     shadow.ellipse(0, 0, 28, 6).fill({ color: 0x000000, alpha: 0.45 });
     this.knightContainer.addChild(shadow);
+    this.knightShadow = shadow;
 
     this.gameLayer.addChild(this.knightContainer);
   }
@@ -650,6 +663,10 @@ export class GameEngine {
   public playKnightVictory(): void {
     const spine = this.knightSpine;
     if (!spine || this.knightLocked) return;
+    if (this.activeKnightMove) {
+      this.knightVictoryPending = true;
+      return;
+    }
     this.knightLocked = true;
     spine.state.setAnimation(0, 'WIN', false);
     spine.state.addAnimation(0, 'IDLE', true, 0);
@@ -677,6 +694,7 @@ export class GameEngine {
   /** Clears victory/defeat lock and returns the knight to IDLE (new battle). */
   public resetKnight(): void {
     this.knightLocked = false;
+    this.knightVictoryPending = false;
     this.knightSpine?.state.setAnimation(0, 'IDLE', true);
   }
 
@@ -1029,8 +1047,7 @@ export class GameEngine {
     const ground = new Container();
     ground.zIndex = -100; // decals: above the dim overlay, below the characters
     this.gameLayer.addChild(ground);
-    let overlay: Graphics | null = null;
-    let overlayColor = -1;
+    const dimmer = this.createDimmer();
     const clones: Spine[] = [];
     const spine = slot.spine;
     const rig = slot.rig;
@@ -1094,39 +1111,13 @@ export class GameEngine {
           return null;
         }
       },
-      camera: (zoom, x, y, holdFrames) => {
-        // Battlefield → stage coords, clamped so the zoomed view stays over the background
-        const halfW = 213 / zoom;
-        const halfH = 120 / zoom;
-        const fx2 = Math.min(Math.max(x, halfW), 426 - halfW);
-        const fy = Math.min(Math.max(y - SCENE_RAISE_Y, halfH - 32), 240 - halfH);
-        this.triggerCameraZoom(zoom, fx2, fy, holdFrames);
-      },
-      shake: (intensity) => {
-        this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
-      },
-      flash: (alpha, color = 0xFFFFFF) => {
-        if (!this.flashOverlay) return;
-        this.flashOverlay.tint = color;
-        // Capped: full-screen flashes above ~0.45 wash out the TV picture and are harsh to look at
-        this.flashAlpha = Math.max(this.flashAlpha, Math.min(alpha, 0.45));
-      },
+      camera: (zoom, x, y, holdFrames) => this.moveCamera(zoom, x, y, holdFrames),
+      shake: (intensity) => this.moveShake(intensity),
+      flash: (alpha, color) => this.moveFlash(alpha, color),
       hitStop: (frames) => {
         this.hitStopFrames = Math.max(this.hitStopFrames, frames);
       },
-      dim: (alpha, color = 0x000000) => {
-        if (!overlay) {
-          if (alpha <= 0 || !this.gameLayer) return;
-          overlay = new Graphics();
-          overlay.zIndex = -200; // over the background, under decals and characters
-          this.gameLayer.addChild(overlay);
-        }
-        if (color !== overlayColor) {
-          overlayColor = color;
-          overlay.clear().rect(-80, -20, 586, 320).fill({ color });
-        }
-        overlay.alpha = alpha;
-      },
+      dim: dimmer.dim,
       knightHit: (knockback = 6) => this.knightHitReaction(knockback),
       impact,
       sparks: (x, y, count, colors) => this.spawnSparks(x, y, count, colors),
@@ -1163,7 +1154,7 @@ export class GameEngine {
       }
       fx.destroy({ children: true });
       ground.destroy({ children: true });
-      (overlay as Graphics | null)?.destroy();
+      dimmer.destroy();
     };
 
     const tl = new Timeline();
@@ -1191,6 +1182,315 @@ export class GameEngine {
         return done;
       },
     });
+  }
+
+  /**
+   * Plays a choreographed knight move (see knightMoves.ts) at `targets` (monster slot indices, in hit
+   * order; defaults to the targeted monster). `onImpact(i)` runs when hit `i` lands; every hit lands
+   * exactly once, even if the move is cut short. When a move lands all hits at once they are spaced
+   * `stagger` frames apart (CHAIN cards use a longer stagger). Moves without choreography fall back to
+   * the legacy `execute*` methods, with hits landing from ~8 frames in.
+   */
+  public playKnightMove(
+    id: KnightMoveId,
+    opts: { targets?: number[]; ctx?: Partial<KnightMoveContext>; onImpact?: (i: number) => void; stagger?: number } = {},
+  ): void {
+    const ctx: KnightMoveContext = { power: 100, form: 1, crit: false, damage: 0, ...opts.ctx };
+    const defaultSlot = (this.monsterSlots[this.targetSlotIndex]?.isAlive ? this.monsterSlots[this.targetSlotIndex] : null)
+      ?? this.monsterSlots.find((s) => s.isAlive);
+    const targets: KnightTarget[] = (opts.targets ?? (defaultSlot ? [defaultSlot.slotIndex] : [])).map((i) => {
+      const slot = this.monsterSlots[i];
+      return { slot: i, x: slot?.baseX ?? MONSTER_X, y: slot?.baseY ?? 168, height: slot?.rig?.height ?? 40 };
+    });
+
+    const landed = new Set<number>();
+    const land = (i: number) => {
+      if (landed.has(i) || !targets[i]) return;
+      landed.add(i);
+      this.playMonsterHit(targets[i].slot);
+      opts.onImpact?.(i);
+    };
+    const landAll = () => targets.forEach((_, i) => land(i));
+    const stagger = opts.stagger ?? 2;
+    const tl = new Timeline();
+    const landStaggered = () => targets.forEach((_, i) => (i === 0 || !stagger ? land(i) : tl.at(tl.frame + i * stagger, () => land(i))));
+
+    const knight = this.knightContainer;
+    if (!knight || !this.effectsLayer || !this.gameLayer) {
+      landAll();
+      return;
+    }
+    this.activeKnightMove?.cancel();
+
+    const choreo = KNIGHT_MOVES[id];
+    if (!choreo) {
+      const restoreTarget = this.targetSlotIndex;
+      if (targets[0]) this.targetSlotIndex = targets[0].slot;
+      this.playLegacyKnightMove(id, ctx);
+      this.targetSlotIndex = restoreTarget;
+      tl.at(8, landStaggered); // legacy moves connect ~6 frames in
+      this.runKnightTimeline(id, tl, landAll);
+      return;
+    }
+
+    const spine = this.knightSpine;
+    const shadow = this.knightShadow;
+    const home = { ...KNIGHT_HOME };
+    const fx = new Container();
+    this.effectsLayer.addChild(fx);
+    const ground = new Container();
+    ground.zIndex = -100; // decals: above the dim overlay, below the characters
+    this.gameLayer.addChild(ground);
+    const dimmer = this.createDimmer();
+    const restScale = spine ? { x: spine.scale.x, y: spine.scale.y } : { x: 1, y: 1 };
+    let offX = 0;
+    let offY = 0;
+    let stretchX = 1;
+    let stretchY = 1;
+    let facing = 1;
+    const applyScale = () => spine?.scale.set(restScale.x * stretchX * facing, restScale.y * stretchY);
+
+    const host: KnightMoveHost = {
+      home,
+      targets,
+      target: targets[0] ?? { slot: -1, x: MONSTER_X, y: 168, height: 40 },
+      ctx,
+      pos: () => ({ x: home.x + offX, y: home.y + offY }),
+      gfx: (layer = 'fx') => (layer === 'ground' ? ground : fx).addChild(new Graphics()),
+      container: (layer = 'fx') => (layer === 'ground' ? ground : fx).addChild(new Container()),
+      anim: (name, loop = false) => {
+        const animation = spine?.skeleton.data.findAnimation(name);
+        if (!spine || !animation) {
+          if (spine) console.warn(`[GameEngine] knight move ${id}: no knight animation "${name}"`);
+          return 0;
+        }
+        if (this.knightLocked) return 0;
+        spine.state.setAnimation(0, name, loop);
+        if (!loop) spine.state.addAnimation(0, 'IDLE', true, 0);
+        return Math.round((animation.duration * 60) / (this.knightTimeScale || 1));
+      },
+      animSpeed: (scale) => {
+        this.knightTimeScale = scale;
+        if (spine && !this.spinesFrozen) spine.state.timeScale = scale;
+      },
+      idle: () => {
+        if (spine && !this.knightLocked) spine.state.setAnimation(0, 'IDLE', true);
+      },
+      offset: (x, y = 0) => {
+        offX = x;
+        offY = y;
+        knight.x = home.x + x;
+        knight.y = home.y + y;
+      },
+      lift: (height) => {
+        if (spine) spine.y = -height;
+        const s = Math.max(0.3, 1 - height / 160);
+        shadow?.scale.set(s);
+        if (shadow) shadow.alpha = s;
+      },
+      stretch: (sx, sy) => {
+        stretchX = sx;
+        stretchY = sy;
+        applyScale();
+      },
+      face: (left) => {
+        facing = left ? -1 : 1;
+        applyScale();
+      },
+      alpha: (a) => {
+        knight.alpha = a;
+      },
+      tint: (color) => {
+        if (spine) spine.tint = color;
+      },
+      ghost: (color, alpha = 0.45, life = 10) => this.spawnKnightAfterimage(color, alpha, life),
+      camera: (zoom, x, y, holdFrames) => this.moveCamera(zoom, x, y, holdFrames),
+      shake: (intensity) => this.moveShake(intensity),
+      flash: (alpha, color) => this.moveFlash(alpha, color),
+      hitStop: (frames) => {
+        this.hitStopFrames = Math.max(this.hitStopFrames, frames);
+      },
+      dim: dimmer.dim,
+      impact: (i) => (i === undefined ? landStaggered() : land(i)),
+      sparks: (x, y, count, colors) => this.spawnSparks(x, y, count, colors),
+      shockwave: (x, y, color) => this.spawnShockwave(x, y, color),
+      streaks: (x, y, length, colors) => this.spawnSpeedStreaks(x, y, length, colors),
+      emit: (x, y, o) => this.emitParticles(x, y, o),
+      slashArc: (g, cx, cy, r, a0, a1, shadowColor, body, core) => this.drawPainterlySlashArc(g, cx, cy, r, a0, a1, shadowColor, body, core),
+      text: (content, x, y, color, size) => this.spawnFloatingText(content, x, y, color, size),
+      sound: (name) => audioManager.play(name),
+    };
+
+    const cleanup = () => {
+      if (!this.isDestroyed) landAll(); // a move must always land its hits
+      if (!knight.destroyed) {
+        knight.x = home.x;
+        knight.y = home.y;
+        knight.alpha = 1;
+      }
+      shadow?.scale.set(1);
+      if (shadow) shadow.alpha = 1;
+      this.knightTimeScale = 1;
+      if (spine && !spine.destroyed) {
+        spine.y = 0;
+        spine.scale.set(restScale.x, restScale.y);
+        spine.tint = 0xFFFFFF;
+        spine.state.timeScale = this.spinesFrozen ? 0 : 1;
+        const current = spine.state.getCurrent(0);
+        if (!this.knightLocked && current?.loop && current.animation?.name !== 'IDLE') {
+          spine.state.setAnimation(0, 'IDLE', true);
+        }
+      }
+      fx.destroy({ children: true });
+      ground.destroy({ children: true });
+      dimmer.destroy();
+    };
+
+    try {
+      choreo(host, tl);
+    } catch (err) {
+      console.error(`[GameEngine] knight move ${id} failed to build:`, err);
+      cleanup();
+      return;
+    }
+    this.runKnightTimeline(id, tl, cleanup);
+  }
+
+  /** Ticks a knight move's timeline on the engine loop; `cleanup` runs once when it ends or is cut short. */
+  private runKnightTimeline(id: KnightMoveId, tl: Timeline, cleanup: () => void): void {
+    let finished = false;
+    const handle = {
+      id,
+      cancel: () => {
+        if (finished) return;
+        finished = true;
+        if (this.activeKnightMove === handle) this.activeKnightMove = null;
+        cleanup();
+        if (this.knightVictoryPending && !this.activeKnightMove) {
+          this.knightVictoryPending = false;
+          this.playKnightVictory();
+        }
+      },
+    };
+    this.activeKnightMove = handle;
+    this.activeEffects.push({
+      container: new Container(),
+      life: 0,
+      maxLife: Number.POSITIVE_INFINITY,
+      onUpdate: (_eff, delta) => {
+        if (!finished && !this.isDestroyed && !this.knightContainer?.destroyed && !tl.tick(delta)) return false;
+        handle.cancel();
+        return true;
+      },
+    });
+  }
+
+  /** Pre-choreography knight attacks (GameEngine.execute*), kept until each is ported to knightMoves.ts. */
+  private playLegacyKnightMove(id: KnightMoveId, c: KnightMoveContext): void {
+    const p = [c.power, c.crit, c.damage] as const;
+    switch (id) {
+      case 'swing_cleave': return this.executePhysicalSlash(...p, false);
+      case 'swing_whirlwind': return this.executePhysicalSlash(...p, true);
+      case 'squat_ground_slam': return this.executeLeapingGroundSlam(...p, false);
+      case 'squat_quake': return this.executeLeapingGroundSlam(...p, true);
+      case 'press_shoulder_ram': return this.executeShoulderRamUppercut(...p, false);
+      case 'press_cleaver': return this.executeShoulderRamUppercut(...p, true);
+      case 'snatch_rising_slash': return this.executeRisingDragonSlash(...p, false);
+      case 'snatch_talon': return this.executeRisingDragonSlash(...p, true);
+      case 'windmill_parry': return this.executeParryCounterSlash(...p, false);
+      case 'windmill_ward': return this.executeParryCounterSlash(...p, true);
+      case 'deadlift_sunder': return this.executeGroundDragSunder(...p);
+      case 'ohp_smite': return this.executeSkywardSmitePlunge(...p, false);
+      case 'ohp_pillar': return this.executeSkywardSmitePlunge(...p, true);
+      case 'thruster_coiled_slash': return this.executeCoiledSupernovaSlash(...p, false);
+      case 'thruster_supernova': return this.executeCoiledSupernovaSlash(...p, true);
+      case 'row_flurry': return this.executeFrenziedHackingFlurry(...p, false);
+      case 'row_shadow': return this.executeFrenziedHackingFlurry(...p, true);
+      case 'halo_cyclone': return this.executeOrbitalCycloneSweep(...p, false);
+      case 'halo_vortex': return this.executeOrbitalCycloneSweep(...p, true);
+      case 'rdl_needle_thrust': return this.executeNeedleLungeThrust(...p, false);
+      case 'rdl_crane': return this.executeNeedleLungeThrust(...p, true);
+      case 'clean_anvil_cleave': return this.executeAnvilCrusherCleave(...p);
+      case 'lunge_cross_dash': return this.executePhantomCrossDash(...p);
+    }
+  }
+
+  /** Afterimage of the knight's current pose: a frozen rig copy (shares textures), additive-tinted and fading. */
+  private spawnKnightAfterimage(color: number, alpha: number, life: number): void {
+    const src = this.knightSpine;
+    const knight = this.knightContainer;
+    if (!src || !knight || !this.gameLayer) return;
+    let ghost: Spine;
+    try {
+      ghost = Spine.from({ skeleton: KNIGHT_SKELETON_KEY, atlas: KNIGHT_ATLAS_KEY, scale: KNIGHT_SCALE, autoUpdate: false });
+    } catch {
+      return;
+    }
+    const current = src.state.getCurrent(0);
+    if (current?.animation) {
+      const entry = ghost.state.setAnimation(0, current.animation.name, current.loop);
+      entry.trackTime = current.trackTime;
+    }
+    ghost.update(0);
+    ghost.x = knight.x + src.x;
+    ghost.y = knight.y + src.y;
+    ghost.scale.copyFrom(src.scale);
+    ghost.tint = color;
+    ghost.alpha = alpha;
+    ghost.blendMode = 'add';
+    ghost.zIndex = -50; // behind the fighters, above ground decals
+    this.gameLayer.addChild(ghost);
+    this.activeEffects.push({
+      container: ghost,
+      life: 0,
+      maxLife: life,
+      onUpdate: (eff) => {
+        ghost.alpha = alpha * Math.max(0, 1 - eff.life / life);
+        return false;
+      },
+    });
+  }
+
+  /** Move camera: battlefield → stage coords, clamped so the zoomed view stays over the background. */
+  private moveCamera(zoom: number, x: number, y: number, holdFrames: number): void {
+    const halfW = 213 / zoom;
+    const halfH = 120 / zoom;
+    const fx = Math.min(Math.max(x, halfW), 426 - halfW);
+    const fy = Math.min(Math.max(y - SCENE_RAISE_Y, halfH - 32), 240 - halfH);
+    this.triggerCameraZoom(zoom, fx, fy, holdFrames);
+  }
+
+  private moveShake(intensity: number): void {
+    this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
+  }
+
+  private moveFlash(alpha: number, color = 0xFFFFFF): void {
+    if (!this.flashOverlay) return;
+    this.flashOverlay.tint = color;
+    // Capped: full-screen flashes above ~0.45 wash out the TV picture and are harsh to look at
+    this.flashAlpha = Math.max(this.flashAlpha, Math.min(alpha, 0.45));
+  }
+
+  /** Per-move battlefield dim overlay, created on first use. */
+  private createDimmer() {
+    let overlay: Graphics | null = null;
+    let overlayColor = -1;
+    return {
+      dim: (alpha: number, color = 0x000000) => {
+        if (!overlay) {
+          if (alpha <= 0 || !this.gameLayer) return;
+          overlay = new Graphics();
+          overlay.zIndex = -200; // over the background, under decals and characters
+          this.gameLayer.addChild(overlay);
+        }
+        if (color !== overlayColor) {
+          overlayColor = color;
+          overlay.clear().rect(-80, -20, 586, 320).fill({ color });
+        }
+        overlay.alpha = alpha;
+      },
+      destroy: () => overlay?.destroy(),
+    };
   }
 
   /** Floating label above a monster slot (damage numbers, SHATTER / STAGGER tags). */
@@ -1257,7 +1557,7 @@ export class GameEngine {
   private setSpinesFrozen(frozen: boolean): void {
     this.spinesFrozen = frozen;
     const scale = frozen ? 0 : 1;
-    if (this.knightSpine) this.knightSpine.state.timeScale = scale;
+    if (this.knightSpine) this.knightSpine.state.timeScale = frozen ? 0 : this.knightTimeScale;
     for (const slot of this.monsterSlots) if (slot.spine) slot.spine.state.timeScale = scale;
     for (const s of this.extraSpines) if (!s.destroyed) s.state.timeScale = scale;
   }
@@ -1402,7 +1702,7 @@ export class GameEngine {
    * engineRef.current.onRepCompleted()."
    */
   /**
-   * Dispatches specialized physical melee attacks, dynamic camera zooms, and 32-bit dark fantasy pixel VFX
+   * Plays the exercise's knight attack (knightMoveFor → knightMoves.ts, or a legacy execute* method).
    */
   public onRepCompleted(
     power: number = 80, 
@@ -1410,6 +1710,7 @@ export class GameEngine {
     exercise: ExerciseType = 'SWING',
     skillName?: string,
     displayDamage?: number, // the real damage dealt (battle); otherwise a showcase number from power/form
+    hits: { targets?: number[]; onImpact?: (i: number) => void; stagger?: number } = {}, // battle: slots hit, in order
   ): void {
     this.totalRepsCount++;
     this.currentCombo++;
@@ -1417,90 +1718,11 @@ export class GameEngine {
 
     const isCrit = power >= 95;
     const damageNum = displayDamage ?? Math.round(power * form * 14);
-    const nameLower = (skillName || EXERCISE_SKILLS[exercise]?.skillName || '').toLowerCase();
-
-    // 1. Attack type specific physical animations & dynamic camera strikes
-    switch (exercise) {
-      case 'SWING': {
-        const isWhirlwind = nameLower.includes('whirlwind') || nameLower.includes('dragon');
-        this.executePhysicalSlash(power, isCrit, damageNum, isWhirlwind);
-        break;
-      }
-
-      case 'SQUAT': {
-        const isQuake = nameLower.includes('quake') || nameLower.includes('colossus');
-        this.executeLeapingGroundSlam(power, isCrit, damageNum, isQuake);
-        break;
-      }
-
-      case 'CLEAN_AND_PRESS': {
-        const isCleaver = nameLower.includes('cleaver') || nameLower.includes('stormbreaker');
-        this.executeShoulderRamUppercut(power, isCrit, damageNum, isCleaver);
-        break;
-      }
-
-      case 'SNATCH': {
-        const isTalon = nameLower.includes('talon') || nameLower.includes('solar');
-        this.executeRisingDragonSlash(power, isCrit, damageNum, isTalon);
-        break;
-      }
-
-      case 'WINDMILL': {
-        const isWard = nameLower.includes('ward') || nameLower.includes('cosmic');
-        this.executeParryCounterSlash(power, isCrit, damageNum, isWard);
-        break;
-      }
-
-      case 'DEADLIFT': {
-        this.executeGroundDragSunder(power, isCrit, damageNum);
-        break;
-      }
-
-      case 'OVERHEAD_PRESS': {
-        const isPillar = nameLower.includes('pillar') || nameLower.includes('heavenly') || nameLower.includes('judgement');
-        this.executeSkywardSmitePlunge(power, isCrit, damageNum, isPillar);
-        break;
-      }
-
-      case 'THRUSTER': {
-        const isSupernova = nameLower.includes('supernova') || nameLower.includes('surge');
-        this.executeCoiledSupernovaSlash(power, isCrit, damageNum, isSupernova);
-        break;
-      }
-
-      case 'GORILLA_ROW': {
-        const isShadow = nameLower.includes('shadow') || nameLower.includes('ripper');
-        this.executeFrenziedHackingFlurry(power, isCrit, damageNum, isShadow);
-        break;
-      }
-
-      case 'HALO': {
-        const isVortex = nameLower.includes('vortex') || nameLower.includes('astral');
-        this.executeOrbitalCycloneSweep(power, isCrit, damageNum, isVortex);
-        break;
-      }
-
-      case 'SINGLE_LEG_RDL': {
-        const isCrane = nameLower.includes('crane');
-        this.executeNeedleLungeThrust(power, isCrit, damageNum, isCrane);
-        break;
-      }
-
-      case 'CLEAN': {
-        this.executeAnvilCrusherCleave(power, isCrit, damageNum);
-        break;
-      }
-
-      case 'LUNGE': {
-        this.executePhantomCrossDash(power, isCrit, damageNum);
-        break;
-      }
-
-      default: {
-        this.executePhysicalSlash(power, isCrit, damageNum, false);
-        break;
-      }
-    }
+    const name = skillName || EXERCISE_SKILLS[exercise]?.skillName || '';
+    this.playKnightMove(knightMoveFor(exercise, name), {
+      ...hits,
+      ctx: { power, form, crit: isCrit, damage: damageNum, skillName: name },
+    });
 
     // Form feedback text
     if (form >= 0.94) {
@@ -2916,7 +3138,7 @@ export class GameEngine {
       idle,
       fps: this.app ? Math.round(this.app.ticker.FPS) : 0,
       background: this.currentBgKey,
-      knight: { animation: knightAnimation, locked: this.knightLocked },
+      knight: { animation: knightAnimation, locked: this.knightLocked, move: this.activeKnightMove?.id ?? null },
       monsters,
       targetSlot: this.targetSlotIndex,
       vfx,
@@ -2949,6 +3171,68 @@ export class GameEngine {
     spine.state.timeScale = 0;
     spine.update(0);
     return { type: slot.spriteType, animations };
+  }
+
+  /**
+   * Dev bridge: the knight rig's animations with durations and Spine events, in seconds and 60 fps frames
+   * (e.g. SKILL2RADON's DamToTarget events mark its hit frames). Used to sync move timelines to the rig.
+   */
+  public debugKnightAnimations() {
+    const spine = this.knightSpine;
+    if (!spine) throw new Error('Knight rig not loaded');
+    return spine.skeleton.data.animations.map((a) => {
+      const events = a.timelines
+        .filter((t): t is EventTimeline => t instanceof EventTimeline)
+        .flatMap((t) => t.events.map((e) => ({ name: e.data.name, time: Number(e.time.toFixed(3)), frame: Math.round(e.time * 60) })));
+      return { name: a.name, duration: Number(a.duration.toFixed(3)), frames: Math.round(a.duration * 60), events };
+    });
+  }
+
+  /**
+   * Dev bridge: freezes the knight on `animation` at `time` seconds (or returns it to IDLE when animation is
+   * null). Returns the rig's animation list so callers can build contact sheets.
+   */
+  public debugPoseKnight(animation: string | null, time = 0) {
+    const spine = this.knightSpine;
+    if (!spine) throw new Error('Knight rig not loaded');
+    const animations = this.debugKnightAnimations();
+    if (animation === null) {
+      spine.state.timeScale = 1;
+      if (!this.knightLocked) spine.state.setAnimation(0, 'IDLE', true);
+      return { animations };
+    }
+    if (!spine.skeleton.data.findAnimation(animation)) throw new Error(`Knight has no animation "${animation}"`);
+    spine.skeleton.setToSetupPose();
+    const entry = spine.state.setAnimation(0, animation, false);
+    entry.mixDuration = 0;
+    entry.trackTime = time;
+    spine.state.timeScale = 0;
+    spine.update(0);
+    return { animations };
+  }
+
+  /** Dev bridge: knight move ids, and whether each is choreographed (knightMoves.ts) or still legacy. */
+  public debugKnightMoves() {
+    return KNIGHT_MOVE_IDS.map((id) => ({ id, choreographed: !!KNIGHT_MOVES[id] }));
+  }
+
+  /**
+   * Dev bridge: plays a knight move without touching battle state, with stand-in damage labels on each
+   * hit. `targets` are monster slots in hit order (default: the targeted monster).
+   */
+  public debugKnightMove(id: string, targets?: number[], damage = 24) {
+    if (!(KNIGHT_MOVE_IDS as readonly string[]).includes(id)) {
+      throw new Error(`Unknown knight move "${id}". Known: ${KNIGHT_MOVE_IDS.join(', ')}`);
+    }
+    const slots = targets ?? undefined;
+    this.playKnightMove(id as KnightMoveId, {
+      targets: slots,
+      ctx: { power: 90, form: 1, crit: false, damage },
+      onImpact: (i) => {
+        const slot = slots?.[i] ?? this.targetSlotIndex;
+        this.spawnMonsterText(slot, `-${damage}`, 0xFF3366, 12);
+      },
+    });
   }
 
   /** Dev bridge: stops the ticker and advances exactly `frames` 60 fps frames (deterministic captures). */

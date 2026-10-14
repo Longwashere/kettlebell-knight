@@ -26,6 +26,10 @@
  *   sheet[:slot[:frames]]     contact sheet of every animation on a monster slot (freezes timers)
  *   attack:<slot>:<move>      play a monster move now (move id or name, e.g. attack:0:wolf_throat_bite)
  *   film:<slot>:<move>[:n[:step]]  film strip of a move: n frames, every `step` 60fps frames (default 16, 6)
+ *   kanims | kmoves           print knight animations (frames + Spine events) / knight move ids (knightMoves.ts)
+ *   kmove:<id>[:slots]        play a knight move now, no battle state change (slots: comma list, hit order)
+ *   ksheet[:frames[:regex]]   contact sheet of knight animations, e.g. ksheet:6:ATTACK|SKILL
+ *   kfilm:<id>[:n[:step[:slots]]]  film strip of a knight move (default 16 frames, every 3)
  *   guides[:scale]            sheet of every exercise guide pose (src/tv/components/exerciseGuide.ts)
  *   cardart[:scale]           sheet of every card illustration (src/tv/components/cardArt.ts)
  *   state | textures          print __kk.state() / GPU texture stats as JSON
@@ -312,6 +316,29 @@ async function runStep(step) {
       const [slot, move, count, step] = arg.split(':');
       const url = await kk(`__kk.film(${Number(slot) || 0}, ${js(move)}, ${Number(count) || 16}, ${Number(step) || 6})`);
       return save(`film-${move}`, url.replace(/^data:image\/png;base64,/, ''));
+    }
+    case 'kanims': {
+      const anims = await kk('__kk.knightAnims()');
+      return '\n' + anims.map((a) => `    ${a.name.padEnd(18)} ${String(a.frames).padStart(4)}f  ${a.events.map((e) => `${e.name}@f${e.frame}`).join(' ')}`).join('\n');
+    }
+    case 'kmoves': {
+      const moves = await kk('__kk.knightMoves()');
+      return '\n' + moves.map((m) => `    ${m.id.padEnd(24)} ${m.choreographed ? 'choreographed' : 'legacy'}`).join('\n');
+    }
+    case 'kmove': {
+      const [move, slots] = arg.split(':');
+      await kk(`__kk.knightMove(${js(move)}, ${slots ? js(slots.split(',').map(Number)) : 'undefined'})`);
+      return move;
+    }
+    case 'ksheet': {
+      const [frames, filter] = [rest[0], rest.slice(1).join(':')];
+      const url = await kk(`__kk.knightSheet(${Number(frames) || 6}, ${filter ? js(filter) : 'undefined'})`);
+      return save(`knight-sheet${filter ? '-' + filter.replace(/[^\w]+/g, '_') : ''}`, url.replace(/^data:image\/png;base64,/, ''));
+    }
+    case 'kfilm': {
+      const [move, count, step, slots] = arg.split(':');
+      const url = await kk(`__kk.knightFilm(${js(move)}, ${Number(count) || 16}, ${Number(step) || 3}, ${slots ? js(slots.split(',').map(Number)) : 'undefined'})`);
+      return save(`kfilm-${move}`, url.replace(/^data:image\/png;base64,/, ''));
     }
     case 'guides': {
       const url = await kk(`__kk.guideSheet(${Number(arg) || 3})`);

@@ -16,8 +16,13 @@
 import { Container, Graphics } from 'pixi.js';
 import type { Spine } from '@esotericsoftware/spine-pixi-v8';
 import type { MonsterMoveId } from '../../types/battle';
+import {
+  Timeline, type EmitOptions, type SfxName,
+  lerp, easeIn, easeOut, easeInOut, arc, rand,
+  INK, BONE, BLOOD, BLOOD_DARK, EMBER, GOLD, GOO, DIRT, SHADOW, FIRE, SPORE, SMOKE,
+} from './choreo';
 
-export type SfxName = 'swing' | 'hit' | 'crit' | 'equip' | 'level_up';
+export { Timeline, type EmitOptions, type SfxName };
 
 /** What the battle logic reports back on the impact frame. */
 export interface ImpactResult {
@@ -25,17 +30,6 @@ export interface ImpactResult {
   color?: number;
   at?: 'knight' | 'monster';
   hit?: boolean; // knight takes a hit reaction (false when fully blocked)
-}
-
-export interface EmitOptions {
-  count: number;
-  colors: number[];
-  speed?: [number, number];
-  angle?: number; // radians, 0 = right, -PI/2 = up
-  spread?: number; // radians either side of angle
-  gravity?: number; // per-frame vy increase (negative rises)
-  size?: number;
-  life?: [number, number]; // frames
 }
 
 /** Engine services available to a move. Implemented in GameEngine.playMonsterMove. */
@@ -76,77 +70,6 @@ export interface MoveHost {
   text(content: string, x: number, y: number, color: number, size: number): void;
   sound(name: SfxName): void;
 }
-
-/** Frame-based scheduler. `during` callbacks always receive a final t=1 call. */
-export class Timeline {
-  frame = 0;
-  length = 0;
-  private events: { at: number; fn: () => void; done: boolean }[] = [];
-  private spans: { from: number; to: number; fn: (t: number, f: number) => void; done: boolean }[] = [];
-
-  at(frame: number, fn: () => void): void {
-    this.events.push({ at: frame, fn, done: false });
-    this.length = Math.max(this.length, frame);
-  }
-
-  during(from: number, to: number, fn: (t: number, f: number) => void): void {
-    this.spans.push({ from, to, fn, done: false });
-    this.length = Math.max(this.length, to);
-  }
-
-  /** Repeats `fn(i)` every `step` frames in [from, to). */
-  every(from: number, to: number, step: number, fn: (i: number) => void): void {
-    for (let f = from, i = 0; f < to; f += step, i++) this.at(f, () => fn(i));
-  }
-
-  end(frame: number): void {
-    this.length = Math.max(this.length, frame);
-  }
-
-  /** Advances by `delta` frames; returns true when finished. */
-  tick(delta: number): boolean {
-    this.frame += delta;
-    for (const s of this.spans) {
-      if (s.done || this.frame < s.from) continue;
-      const t = Math.min(1, (this.frame - s.from) / Math.max(1, s.to - s.from));
-      s.fn(t, this.frame - s.from);
-      if (t >= 1) s.done = true;
-    }
-    for (const e of this.events) {
-      if (!e.done && this.frame >= e.at) {
-        e.done = true;
-        e.fn();
-      }
-    }
-    return this.frame >= this.length;
-  }
-}
-
-// ---------------------------------------------------------------------------------------------
-// Easing & math
-
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-const easeIn = (t: number) => t * t * t;
-const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
-const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-const arc = (t: number) => Math.sin(t * Math.PI);
-const rand = (a: number, b: number) => a + Math.random() * (b - a);
-
-// ---------------------------------------------------------------------------------------------
-// Palette
-
-const INK = 0x0F0E17;
-const BONE = 0xFFFBEA;
-const BLOOD = 0xDC2626;
-const BLOOD_DARK = 0x450A0A;
-const EMBER = 0xF97316;
-const GOLD = 0xFDE047;
-const GOO = [0x84CC16, 0xA3E635, 0x365314, 0xD9F99D];
-const DIRT = [0x5C2B14, 0x8B5A2B, 0x3F2A14, 0xA16207];
-const SHADOW = [0x3B0764, 0x7C3AED, 0xA855F7, 0x1E0B33];
-const FIRE = [GOLD, EMBER, BLOOD, 0xFBBF24];
-const SPORE = [0x2DD4BF, 0x99F6E4, 0x5EEAD4, 0xFFFFFF];
-const SMOKE = [0x44403C, 0x57534E, 0x292524];
 
 // ---------------------------------------------------------------------------------------------
 // Shared choreography helpers

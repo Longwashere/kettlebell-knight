@@ -53,6 +53,91 @@ function state(): Record<string, unknown> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Freezes battle ATB timers when a battle is mounted (so monsters don't act during captures). */
+function freezeBattle(on: boolean): void {
+  if (actions.has('freeze')) call('freeze', on);
+}
+
+/**
+ * Film strip: takes control of the ticker, runs `start`, then captures the Pixi canvas every `step`
+ * 60 fps frames. Returns a PNG data URL (4 columns of 426×240 frames, labelled `label fN`).
+ */
+async function filmStrip(label: string, start: () => void, count: number, step: number): Promise<string> {
+  freezeBattle(true);
+  call('step', 1); // take control of the ticker before the move starts
+  start();
+  const cols = 4;
+  const w = 426;
+  const h = 240;
+  const out = document.createElement('canvas');
+  out.width = w * cols;
+  out.height = h * Math.ceil(count / cols);
+  const ctx = out.getContext('2d')!;
+  ctx.font = '12px monospace';
+  try {
+    for (let i = 0; i < count; i++) {
+      call('step', step);
+      const img = new Image();
+      img.src = await api.snapshot();
+      await img.decode();
+      const x = (i % cols) * w;
+      const y = Math.floor(i / cols) * h;
+      ctx.drawImage(img, x, y);
+      const text = `${label} f${(i + 1) * step}`;
+      ctx.fillStyle = '#0F0E17';
+      ctx.fillRect(x, y, ctx.measureText(text).width + 6, 16);
+      ctx.fillStyle = '#F4B41A';
+      ctx.fillText(text, x + 3, y + 12);
+    }
+  } finally {
+    call('resume');
+  }
+  return out.toDataURL('image/png');
+}
+
+/**
+ * Contact sheet of rig animations: one row per animation, `frames` evenly spaced poses, cropped from the
+ * canvas. `pose(name, t)` freezes the rig on a pose; `pose(null)` restores it.
+ */
+async function contactSheet(
+  title: string,
+  animations: { name: string; duration: number; events?: { name: string; frame: number }[] }[],
+  pose: (name: string | null, t?: number) => void,
+  crop: { x: number; y: number; w: number; h: number },
+  frames: number,
+): Promise<string> {
+  const labelH = animations.some((a) => a.events?.length) ? 24 : 12; // second line lists Spine events
+  const out = document.createElement('canvas');
+  out.width = crop.w * frames;
+  out.height = (crop.h + labelH) * animations.length;
+  const ctx = out.getContext('2d')!;
+  ctx.fillStyle = '#0F0E17';
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.font = '10px monospace';
+  try {
+    for (const [row, anim] of animations.entries()) {
+      const y0 = row * (crop.h + labelH);
+      for (let f = 0; f < frames; f++) {
+        const t = frames === 1 ? 0 : (anim.duration * f) / (frames - 1);
+        pose(anim.name, Math.min(t, Math.max(0, anim.duration - 0.001)));
+        const img = new Image();
+        img.src = await api.snapshot();
+        await img.decode();
+        ctx.drawImage(img, crop.x, crop.y, crop.w, crop.h, f * crop.w, y0 + labelH, crop.w, crop.h);
+        ctx.fillStyle = '#F4B41A';
+        ctx.fillText(`${title} ${anim.name} f${Math.round(t * 60)}/${Math.round(anim.duration * 60)}`, f * crop.w + 3, y0 + 10);
+      }
+      if (anim.events?.length) {
+        ctx.fillStyle = '#38B6FF';
+        ctx.fillText(`events: ${anim.events.map((e) => `${e.name}@f${e.frame}`).join('  ')}`, 3, y0 + 21);
+      }
+    }
+  } finally {
+    pose(null);
+  }
+  return out.toDataURL('image/png');
+}
+
 /** Polls until `predicate(state())` is truthy. Rejects with the last state on timeout. */
 async function waitFor(predicate: (s: any) => unknown, timeoutMs = 10000, intervalMs = 50): Promise<any> {
   const deadline = performance.now() + timeoutMs;
@@ -158,29 +243,7 @@ const api = {
     if (!monster?.loaded) throw new Error(`[__kk] no loaded monster in slot ${slot}`);
     const { animations, type } = call('pose', slot, null) as { type: string; animations: { name: string; duration: number }[] };
     const crop = { x: 170, y: 0, w: 230, h: 175 }; // around the solo formation slot (x≈310)
-    const labelH = 12;
-    const out = document.createElement('canvas');
-    out.width = crop.w * frames;
-    out.height = (crop.h + labelH) * animations.length;
-    const ctx = out.getContext('2d')!;
-    ctx.fillStyle = '#0F0E17';
-    ctx.fillRect(0, 0, out.width, out.height);
-    ctx.font = '10px monospace';
-    for (const [row, anim] of animations.entries()) {
-      const y0 = row * (crop.h + labelH);
-      for (let f = 0; f < frames; f++) {
-        const t = frames === 1 ? 0 : (anim.duration * f) / (frames - 1);
-        call('pose', slot, anim.name, Math.min(t, Math.max(0, anim.duration - 0.001)));
-        const img = new Image();
-        img.src = await api.snapshot();
-        await img.decode();
-        ctx.drawImage(img, crop.x, crop.y, crop.w, crop.h, f * crop.w, y0 + labelH, crop.w, crop.h);
-        ctx.fillStyle = '#F4B41A';
-        ctx.fillText(`${type} ${anim.name} t=${t.toFixed(2)}/${anim.duration}s`, f * crop.w + 3, y0 + 10);
-      }
-    }
-    call('pose', slot, null);
-    return out.toDataURL('image/png');
+    return contactSheet(type, animations, (name, t) => call('pose', slot, name, t), crop, frames);
   },
 
   /**
@@ -188,32 +251,40 @@ const api = {
    * `step` frames by stepping the ticker deterministically. Returns a PNG data URL (4 columns).
    */
   async film(slot: number, move: string, count = 16, step = 6): Promise<string> {
-    call('freeze', true);
-    call('step', 1); // take control of the ticker before the move starts
-    call('attack', slot, move);
-    const cols = 4;
-    const w = 426;
-    const h = 240;
-    const out = document.createElement('canvas');
-    out.width = w * cols;
-    out.height = h * Math.ceil(count / cols);
-    const ctx = out.getContext('2d')!;
-    ctx.font = '12px monospace';
-    for (let i = 0; i < count; i++) {
-      call('step', step);
-      const img = new Image();
-      img.src = await api.snapshot();
-      await img.decode();
-      const x = (i % cols) * w;
-      const y = Math.floor(i / cols) * h;
-      ctx.drawImage(img, x, y);
-      ctx.fillStyle = '#0F0E17';
-      ctx.fillRect(x, y, 120, 16);
-      ctx.fillStyle = '#F4B41A';
-      ctx.fillText(`${move} f${(i + 1) * step}`, x + 3, y + 12);
-    }
-    call('resume');
-    return out.toDataURL('image/png');
+    return filmStrip(move, () => call('attack', slot, move), count, step);
+  },
+
+  /**
+   * Knight rig animations with durations and Spine events, in seconds and 60 fps frames
+   * (e.g. DamToTarget marks hit frames). Use it to sync knight move timelines to the rig.
+   */
+  knightAnims: () => call('knightAnims') as { name: string; duration: number; frames: number; events: { name: string; time: number; frame: number }[] }[],
+  /** Knight move ids (knightMoves.ts) and whether each is choreographed yet or still a legacy execute* method. */
+  knightMoves: () => call('knightMoves') as { id: string; choreographed: boolean }[],
+  /**
+   * Plays a knight move now without touching battle state (stand-in damage labels). `targets` are monster
+   * slots in hit order; default is the targeted monster.
+   */
+  knightMove: (id: string, targets?: number[], damage?: number) => call('knightMove', id, targets, damage),
+
+  /**
+   * Contact sheet of the knight rig's animations (all, or names matching the `filter` regex, e.g.
+   * 'ATTACK|SKILL'), `frames` poses per row, cropped around the knight. Event frames are in each row label.
+   */
+  async knightSheet(frames = 6, filter?: string): Promise<string> {
+    freezeBattle(true);
+    await waitFor((s) => s.engine?.ready && s.engine.loading === 0);
+    const all = call('knightAnims') as { name: string; duration: number; events: { name: string; frame: number }[] }[];
+    const re = filter ? new RegExp(filter, 'i') : null;
+    const animations = all.filter((a) => a.duration > 0 && (!re || re.test(a.name)));
+    if (!animations.length) throw new Error(`[__kk] no knight animation matches /${filter}/; have: ${all.map((a) => a.name).join(', ')}`);
+    const crop = { x: 40, y: 10, w: 200, h: 130 }; // knight feet at canvas (130, 118)
+    return contactSheet('knight', animations, (name, t) => call('knightPose', name, t), crop, frames);
+  },
+
+  /** Film strip of a knight move (deterministic ticker steps), like film() for monsters. */
+  async knightFilm(move: string, count = 16, step = 3, targets?: number[]): Promise<string> {
+    return filmStrip(move, () => call('knightMove', move, targets), count, step);
   },
 
   /** Every exercise guide (exerciseGuide.ts): one row per exercise, its keyframes left to right. */

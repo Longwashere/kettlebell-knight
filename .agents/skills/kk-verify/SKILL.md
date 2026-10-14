@@ -33,6 +33,12 @@ npm run shot -- "encounter:wolf,boar,slime" idle film:2:slime_ooze_slam:10:10   
 # Every animation in a monster's Spine rig as a contact sheet (pick animations for new moves)
 npm run shot -- encounter:solo_boar idle sheet:0
 
+# Knight attacks (knightMoves.ts): list moves + rig timing, see poses, film a move (default 16 shots every 3 frames)
+npm run shot -- encounter:solo_wolf idle kmoves kanims
+npm run shot -- encounter:solo_wolf idle "ksheet:6:ATTACK|SKILL"
+npm run shot -- encounter:solo_wolf idle kfilm:swing_cleave
+npm run shot -- "encounter:wolf,boar,slime" idle kfilm:halo_cyclone:16:3:0,1,2   # multi-target, hit order 0,1,2
+
 # Card art and exercise technique poses as review sheets
 npm run shot -- cardart
 npm run shot -- guides:4
@@ -61,7 +67,15 @@ Monster moves live in `src/tv/engine/monsterMoves.ts` (one timeline function per
 `MonsterMoveId`); movesets are `MOVESETS` in `BattleScreen.tsx`. `__kk.call('attack', slot, moveId)` plays one
 now; `__kk.call('moves', slot)` lists a slot's moves. Use `film:` to review a move instead of real-time `shot:`s.
 
-`state() · actions() · call(name, ...args) · film(slot, move, count?, step?) · sheet(slot, frames?) · goto(view) · encounter(idOrIndexOrList) · rep(exercise?, power?,
+Knight moves live in `src/tv/engine/knightMoves.ts` (a `KnightMoveHost` + Timeline per move, ids in
+`KNIGHT_MOVE_IDS`, picked per exercise by `knightMoveFor`). Ids not in `KNIGHT_MOVES` still run the legacy
+`execute*` methods in GameEngine. `kmoves` shows which. `__kk.knightMove(id, slots?)` plays one without
+changing battle state. `kanims` lists rig anim lengths in frames, plus Spine events such as `DamToTarget`
+hit frames. Sync `h.impact()` to the frame where the blade connects in `ksheet`, not to a guess.
+
+`state() · actions() · call(name, ...args) · film(slot, move, count?, step?) · sheet(slot, frames?) ·
+knightFilm(move, count?, step?, slots?) · knightSheet(frames?, regex?) · knightAnims() · knightMoves() ·
+knightMove(id, slots?, damage?) · goto(view) · encounter(idOrIndexOrList) · rep(exercise?, power?,
 form?) · cast(count?) · freeze(on) · background(key) · ready() · idle(timeoutMs?, settleMs?) ·
 waitFor(predicate) · textures() · snapshot()`
 
