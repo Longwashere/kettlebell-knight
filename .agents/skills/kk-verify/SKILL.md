@@ -26,6 +26,13 @@ npm run shot -- "encounter:boar,demon_monk,wolf" bg:BLOOD_CEMETERY freeze idle c
 # Texture/VRAM leak check across a scene change (Fire TV has 1 GB RAM)
 npm run shot -- encounter:solo_monk idle textures goto:HUB idle textures
 
+# A monster move, as a deterministic film strip (ticker is stepped frame-by-frame, 16 shots every 6 frames)
+npm run shot -- encounter:solo_wolf idle film:0:wolf_phantom_pack
+npm run shot -- "encounter:wolf,boar,slime" idle film:2:slime_ooze_slam:10:10   # from a back formation slot
+
+# Every animation in a monster's Spine rig as a contact sheet (pick animations for new moves)
+npm run shot -- encounter:solo_boar idle sheet:0
+
 # Menus via the real D-pad path
 npm run shot -- key:ArrowLeft key:Enter idle shot:after-select state
 ```
@@ -43,7 +50,11 @@ Defined in `src/tv/debug/agentBridge.ts`. Components register into it with `regi
 actions)` from a `useEffect`; the engine exposes `getDebugState()`, `getTextureStats()` and `snapshot()`.
 When you add a new screen or engine system, register its state there so it stays observable.
 
-`state() · actions() · call(name, ...args) · goto(view) · encounter(idOrIndexOrList) · rep(exercise?, power?,
+Monster moves live in `src/tv/engine/monsterMoves.ts` (one timeline function per move, ids in
+`MonsterMoveId`); movesets are `MOVESETS` in `BattleScreen.tsx`. `__kk.call('attack', slot, moveId)` plays one
+now; `__kk.call('moves', slot)` lists a slot's moves. Use `film:` to review a move instead of real-time `shot:`s.
+
+`state() · actions() · call(name, ...args) · film(slot, move, count?, step?) · sheet(slot, frames?) · goto(view) · encounter(idOrIndexOrList) · rep(exercise?, power?,
 form?) · cast(count?) · freeze(on) · background(key) · ready() · idle(timeoutMs?, settleMs?) ·
 waitFor(predicate) · textures() · snapshot()`
 

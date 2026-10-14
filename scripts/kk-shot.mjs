@@ -22,6 +22,9 @@
  *   idle                      wait until VFX/animations settle
  *   shot:<name>               full-page PNG (canvas + React overlay) at --size
  *   canvas:<name>             Pixi-only PNG at native 426x240
+ *   sheet[:slot[:frames]]     contact sheet of every animation on a monster slot (freezes timers)
+ *   attack:<slot>:<move>      play a monster move now (move id or name, e.g. attack:0:wolf_throat_bite)
+ *   film:<slot>:<move>[:n[:step]]  film strip of a move: n frames, every `step` 60fps frames (default 16, 6)
  *   state | textures          print __kk.state() / GPU texture stats as JSON
  *   eval:<js>                 evaluate an expression in the page (awaited) and print it
  *
@@ -285,6 +288,21 @@ async function runStep(step) {
     case 'canvas': {
       const url = await kk('__kk.snapshot()');
       return save(arg || `canvas-${msgId}`, url.replace(/^data:image\/png;base64,/, ''));
+    }
+    case 'sheet': {
+      const [slot, frames] = arg.split(':');
+      const url = await kk(`__kk.freeze(true), __kk.sheet(${Number(slot) || 0}, ${Number(frames) || 6})`);
+      return save(`sheet-${slot || 0}-${msgId}`, url.replace(/^data:image\/png;base64,/, ''));
+    }
+    case 'attack': {
+      const [slot, move] = arg.split(':');
+      await kk(`__kk.call('attack', ${Number(slot) || 0}, ${js(move)})`);
+      return move;
+    }
+    case 'film': {
+      const [slot, move, count, step] = arg.split(':');
+      const url = await kk(`__kk.film(${Number(slot) || 0}, ${js(move)}, ${Number(count) || 16}, ${Number(step) || 6})`);
+      return save(`film-${move}`, url.replace(/^data:image\/png;base64,/, ''));
     }
     case 'state':
       return '\n' + JSON.stringify(await kk('__kk.state()'), null, 2);

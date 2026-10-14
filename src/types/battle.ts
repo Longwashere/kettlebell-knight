@@ -20,11 +20,31 @@ export interface CombatCard {
   icon: string;
 }
 
+/**
+ * Choreographed monster moves (src/tv/engine/monsterMoves.ts). Each is a timed sequence of Spine
+ * animation, monster movement, camera and VFX; damage/block is applied on the move's impact frame.
+ */
+export type MonsterMoveId =
+  // Green Slime
+  | 'slime_slap' | 'slime_acid_spit' | 'slime_ooze_slam' | 'slime_engulf'
+  // Razorback Boar
+  | 'boar_tusk_slash' | 'boar_gore_charge' | 'boar_earthsplitter' | 'boar_quill_volley' | 'boar_iron_bristles'
+  // Shadow Wolf
+  | 'wolf_predator_rake' | 'wolf_shadow_pounce' | 'wolf_throat_bite' | 'wolf_phantom_pack'
+  // Treemon
+  | 'tree_branch_whip' | 'tree_root_stomp' | 'tree_burrow_ambush' | 'tree_spore_burst' | 'tree_bark_skin'
+  // Demon Monk
+  | 'monk_cursed_palm' | 'monk_hellfire_orb' | 'monk_abyssal_edict' | 'monk_chains_of_penance' | 'monk_forbidden_ward'
+  // Hellhound
+  | 'hound_twin_maul' | 'hound_savage_frenzy' | 'hound_hellfire_breath' | 'hound_magma_rampage' | 'hound_brimstone_rain';
+
 export interface MonsterIntent {
   type: 'ATTACK' | 'HEAVY_ATTACK' | 'DEFEND' | 'BUFF';
   damage: number;
   name: string;
   description: string;
+  move?: MonsterMoveId; // choreography to play; falls back to a generic lunge when absent
+  block?: number; // DEFEND: block gained (default 25)
   durationSeconds: number; // total attack charge time
   remainingSeconds: number; // current real-time countdown
 }

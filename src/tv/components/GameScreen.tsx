@@ -147,6 +147,9 @@ export const GameScreen: React.FC = () => {
     {
       textures: () => engineRef.current?.getTextureStats(),
       snapshot: () => engineRef.current?.snapshot(),
+      pose: (slot: number, animation: string | null, time?: number) => engineRef.current?.debugPoseMonster(slot, animation, time),
+      step: (frames: number) => engineRef.current?.debugStep(frames),
+      resume: () => engineRef.current?.debugResume(),
       background: (key: string) =>
         engineRef.current?.loadBackground(BATTLE_MAPS[key.toUpperCase() as BattleMapId] ?? key),
     },

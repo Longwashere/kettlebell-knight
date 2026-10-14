@@ -145,6 +145,74 @@ const api = {
   waitFor,
   sleep,
 
+  /**
+   * Contact sheet of every animation on a monster slot: one row per animation, `frames` evenly spaced
+   * poses per row, cropped around the monster. Returns a PNG data URL. Freeze battle timers first.
+   */
+  async sheet(slot = 0, frames = 6): Promise<string> {
+    const engine = (state().engine as any);
+    const monster = engine?.monsters?.[slot];
+    if (!monster?.loaded) throw new Error(`[__kk] no loaded monster in slot ${slot}`);
+    const { animations, type } = call('pose', slot, null) as { type: string; animations: { name: string; duration: number }[] };
+    const crop = { x: 170, y: 0, w: 230, h: 175 }; // around the solo formation slot (x≈310)
+    const labelH = 12;
+    const out = document.createElement('canvas');
+    out.width = crop.w * frames;
+    out.height = (crop.h + labelH) * animations.length;
+    const ctx = out.getContext('2d')!;
+    ctx.fillStyle = '#0F0E17';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.font = '10px monospace';
+    for (const [row, anim] of animations.entries()) {
+      const y0 = row * (crop.h + labelH);
+      for (let f = 0; f < frames; f++) {
+        const t = frames === 1 ? 0 : (anim.duration * f) / (frames - 1);
+        call('pose', slot, anim.name, Math.min(t, Math.max(0, anim.duration - 0.001)));
+        const img = new Image();
+        img.src = await api.snapshot();
+        await img.decode();
+        ctx.drawImage(img, crop.x, crop.y, crop.w, crop.h, f * crop.w, y0 + labelH, crop.w, crop.h);
+        ctx.fillStyle = '#F4B41A';
+        ctx.fillText(`${type} ${anim.name} t=${t.toFixed(2)}/${anim.duration}s`, f * crop.w + 3, y0 + 10);
+      }
+    }
+    call('pose', slot, null);
+    return out.toDataURL('image/png');
+  },
+
+  /**
+   * Film strip of a monster move: triggers `move` on `slot`, then captures the Pixi canvas every
+   * `step` frames by stepping the ticker deterministically. Returns a PNG data URL (4 columns).
+   */
+  async film(slot: number, move: string, count = 16, step = 6): Promise<string> {
+    call('freeze', true);
+    call('step', 1); // take control of the ticker before the move starts
+    call('attack', slot, move);
+    const cols = 4;
+    const w = 426;
+    const h = 240;
+    const out = document.createElement('canvas');
+    out.width = w * cols;
+    out.height = h * Math.ceil(count / cols);
+    const ctx = out.getContext('2d')!;
+    ctx.font = '12px monospace';
+    for (let i = 0; i < count; i++) {
+      call('step', step);
+      const img = new Image();
+      img.src = await api.snapshot();
+      await img.decode();
+      const x = (i % cols) * w;
+      const y = Math.floor(i / cols) * h;
+      ctx.drawImage(img, x, y);
+      ctx.fillStyle = '#0F0E17';
+      ctx.fillRect(x, y, 120, 16);
+      ctx.fillStyle = '#F4B41A';
+      ctx.fillText(`${move} f${(i + 1) * step}`, x + 3, y + 12);
+    }
+    call('resume');
+    return out.toDataURL('image/png');
+  },
+
   /** Textures currently held on the GPU, with an approximate VRAM total. */
   textures: () => call('textures'),
   /** PNG data URL of the Pixi canvas at native 426×240 (no React overlay). */

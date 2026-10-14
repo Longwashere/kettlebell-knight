@@ -3,7 +3,8 @@ import { Spine, SpineTexture } from '@esotericsoftware/spine-pixi-v8';
 import type { TextureAtlas } from '@esotericsoftware/spine-core';
 import { audioManager } from '../../shared/AudioManager';
 import { ExerciseType, EXERCISE_SKILLS } from '../../types/game';
-import type { MonsterSprite } from '../../types/battle';
+import type { MonsterSprite, MonsterMoveId } from '../../types/battle';
+import { MONSTER_MOVES, Timeline, type MoveHost, type ImpactResult, type EmitOptions } from './monsterMoves';
 
 interface FloatingCombatText {
   container: Container;
@@ -24,6 +25,7 @@ interface Particle {
   life: number;
   maxLife: number;
   color: number;
+  gravity?: number; // per-frame vy increase; defaults to 0.15
 }
 
 interface ActiveProjectile {
@@ -106,6 +108,7 @@ interface MonsterRig {
   hit: string;
   death: string;
   flipX?: boolean;
+  height: number; // approximate on-screen height in px, used to aim move VFX at heads/mouths
 }
 
 // Spine 4.2 monster rigs (public/assets/spine/monsters). They're authored facing right (or
@@ -116,6 +119,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
     skeleton: `${MONSTER_DIR}/greenSlime/TuXi01.json`,
     atlas: `${MONSTER_DIR}/greenSlime/TuXi01.atlas`,
     scale: 0.12,
+    height: 30,
     idle: 'Idle',
     attack: 'Atk1',
     heavyAttack: 'Skl1',
@@ -126,6 +130,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
     skeleton: `${MONSTER_DIR}/Treemon/XiaoShuRen.json`,
     atlas: `${MONSTER_DIR}/Treemon/XiaoShuRen.atlas`,
     scale: 0.14,
+    height: 55,
     idle: 'Idle',
     appear: 'Appear',
     attack: 'Atk1',
@@ -138,6 +143,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
     skeleton: `${MONSTER_DIR}/2headedDog/DiYuShuangTouQuan.json`,
     atlas: `${MONSTER_DIR}/2headedDog/DiYuShuangTouQuan.atlas`,
     scale: 0.16,
+    height: 45,
     idle: 'Idle',
     appear: 'Appear_03',
     attack: 'Attack',
@@ -149,6 +155,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
     skeleton: `${MONSTER_DIR}/boar/monster_3010101.json`,
     atlas: `${MONSTER_DIR}/boar/monster_3010101.atlas`,
     scale: 0.38,
+    height: 35,
     idle: 'idle',
     attack: 'skill',
     heavyAttack: 'skill2',
@@ -160,6 +167,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
     skeleton: `${MONSTER_DIR}/demonMonk/spine_monster_201150001.json`,
     atlas: `${MONSTER_DIR}/demonMonk/spine_monster_201150001.atlas`,
     scale: 0.26,
+    height: 62,
     idle: 'idle',
     attack: 'attack',
     heavyAttack: 'bothcast',
@@ -172,6 +180,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
     skeleton: `${MONSTER_DIR}/wolf/Unit_Spine_Wolf1.json`,
     atlas: `${MONSTER_DIR}/wolf/Unit_Spine_Wolf1.atlas`,
     scale: 0.13,
+    height: 40,
     idle: 'stand',
     appear: 'posture',
     attack: 'attack',
@@ -267,6 +276,9 @@ export interface MonsterSlot {
   isLocked: boolean; // true once death animation starts
   lungeT: number;
   shakeX: number;
+  offX: number; // choreography displacement from base (monster moves)
+  offY: number;
+  activeMove: { cancel: () => void } | null;
 }
 
 export class GameEngine {
@@ -346,6 +358,13 @@ export class GameEngine {
   private totalRepsCount: number = 0;
   private currentCombo: number = 0;
   private totalPowerAccumulated: number = 0;
+
+  // Monster move choreography (monsterMoves.ts)
+  private hitStopFrames: number = 0;
+  private spinesFrozen: boolean = false;
+  private extraSpines: Set<Spine> = new Set(); // move-spawned rig clones (e.g. phantom wolves)
+  private knightKnockX: number = 0;
+  private debugClock: number = 0;
 
   // Dev automation (window.__kk): ready once init() finishes; loadsInFlight counts pending asset loads
   private isReady: boolean = false;
@@ -758,6 +777,9 @@ export class GameEngine {
         isLocked: false,
         lungeT: 1,
         shakeX: 0,
+        offX: 0,
+        offY: 0,
+        activeMove: null,
       };
 
       this.monsterSlots.push(slot);
@@ -848,6 +870,7 @@ export class GameEngine {
   /** Destroys all current monster slots and unloads their assets. */
   private clearAllMonsters(): void {
     for (const slot of this.monsterSlots) {
+      slot.activeMove?.cancel();
       if (slot.spine) {
         slot.spine.destroy();
         slot.spine = null;
@@ -978,6 +1001,252 @@ export class GameEngine {
         }
       }, 180);
     }
+  }
+
+  /**
+   * Plays a choreographed monster move (see monsterMoves.ts). `onImpact` runs on the move's impact
+   * frame and applies the battle effect; its result drives the floating label and knight reaction.
+   * Moves are cancelled (and never land) if the monster dies or the encounter changes mid-move.
+   */
+  public playMonsterMove(
+    slotIndex: number,
+    move: MonsterMoveId | undefined,
+    opts: { heavy?: boolean; onImpact?: () => ImpactResult | void } = {},
+  ): void {
+    const slot = this.monsterSlots[slotIndex];
+    const choreo = move ? MONSTER_MOVES[move] : undefined;
+    if (!slot || slot.isLocked || !slot.isAlive || !choreo || !this.effectsLayer || !this.gameLayer) {
+      // No rig or no choreography: fall back to the generic lunge and land immediately
+      if (slot && slot.isAlive && !slot.isLocked && !choreo) this.monsterAttackLunge(slotIndex, !!opts.heavy);
+      this.showImpactLabel(opts.onImpact?.(), slot);
+      return;
+    }
+
+    slot.activeMove?.cancel();
+
+    const fx = new Container();
+    this.effectsLayer.addChild(fx);
+    const ground = new Container();
+    ground.zIndex = -100; // decals: above the dim overlay, below the characters
+    this.gameLayer.addChild(ground);
+    let overlay: Graphics | null = null;
+    let overlayColor = -1;
+    const clones: Spine[] = [];
+    const spine = slot.spine;
+    const rig = slot.rig;
+    const restScale = spine ? { x: spine.scale.x, y: spine.scale.y } : { x: 1, y: 1 };
+    const knight = { x: this.knightContainer?.x ?? 130, y: this.knightContainer?.y ?? 168 };
+    let impacted = false;
+    let finished = false;
+
+    const impact = (knockback = 8) => {
+      if (impacted) return;
+      impacted = true;
+      const result = opts.onImpact?.();
+      if (result?.at !== 'monster' && result?.hit !== false) this.knightHitReaction(knockback);
+      if (result?.hit === false) this.spawnSparks(knight.x + 6, knight.y - 28, 10, [0x38B6FF, 0xFFFFFF]);
+      this.showImpactLabel(result, slot);
+    };
+
+    const host: MoveHost = {
+      home: { x: slot.baseX, y: slot.baseY },
+      knight,
+      height: rig?.height ?? 40,
+      pos: () => ({ x: slot.baseX + slot.offX, y: slot.baseY + slot.offY }),
+      gfx: (layer = 'fx') => (layer === 'ground' ? ground : fx).addChild(new Graphics()),
+      container: (layer = 'fx') => (layer === 'ground' ? ground : fx).addChild(new Container()),
+      anim: (name, loop = false) => {
+        if (!spine || !rig || slot.isLocked || !spine.skeleton.data.findAnimation(name)) return;
+        spine.state.setAnimation(0, name, loop);
+        if (!loop) spine.state.addAnimation(0, rig.idle, true, 0);
+      },
+      idle: () => {
+        if (spine && rig && !slot.isLocked) spine.state.setAnimation(0, rig.idle, true);
+      },
+      offset: (x, y = 0) => {
+        slot.offX = x;
+        slot.offY = y;
+      },
+      lift: (height) => {
+        if (spine) spine.y = -height;
+        const s = Math.max(0.3, 1 - height / 160);
+        slot.shadow.scale.set(s);
+        slot.shadow.alpha = s;
+      },
+      stretch: (sx, sy) => spine?.scale.set(restScale.x * sx, restScale.y * sy),
+      alpha: (a) => {
+        slot.container.alpha = a;
+      },
+      tint: (color) => {
+        if (spine) spine.tint = color;
+      },
+      clone: () => {
+        if (!rig || !this.app) return null;
+        try {
+          const copy = Spine.from({ skeleton: rig.skeleton, atlas: rig.atlas, scale: rig.scale, autoUpdate: true });
+          copy.ticker = this.app.ticker;
+          if (rig.flipX !== false) copy.scale.x *= -1;
+          fx.addChild(copy);
+          clones.push(copy);
+          this.extraSpines.add(copy);
+          return copy;
+        } catch {
+          return null;
+        }
+      },
+      camera: (zoom, x, y, holdFrames) => {
+        // Battlefield → stage coords, clamped so the zoomed view stays over the background
+        const halfW = 213 / zoom;
+        const halfH = 120 / zoom;
+        const fx2 = Math.min(Math.max(x, halfW), 426 - halfW);
+        const fy = Math.min(Math.max(y - SCENE_RAISE_Y, halfH - 32), 240 - halfH);
+        this.triggerCameraZoom(zoom, fx2, fy, holdFrames);
+      },
+      shake: (intensity) => {
+        this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
+      },
+      flash: (alpha, color = 0xFFFFFF) => {
+        if (!this.flashOverlay) return;
+        this.flashOverlay.tint = color;
+        // Capped: full-screen flashes above ~0.45 wash out the TV picture and are harsh to look at
+        this.flashAlpha = Math.max(this.flashAlpha, Math.min(alpha, 0.45));
+      },
+      hitStop: (frames) => {
+        this.hitStopFrames = Math.max(this.hitStopFrames, frames);
+      },
+      dim: (alpha, color = 0x000000) => {
+        if (!overlay) {
+          if (alpha <= 0 || !this.gameLayer) return;
+          overlay = new Graphics();
+          overlay.zIndex = -200; // over the background, under decals and characters
+          this.gameLayer.addChild(overlay);
+        }
+        if (color !== overlayColor) {
+          overlayColor = color;
+          overlay.clear().rect(-80, -20, 586, 320).fill({ color });
+        }
+        overlay.alpha = alpha;
+      },
+      knightHit: (knockback = 6) => this.knightHitReaction(knockback),
+      impact,
+      sparks: (x, y, count, colors) => this.spawnSparks(x, y, count, colors),
+      shockwave: (x, y, color) => this.spawnShockwave(x, y, color),
+      streaks: (x, y, length, colors) => this.spawnSpeedStreaks(x, y, length, colors),
+      emit: (x, y, o) => this.emitParticles(x, y, o),
+      slashArc: (g, cx, cy, r, a0, a1, shadow, body, core) => this.drawPainterlySlashArc(g, cx, cy, r, a0, a1, shadow, body, core),
+      text: (content, x, y, color, size) => this.spawnFloatingText(content, x, y, color, size),
+      sound: (name) => audioManager.play(name),
+    };
+
+    const finish = (cancelled: boolean) => {
+      if (finished) return;
+      finished = true;
+      if (!cancelled && !impacted) impact(); // a move must always land once
+      slot.activeMove = null;
+      slot.offX = 0;
+      slot.offY = 0;
+      slot.shadow.scale.set(1);
+      slot.shadow.alpha = 1;
+      if (spine && !spine.destroyed) {
+        spine.x = 0;
+        spine.y = 0;
+        spine.scale.set(restScale.x, restScale.y);
+        spine.tint = 0xFFFFFF;
+        const current = spine.state.getCurrent(0);
+        if (rig && !slot.isLocked && current?.loop && current.animation?.name !== rig.idle) {
+          spine.state.setAnimation(0, rig.idle, true);
+        }
+      }
+      if (!slot.isLocked && !slot.container.destroyed) slot.container.alpha = 1;
+      for (const c of clones) {
+        this.extraSpines.delete(c);
+      }
+      fx.destroy({ children: true });
+      ground.destroy({ children: true });
+      (overlay as Graphics | null)?.destroy();
+    };
+
+    const tl = new Timeline();
+    try {
+      choreo(host, tl);
+    } catch (err) {
+      console.error(`[GameEngine] monster move ${move} failed to build:`, err);
+      finish(false);
+      return;
+    }
+    slot.activeMove = { cancel: () => finish(true) };
+
+    this.activeEffects.push({
+      container: new Container(),
+      life: 0,
+      maxLife: Number.POSITIVE_INFINITY,
+      onUpdate: (_eff, delta) => {
+        if (finished) return true;
+        if (this.isDestroyed || !slot.isAlive || slot.isLocked || slot.container.destroyed) {
+          finish(true);
+          return true;
+        }
+        const done = tl.tick(delta);
+        if (done) finish(false);
+        return done;
+      },
+    });
+  }
+
+  /** Knight flinch with a short knockback slide of the rig. */
+  private knightHitReaction(knockback: number): void {
+    this.playKnightHit();
+    this.knightKnockX = Math.max(this.knightKnockX, knockback);
+  }
+
+  /** Floating label from a move's impact (damage on the knight, or block on the monster). */
+  private showImpactLabel(result: ImpactResult | void, slot: MonsterSlot | undefined): void {
+    if (!result?.label) return;
+    const color = result.color ?? 0xFF3366;
+    if (result.at === 'monster' && slot) {
+      this.spawnFloatingText(result.label, slot.baseX - 10, slot.baseY - (slot.rig?.height ?? 40) - 14, color, 10);
+    } else {
+      const k = this.knightContainer;
+      this.spawnFloatingText(result.label, (k?.x ?? 130) - 6, (k?.y ?? 168) - 72, color, 12);
+    }
+  }
+
+  /** Square pixel particles with configurable direction, speed, gravity and size. */
+  private emitParticles(x: number, y: number, o: EmitOptions): void {
+    if (!this.effectsLayer) return;
+    const [minSpeed, maxSpeed] = o.speed ?? [1, 3];
+    const [minLife, maxLife] = o.life ?? [16, 28];
+    const size = o.size ?? 3;
+    for (let i = 0; i < o.count; i++) {
+      const color = o.colors[Math.floor(Math.random() * o.colors.length)];
+      const g = new Graphics();
+      g.rect(-size / 2, -size / 2, size, size).fill({ color });
+      g.x = x;
+      g.y = y;
+      this.effectsLayer.addChild(g);
+      const angle = (o.angle ?? 0) + (Math.random() * 2 - 1) * (o.spread ?? Math.PI);
+      const speed = minSpeed + Math.random() * (maxSpeed - minSpeed);
+      this.particles.push({
+        graphics: g,
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 0,
+        maxLife: minLife + Math.floor(Math.random() * (maxLife - minLife)),
+        color,
+        gravity: o.gravity,
+      });
+    }
+  }
+
+  /** Pauses/resumes every Spine rig for hit-stop. */
+  private setSpinesFrozen(frozen: boolean): void {
+    this.spinesFrozen = frozen;
+    const scale = frozen ? 0 : 1;
+    if (this.knightSpine) this.knightSpine.state.timeScale = scale;
+    for (const slot of this.monsterSlots) if (slot.spine) slot.spine.state.timeScale = scale;
+    for (const s of this.extraSpines) if (!s.destroyed) s.state.timeScale = scale;
   }
 
   /**
@@ -2399,6 +2668,19 @@ export class GameEngine {
 
       const delta = ticker.deltaTime;
 
+      // Hit-stop: freeze rigs, effects and timelines for a few frames on heavy impacts; only the
+      // camera shake keeps going so the freeze reads as a crunch rather than a stall.
+      if (this.hitStopFrames > 0) {
+        this.hitStopFrames -= delta;
+        if (!this.spinesFrozen) this.setSpinesFrozen(true);
+        if (this.rootStage && this.shakeIntensity > 0) {
+          this.rootStage.x = (213 - this.cameraFocusX * this.cameraZoom) + (Math.random() - 0.5) * this.shakeIntensity * 2;
+          this.rootStage.y = (120 - this.cameraFocusY * this.cameraZoom) + (Math.random() - 0.5) * this.shakeIntensity * 2;
+        }
+        return;
+      }
+      if (this.spinesFrozen) this.setSpinesFrozen(false);
+
       // 1. Update swing timing (drives enemy impact reaction; the knight arc is a Spine animation)
       let enemyShakeX = 0;
       if (this.isSwinging) {
@@ -2424,8 +2706,8 @@ export class GameEngine {
         }
         const lunge = Math.sin(slot.lungeT * Math.PI) * MONSTER_LUNGE_DISTANCE;
         const shake = (slot.slotIndex === this.targetSlotIndex ? enemyShakeX : 0) + slot.shakeX;
-        slot.container.x = slot.baseX - lunge + shake;
-        slot.container.y = slot.baseY;
+        slot.container.x = slot.baseX - lunge + shake + slot.offX;
+        slot.container.y = slot.baseY + slot.offY;
         if (slot.shakeX !== 0) {
           slot.shakeX = slot.shakeX > 0 ? Math.max(0, slot.shakeX - delta) : Math.min(0, slot.shakeX + delta);
         }
@@ -2448,6 +2730,13 @@ export class GameEngine {
       if (this.flashAlpha > 0 && this.flashOverlay) {
         this.flashAlpha = Math.max(0, this.flashAlpha - 0.05 * delta);
         this.flashOverlay.alpha = this.flashAlpha;
+        if (this.flashAlpha === 0) this.flashOverlay.tint = 0xFFFFFF;
+      }
+
+      // Knight knockback from monster hits (offsets the rig inside its container)
+      if (this.knightSpine) {
+        this.knightKnockX = Math.abs(this.knightKnockX) > 0.2 ? this.knightKnockX * Math.pow(0.82, delta) : 0;
+        this.knightSpine.x = -this.knightKnockX;
       }
 
       // 3. Update Dynamic Camera Zoom, Pan & Screen Shake
@@ -2501,7 +2790,7 @@ export class GameEngine {
         p.life += delta;
         p.x += p.vx * delta;
         p.y += p.vy * delta;
-        p.vy += 0.15 * delta; // gravity
+        p.vy += (p.gravity ?? 0.15) * delta;
 
         p.graphics.x = p.x;
         p.graphics.y = p.y;
@@ -2622,6 +2911,49 @@ export class GameEngine {
       reps: { total: this.totalRepsCount, combo: this.currentCombo },
       assetRefs: { knight: knightAssetRefs, monsters: Object.fromEntries(monsterAssetRefs) },
     };
+  }
+
+  /**
+   * Dev bridge: freezes a monster slot on `animation` at `time` seconds (or resumes normal playback when
+   * animation is null). Returns the rig's animation list so callers can build contact sheets.
+   */
+  public debugPoseMonster(slotIndex: number, animation: string | null, time = 0) {
+    const slot = this.monsterSlots[slotIndex];
+    const spine = slot?.spine;
+    if (!slot || !spine || !slot.rig) throw new Error(`No loaded monster in slot ${slotIndex}`);
+    const animations = spine.skeleton.data.animations.map((a) => ({ name: a.name, duration: Number(a.duration.toFixed(3)) }));
+    if (animation === null) {
+      spine.state.timeScale = 1;
+      spine.state.setAnimation(0, slot.rig.idle, true);
+      return { type: slot.spriteType, animations };
+    }
+    if (!spine.skeleton.data.findAnimation(animation)) throw new Error(`${slot.spriteType} has no animation "${animation}"`);
+    spine.skeleton.setToSetupPose();
+    const entry = spine.state.setAnimation(0, animation, false);
+    entry.mixDuration = 0;
+    entry.trackTime = time;
+    spine.state.timeScale = 0;
+    spine.update(0);
+    return { type: slot.spriteType, animations };
+  }
+
+  /** Dev bridge: stops the ticker and advances exactly `frames` 60 fps frames (deterministic captures). */
+  public debugStep(frames: number): void {
+    const ticker = this.app?.ticker;
+    if (!ticker) return;
+    if (ticker.started) {
+      ticker.stop();
+      this.debugClock = ticker.lastTime;
+    }
+    for (let i = 0; i < frames; i++) {
+      this.debugClock += 1000 / 60;
+      ticker.update(this.debugClock);
+    }
+  }
+
+  /** Dev bridge: resumes real-time ticking after debugStep(). */
+  public debugResume(): void {
+    if (this.app && !this.app.ticker.started) this.app.ticker.start();
   }
 
   /**

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CombatCard, MonsterState, BattleState, MonsterIntent, MONSTER_CATALOG, ENCOUNTERS, EncounterTemplate } from '../../types/battle';
+import type { ImpactResult } from '../engine/monsterMoves';
 import { ExerciseType, RepTelemetry } from '../../types/game';
 import { CardDeckManager } from '../../shared/CardDeckManager';
 import { audioManager } from '../../shared/AudioManager';
@@ -34,38 +35,55 @@ interface BattleScreenProps {
   }) => void;
 }
 
-const MONSTER_INTENTS: Record<string, MonsterIntent[]> = {
+type IntentTemplate = Omit<MonsterIntent, 'remainingSeconds'>;
+
+// Each monster's moveset. `move` selects the choreography in src/tv/engine/monsterMoves.ts.
+const MOVESETS: Record<string, IntentTemplate[]> = {
   green_slime: [
-    { type: 'ATTACK', damage: 16, name: 'Slime Slap', description: 'Fast sticky smack', durationSeconds: 4.5, remainingSeconds: 4.5 },
-    { type: 'HEAVY_ATTACK', damage: 28, name: 'Ooze Slam', description: 'Heavy crushing belly flop', durationSeconds: 6.0, remainingSeconds: 6.0 },
-    { type: 'ATTACK', damage: 12, name: 'Acid Spit', description: 'Quick corrosive glob', durationSeconds: 3.5, remainingSeconds: 3.5 },
+    { type: 'ATTACK', damage: 16, name: 'Slime Slap', description: 'Bouncing body-slam', durationSeconds: 4.5, move: 'slime_slap' },
+    { type: 'ATTACK', damage: 12, name: 'Acid Spit', description: 'Three corrosive globs', durationSeconds: 3.5, move: 'slime_acid_spit' },
+    { type: 'HEAVY_ATTACK', damage: 28, name: 'Ooze Slam', description: 'Leaps skyward and crashes down', durationSeconds: 6.0, move: 'slime_ooze_slam' },
+    { type: 'HEAVY_ATTACK', damage: 22, name: 'Corrosive Engulf', description: 'Swallows you in burning acid', durationSeconds: 5.5, move: 'slime_engulf' },
   ],
   treemon: [
-    { type: 'ATTACK', damage: 22, name: 'Branch Whip', description: 'Heavy wooden fist strike', durationSeconds: 4.2, remainingSeconds: 4.2 },
-    { type: 'HEAVY_ATTACK', damage: 38, name: 'Root Stomp', description: 'Earth-splitting shockwave', durationSeconds: 5.8, remainingSeconds: 5.8 },
-    { type: 'DEFEND', damage: 0, name: 'Bark Skin', description: 'Hardens its bark (+25 Block)', durationSeconds: 4.0, remainingSeconds: 4.0 },
+    { type: 'ATTACK', damage: 22, name: 'Branch Whip', description: 'Lashing thorned bough', durationSeconds: 4.2, move: 'tree_branch_whip' },
+    { type: 'HEAVY_ATTACK', damage: 38, name: 'Root Stomp', description: 'Thorns erupt from the earth', durationSeconds: 5.8, move: 'tree_root_stomp' },
+    { type: 'HEAVY_ATTACK', damage: 30, name: 'Burrow Ambush', description: 'Tunnels beneath and erupts', durationSeconds: 5.4, move: 'tree_burrow_ambush' },
+    { type: 'ATTACK', damage: 16, name: 'Spore Burst', description: 'Drifting toxic spores', durationSeconds: 3.8, move: 'tree_spore_burst' },
+    { type: 'DEFEND', damage: 0, block: 25, name: 'Bark Skin', description: 'Hardens its bark (+25 Block)', durationSeconds: 4.0, move: 'tree_bark_skin' },
   ],
   boar: [
-    { type: 'HEAVY_ATTACK', damage: 32, name: 'Gore Charge', description: 'Violent headlong tusk impale', durationSeconds: 5.2, remainingSeconds: 5.2 },
-    { type: 'ATTACK', damage: 18, name: 'Tusk Slash', description: 'Quick upward tusk thrust', durationSeconds: 3.6, remainingSeconds: 3.6 },
-    { type: 'DEFEND', damage: 0, name: 'Iron Bristles', description: 'Toughens coarse hide (+20 Block)', durationSeconds: 4.2, remainingSeconds: 4.2 },
+    { type: 'HEAVY_ATTACK', damage: 32, name: 'Gore Charge', description: 'Violent headlong tusk impale', durationSeconds: 5.2, move: 'boar_gore_charge' },
+    { type: 'ATTACK', damage: 18, name: 'Tusk Slash', description: 'Quick upward tusk thrust', durationSeconds: 3.6, move: 'boar_tusk_slash' },
+    { type: 'ATTACK', damage: 22, name: 'Earthsplitter', description: 'Stomp cracks the earth', durationSeconds: 4.4, move: 'boar_earthsplitter' },
+    { type: 'ATTACK', damage: 14, name: 'Quill Volley', description: 'Hurls razor bristles', durationSeconds: 3.4, move: 'boar_quill_volley' },
+    { type: 'DEFEND', damage: 0, block: 20, name: 'Iron Bristles', description: 'Toughens coarse hide (+20 Block)', durationSeconds: 4.2, move: 'boar_iron_bristles' },
   ],
   wolf: [
-    { type: 'HEAVY_ATTACK', damage: 35, name: 'Throat Bite', description: 'Ferocious neck puncture', durationSeconds: 4.8, remainingSeconds: 4.8 },
-    { type: 'ATTACK', damage: 20, name: 'Shadow Pounce', description: 'Agile leap from behind', durationSeconds: 3.2, remainingSeconds: 3.2 },
-    { type: 'ATTACK', damage: 24, name: 'Predator Rake', description: 'Razor claw laceration', durationSeconds: 3.8, remainingSeconds: 3.8 },
+    { type: 'HEAVY_ATTACK', damage: 35, name: 'Throat Bite', description: 'Ferocious neck puncture', durationSeconds: 4.8, move: 'wolf_throat_bite' },
+    { type: 'ATTACK', damage: 20, name: 'Shadow Pounce', description: 'Agile leap from the dark', durationSeconds: 3.2, move: 'wolf_shadow_pounce' },
+    { type: 'ATTACK', damage: 24, name: 'Predator Rake', description: 'Razor claw laceration', durationSeconds: 3.8, move: 'wolf_predator_rake' },
+    { type: 'HEAVY_ATTACK', damage: 30, name: 'Phantom Pack', description: 'Howls spectral wolves from the dark', durationSeconds: 6.0, move: 'wolf_phantom_pack' },
   ],
   demon_monk: [
-    { type: 'HEAVY_ATTACK', damage: 42, name: 'Abyssal Edict', description: 'Dark unholy necrotic blast', durationSeconds: 5.5, remainingSeconds: 5.5 },
-    { type: 'ATTACK', damage: 26, name: 'Cursed Palm', description: 'Infused demonic strike', durationSeconds: 3.8, remainingSeconds: 3.8 },
-    { type: 'DEFEND', damage: 0, name: 'Forbidden Ward', description: 'Dark sorcery shield (+28 Block)', durationSeconds: 4.0, remainingSeconds: 4.0 },
+    { type: 'HEAVY_ATTACK', damage: 42, name: 'Abyssal Edict', description: 'Pillar of hellfire from a ritual circle', durationSeconds: 5.5, move: 'monk_abyssal_edict' },
+    { type: 'ATTACK', damage: 26, name: 'Cursed Palm', description: 'Teleporting demonic strike', durationSeconds: 3.8, move: 'monk_cursed_palm' },
+    { type: 'ATTACK', damage: 22, name: 'Hellfire Orb', description: 'Hurls a ball of hellfire', durationSeconds: 4.2, move: 'monk_hellfire_orb' },
+    { type: 'ATTACK', damage: 18, name: 'Chains of Penance', description: 'Binding infernal chains', durationSeconds: 3.6, move: 'monk_chains_of_penance' },
+    { type: 'DEFEND', damage: 0, block: 28, name: 'Forbidden Ward', description: 'Dark sorcery shield (+28 Block)', durationSeconds: 4.0, move: 'monk_forbidden_ward' },
   ],
   hellhound: [
-    { type: 'HEAVY_ATTACK', damage: 45, name: 'Twin Maul', description: 'Both heads bite at once', durationSeconds: 5.0, remainingSeconds: 5.0 },
-    { type: 'ATTACK', damage: 24, name: 'Savage Frenzy', description: 'Wild snapping bites', durationSeconds: 3.2, remainingSeconds: 3.2 },
-    { type: 'ATTACK', damage: 32, name: 'Hellfire Howl', description: 'Shockwave of scorching breath', durationSeconds: 4.5, remainingSeconds: 4.5 },
+    { type: 'HEAVY_ATTACK', damage: 45, name: 'Twin Maul', description: 'Both heads bite at once', durationSeconds: 5.0, move: 'hound_twin_maul' },
+    { type: 'ATTACK', damage: 24, name: 'Savage Frenzy', description: 'Wild snapping bites', durationSeconds: 3.2, move: 'hound_savage_frenzy' },
+    { type: 'ATTACK', damage: 32, name: 'Hellfire Breath', description: 'Torrent of scorching flame', durationSeconds: 4.5, move: 'hound_hellfire_breath' },
+    { type: 'HEAVY_ATTACK', damage: 40, name: 'Magma Rampage', description: 'Charges through; the ground erupts', durationSeconds: 5.6, move: 'hound_magma_rampage' },
+    { type: 'ATTACK', damage: 28, name: 'Brimstone Rain', description: 'Calls down burning meteors', durationSeconds: 4.8, move: 'hound_brimstone_rain' },
   ],
 };
+
+const MONSTER_INTENTS: Record<string, MonsterIntent[]> = Object.fromEntries(
+  Object.entries(MOVESETS).map(([id, moves]) => [id, moves.map((m) => ({ ...m, remainingSeconds: m.durationSeconds }))]),
+);
 
 function createEncounterFromTemplate(template: EncounterTemplate): MonsterState[] {
   const counts: Record<string, number> = {};
@@ -220,52 +238,52 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     return () => clearInterval(interval);
   }, [battleStatus]);
 
-  // Monster Attack Execution
+  // Monster Attack Execution: the engine plays the move's choreography and calls back on the
+  // impact frame, where damage/block lands. A monster killed mid-wind-up never lands its move.
   const executeMonsterAttack = useCallback((m: MonsterState) => {
     const intent = m.intent;
+    setRecentCombatLog(`${m.name} uses ${intent.name}!`);
 
-    if (intent.type === 'DEFEND') {
-      // Monster buffs armor
-      setMonsters((prev) => prev.map(mon => mon.instanceId === m.instanceId ? { ...mon, block: mon.block + 25 } : mon));
-      engineRef.current?.playMonsterDefend?.(m.slotIndex);
-      engineRef.current?.spawnFloatingText?.(`+25 BLOCK`, 300, 100, 0x38B6FF, 12);
-      setRecentCombatLog(`${m.name} hardened their armor (+25 Block)!`);
-      audioManager.play('equip');
-      return;
-    }
+    const onImpact = (): ImpactResult | void => {
+      if (battleStatusRef.current !== 'FIGHTING') return;
 
-    // Monster physical/heavy attack
-    const rawDamage = intent.damage;
-    const currentBlock = playerBlockRef.current;
-    let actualDamageToHp = rawDamage;
-    let newBlock = 0;
-
-    if (currentBlock >= rawDamage) {
-      newBlock = currentBlock - rawDamage;
-      actualDamageToHp = 0;
-    } else {
-      newBlock = 0;
-      actualDamageToHp = rawDamage - currentBlock;
-    }
-
-    setPlayerBlock(newBlock);
-
-    // Apply HP damage
-    setPlayerHp((prev) => {
-      const nextHp = Math.max(0, prev - actualDamageToHp);
-      if (nextHp <= 0) {
-        setBattleStatus('DEFEAT');
-        setRecentCombatLog(`Sir Kettleburne was felled in battle!`);
-        engineRef.current?.playKnightDefeat?.();
-        audioManager.play('hit');
+      if (intent.type === 'DEFEND') {
+        const block = intent.block ?? 25;
+        setMonsters((prev) => prev.map(mon => mon.instanceId === m.instanceId ? { ...mon, block: mon.block + block } : mon));
+        setRecentCombatLog(`${m.name} used ${intent.name} (+${block} Block)!`);
+        return { label: `+${block} BLOCK`, color: 0x38B6FF, at: 'monster' };
       }
-      return nextHp;
-    });
 
-    // Monster Visual Attack in Engine
-    engineRef.current?.monsterAttackLunge?.(m.slotIndex, intent.type === 'HEAVY_ATTACK');
-    setRecentCombatLog(`${m.name} used ${intent.name}! Dealt ${rawDamage} DMG.`);
-    audioManager.play('hit');
+      const rawDamage = intent.damage;
+      const currentBlock = playerBlockRef.current;
+      const absorbed = Math.min(currentBlock, rawDamage);
+      const actualDamageToHp = rawDamage - absorbed;
+      const nextHp = Math.max(0, playerHpRef.current - actualDamageToHp);
+
+      playerBlockRef.current = currentBlock - absorbed;
+      playerHpRef.current = nextHp;
+      setPlayerBlock(currentBlock - absorbed);
+      setPlayerHp(nextHp);
+
+      if (nextHp <= 0) {
+        battleStatusRef.current = 'DEFEAT';
+        setBattleStatus('DEFEAT');
+        setRecentCombatLog(`Sir Kettleburne was felled by ${intent.name}!`);
+        engineRef.current?.playKnightDefeat?.();
+      } else {
+        setRecentCombatLog(`${m.name}'s ${intent.name} hits for ${actualDamageToHp}!${absorbed ? ` (${absorbed} blocked)` : ''}`);
+      }
+
+      if (actualDamageToHp === 0) return { label: 'BLOCKED', color: 0x38B6FF, hit: false };
+      return { label: `-${actualDamageToHp}`, color: intent.type === 'HEAVY_ATTACK' ? 0xFF3366 : 0xF97316 };
+    };
+
+    const engine = engineRef.current;
+    if (engine) {
+      engine.playMonsterMove(m.slotIndex ?? 0, intent.move, { heavy: intent.type === 'HEAVY_ATTACK', onImpact });
+    } else {
+      onImpact();
+    }
   }, [engineRef]);
 
   /**
@@ -444,6 +462,16 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         startEncounter(ENCOUNTERS[index], index);
         if (index === currentEncounterIndex) engineRef.current?.setMonsters(createEncounterFromTemplate(ENCOUNTERS[index]));
       },
+      // Plays a monster's move now, by move id or name (e.g. attack(0, 'wolf_phantom_pack'))
+      attack: (slotIndex: number, move: string) => {
+        const m = monstersRef.current[slotIndex];
+        if (!m) throw new Error(`No monster in slot ${slotIndex}`);
+        const moves = MOVESETS[m.id] ?? [];
+        const tmpl = moves.find((t) => t.move === move || t.name.toLowerCase() === move.toLowerCase());
+        if (!tmpl) throw new Error(`${m.id} moves: ${moves.map((t) => t.move).join(', ')}`);
+        executeMonsterAttack({ ...m, intent: { ...tmpl, remainingSeconds: 0 } });
+      },
+      moves: (slotIndex: number) => (MOVESETS[monstersRef.current[slotIndex]?.id] ?? []).map((t) => t.move),
       freeze: (on: boolean) => { atbFrozenRef.current = on; },
       focusCard: (index: number) => setFocusedCardIndex(Math.max(0, Math.min(hand.length - 1, index))),
       target: (index: number) => setTargetedMonsterIndex(index),
@@ -631,7 +659,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                         {m.intent.name}
                       </span>
                       <span className="font-bold text-[#F4B41A] flex-shrink-0">
-                        {m.intent.type === 'DEFEND' ? '+25 SHIELD' : `${m.intent.damage} DMG`}
+                        {m.intent.type === 'DEFEND' ? `+${m.intent.block ?? 25} SHIELD` : `${m.intent.damage} DMG`}
                       </span>
                     </div>
 
