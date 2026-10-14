@@ -91,7 +91,7 @@ const MONSTER_BACKGROUNDS: Record<MonsterSprite, string> = {
   WOLF: BATTLE_MAPS.BLOOD_CEMETERY,
 };
 // Lifts combatants + effects so they stand above the battle card hand (which covers the lower half).
-const SCENE_RAISE_Y = 40;
+const SCENE_RAISE_Y = 50; // lifts the fighters above the card hand at the bottom of the screen
 let knightAssetRefs = 0; // engines currently holding the shared knight assets
 const KNIGHT_SWING_COMBO = ['ATTACK1', 'ATTACK2', 'ATTACK4'];
 const KNIGHT_HIT_REACTIONS = ['HIT1', 'HIT2', 'HIT3'];
@@ -538,9 +538,9 @@ export class GameEngine {
       bgSprite.width = 426;
       bgSprite.height = 240;
       bgSprite.x = 0;
-      // Shift up by 32px so the floor horizon (y=144 in image) sits at y=112,
+      // Shift up by 42px so the floor horizon (y=144 in image) sits at y=102,
       // placing combatants (y=128) firmly 16px deep onto the stone floor tiles.
-      bgSprite.y = -32;
+      bgSprite.y = -42;
 
       const darkBase = new Graphics();
       darkBase.rect(-50, -30, 526, 300).fill({ color: 0x12101E });
@@ -1193,6 +1193,19 @@ export class GameEngine {
     });
   }
 
+  /** Floating label above a monster slot (damage numbers, SHATTER / STAGGER tags). */
+  public spawnMonsterText(slotIndex: number, content: string, color: number, fontSize: number, yOffset = 0): void {
+    const slot = this.monsterSlots[slotIndex];
+    if (!slot) return;
+    this.spawnFloatingText(content, slot.baseX - 12, slot.baseY - (slot.rig?.height ?? 40) - 8 + yOffset, color, fontSize);
+  }
+
+  /** Floating label above the knight (healing). */
+  public spawnKnightText(content: string, color: number): void {
+    const k = this.knightContainer;
+    this.spawnFloatingText(content, (k?.x ?? 130) - 10, (k?.y ?? 168) - 60, color, 10);
+  }
+
   /** Knight flinch with a short knockback slide of the rig. */
   private knightHitReaction(knockback: number): void {
     this.playKnightHit();
@@ -1395,14 +1408,15 @@ export class GameEngine {
     power: number = 80, 
     form: number = 1.0, 
     exercise: ExerciseType = 'SWING',
-    skillName?: string
+    skillName?: string,
+    displayDamage?: number, // the real damage dealt (battle); otherwise a showcase number from power/form
   ): void {
     this.totalRepsCount++;
     this.currentCombo++;
     this.totalPowerAccumulated += power;
 
     const isCrit = power >= 95;
-    const damageNum = Math.round(power * form * 14);
+    const damageNum = displayDamage ?? Math.round(power * form * 14);
     const nameLower = (skillName || EXERCISE_SKILLS[exercise]?.skillName || '').toLowerCase();
 
     // 1. Attack type specific physical animations & dynamic camera strikes

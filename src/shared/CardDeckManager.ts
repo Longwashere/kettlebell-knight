@@ -136,6 +136,10 @@ export class CardDeckManager {
    * Records a completed repetition for an exercise.
    * If the matching card reaches its required reps, it activates and triggers damage/block!
    */
+  /**
+   * Counts a rep toward the hand's card for `exercise`. When the card completes it is discarded and
+   * replaced in the same slot; the result carries the set's average power and form for scaling.
+   */
   public recordRep(
     exercise: ExerciseType,
     power: number = 80,
@@ -143,59 +147,41 @@ export class CardDeckManager {
   ): {
     activated: boolean;
     card: CombatCard | null;
-    damage: number;
-    block: number;
+    power: number;
+    form: number;
     hand: CombatCard[];
   } {
     const targetCardIndex = this.hand.findIndex(c => c.exercise === exercise);
 
     if (targetCardIndex === -1) {
-      return {
-        activated: false,
-        card: null,
-        damage: 0,
-        block: 0,
-        hand: [...this.hand],
-      };
+      return { activated: false, card: null, power, form, hand: [...this.hand] };
     }
 
     const card = this.hand[targetCardIndex];
     card.currentReps++;
+    card.powerSum = (card.powerSum ?? 0) + power;
+    card.formSum = (card.formSum ?? 0) + form;
+    const avgPower = card.powerSum / card.currentReps;
+    const avgForm = card.formSum / card.currentReps;
 
-    // Check if card requirement is fully achieved
     if (card.currentReps >= card.requiredReps) {
-      // Scale damage with explosive power and form
-      const powerMultiplier = Math.max(0.7, power / 80);
-      const finalDamage = Math.round(card.damage * powerMultiplier * form);
-      const finalBlock = Math.round(card.block * form);
-
       const activatedCard = { ...card };
 
-      // Discard the activated card
+      // Discard the activated card and draw a replacement into the same slot, keeping the
+      // hand at five distinct exercises
+      card.currentReps = 0;
+      card.powerSum = 0;
+      card.formSum = 0;
       this.discardPile.push(card);
       this.hand.splice(targetCardIndex, 1);
-
-      // Draw replacement card guaranteeing 5 unique exercises in hand
       const replacement = this.drawUniqueExerciseCard();
       if (replacement) {
         this.hand.splice(targetCardIndex, 0, replacement);
       }
 
-      return {
-        activated: true,
-        card: activatedCard,
-        damage: finalDamage,
-        block: finalBlock,
-        hand: [...this.hand],
-      };
+      return { activated: true, card: activatedCard, power: avgPower, form: avgForm, hand: [...this.hand] };
     }
 
-    return {
-      activated: false,
-      card: { ...card },
-      damage: 0,
-      block: 0,
-      hand: [...this.hand],
-    };
+    return { activated: false, card: { ...card }, power: avgPower, form: avgForm, hand: [...this.hand] };
   }
 }

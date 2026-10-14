@@ -19,6 +19,7 @@
  *   card:<i> | target:<i>     focus hand card i / target monster slot i
  *   key:<name>                Enter, ArrowLeft/Right/Up/Down, Escape, Space
  *   wait:<ms>                 fixed delay
+ *   rate:<x>                  CSS animation playback rate (e.g. rate:0.1 for slow-motion captures)
  *   idle                      wait until VFX/animations settle
  *   shot:<name>               full-page PNG (canvas + React overlay) at --size
  *   canvas:<name>             Pixi-only PNG at native 426x240
@@ -276,6 +277,12 @@ async function runStep(step) {
       }
       await sleep(50);
       return arg;
+    }
+    case 'rate': {
+      // Slows (or speeds up) CSS animations and transitions, for capturing fast UI effects frame by frame
+      await send('Animation.enable');
+      await send('Animation.setPlaybackRate', { playbackRate: Number(arg) || 1 });
+      return `${Number(arg) || 1}x`;
     }
     case 'wait':
       await sleep(Number(arg) || 0);

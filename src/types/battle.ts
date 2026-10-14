@@ -1,7 +1,18 @@
 import { ExerciseType } from './game';
+import { designCard } from '../shared/cardBalance';
 
 export type CardType = 'ATTACK' | 'DEFENSE' | 'POWER';
 export type CardRarity = 'common' | 'rare' | 'epic' | 'legendary';
+
+/**
+ * Who a card's damage hits (see src/shared/combat.ts):
+ * - SINGLE: the current target (the front foe unless retargeted)
+ * - BACK: the rearmost foe, reaching over the front line
+ * - PIERCE: the target, then the foe behind it for reduced damage
+ * - CHAIN: `hits` separate hits, each on a random living foe
+ * - ALL: every living foe
+ */
+export type CardTarget = 'SINGLE' | 'BACK' | 'PIERCE' | 'CHAIN' | 'ALL';
 
 export interface CombatCard {
   id: string;
@@ -14,10 +25,18 @@ export interface CombatCard {
   currentReps: number;
   damage: number;
   block: number;
+  heal: number;
+  target: CardTarget;
+  hits?: number;
+  shatter?: boolean; // damage ignores Block
+  stagger?: number; // seconds added to each hit foe's attack timer
   effectDesc: string;
   rarity: CardRarity;
   colorHex: string;
   icon: string;
+  /** Running totals of the reps' power/form, so the cast scales with the whole set, not the last rep. */
+  powerSum?: number;
+  formSum?: number;
 }
 
 /**
@@ -62,6 +81,7 @@ export interface MonsterState {
   slotIndex?: number;
   instanceId?: string;
   isAlive?: boolean;
+  damageScale?: number; // pack scaling applied to rolled intents (see PACK_SCALING)
 }
 
 /** Spine monster rigs in public/assets/spine/monsters (see MONSTER_RIGS in GameEngine). */
@@ -82,394 +102,66 @@ export interface BattleState {
   combatLogs: string[];
 }
 
-export interface CardTemplate {
-  templateId: string;
-  name: string;
-  type: CardType;
-  exercise: ExerciseType;
-  exerciseLabel: string;
-  requiredReps: number;
-  damage: number;
-  block: number;
-  effectDesc: string;
-  rarity: CardRarity;
-  colorHex: string;
-  icon: string;
-}
+export type CardTemplate = Omit<CombatCard, 'id' | 'currentReps' | 'powerSum' | 'formSum'>;
 
-// Master Card Pool (Diverse exercises & Slay the Spire style synergies)
+// Master card pool. Numbers come from the balance model (src/shared/cardBalance.ts): each spec sets the
+// exercise, reps, rarity, targeting and extras, and damage/Block/heal are derived from its budget.
+// Every exercise has at least two cards so the five-unique-exercises hand always has options.
 export const CARD_CATALOG: CardTemplate[] = [
-  // 1. SWING CARDS
-  {
-    templateId: 'swing_cleave',
-    name: 'Iron Cleave',
-    type: 'ATTACK',
-    exercise: 'SWING',
-    exerciseLabel: 'KETTLEBELL SWINGS',
-    requiredReps: 5,
-    damage: 35,
-    block: 0,
-    effectDesc: 'Swift hip snap dealing 35 physical damage.',
-    rarity: 'common',
-    colorHex: '#F4B41A',
-    icon: '⚔️',
-  },
-  {
-    templateId: 'swing_whirlwind',
-    name: 'Dragon Whirlwind',
-    type: 'ATTACK',
-    exercise: 'SWING',
-    exerciseLabel: 'KETTLEBELL SWINGS',
-    requiredReps: 8,
-    damage: 65,
-    block: 0,
-    effectDesc: 'Massive explosive swings dealing 65 critical fire damage.',
-    rarity: 'rare',
-    colorHex: '#DC2626',
-    icon: '🌪️',
-  },
-  {
-    templateId: 'swing_flow',
-    name: 'Momentum Flow',
-    type: 'DEFENSE',
-    exercise: 'SWING',
-    exerciseLabel: 'KETTLEBELL SWINGS',
-    requiredReps: 4,
-    damage: 15,
-    block: 20,
-    effectDesc: 'Rhythmic swings granting 20 Block and dealing 15 damage.',
-    rarity: 'common',
-    colorHex: '#38B6FF',
-    icon: '🌊',
-  },
+  // SWING: fast and ballistic. Bread-and-butter single hits, a whirlwind that clears groups.
+  designCard({ templateId: 'swing_cleave', name: 'Iron Cleave', exercise: 'SWING', reps: 5, rarity: 'common', target: 'SINGLE', colorHex: '#F4B41A', icon: '⚔️' }),
+  designCard({ templateId: 'swing_whirlwind', name: 'Dragon Whirlwind', exercise: 'SWING', reps: 8, rarity: 'rare', target: 'ALL', colorHex: '#DC2626', icon: '🌪️' }),
+  designCard({ templateId: 'swing_flow', name: 'Momentum Flow', exercise: 'SWING', reps: 4, rarity: 'common', target: 'SINGLE', blockShare: 0.6, colorHex: '#38B6FF', icon: '🌊' }),
 
-  // 2. SQUAT CARDS
-  {
-    templateId: 'squat_slam',
-    name: 'Titan Ground Slam',
-    type: 'ATTACK',
-    exercise: 'SQUAT',
-    exerciseLabel: 'GOBLET SQUATS',
-    requiredReps: 4,
-    damage: 42,
-    block: 0,
-    effectDesc: 'Deep parallel squat erupting an earth shockwave for 42 damage.',
-    rarity: 'common',
-    colorHex: '#FF3366',
-    icon: '🔨',
-  },
-  {
-    templateId: 'squat_bastion',
-    name: 'Aegis Fortress',
-    type: 'DEFENSE',
-    exercise: 'SQUAT',
-    exerciseLabel: 'GOBLET SQUATS',
-    requiredReps: 5,
-    damage: 0,
-    block: 38,
-    effectDesc: 'Brace your core deep in the hole. Gain 38 Block.',
-    rarity: 'rare',
-    colorHex: '#00EB88',
-    icon: '🛡️',
-  },
-  {
-    templateId: 'squat_earthquake',
-    name: 'Colossus Quake',
-    type: 'ATTACK',
-    exercise: 'SQUAT',
-    exerciseLabel: 'GOBLET SQUATS',
-    requiredReps: 7,
-    damage: 75,
-    block: 15,
-    effectDesc: 'Heavy goblet squats dealing 75 damage and 15 Block.',
-    rarity: 'epic',
-    colorHex: '#A855F7',
-    icon: '🌋',
-  },
+  // SQUAT: ground shockwaves hit everyone; a pure wall of Block.
+  designCard({ templateId: 'squat_slam', name: 'Titan Ground Slam', exercise: 'SQUAT', reps: 4, rarity: 'common', target: 'ALL', colorHex: '#FF3366', icon: '🔨' }),
+  designCard({ templateId: 'squat_bastion', name: 'Aegis Fortress', exercise: 'SQUAT', reps: 5, rarity: 'rare', target: 'SINGLE', blockShare: 1, colorHex: '#00EB88', icon: '🛡️' }),
+  designCard({ templateId: 'squat_earthquake', name: 'Colossus Quake', exercise: 'SQUAT', reps: 7, rarity: 'epic', target: 'ALL', stagger: 1.5, blockShare: 0.15, colorHex: '#A855F7', icon: '🌋' }),
 
-  // 3. OVERHEAD PRESS CARDS
-  {
-    templateId: 'press_smite',
-    name: 'Thunder Smite',
-    type: 'ATTACK',
-    exercise: 'OVERHEAD_PRESS',
-    exerciseLabel: 'OVERHEAD PRESS',
-    requiredReps: 4,
-    damage: 48,
-    block: 0,
-    effectDesc: 'Thrust kettlebell skyward. Calls lightning for 48 damage.',
-    rarity: 'common',
-    colorHex: '#38B6FF',
-    icon: '⚡',
-  },
-  {
-    templateId: 'press_judgement',
-    name: 'Heavenly Pillar',
-    type: 'ATTACK',
-    exercise: 'OVERHEAD_PRESS',
-    exerciseLabel: 'OVERHEAD PRESS',
-    requiredReps: 6,
-    damage: 80,
-    block: 0,
-    effectDesc: 'Full overhead lockouts. Pierces monster armor for 80 damage.',
-    rarity: 'epic',
-    colorHex: '#FBBF24',
-    icon: '☀️',
-  },
-  {
-    templateId: 'press_sanctuary',
-    name: 'Arcane Scepter',
-    type: 'DEFENSE',
-    exercise: 'OVERHEAD_PRESS',
-    exerciseLabel: 'OVERHEAD PRESS',
-    requiredReps: 3,
-    damage: 18,
-    block: 25,
-    effectDesc: 'High reach generating a forcefield: 25 Block + 18 damage.',
-    rarity: 'rare',
-    colorHex: '#60A5FA',
-    icon: '✨',
-  },
+  // OVERHEAD PRESS: strikes from above, so it can reach the back row or punch through armor.
+  designCard({ templateId: 'press_smite', name: 'Thunder Smite', exercise: 'OVERHEAD_PRESS', reps: 4, rarity: 'common', target: 'BACK', colorHex: '#38B6FF', icon: '⚡' }),
+  designCard({ templateId: 'press_judgement', name: 'Heavenly Pillar', exercise: 'OVERHEAD_PRESS', reps: 6, rarity: 'epic', target: 'SINGLE', shatter: true, colorHex: '#FBBF24', icon: '☀️' }),
+  designCard({ templateId: 'press_sanctuary', name: 'Arcane Scepter', exercise: 'OVERHEAD_PRESS', reps: 3, rarity: 'rare', target: 'SINGLE', blockShare: 0.6, colorHex: '#60A5FA', icon: '✨' }),
 
-  // 4. CLEAN & PRESS CARDS
-  {
-    templateId: 'clean_breaker',
-    name: 'Anvil Breaker',
-    type: 'ATTACK',
-    exercise: 'CLEAN_AND_PRESS',
-    exerciseLabel: 'CLEAN & PRESS',
-    requiredReps: 4,
-    damage: 55,
-    block: 15,
-    effectDesc: 'Explosive floor-to-rack snap and overhead press. Deals 55 DMG + 15 Block.',
-    rarity: 'rare',
-    colorHex: '#F97316',
-    icon: '💥',
-  },
-  {
-    templateId: 'clean_stormbreaker',
-    name: 'Stormbreaker Cleaver',
-    type: 'ATTACK',
-    exercise: 'CLEAN_AND_PRESS',
-    exerciseLabel: 'CLEAN & PRESS',
-    requiredReps: 6,
-    damage: 92,
-    block: 0,
-    effectDesc: 'Clean to rack then vertical thrust smashing armor for 92 lightning DMG.',
-    rarity: 'epic',
-    colorHex: '#EA580C',
-    icon: '⚡',
-  },
+  // CLEAN & PRESS: heavy, slow and brutal. Armor-breaking and line-clearing.
+  designCard({ templateId: 'clean_breaker', name: 'Anvil Breaker', exercise: 'CLEAN_AND_PRESS', reps: 4, rarity: 'rare', target: 'SINGLE', shatter: true, blockShare: 0.2, colorHex: '#F97316', icon: '💥' }),
+  designCard({ templateId: 'clean_stormbreaker', name: 'Stormbreaker Cleaver', exercise: 'CLEAN_AND_PRESS', reps: 6, rarity: 'epic', target: 'PIERCE', stagger: 1, colorHex: '#EA580C', icon: '⚡' }),
 
-  // 5. SNATCH CARDS
-  {
-    templateId: 'snatch_phoenix',
-    name: 'Phoenix Ascension',
-    type: 'ATTACK',
-    exercise: 'SNATCH',
-    exerciseLabel: 'KETTLEBELL SNATCHES',
-    requiredReps: 5,
-    damage: 72,
-    block: 0,
-    effectDesc: 'Single uninterrupted pull directly to overhead. Deals 72 fire DMG.',
-    rarity: 'rare',
-    colorHex: '#EF4444',
-    icon: '🔥',
-  },
-  {
-    templateId: 'snatch_solar',
-    name: 'Solar Talon',
-    type: 'ATTACK',
-    exercise: 'SNATCH',
-    exerciseLabel: 'KETTLEBELL SNATCHES',
-    requiredReps: 8,
-    damage: 115,
-    block: 0,
-    effectDesc: 'Ballistic overhead snatch eruption unleashing 115 critical DMG.',
-    rarity: 'legendary',
-    colorHex: '#B91C1C',
-    icon: '🦅',
-  },
+  // SNATCH: the most explosive lift. A dive onto the back row and the biggest single hit in the game.
+  designCard({ templateId: 'snatch_phoenix', name: 'Phoenix Ascension', exercise: 'SNATCH', reps: 5, rarity: 'rare', target: 'BACK', colorHex: '#EF4444', icon: '🔥' }),
+  designCard({ templateId: 'snatch_solar', name: 'Solar Talon', exercise: 'SNATCH', reps: 8, rarity: 'legendary', target: 'SINGLE', stagger: 2, colorHex: '#B91C1C', icon: '🦅' }),
 
-  // 6. WINDMILL CARDS
-  {
-    templateId: 'windmill_astral',
-    name: 'Astral Spire',
-    type: 'DEFENSE',
-    exercise: 'WINDMILL',
-    exerciseLabel: 'KETTLEBELL WINDMILLS',
-    requiredReps: 3,
-    damage: 22,
-    block: 42,
-    effectDesc: 'Torso lateral hinge with overhead bell lock. Grants 42 Block + 22 DMG.',
-    rarity: 'rare',
-    colorHex: '#00EB88',
-    icon: '🌌',
-  },
-  {
-    templateId: 'windmill_cosmic',
-    name: 'Cosmic Ward',
-    type: 'DEFENSE',
-    exercise: 'WINDMILL',
-    exerciseLabel: 'KETTLEBELL WINDMILLS',
-    requiredReps: 5,
-    damage: 35,
-    block: 65,
-    effectDesc: 'Deep ankle reach creating an impenetrable astral barrier: 65 Block.',
-    rarity: 'epic',
-    colorHex: '#10B981',
-    icon: '🛡️',
-  },
+  // WINDMILL: slow and controlled. Defensive, with healing.
+  designCard({ templateId: 'windmill_astral', name: 'Astral Spire', exercise: 'WINDMILL', reps: 3, rarity: 'rare', target: 'SINGLE', blockShare: 0.65, colorHex: '#00EB88', icon: '🌌' }),
+  designCard({ templateId: 'windmill_cosmic', name: 'Cosmic Ward', exercise: 'WINDMILL', reps: 5, rarity: 'epic', target: 'SINGLE', blockShare: 0.55, healShare: 0.25, colorHex: '#10B981', icon: '🛡️' }),
 
-  // 7. DEADLIFT / HINGE CARDS
-  {
-    templateId: 'deadlift_colossus',
-    name: 'Root of Titans',
-    type: 'DEFENSE',
-    exercise: 'DEADLIFT',
-    exerciseLabel: 'DEADLIFT HINGES',
-    requiredReps: 5,
-    damage: 20,
-    block: 35,
-    effectDesc: 'Heavy posterior hinge anchoring your stance: 35 Block + 20 DMG.',
-    rarity: 'common',
-    colorHex: '#84CC16',
-    icon: '🌲',
-  },
-  {
-    templateId: 'deadlift_sunder',
-    name: 'Mountain Sunder',
-    type: 'ATTACK',
-    exercise: 'DEADLIFT',
-    exerciseLabel: 'DEADLIFT HINGES',
-    requiredReps: 7,
-    damage: 95,
-    block: 0,
-    effectDesc: 'Full chain deadlift ripping the earth for 95 raw damage.',
-    rarity: 'legendary',
-    colorHex: '#D97706',
-    icon: '⛰️',
-  },
+  // DEADLIFT: rooted strength. Sustain, and a legendary armor-breaking line attack.
+  designCard({ templateId: 'deadlift_colossus', name: 'Root of Titans', exercise: 'DEADLIFT', reps: 5, rarity: 'common', target: 'SINGLE', blockShare: 0.55, healShare: 0.2, colorHex: '#84CC16', icon: '🌲' }),
+  designCard({ templateId: 'deadlift_sunder', name: 'Mountain Sunder', exercise: 'DEADLIFT', reps: 7, rarity: 'legendary', target: 'PIERCE', shatter: true, colorHex: '#D97706', icon: '⛰️' }),
 
-  // 8. THRUSTER CARDS
-  {
-    templateId: 'thruster_eruption',
-    name: 'Solar Eruption',
-    type: 'ATTACK',
-    exercise: 'THRUSTER',
-    exerciseLabel: 'KETTLEBELL THRUSTERS',
-    requiredReps: 4,
-    damage: 62,
-    block: 15,
-    effectDesc: 'Deep squat hole exploding into overhead press: 62 DMG + 15 Block.',
-    rarity: 'rare',
-    colorHex: '#F59E0B',
-    icon: '☄️',
-  },
-  {
-    templateId: 'thruster_supernova',
-    name: 'Supernova Surge',
-    type: 'ATTACK',
-    exercise: 'THRUSTER',
-    exerciseLabel: 'KETTLEBELL THRUSTERS',
-    requiredReps: 6,
-    damage: 105,
-    block: 10,
-    effectDesc: 'Dynamic squat-to-overhead blast dealing 105 cataclysmic DMG.',
-    rarity: 'epic',
-    colorHex: '#D97706',
-    icon: '🌟',
-  },
+  // THRUSTER: full-body and exhausting. A meteor onto the back row and the strongest AOE.
+  designCard({ templateId: 'thruster_eruption', name: 'Solar Eruption', exercise: 'THRUSTER', reps: 4, rarity: 'rare', target: 'BACK', blockShare: 0.15, colorHex: '#F59E0B', icon: '☄️' }),
+  designCard({ templateId: 'thruster_supernova', name: 'Supernova Surge', exercise: 'THRUSTER', reps: 6, rarity: 'epic', target: 'ALL', colorHex: '#D97706', icon: '🌟' }),
 
-  // 9. GORILLA ROW CARDS
-  {
-    templateId: 'row_beast_maw',
-    name: 'Beast Maw',
-    type: 'ATTACK',
-    exercise: 'GORILLA_ROW',
-    exerciseLabel: 'GORILLA ROWS',
-    requiredReps: 5,
-    damage: 48,
-    block: 12,
-    effectDesc: 'Bent-over elbow row tearing ribs: 48 DMG + 12 guard Block.',
-    rarity: 'common',
-    colorHex: '#84CC16',
-    icon: '🦍',
-  },
-  {
-    templateId: 'row_shadow_ripper',
-    name: 'Shadow Ripper',
-    type: 'ATTACK',
-    exercise: 'GORILLA_ROW',
-    exerciseLabel: 'GORILLA ROWS',
-    requiredReps: 8,
-    damage: 86,
-    block: 0,
-    effectDesc: 'Explosive alternating rows dealing 86 armor-piercing damage.',
-    rarity: 'rare',
-    colorHex: '#65A30D',
-    icon: '🗡️',
-  },
+  // GORILLA ROW: tearing, alternating pulls. A flurry that spreads across the pack.
+  designCard({ templateId: 'row_beast_maw', name: 'Beast Maw', exercise: 'GORILLA_ROW', reps: 5, rarity: 'common', target: 'SINGLE', blockShare: 0.2, colorHex: '#84CC16', icon: '🦍' }),
+  designCard({ templateId: 'row_shadow_ripper', name: 'Shadow Ripper', exercise: 'GORILLA_ROW', reps: 8, rarity: 'rare', target: 'CHAIN', hits: 4, colorHex: '#65A30D', icon: '🗡️' }),
 
-  // 10. HALO CARDS
-  {
-    templateId: 'halo_barrier',
-    name: 'Celestial Barrier',
-    type: 'DEFENSE',
-    exercise: 'HALO',
-    exerciseLabel: 'KETTLEBELL HALOS',
-    requiredReps: 4,
-    damage: 0,
-    block: 45,
-    effectDesc: 'Circle the bell around your head. Grants massive 45 Block.',
-    rarity: 'rare',
-    colorHex: '#818CF8',
-    icon: '💫',
-  },
-  {
-    templateId: 'halo_vortex',
-    name: 'Astral Vortex',
-    type: 'ATTACK',
-    exercise: 'HALO',
-    exerciseLabel: 'KETTLEBELL HALOS',
-    requiredReps: 5,
-    damage: 40,
-    block: 22,
-    effectDesc: 'Rotational core power dealing 40 damage and 22 Block.',
-    rarity: 'epic',
-    colorHex: '#C084FC',
-    icon: '🌀',
-  },
+  // HALO: mobility. Protection, healing, and a vortex that slows every foe.
+  designCard({ templateId: 'halo_barrier', name: 'Celestial Barrier', exercise: 'HALO', reps: 4, rarity: 'rare', target: 'SINGLE', blockShare: 0.75, healShare: 0.25, colorHex: '#818CF8', icon: '💫' }),
+  designCard({ templateId: 'halo_vortex', name: 'Astral Vortex', exercise: 'HALO', reps: 5, rarity: 'epic', target: 'ALL', stagger: 1, blockShare: 0.3, colorHex: '#C084FC', icon: '🌀' }),
 
-  // 11. SINGLE-LEG RDL CARDS
-  {
-    templateId: 'rdl_valkyrie',
-    name: 'Valkyrie Balance',
-    type: 'DEFENSE',
-    exercise: 'SINGLE_LEG_RDL',
-    exerciseLabel: 'SINGLE-LEG RDL',
-    requiredReps: 4,
-    damage: 28,
-    block: 36,
-    effectDesc: 'Unilateral hinge with horizontal leg extension: 36 Block + 28 DMG.',
-    rarity: 'rare',
-    colorHex: '#EC4899',
-    icon: '🕊️',
-  },
-  {
-    templateId: 'rdl_crane',
-    name: 'Crane Strike',
-    type: 'ATTACK',
-    exercise: 'SINGLE_LEG_RDL',
-    exerciseLabel: 'SINGLE-LEG RDL',
-    requiredReps: 6,
-    damage: 78,
-    block: 18,
-    effectDesc: 'Disciplined single-leg posterior drive dealing 78 precise damage.',
-    rarity: 'epic',
-    colorHex: '#DB2777',
-    icon: '🦩',
-  },
+  // SINGLE-LEG RDL: balance and precision. Guarded strikes and a precise armor-piercing reach.
+  designCard({ templateId: 'rdl_valkyrie', name: 'Valkyrie Balance', exercise: 'SINGLE_LEG_RDL', reps: 4, rarity: 'rare', target: 'SINGLE', blockShare: 0.55, colorHex: '#EC4899', icon: '🕊️' }),
+  designCard({ templateId: 'rdl_crane', name: 'Crane Strike', exercise: 'SINGLE_LEG_RDL', reps: 6, rarity: 'epic', target: 'BACK', shatter: true, colorHex: '#DB2777', icon: '🦩' }),
+
+  // CLEAN (new): snapping hip drive. An interrupting uppercut and a ricocheting bell.
+  designCard({ templateId: 'clean_uppercut', name: 'Iron Uppercut', exercise: 'CLEAN', reps: 4, rarity: 'common', target: 'SINGLE', stagger: 1.5, colorHex: '#FB923C', icon: '👊' }),
+  designCard({ templateId: 'clean_ricochet', name: 'Ricochet Bell', exercise: 'CLEAN', reps: 6, rarity: 'rare', target: 'CHAIN', hits: 3, colorHex: '#FACC15', icon: '🔔' }),
+
+  // LUNGE (new): stepping strikes. A spear thrust through the line and a shielded advance.
+  designCard({ templateId: 'lunge_lancer', name: "Lancer's Lunge", exercise: 'LUNGE', reps: 4, rarity: 'common', target: 'PIERCE', colorHex: '#22D3EE', icon: '🔱' }),
+  designCard({ templateId: 'lunge_vanguard', name: 'Vanguard Step', exercise: 'LUNGE', reps: 5, rarity: 'rare', target: 'SINGLE', blockShare: 0.4, stagger: 1, colorHex: '#94A3B8', icon: '🛡️' }),
 ];
 
 export const MONSTER_CATALOG: Omit<MonsterState, 'currentHp' | 'block' | 'intent'>[] = [
@@ -477,7 +169,7 @@ export const MONSTER_CATALOG: Omit<MonsterState, 'currentHp' | 'block' | 'intent
     id: 'green_slime',
     name: 'GREEN SLIME',
     title: 'DUNGEON OOZE',
-    maxHp: 220,
+    maxHp: 140,
     level: 5,
     spriteType: 'SLIME',
   },
@@ -485,7 +177,7 @@ export const MONSTER_CATALOG: Omit<MonsterState, 'currentHp' | 'block' | 'intent
     id: 'boar',
     name: 'RAZORBACK BOAR',
     title: 'TUSKED CHARGER',
-    maxHp: 260,
+    maxHp: 170,
     level: 6,
     spriteType: 'BOAR',
   },
@@ -493,7 +185,7 @@ export const MONSTER_CATALOG: Omit<MonsterState, 'currentHp' | 'block' | 'intent
     id: 'wolf',
     name: 'SHADOW WOLF',
     title: 'NOCTURNAL PREDATOR',
-    maxHp: 290,
+    maxHp: 160,
     level: 7,
     spriteType: 'WOLF',
   },
@@ -501,7 +193,7 @@ export const MONSTER_CATALOG: Omit<MonsterState, 'currentHp' | 'block' | 'intent
     id: 'treemon',
     name: 'TREEMON',
     title: 'ROOTBOUND GUARDIAN',
-    maxHp: 320,
+    maxHp: 210,
     level: 8,
     spriteType: 'TREEMON',
   },
@@ -509,7 +201,7 @@ export const MONSTER_CATALOG: Omit<MonsterState, 'currentHp' | 'block' | 'intent
     id: 'demon_monk',
     name: 'DEMON MONK',
     title: 'CORRUPTED ACOLYTE',
-    maxHp: 390,
+    maxHp: 220,
     level: 10,
     spriteType: 'DEMON_MONK',
   },
@@ -517,7 +209,7 @@ export const MONSTER_CATALOG: Omit<MonsterState, 'currentHp' | 'block' | 'intent
     id: 'hellhound',
     name: 'HELLHOUND',
     title: 'TWO-HEADED HOUND',
-    maxHp: 450,
+    maxHp: 260,
     level: 12,
     spriteType: 'HELLHOUND',
   },
@@ -544,7 +236,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   { id: 'wolf_pack', name: 'Twin Shadow Wolves', description: 'Two cunning wolves flanking from both sides.', monsterIds: ['wolf', 'wolf'] },
   { id: 'wild_stampede', name: 'Wild Beasts', description: 'A rampaging boar charged alongside a shadow wolf.', monsterIds: ['boar', 'wolf'] },
   { id: 'forest_ambush', name: 'Forest Guardians', description: 'A Treemon flanked by a toxic forest slime.', monsterIds: ['treemon', 'green_slime'] },
-  { id: 'unholy_covenant', name: 'Unholy Covenant', description: 'A Demon Monk shielded by a giant Treemon.', monsterIds: ['demon_monk', 'treemon'] },
+  { id: 'unholy_covenant', name: 'Unholy Covenant', description: 'A Demon Monk chanting behind a giant Treemon.', monsterIds: ['treemon', 'demon_monk'] },
   { id: 'hound_pack', name: 'Hounds of Fire & Ooze', description: 'A ferocious Hellhound supported by a dungeon slime.', monsterIds: ['hellhound', 'green_slime'] },
   { id: 'iron_tusks_fire', name: 'Tusks of Hellfire', description: 'A brutal duo: Hellhound and Razorback Boar!', monsterIds: ['hellhound', 'boar'] },
 
@@ -553,6 +245,6 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   { id: 'wolf_hunting_pack', name: 'Wolf Hunting Pack', description: 'Three coordinated shadow wolves hunting in the gloom.', monsterIds: ['wolf', 'wolf', 'wolf'] },
   { id: 'beast_stampede', name: 'Woodland Stampede', description: 'Two heavy boars led by a fierce shadow wolf.', monsterIds: ['boar', 'wolf', 'boar'] },
   { id: 'forest_trio', name: 'Sylvan Syndicate', description: 'A fortified Treemon supported by two stinging slimes.', monsterIds: ['green_slime', 'treemon', 'green_slime'] },
-  { id: 'demonic_conclave', name: 'Demonic Conclave', description: 'A Demon Monk backed by a Hellhound and an acid slime.', monsterIds: ['demon_monk', 'hellhound', 'green_slime'] },
-  { id: 'boss_trio', name: 'The Dread Menagerie', description: 'A legendary trio: Hellhound, Demon Monk, and Treemon!', monsterIds: ['demon_monk', 'treemon', 'hellhound'] },
+  { id: 'demonic_conclave', name: 'Demonic Conclave', description: 'A Demon Monk casting from behind a Hellhound and an acid slime.', monsterIds: ['hellhound', 'demon_monk', 'green_slime'] },
+  { id: 'boss_trio', name: 'The Dread Menagerie', description: 'A legendary trio: Treemon and Hellhound guard a Demon Monk!', monsterIds: ['treemon', 'demon_monk', 'hellhound'] },
 ];

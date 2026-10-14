@@ -847,6 +847,86 @@ const SCENES: Record<string, Scene> = {
     },
     fx: (fx) => fx.rect(57, 20, 2, 2, 0xDC2626), // red crown
   },
+
+  // CLEAN
+  clean_uppercut: {
+    sky: 'fire', horizon: 'spires', stars: 6,
+    glow: { x: 52, y: 14, r: 22, colors: [0x5C0E0E, 0x9A2A0C, 0xD9590F] },
+    motif: (m) => {
+      // Armored forearm driving upward into a clenched gauntlet
+      m.poly([42, 52, 54, 52, 56, 28, 44, 28], STEEL[1]);
+      m.rect(43, 34, 12, 3, GOLD[1]); // vambrace band
+      m.poly([40, 28, 58, 28, 60, 18, 56, 12, 42, 12, 38, 18], STEEL[2]);
+      for (let k = 0; k < 4; k++) m.rect(41 + k * 4.5, 11, 3.5, 4, STEEL[3]); // knuckle plates
+      m.poly([38, 18, 34, 22, 38, 26, 42, 24], STEEL[1]); // thumb
+    },
+    fx: (fx, rng) => {
+      crescent(fx, 52, 30, 26, 3.6, 5.2, 4, [0, 0xF97316, 0xFDE047, 0xFFFBEA]);
+      for (let i = 0; i < 8; i++) {
+        const a = -Math.PI / 2 + (i - 3.5) * 0.3;
+        fx.line(50 + Math.cos(a) * 9, 8 + Math.sin(a) * 6, 50 + Math.cos(a) * 16, 8 + Math.sin(a) * 10, i % 2 ? 0xFDE047 : 0xFFFBEA);
+      }
+      sparks(fx, rng, 16, 30, 0, 40, 20, FIRE.slice(2));
+    },
+  },
+  clean_ricochet: {
+    sky: 'storm', horizon: 'spires', stars: 12,
+    motif: (m) => kettlebell(m, 74, 18, 7, ROCK[1], ROCK[2]),
+    fx: (fx, rng) => {
+      // Zigzag bounce trail through three impact points
+      const pts: [number, number][] = [[8, 40], [28, 12], [48, 42], [66, 20]];
+      for (let i = 0; i + 1 < pts.length; i++) {
+        const [x0, y0] = pts[i];
+        const [x1, y1] = pts[i + 1];
+        for (let t = 0; t <= 1; t += 0.04) if (Math.floor(t * 25) % 2 === 0) fx.disc(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, 1, 0xFACC15);
+      }
+      for (const [x, y] of pts.slice(1, 3)) {
+        for (let k = 0; k < 6; k++) {
+          const a = (k / 6) * Math.PI * 2;
+          fx.line(x + Math.cos(a) * 3, y + Math.sin(a) * 3, x + Math.cos(a) * 7, y + Math.sin(a) * 7, k % 2 ? 0xFACC15 : 0xFFFBEA);
+        }
+        fx.disc(x, y, 1.5, 0xFFFFFF);
+      }
+      sparks(fx, rng, 12, 10, 6, 70, 36, [0xFACC15, 0xFFFBEA]);
+    },
+  },
+
+  // LUNGE
+  lunge_lancer: {
+    sky: 'water', horizon: 'hills', stars: 16,
+    motif: (m) => {
+      m.line(4, 46, 76, 14, BARK[2], 2.5); // shaft
+      m.poly([74, 10, 92, 6, 80, 20], STEEL[2]); // spearhead
+      m.line(76, 12, 88, 8, STEEL[3]);
+      m.poly([70, 14, 72, 22, 76, 16], 0xDC2626); // pennant
+    },
+    fx: (fx, rng) => {
+      // The thrust punches through two foes in a line
+      for (const [x, y, r] of [[36, 32, 6], [58, 22, 5]]) {
+        fx.ring(x, y, r, 0x22D3EE, 1);
+        fx.ring(x, y, r + 3, 0x0E7490, 1);
+      }
+      for (let i = 0; i < 6; i++) fx.line(4 + i * 4, 30 + i * 3, 20 + i * 4, 23 + i * 3, 0x67E8F9);
+      sparks(fx, rng, 12, 30, 10, 50, 30, [0xA5F3FC, 0xFFFFFF]);
+    },
+  },
+  lunge_vanguard: {
+    sky: 'steel', horizon: 'spires', stars: 8,
+    glow: { x: 48, y: 26, r: 26, colors: [0x1E2430, 0x323B4C, 0x56637A] },
+    motif: (m) => {
+      // War banner behind a tower shield
+      m.line(66, 4, 66, 50, BARK[1], 2);
+      m.poly([67, 5, 86, 8, 80, 13, 86, 18, 67, 20], 0x7F1D1D);
+      m.poly([30, 8, 56, 8, 58, 40, 43, 50, 28, 40], 0x94A3B8);
+      m.poly([33, 11, 53, 11, 54, 38, 43, 46, 32, 38], 0x334155);
+      m.rect(41, 14, 4, 26, 0xF4B41A); // cross
+      m.rect(35, 21, 16, 4, 0xF4B41A);
+    },
+    fx: (fx, rng) => {
+      for (let i = 0; i < 3; i++) fx.line(10, 40 + i * 4, 24, 40 + i * 4, 0xCBD5E1); // forward step streaks
+      sparks(fx, rng, 8, 26, 4, 40, 30, [0xFFFBEA, 0xF4B41A]);
+    },
+  },
 };
 
 const FALLBACK: Scene = {

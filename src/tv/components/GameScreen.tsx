@@ -38,6 +38,9 @@ export const GameScreen: React.FC = () => {
   const [currentView, setCurrentView] = useState<'HUB' | 'BLACKSMITH' | 'COMBAT' | 'ALCHEMIST' | 'SANCTUARY'>(
     ['HUB', 'BLACKSMITH', 'COMBAT', 'ALCHEMIST', 'SANCTUARY'].includes(initialView) ? initialView : 'HUB'
   );
+  // Read by the telemetry listener (registered once), so it can tell whether a battle is running
+  const currentViewRef = useRef(currentView);
+  currentViewRef.current = currentView;
 
   // Navigation indices
   const [hubIndex, setHubIndex] = useState<number>(1); // Default to Blacksmith
@@ -106,8 +109,9 @@ export const GameScreen: React.FC = () => {
      */
     unsubTelemetry = networkManager.onTelemetry((telemetry: RepTelemetry) => {
       if (telemetry.event === 'REP_TRIGGER') {
-        // Direct zero-overhead pass-through to PixiJS WebGL loop
-        if (engineRef.current) {
+        // Direct zero-overhead pass-through to PixiJS WebGL loop. In battle the attack animation
+        // plays when a card is cast (BattleScreen), with the real damage, not on every rep.
+        if (engineRef.current && currentViewRef.current !== 'COMBAT') {
           engineRef.current.onRepCompleted(
             telemetry.power, 
             telemetry.form, 

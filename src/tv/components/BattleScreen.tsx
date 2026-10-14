@@ -1,5 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { CombatCard, MonsterState, BattleState, MonsterIntent, MONSTER_CATALOG, ENCOUNTERS, EncounterTemplate } from '../../types/battle';
+import { MOVESETS, rollIntent, createEncounterFromTemplate } from '../../shared/monsterMovesets';
+import { resolveCard, frontTarget } from '../../shared/combat';
+import { PLAYER_MAX_HP } from '../../shared/combatRules';
 import type { ImpactResult } from '../engine/monsterMoves';
 import { ExerciseType, RepTelemetry } from '../../types/game';
 import { CardDeckManager } from '../../shared/CardDeckManager';
@@ -36,85 +39,6 @@ interface BattleScreenProps {
   }) => void;
 }
 
-type IntentTemplate = Omit<MonsterIntent, 'remainingSeconds'>;
-
-// Each monster's moveset. `move` selects the choreography in src/tv/engine/monsterMoves.ts.
-const MOVESETS: Record<string, IntentTemplate[]> = {
-  green_slime: [
-    { type: 'ATTACK', damage: 16, name: 'Slime Slap', description: 'Bouncing body-slam', durationSeconds: 4.5, move: 'slime_slap' },
-    { type: 'ATTACK', damage: 12, name: 'Acid Spit', description: 'Three corrosive globs', durationSeconds: 3.5, move: 'slime_acid_spit' },
-    { type: 'HEAVY_ATTACK', damage: 28, name: 'Ooze Slam', description: 'Leaps skyward and crashes down', durationSeconds: 6.0, move: 'slime_ooze_slam' },
-    { type: 'HEAVY_ATTACK', damage: 22, name: 'Corrosive Engulf', description: 'Swallows you in burning acid', durationSeconds: 5.5, move: 'slime_engulf' },
-  ],
-  treemon: [
-    { type: 'ATTACK', damage: 22, name: 'Branch Whip', description: 'Lashing thorned bough', durationSeconds: 4.2, move: 'tree_branch_whip' },
-    { type: 'HEAVY_ATTACK', damage: 38, name: 'Root Stomp', description: 'Thorns erupt from the earth', durationSeconds: 5.8, move: 'tree_root_stomp' },
-    { type: 'HEAVY_ATTACK', damage: 30, name: 'Burrow Ambush', description: 'Tunnels beneath and erupts', durationSeconds: 5.4, move: 'tree_burrow_ambush' },
-    { type: 'ATTACK', damage: 16, name: 'Spore Burst', description: 'Drifting toxic spores', durationSeconds: 3.8, move: 'tree_spore_burst' },
-    { type: 'DEFEND', damage: 0, block: 25, name: 'Bark Skin', description: 'Hardens its bark (+25 Block)', durationSeconds: 4.0, move: 'tree_bark_skin' },
-  ],
-  boar: [
-    { type: 'HEAVY_ATTACK', damage: 32, name: 'Gore Charge', description: 'Violent headlong tusk impale', durationSeconds: 5.2, move: 'boar_gore_charge' },
-    { type: 'ATTACK', damage: 18, name: 'Tusk Slash', description: 'Quick upward tusk thrust', durationSeconds: 3.6, move: 'boar_tusk_slash' },
-    { type: 'ATTACK', damage: 22, name: 'Earthsplitter', description: 'Stomp cracks the earth', durationSeconds: 4.4, move: 'boar_earthsplitter' },
-    { type: 'ATTACK', damage: 14, name: 'Quill Volley', description: 'Hurls razor bristles', durationSeconds: 3.4, move: 'boar_quill_volley' },
-    { type: 'DEFEND', damage: 0, block: 20, name: 'Iron Bristles', description: 'Toughens coarse hide (+20 Block)', durationSeconds: 4.2, move: 'boar_iron_bristles' },
-  ],
-  wolf: [
-    { type: 'HEAVY_ATTACK', damage: 35, name: 'Throat Bite', description: 'Ferocious neck puncture', durationSeconds: 4.8, move: 'wolf_throat_bite' },
-    { type: 'ATTACK', damage: 20, name: 'Shadow Pounce', description: 'Agile leap from the dark', durationSeconds: 3.2, move: 'wolf_shadow_pounce' },
-    { type: 'ATTACK', damage: 24, name: 'Predator Rake', description: 'Razor claw laceration', durationSeconds: 3.8, move: 'wolf_predator_rake' },
-    { type: 'HEAVY_ATTACK', damage: 30, name: 'Phantom Pack', description: 'Howls spectral wolves from the dark', durationSeconds: 6.0, move: 'wolf_phantom_pack' },
-  ],
-  demon_monk: [
-    { type: 'HEAVY_ATTACK', damage: 42, name: 'Abyssal Edict', description: 'Pillar of hellfire from a ritual circle', durationSeconds: 5.5, move: 'monk_abyssal_edict' },
-    { type: 'ATTACK', damage: 26, name: 'Cursed Palm', description: 'Teleporting demonic strike', durationSeconds: 3.8, move: 'monk_cursed_palm' },
-    { type: 'ATTACK', damage: 22, name: 'Hellfire Orb', description: 'Hurls a ball of hellfire', durationSeconds: 4.2, move: 'monk_hellfire_orb' },
-    { type: 'ATTACK', damage: 18, name: 'Chains of Penance', description: 'Binding infernal chains', durationSeconds: 3.6, move: 'monk_chains_of_penance' },
-    { type: 'DEFEND', damage: 0, block: 28, name: 'Forbidden Ward', description: 'Dark sorcery shield (+28 Block)', durationSeconds: 4.0, move: 'monk_forbidden_ward' },
-  ],
-  hellhound: [
-    { type: 'HEAVY_ATTACK', damage: 45, name: 'Twin Maul', description: 'Both heads bite at once', durationSeconds: 5.0, move: 'hound_twin_maul' },
-    { type: 'ATTACK', damage: 24, name: 'Savage Frenzy', description: 'Wild snapping bites', durationSeconds: 3.2, move: 'hound_savage_frenzy' },
-    { type: 'ATTACK', damage: 32, name: 'Hellfire Breath', description: 'Torrent of scorching flame', durationSeconds: 4.5, move: 'hound_hellfire_breath' },
-    { type: 'HEAVY_ATTACK', damage: 40, name: 'Magma Rampage', description: 'Charges through; the ground erupts', durationSeconds: 5.6, move: 'hound_magma_rampage' },
-    { type: 'ATTACK', damage: 28, name: 'Brimstone Rain', description: 'Calls down burning meteors', durationSeconds: 4.8, move: 'hound_brimstone_rain' },
-  ],
-};
-
-const MONSTER_INTENTS: Record<string, MonsterIntent[]> = Object.fromEntries(
-  Object.entries(MOVESETS).map(([id, moves]) => [id, moves.map((m) => ({ ...m, remainingSeconds: m.durationSeconds }))]),
-);
-
-function createEncounterFromTemplate(template: EncounterTemplate): MonsterState[] {
-  const counts: Record<string, number> = {};
-  return template.monsterIds.map((mId, slotIndex) => {
-    const cat = MONSTER_CATALOG.find(c => c.id === mId) || MONSTER_CATALOG[0];
-    counts[mId] = (counts[mId] || 0) + 1;
-    const count = counts[mId];
-    const totalOfThisType = template.monsterIds.filter(id => id === mId).length;
-    const suffix = totalOfThisType > 1 ? ` ${String.fromCharCode(64 + count)}` : '';
-
-    const intents = MONSTER_INTENTS[cat.id] || MONSTER_INTENTS.green_slime;
-    const rawIntent = intents[slotIndex % intents.length] || intents[0];
-    const initialIntent = {
-      ...rawIntent,
-      remainingSeconds: rawIntent.durationSeconds + slotIndex * 0.85,
-    };
-
-    return {
-      ...cat,
-      name: `${cat.name}${suffix}`,
-      instanceId: `${template.id}_${slotIndex}_${Date.now()}`,
-      slotIndex,
-      isAlive: true,
-      currentHp: cat.maxHp,
-      block: 0,
-      intent: initialIntent,
-    };
-  });
-}
-
 export const BattleScreen: React.FC<BattleScreenProps> = ({
   engineRef,
   isEngineReady,
@@ -125,11 +49,41 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const deckManagerRef = useRef<CardDeckManager>(new CardDeckManager());
 
   // Combat State
-  const [playerHp, setPlayerHp] = useState<number>(100);
-  const [playerMaxHp] = useState<number>(100);
+  const [playerHp, setPlayerHp] = useState<number>(PLAYER_MAX_HP);
+  const playerMaxHp = PLAYER_MAX_HP;
   const [playerBlock, setPlayerBlock] = useState<number>(0);
   const [hand, setHand] = useState<CombatCard[]>([]);
-  const [focusedCardIndex, setFocusedCardIndex] = useState<number>(0);
+  // Highlighted card. The game is played hands-free, so by default the highlight follows progress:
+  // the started card (at least 1 rep) the player is closest to casting, i.e. fewest reps left,
+  // leftmost on ties. D-pad/clicks set a manual focus that lasts until the next rep lands.
+  // -1 = nothing highlighted (no card has a rep yet).
+  const [manualFocus, setManualFocus] = useState<number | null>(null);
+  // Cards just cast: each plays a shatter animation over its slot while the replacement deals in
+  const [castFx, setCastFx] = useState<{ key: number; index: number; card: CombatCard }[]>([]);
+  const handRef = useRef<CombatCard[]>(hand);
+  handRef.current = hand;
+  const leadCardIndex = useMemo(() => {
+    let best = -1;
+    const left = (i: number) => hand[i].requiredReps - hand[i].currentReps;
+    hand.forEach((c, i) => {
+      if (c.currentReps >= 1 && (best === -1 || left(i) < left(best))) best = i;
+    });
+    return best;
+  }, [hand]);
+  const focusedCardIndex = manualFocus !== null && manualFocus < hand.length ? manualFocus : leadCardIndex;
+  // Remote actions (Enter / Space) need a card even before anything is highlighted
+  const actionCardIndex = focusedCardIndex >= 0 ? focusedCardIndex : 0;
+  const setFocusedCardIndex = (update: number | ((prev: number) => number)) =>
+    setManualFocus((prev) => {
+      const current = prev ?? actionCardIndex;
+      return typeof update === 'function' ? update(current) : update;
+    });
+
+  // Any rep (or a new card being dealt) hands the highlight back to rep progress
+  const repSignature = hand.map((c) => `${c.id}:${c.currentReps}`).join('|');
+  useEffect(() => {
+    setManualFocus(null);
+  }, [repSignature]);
   // Card showing its technique side (Enter flips the focused card); flips back on its own
   const [flippedCardId, setFlippedCardId] = useState<string | null>(null);
   const [battleStatus, setBattleStatus] = useState<'FIGHTING' | 'VICTORY' | 'DEFEAT'>('FIGHTING');
@@ -146,8 +100,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const [targetedMonsterIndex, setTargetedMonsterIndex] = useState<number>(0);
 
   // References for real-time timer calculations
+  // Latest monsters. The ATB loop, card casts and monster moves all read and write through this ref
+  // (commitMonsters) so a 50ms timer tick can never overwrite a change with a stale copy.
   const monstersRef = useRef<MonsterState[]>(monsters);
-  monstersRef.current = monsters;
+  const commitMonsters = useCallback((next: MonsterState[] | ((prev: MonsterState[]) => MonsterState[])) => {
+    monstersRef.current = typeof next === 'function' ? next(monstersRef.current) : next;
+    setMonsters(monstersRef.current);
+  }, []);
   const targetedIndexRef = useRef<number>(targetedMonsterIndex);
   targetedIndexRef.current = targetedMonsterIndex;
   const playerHpRef = useRef<number>(playerHp);
@@ -202,40 +161,20 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       lastTime = now;
       if (atbFrozenRef.current) return;
 
-      setMonsters((prevMonsters) => {
-        let anyAttacked = false;
-        const nextMonsters = prevMonsters.map((m) => {
-          if (!m.isAlive || m.currentHp <= 0) return m;
-
-          const newRemaining = m.intent.remainingSeconds - dt;
-
-          // When a monster's attack timer reaches 0: Unleash Attack!
-          if (newRemaining <= 0) {
-            anyAttacked = true;
-            executeMonsterAttack(m);
-
-            // Select next random intent for this monster
-            const intents = MONSTER_INTENTS[m.id] || MONSTER_INTENTS.green_slime;
-            const nextIntentTemplate = intents[Math.floor(Math.random() * intents.length)];
-            const nextIntent = { ...nextIntentTemplate, remainingSeconds: nextIntentTemplate.durationSeconds };
-
-            return {
-              ...m,
-              intent: nextIntent,
-            };
-          }
-
-          return {
-            ...m,
-            intent: {
-              ...m.intent,
-              remainingSeconds: newRemaining,
-            },
-          };
-        });
-
-        return nextMonsters;
+      // Advance every attack timer from the latest state; attacks fire outside the state update so
+      // they run exactly once (React may replay updater functions)
+      const attackers: MonsterState[] = [];
+      const next = monstersRef.current.map((m) => {
+        if (!m.isAlive || m.currentHp <= 0) return m;
+        const remaining = m.intent.remainingSeconds - dt;
+        if (remaining <= 0) {
+          attackers.push(m);
+          return { ...m, intent: rollIntent(m) };
+        }
+        return { ...m, intent: { ...m.intent, remainingSeconds: remaining } };
       });
+      commitMonsters(next);
+      attackers.forEach((m) => executeMonsterAttack(m));
     }, 50);
 
     return () => clearInterval(interval);
@@ -252,7 +191,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
       if (intent.type === 'DEFEND') {
         const block = intent.block ?? 25;
-        setMonsters((prev) => prev.map(mon => mon.instanceId === m.instanceId ? { ...mon, block: mon.block + block } : mon));
+        commitMonsters((prev) => prev.map(mon => mon.instanceId === m.instanceId ? { ...mon, block: mon.block + block } : mon));
         setRecentCombatLog(`${m.name} used ${intent.name} (+${block} Block)!`);
         return { label: `+${block} BLOCK`, color: 0x38B6FF, at: 'monster' };
       }
@@ -301,90 +240,72 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     if (result.activated && result.card) {
       const card = result.card;
 
-      // Card activation SFX & VFX in PixiJS Engine
-      engineRef.current?.onRepCompleted?.(power, form, exercise, card.name);
+      const slotIndex = handRef.current.findIndex((c) => c.id === card.id);
+      if (slotIndex !== -1) {
+        const fx = { key: performance.now(), index: slotIndex, card: { ...card, currentReps: card.requiredReps } };
+        setCastFx((prev) => [...prev.filter((f) => f.index !== slotIndex), fx]);
+        // Removed when its animation ends (onCastDone); this is only a fallback
+        setTimeout(() => setCastFx((prev) => prev.filter((f) => f !== fx)), 6000);
+      }
 
-      // Apply Damage to Monster(s)
-      if (result.damage > 0) {
-        const isCleave = card.name.toLowerCase().includes('whirlwind') 
-          || card.name.toLowerCase().includes('slam') 
-          || card.name.toLowerCase().includes('quake') 
-          || card.name.toLowerCase().includes('vortex') 
-          || card.name.toLowerCase().includes('phoenix') 
-          || card.name.toLowerCase().includes('sunder')
-          || card.name.toLowerCase().includes('eruption');
+      // Resolve the card against the current formation (targeting, Block, stagger, kills)
+      const before = monstersRef.current;
+      const res = resolveCard(card, before, targetedIndexRef.current, { power: result.power, form: result.form });
+      const engine = engineRef.current;
+      const primary = res.hits[0];
 
-        setMonsters((prevMonsters) => {
-          let allDefeated = true;
-          const nextMonsters = prevMonsters.map((m, idx) => {
-            if (!m.isAlive || m.currentHp <= 0) return m;
-
-            // If not cleave/AOE, only damage the targeted monster
-            if (!isCleave && idx !== targetedIndexRef.current) {
-              allDefeated = false;
-              return m;
-            }
-
-            let dmg = result.damage;
-            let newBlock = m.block;
-            let newHp = m.currentHp;
-
-            if (newBlock >= dmg) {
-              newBlock -= dmg;
-            } else {
-              dmg -= newBlock;
-              newBlock = 0;
-              newHp = Math.max(0, newHp - dmg);
-            }
-
-            if (newHp <= 0) {
-              engineRef.current?.playMonsterDeath?.(m.slotIndex);
-              return {
-                ...m,
-                block: 0,
-                currentHp: 0,
-                isAlive: false,
-              };
-            } else {
-              allDefeated = false;
-            }
-
-            return {
-              ...m,
-              block: newBlock,
-              currentHp: newHp,
-            };
-          });
-
-          // Check for full victory
-          if (nextMonsters.every(m => m.currentHp <= 0)) {
-            setBattleStatus('VICTORY');
-            setRecentCombatLog(`Victory! All enemies in the encounter have been vanquished!`);
-            audioManager.play('level_up');
-            engineRef.current?.playKnightVictory?.();
-          } else {
-            // If the targeted monster died, auto-retarget to next alive monster
-            const currentTarget = nextMonsters[targetedIndexRef.current];
-            if (!currentTarget || currentTarget.currentHp <= 0) {
-              const nextAliveIdx = nextMonsters.findIndex(m => m.currentHp > 0);
-              if (nextAliveIdx !== -1) {
-                setTargetedMonsterIndex(nextAliveIdx);
-              }
-            }
-          }
-
-          return nextMonsters;
+      // The attack animation plays toward the first foe hit (e.g. the back row for BACK cards)
+      if (engine) {
+        const restoreTarget = targetedIndexRef.current;
+        if (primary) engine.setTargetMonster(primary.index);
+        engine.onRepCompleted(result.power, result.form, exercise, card.name, primary ? primary.damage + primary.blocked : 0);
+        engine.setTargetMonster(restoreTarget);
+        res.hits.forEach((hit, i) => {
+          const delay = 140 + i * (card.target === 'CHAIN' ? 140 : 40);
+          window.setTimeout(() => {
+            if (i > 0 || card.target === 'CHAIN') engine.playMonsterHit(hit.index);
+            const tags = [hit.blocked ? `(${hit.blocked} blocked)` : '', card.shatter ? 'SHATTER' : '', hit.staggered ? `STAGGER +${hit.staggered}s` : ''].filter(Boolean).join(' ');
+            engine.spawnMonsterText(hit.index, `-${hit.damage}`, hit.damage > 0 ? 0xFF3366 : 0x38B6FF, 12);
+            if (tags) engine.spawnMonsterText(hit.index, tags, 0xF4B41A, 7, 14);
+            if (hit.killed) engine.playMonsterDeath(hit.index);
+          }, delay);
         });
       }
 
-      // Apply Block to Player
-      if (result.block > 0) {
-        setPlayerBlock((prev) => prev + result.block);
-        engineRef.current?.playerShieldPulse?.();
+      commitMonsters(res.monsters);
+
+      if (res.monsters.every((m) => m.currentHp <= 0)) {
+        battleStatusRef.current = 'VICTORY';
+        setBattleStatus('VICTORY');
+        setRecentCombatLog(`Victory! All enemies in the encounter have been vanquished!`);
+        audioManager.play('level_up');
+        window.setTimeout(() => engineRef.current?.playKnightVictory?.(), 400);
+      } else if (res.monsters[targetedIndexRef.current]?.currentHp <= 0) {
+        // Target died: move to the next living foe, front row first
+        const next = frontTarget(res.monsters);
+        if (next !== -1) setTargetedMonsterIndex(next);
       }
 
-      setRecentCombatLog(`ACTIVATED [${card.name}]! ${card.damage ? `Dealt ${result.damage} DMG!` : ''} ${card.block ? `Gained ${result.block} Block!` : ''}`);
-      audioManager.play(result.card.rarity === 'legendary' || result.card.rarity === 'epic' ? 'crit' : 'hit');
+      if (res.block > 0) {
+        playerBlockRef.current += res.block;
+        setPlayerBlock(playerBlockRef.current);
+        engine?.playerShieldPulse?.();
+      }
+      if (res.heal > 0) {
+        const healed = Math.min(PLAYER_MAX_HP, playerHpRef.current + res.heal) - playerHpRef.current;
+        playerHpRef.current += healed;
+        setPlayerHp(playerHpRef.current);
+        if (healed > 0) engine?.spawnKnightText(`+${healed} HP`, 0x00EB88);
+      }
+
+      const dealt = res.hits.reduce((sum, h) => sum + h.damage, 0);
+      const kills = res.hits.filter((h) => h.killed).length;
+      setRecentCombatLog(
+        `[${card.name}] ` +
+          [dealt ? `${dealt} DMG${res.hits.length > 1 ? ` across ${res.hits.length} hits` : ''}` : '', kills ? `${kills} slain` : '',
+            res.block ? `+${res.block} Block` : '', res.heal ? `+${res.heal} HP` : ''].filter(Boolean).join(' • '),
+      );
+      audioManager.play(card.rarity === 'legendary' || card.rarity === 'epic' ? 'crit' : 'hit');
     }
 
     setHand(result.hand);
@@ -408,7 +329,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     setCurrentEncounterIndex(index);
     const newMonsters = createEncounterFromTemplate(template);
 
-    setMonsters(newMonsters);
+    commitMonsters(newMonsters);
     setTargetedMonsterIndex(0);
     setPlayerHp(100);
     setPlayerBlock(0);
@@ -456,9 +377,12 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         intent: { name: m.intent.name, type: m.intent.type, remaining: Number(m.intent.remainingSeconds.toFixed(2)) },
       })),
       hand: hand.map((c) => ({ name: c.name, exercise: c.exercise, currentReps: c.currentReps, requiredReps: c.requiredReps })),
-      focusedCard: hand[focusedCardIndex]
-        ? { index: focusedCardIndex, name: hand[focusedCardIndex].name, exercise: hand[focusedCardIndex].exercise,
-            currentReps: hand[focusedCardIndex].currentReps, requiredReps: hand[focusedCardIndex].requiredReps }
+      highlightedCard: focusedCardIndex,
+      manualFocus,
+      // Card that remote actions (Enter / Space / __kk.rep()) target
+      focusedCard: hand[actionCardIndex]
+        ? { index: actionCardIndex, name: hand[actionCardIndex].name, exercise: hand[actionCardIndex].exercise,
+            currentReps: hand[actionCardIndex].currentReps, requiredReps: hand[actionCardIndex].requiredReps }
         : null,
       frozen: atbFrozenRef.current,
       flippedCard: flippedCardId,
@@ -495,7 +419,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       moves: (slotIndex: number) => (MOVESETS[monstersRef.current[slotIndex]?.id] ?? []).map((t) => t.move),
       freeze: (on: boolean) => { atbFrozenRef.current = on; },
       focusCard: (index: number) => setFocusedCardIndex(Math.max(0, Math.min(hand.length - 1, index))),
-      flip: () => toggleFlip(hand[focusedCardIndex]?.id),
+      flip: () => {
+        setFocusedCardIndex(actionCardIndex);
+        toggleFlip(hand[actionCardIndex]?.id);
+      },
       target: (index: number) => setTargetedMonsterIndex(index),
     },
   ));
@@ -538,7 +465,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       if (battleStatus !== 'FIGHTING') {
         handleNextEncounter();
       } else {
-        toggleFlip(hand[focusedCardIndex]?.id);
+        setFocusedCardIndex(actionCardIndex);
+        toggleFlip(hand[actionCardIndex]?.id);
       }
     },
     onBack: () => {
@@ -546,7 +474,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     },
     onDemoSwing: () => {
       if (hand.length > 0) {
-        const focusedCard = hand[focusedCardIndex];
+        const focusedCard = hand[actionCardIndex];
         if (focusedCard) {
           handleApplyRep(focusedCard.exercise, 90 + Math.floor(Math.random() * 20), 1.0);
         }
@@ -762,19 +690,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       )}
 
       {/* BOTTOM SLAY THE SPIRE 5-CARD HAND */}
-      <div className="w-full max-w-6xl mx-auto">
-        {/* Hand Title & Exercise Rule Badge */}
-        <div className="flex items-center justify-between mb-2 px-2">
-          <div className="flex items-center gap-2">
-            <span className="font-pixel text-[10px] text-[#F4B41A] flex items-center gap-1.5">
-              <Swords className="w-3.5 h-3.5" /> 5-CARD COMBAT HAND (SLAY THE SPIRE)
-            </span>
-            <span className="text-[8px] bg-[#2E2B44] text-[#A7A9BE] font-mono px-2 py-0.5 border border-[#3E3B5E]">
-              5 Unique Exercises In Hand
-            </span>
-          </div>
-
-          <span className="font-pixel text-[9px] text-[#38B6FF]">
+      <div className="w-full mx-auto">
+        <div className="flex justify-end px-2 -mb-3">
+          <span className="font-pixel text-[9px] text-[#38B6FF] bg-[#0F0E17]/80 px-2 py-1 border border-[#2E2B44]">
             [◀ / ▶] SELECT • [ENTER] HOW TO • [SPACE] DEMO REP
           </span>
         </div>
@@ -789,6 +707,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
               handSize={hand.length}
               focused={focusedCardIndex === index}
               flipped={flippedCardId === card.id}
+              castGhost={castFx.find((f) => f.index === index)?.card}
+              dealDelayMs={castFx.some((f) => f.index === index) ? 480 : undefined}
+              onCastDone={() => setCastFx((prev) => prev.filter((f) => f.index !== index))}
               onSelect={() => (focusedCardIndex === index ? toggleFlip(card.id) : setFocusedCardIndex(index))}
             />
           ))}

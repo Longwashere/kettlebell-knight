@@ -19,6 +19,7 @@ npm run dev       # Vite on 0.0.0.0:5173 (reachable from phones on the LAN)
 npm run build     # tsc type-check + vite build — run this to verify changes; there is no test suite
 npm run preview
 npm run shot -- <steps>   # headless /tv run: screenshots + state + console errors → work/shots/ (see kk-verify skill)
+npm run balance [-- N cards]  # combat balance simulator: win rate / fight length / HP left per encounter
 ```
 
 Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test` (alias `/lab`) motion-detection lab.
@@ -71,6 +72,17 @@ Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test
   then both the phone and TV sides.
 - PixiJS is **v8**. Don't use v7 APIs (e.g. use `await app.init()`, not constructor options).
 - Commits use conventional prefixes: `feat(scope): …`, `fix(scope): …`.
+
+## Combat balance
+
+- Card numbers are derived, not hand-typed: `CARD_CATALOG` (src/types/battle.ts) lists design specs, and
+  `designCard` (src/shared/cardBalance.ts) turns each spec's budget (reps × rep seconds × exercise intensity × rarity)
+  into damage/Block/heal. Retune via `EXERCISE_PROFILE` / `BALANCE`, not individual cards.
+- Card resolution (targeting, Block, Shatter, Stagger) is the pure `resolveCard` in src/shared/combat.ts; monster
+  movesets, pack scaling and encounter building are in src/shared/monsterMovesets.ts and combatRules.ts. The TV battle
+  screen and the simulator share all of it.
+- After any balance change run `npm run balance` and keep: single monsters ≥95% win in ~50–90s, pairs ~90%,
+  trios 85–95%, boss trios ~65–80%, for the simulated average player.
 
 ## Spine assets
 
