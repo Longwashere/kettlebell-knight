@@ -163,6 +163,7 @@ export const GameScreen: React.FC = () => {
       monsterMove: (slot: number, move: MonsterMoveId, selfTarget?: boolean) => engineRef.current?.debugMonsterMove(slot, move, selfTarget),
       moveTrace: () => engineRef.current?.debugMoveTrace() ?? null,
       vfxPose: (name: VfxName | null, anim?: string, time?: number, size?: number) => engineRef.current?.debugVfxPose(name, anim, time, size),
+      equip: (slot: string, attachment: string) => engineRef.current?.previewEquipment(slot, attachment),
       background: (key: string) =>
         engineRef.current?.loadBackground(BATTLE_MAPS[key.toUpperCase() as BattleMapId] ?? key),
     },

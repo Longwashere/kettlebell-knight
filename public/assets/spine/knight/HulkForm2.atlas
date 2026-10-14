@@ -1,5 +1,5 @@
 HulkForm2.png
-size:512,64
+size:512,128
 pma:true
 scale:0.15
 CX1
@@ -73,3 +73,15 @@ thight
 bounds:157,15,13,27
 offsets:1,3,14,32
 rotate:90
+iron_kettlebell
+bounds:2,66,70,21
+offsets:0,0,70,21
+excalibur_bell
+bounds:76,66,70,21
+offsets:0,0,70,21
+dragon_kettlebell
+bounds:150,66,70,21
+offsets:0,0,70,21
+void_bell
+bounds:224,66,70,21
+offsets:0,0,70,21

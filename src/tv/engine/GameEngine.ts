@@ -1064,6 +1064,7 @@ export class GameEngine {
 
       this.knightSpine = spine;
       this.knightContainer.addChild(spine);
+      this.updateKnightVisuals();
     } catch (err) {
       console.error('[GameEngine] Failed to load knight Spine rig:', err);
     }
@@ -2235,11 +2236,25 @@ export class GameEngine {
   }
 
   /**
-   * Equipment hook. The Spine knight currently ships a single fixed skin (sword, shield, helm),
-   * so equipped item ids are tracked in `equippedSlots` but not yet re-skinned on the rig.
+   * Equipment hook. Updates the knight's visual attachments on the Spine rig.
    */
   private updateKnightVisuals(): void {
-    // Intentionally empty until equipment attachments exist on the Spine rig.
+    if (!this.knightSpine) return;
+    const weaponId = this.equippedSlots['weapon'] || 'iron_kettlebell';
+    try {
+      const slot = this.knightSpine.skeleton.findSlot('sword');
+      if (slot) {
+        const attachment =
+          this.knightSpine.skeleton.getAttachmentByName('sword', weaponId) ||
+          this.knightSpine.skeleton.getAttachmentByName('sword', 'iron_kettlebell') ||
+          this.knightSpine.skeleton.getAttachmentByName('sword', 'sword');
+        if (attachment) {
+          slot.setAttachment(attachment);
+        }
+      }
+    } catch (err) {
+      console.warn('[GameEngine] Failed to update knight weapon visual:', weaponId, err);
+    }
   }
 
   private getWeaponInfo(weaponId: string) {
