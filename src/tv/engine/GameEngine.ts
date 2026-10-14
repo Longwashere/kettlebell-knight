@@ -61,6 +61,13 @@ export interface SkeletonAttachmentMock {
 const KNIGHT_SKELETON_KEY = '/assets/spine/knight/HulkForm2.json';
 const KNIGHT_ATLAS_KEY = '/assets/spine/knight/HulkForm2.atlas';
 const KNIGHT_SCALE = 0.15;
+// Battle arena background textures (exact 1:1 426x240 retro canvas match)
+const BATTLE_BG_KEY = '/assets/backgrounds/cathedral_crypt_426.webp';
+const MONSTER_BACKGROUNDS: Record<MonsterSprite, string> = {
+  TREEMON: '/assets/backgrounds/dark_forest_426.webp',
+  SLIME: '/assets/backgrounds/cathedral_crypt_426.webp',
+  HELLHOUND: '/assets/backgrounds/cathedral_crypt_426.webp',
+};
 // Lifts combatants + effects so they stand above the battle card hand (which covers the lower half).
 const SCENE_RAISE_Y = 40;
 let knightAssetRefs = 0; // engines currently holding the shared knight assets
@@ -168,6 +175,7 @@ export class GameEngine {
   private monsterRig: MonsterRig | null = null;
   private monsterSprite: MonsterSprite = 'SLIME'; // requested monster; may arrive before init()
   private heldMonsterRig: MonsterRig | null = null; // rig this engine holds an asset ref on
+  private currentBgKey: string | null = null;
   private monsterLoadToken = 0; // discards stale loads when monsters are switched quickly
   private monsterLocked = false; // true once the death animation starts
   private monsterLungeT = 1; // 0→1 during an attack dash; 1 = idle at home
@@ -181,6 +189,14 @@ export class GameEngine {
   private shakeIntensity: number = 0;
   private baseStageX: number = 0;
   private baseStageY: number = 0;
+
+  // Dynamic Camera & Zoom (late 90s dark fantasy cinematic action)
+  private cameraZoom: number = 1.0;
+  private targetCameraZoom: number = 1.0;
+  private cameraFocusX: number = 213; // default screen center (426 / 2)
+  private cameraFocusY: number = 120; // default screen center (240 / 2)
+  private targetCameraFocusX: number = 213;
+  private targetCameraFocusY: number = 120;
 
   // Combat entities
   private floatingTexts: FloatingCombatText[] = [];
@@ -343,6 +359,44 @@ export class GameEngine {
     drawTorch(366, 70, 0xF4B41A);
 
     this.bgLayer.addChild(bg);
+    void this.loadBackground();
+  }
+
+  public async loadBackground(bgKey?: string): Promise<void> {
+    if (!this.bgLayer) return;
+    const targetKey = bgKey ?? MONSTER_BACKGROUNDS[this.monsterSprite] ?? BATTLE_BG_KEY;
+    if (this.currentBgKey === targetKey && this.bgLayer.children.length > 0) return;
+
+    try {
+      const texture = await Assets.load(targetKey);
+      if (this.isDestroyed || !this.bgLayer) return;
+
+      // Unload previous background from VRAM to preserve 1GB Fire TV memory
+      if (this.currentBgKey && this.currentBgKey !== targetKey && Assets.cache.has(this.currentBgKey)) {
+        try {
+          await Assets.unload(this.currentBgKey);
+        } catch (e) {}
+      }
+      this.currentBgKey = targetKey;
+
+      const bgSprite = new Sprite(texture);
+      // Exact 1:1 native pixel-perfect mapping on 426x240 retro canvas
+      bgSprite.width = 426;
+      bgSprite.height = 240;
+      bgSprite.x = 0;
+      // Shift up by 32px so the floor horizon (y=144 in image) sits at y=112,
+      // placing combatants (y=128) firmly 16px deep onto the stone floor tiles.
+      bgSprite.y = -32;
+
+      const darkBase = new Graphics();
+      darkBase.rect(-50, -30, 526, 300).fill({ color: 0x12101E });
+
+      this.bgLayer.removeChildren();
+      this.bgLayer.addChild(darkBase);
+      this.bgLayer.addChild(bgSprite);
+    } catch (err) {
+      console.warn('[GameEngine] Failed to load battle background texture:', err);
+    }
   }
 
   private createKnightEntity(): void {
@@ -491,6 +545,7 @@ export class GameEngine {
     // Already showing (or loading) this monster alive: nothing to do.
     if (this.heldMonsterRig === MONSTER_RIGS[type] && !this.monsterLocked) return;
     this.monsterSprite = type;
+    if (this.bgLayer) void this.loadBackground(MONSTER_BACKGROUNDS[type]);
     if (this.enemyDummy) void this.loadMonster(type);
   }
 
@@ -755,7 +810,14 @@ export class GameEngine {
    * engineRef.current.onRepCompleted()."
    */
   /**
-   * Dispatches specialized attack animations and projectiles/VFX based on the performed exercise and card
+   * CRITICAL REQUIREMENT:
+   * "Zero React Layout Thrashing: The PixiJS game loop must be strictly isolated.
+   * High-frequency telemetry (rep coordinates, power) must bypass React useState.
+   * The /tv component must hold a useRef<GameEngine> and pass WebRTC payloads directly to
+   * engineRef.current.onRepCompleted()."
+   */
+  /**
+   * Dispatches specialized physical melee attacks, dynamic camera zooms, and 32-bit dark fantasy pixel VFX
    */
   public onRepCompleted(
     power: number = 80, 
@@ -771,103 +833,85 @@ export class GameEngine {
     const damageNum = Math.round(power * form * 14);
     const nameLower = (skillName || EXERCISE_SKILLS[exercise]?.skillName || '').toLowerCase();
 
-    // 1. Attack type specific visuals, animations & projectiles
+    // 1. Attack type specific physical animations & dynamic camera strikes
     switch (exercise) {
       case 'SWING': {
         const isWhirlwind = nameLower.includes('whirlwind') || nameLower.includes('dragon');
-        if (isWhirlwind) {
-          this.playKnightAnimation('ATTACK4');
-          this.spawnWhirlwindProjectile(power, isCrit, damageNum);
-        } else {
-          this.playKnightAnimation(KNIGHT_SWING_COMBO[this.attackComboIndex++ % KNIGHT_SWING_COMBO.length]);
-          this.spawnSlashWaveProjectile(power, isCrit, damageNum);
-        }
+        this.executePhysicalSlash(power, isCrit, damageNum, isWhirlwind);
         break;
       }
 
       case 'SQUAT': {
         const isQuake = nameLower.includes('quake') || nameLower.includes('colossus');
-        this.playKnightAnimation('ATTACK3');
-        this.spawnTectonicGroundSlam(power, isCrit, damageNum, isQuake);
+        this.executeLeapingGroundSlam(power, isCrit, damageNum, isQuake);
         break;
       }
 
       case 'CLEAN_AND_PRESS': {
         const isCleaver = nameLower.includes('cleaver') || nameLower.includes('stormbreaker');
-        this.playKnightAnimation('SKILL2RADON');
-        this.spawnLightningJavelinProjectile(power, isCrit, damageNum, isCleaver);
+        this.executeShoulderRamUppercut(power, isCrit, damageNum, isCleaver);
         break;
       }
 
       case 'SNATCH': {
         const isTalon = nameLower.includes('talon') || nameLower.includes('solar');
-        this.playKnightAnimation('SKILL3TULUC');
-        this.spawnPhoenixProjectile(power, isCrit, damageNum, isTalon);
+        this.executeRisingDragonSlash(power, isCrit, damageNum, isTalon);
         break;
       }
 
       case 'WINDMILL': {
         const isWard = nameLower.includes('ward') || nameLower.includes('cosmic');
-        this.playKnightAnimation('BUFF');
-        this.spawnAstralSpireProjectile(power, isCrit, damageNum, isWard);
+        this.executeParryCounterSlash(power, isCrit, damageNum, isWard);
         break;
       }
 
       case 'DEADLIFT': {
-        this.playKnightAnimation('ATTACK5');
-        this.spawnMountainSunder(power, isCrit, damageNum);
+        this.executeGroundDragSunder(power, isCrit, damageNum);
         break;
       }
 
       case 'OVERHEAD_PRESS': {
         const isPillar = nameLower.includes('pillar') || nameLower.includes('heavenly') || nameLower.includes('judgement');
-        this.playKnightAnimation('SKILL1');
-        this.spawnHeavenlyPillar(power, isCrit, damageNum, isPillar);
+        this.executeSkywardSmitePlunge(power, isCrit, damageNum, isPillar);
         break;
       }
 
       case 'THRUSTER': {
         const isSupernova = nameLower.includes('supernova') || nameLower.includes('surge');
-        this.playKnightAnimation('SKILL3RADON');
-        this.spawnSolarEruptionProjectile(power, isCrit, damageNum, isSupernova);
+        this.executeCoiledSupernovaSlash(power, isCrit, damageNum, isSupernova);
         break;
       }
 
       case 'GORILLA_ROW': {
         const isShadow = nameLower.includes('shadow') || nameLower.includes('ripper');
-        this.playKnightAnimation('SKILL2TULUC');
-        this.spawnBeastMawProjectile(power, isCrit, damageNum, isShadow);
+        this.executeFrenziedHackingFlurry(power, isCrit, damageNum, isShadow);
         break;
       }
 
       case 'HALO': {
         const isVortex = nameLower.includes('vortex') || nameLower.includes('astral');
-        this.playKnightAnimation('ATTACK4');
-        this.spawnAstralVortexProjectile(power, isCrit, damageNum, isVortex);
+        this.executeOrbitalCycloneSweep(power, isCrit, damageNum, isVortex);
         break;
       }
 
       case 'SINGLE_LEG_RDL': {
         const isCrane = nameLower.includes('crane');
-        this.playKnightAnimation('ATTACK1');
-        this.spawnCraneStrikeProjectile(power, isCrit, damageNum, isCrane);
+        this.executeNeedleLungeThrust(power, isCrit, damageNum, isCrane);
         break;
       }
 
       case 'CLEAN': {
-        this.playKnightAnimation('ATTACK5');
-        this.spawnAnvilBreakerProjectile(power, isCrit, damageNum);
+        this.executeAnvilCrusherCleave(power, isCrit, damageNum);
         break;
       }
 
       case 'LUNGE': {
-        this.spawnValkyrieDash(power, isCrit, damageNum);
+        this.executePhantomCrossDash(power, isCrit, damageNum);
         break;
       }
 
       default: {
-        this.playKnightAnimation(KNIGHT_SWING_COMBO[this.attackComboIndex++ % KNIGHT_SWING_COMBO.length]);
-        this.spawnSlashWaveProjectile(power, isCrit, damageNum);
+        this.executePhysicalSlash(power, isCrit, damageNum, false);
         break;
       }
     }
@@ -879,676 +923,109 @@ export class GameEngine {
   }
 
   /**
-   * SWING: Flying golden crescent slash arc projectile
+   * Helper: Trigger dynamic camera zoom and pan towards combat focal point
    */
-  private spawnSlashWaveProjectile(power: number, isCrit: boolean, damageNum: number): void {
-    if (!this.effectsLayer) return;
+  public triggerCameraZoom(
+    zoom: number = 1.25, 
+    focusX: number = 255, 
+    focusY: number = 125, 
+    holdDurationFrames: number = 16
+  ): void {
+    this.targetCameraZoom = zoom;
+    this.targetCameraFocusX = focusX;
+    this.targetCameraFocusY = focusY;
 
-    const container = new Container();
-    const g = new Graphics();
-
-    // Golden crescent arc
-    g.poly([0, -16, 8, -8, 12, 0, 8, 8, 0, 16, 2, 8, 4, 0, 2, -8]).fill({ color: 0xF4B41A });
-    g.poly([2, -10, 6, -4, 8, 0, 6, 4, 2, 10, 3, 5, 4, 0, 3, -5]).fill({ color: 0xFFFBEA });
-    container.addChild(g);
-
-    container.x = 140;
-    container.y = 125;
-    this.effectsLayer.addChild(container);
-
-    this.activeProjectiles.push({
-      container,
-      graphics: g,
-      x: 140,
-      y: 125,
-      vx: 9.5,
-      vy: 0,
-      targetX: MONSTER_X,
-      targetY: 125,
-      life: 0,
-      maxLife: 30,
-      trailColors: [0xF4B41A, 0xFFFBEA],
-      onHit: () => {
-        this.spawnSparks(MONSTER_X, 125, isCrit ? 18 : 10, [0xF4B41A, 0xFFFBEA, 0xDC2626]);
-        this.shakeIntensity = isCrit ? 10 : 7;
-        this.flashAlpha = isCrit ? 0.7 : 0.45;
-        this.spawnFloatingText(isCrit ? `CRIT CLEAVE! +${damageNum}` : `IRON CLEAVE! +${damageNum}`, MONSTER_X, 110, 0xF4B41A, isCrit ? 14 : 11);
-        audioManager.play(isCrit ? 'crit' : 'hit');
-        this.playMonsterHit();
-      },
-    });
+    setTimeout(() => {
+      if (this.isDestroyed) return;
+      this.targetCameraZoom = 1.0;
+      this.targetCameraFocusX = 213;
+      this.targetCameraFocusY = 120;
+    }, (holdDurationFrames / 60) * 1000);
   }
 
   /**
-   * SWING (Dragon Whirlwind): Twin spinning flaming crescent dragon blades
+   * Helper: Draws a 32-bit painterly dark-fantasy multi-tone slash ribbon
    */
-  private spawnWhirlwindProjectile(power: number, isCrit: boolean, damageNum: number): void {
-    if (!this.effectsLayer) return;
-
-    const container = new Container();
-    const g = new Graphics();
-
-    g.poly([0, -18, 12, -9, 15, 0, 10, 9, 0, 18, 3, 9, 6, 0, 3, -9]).fill({ color: 0xDC2626 });
-    g.poly([0, 18, -12, 9, -15, 0, -10, -9, 0, -18, -3, -9, -6, 0, -3, 9]).fill({ color: 0xF97316 });
-    g.circle(0, 0, 5).fill({ color: 0xFDE047 });
-    container.addChild(g);
-
-    container.x = 140;
-    container.y = 125;
-    this.effectsLayer.addChild(container);
-
-    this.activeProjectiles.push({
-      container,
-      graphics: g,
-      x: 140,
-      y: 125,
-      vx: 8.5,
-      vy: 0,
-      targetX: MONSTER_X,
-      targetY: 125,
-      life: 0,
-      maxLife: 30,
-      rotationSpeed: 0.25,
-      trailColors: [0xDC2626, 0xF97316, 0xFBBF24],
-      onHit: () => {
-        this.spawnShockwave(MONSTER_X, 125, 0xDC2626);
-        this.spawnSparks(MONSTER_X, 125, 24, [0xDC2626, 0xF97316, 0xFBBF24]);
-        this.shakeIntensity = 11;
-        this.flashAlpha = 0.7;
-        this.spawnFloatingText(`DRAGON WHIRLWIND! +${damageNum}`, MONSTER_X, 110, 0xDC2626, isCrit ? 14 : 12);
-        audioManager.play('crit');
-        this.playMonsterHit();
-      },
-    });
+  private drawPainterlySlashArc(
+    g: Graphics,
+    cx: number,
+    cy: number,
+    radius: number,
+    startAngle: number,
+    endAngle: number,
+    shadowColor: number,
+    bodyColor: number,
+    coreColor: number
+  ): void {
+    // 1. Dark ink/blood contour (distinct 90s dark fantasy outline)
+    g.arc(cx, cy, radius + 4, startAngle, endAngle).stroke({ width: 6, color: shadowColor, alpha: 0.85 });
+    // 2. Saturated painterly body
+    g.arc(cx, cy, radius, startAngle, endAngle).stroke({ width: 4, color: bodyColor, alpha: 0.95 });
+    // 3. Hot radiant core highlight
+    g.arc(cx, cy, radius - 1, startAngle + 0.08, endAngle - 0.08).stroke({ width: 1.5, color: coreColor, alpha: 1.0 });
   }
 
   /**
-   * SQUAT: Tectonic floor fracture and erupting stone spikes / crystal pillars
+   * Helper: Spawns high-detail 90s dark fantasy speed streaks radiating from clash point
    */
-  private spawnTectonicGroundSlam(power: number, isCrit: boolean, damageNum: number, isQuake: boolean): void {
+  private spawnSpeedStreaks(
+    x: number, 
+    y: number, 
+    length: number, 
+    colors: number[] = [0xFFFFFF, 0xF59E0B]
+  ): void {
     if (!this.effectsLayer) return;
-
-    const container = new Container();
     const g = new Graphics();
-    container.addChild(g);
-    this.effectsLayer.addChild(container);
-
-    const spikeColor = isQuake ? 0xA855F7 : 0xC49A45;
-    const spikeBorder = isQuake ? 0x7E22CE : 0x5C2B14;
-    const accentColor = isQuake ? 0xA855F7 : 0xFF3366;
-
-    let crackX = 130;
-    let impactTriggered = false;
-
-    this.activeEffects.push({
-      container,
-      life: 0,
-      maxLife: 35,
-      onUpdate: (eff, delta) => {
-        g.clear();
-
-        // 1. Fissure traveling from knight to monster
-        if (crackX < MONSTER_X) {
-          crackX = Math.min(MONSTER_X, crackX + 18 * delta);
-          g.moveTo(130, 168).lineTo(crackX, 168).stroke({ width: 3, color: accentColor, alpha: 0.9 });
-          if (Math.random() < 0.6) {
-            this.spawnSparks(crackX, 168, 1, [accentColor, 0xC49A45]);
-          }
-        }
-
-        // 2. Once fissure reaches monster, erupt spikes!
-        if (crackX >= MONSTER_X) {
-          if (!impactTriggered) {
-            impactTriggered = true;
-            this.spawnShockwave(MONSTER_X, 168, accentColor);
-            this.spawnSparks(MONSTER_X, 168, 20, isQuake ? [0xA855F7, 0xC084FC, 0xFFFFFF] : [0xFF3366, 0xC49A45, 0x5C2B14]);
-            this.shakeIntensity = Math.min(16, 8 + (power / 20));
-            this.flashAlpha = 0.6;
-            this.spawnFloatingText(isQuake ? `COLOSSUS QUAKE! +${damageNum}` : `TITAN SLAM! +${damageNum}`, MONSTER_X, 100, accentColor, isCrit ? 14 : 11);
-            audioManager.play(isCrit ? 'crit' : 'hit');
-            this.playMonsterHit();
-          }
-
-          // Animate erupting spikes
-          const postProgress = Math.min(1, (eff.life - 8) / 12);
-          const heightProgress = Math.sin(postProgress * Math.PI * 0.5);
-          const alpha = 1 - Math.max(0, (eff.life - 20) / 15);
-
-          const h1 = 50 * heightProgress;
-          const h2 = 36 * heightProgress;
-          const h3 = 32 * heightProgress;
-
-          // Main center spike
-          g.poly([MONSTER_X - 10, 168, MONSTER_X, 168 - h1, MONSTER_X + 10, 168])
-            .fill({ color: spikeColor, alpha })
-            .stroke({ width: 1.5, color: spikeBorder, alpha });
-
-          // Left spike
-          g.poly([MONSTER_X - 25, 168, MONSTER_X - 17, 168 - h2, MONSTER_X - 9, 168])
-            .fill({ color: spikeColor, alpha })
-            .stroke({ width: 1.5, color: spikeBorder, alpha });
-
-          // Right spike
-          g.poly([MONSTER_X + 7, 168, MONSTER_X + 17, 168 - h3, MONSTER_X + 27, 168])
-            .fill({ color: spikeColor, alpha })
-            .stroke({ width: 1.5, color: spikeBorder, alpha });
-        }
-
-        return eff.life >= 35;
-      },
-    });
-  }
-
-  /**
-   * CLEAN & PRESS: Electric Lightning Javelin with branching thunder impact
-   */
-  private spawnLightningJavelinProjectile(power: number, isCrit: boolean, damageNum: number, isCleaver: boolean): void {
-    if (!this.effectsLayer) return;
-
-    const container = new Container();
-    const g = new Graphics();
-
-    // Diamond spearhead
-    g.poly([18, 0, 7, -6, -2, 0, 7, 6]).fill({ color: 0xFFFFFF }).stroke({ width: 2, color: 0x38B6FF });
-    // Electric spear shaft
-    g.rect(-24, -2, 28, 4).fill({ color: 0x38B6FF });
-    g.rect(-20, -1, 24, 2).fill({ color: 0xFFFFFF });
-    // Electric barbs
-    g.poly([7, -6, 2, -11, 4, -5]).fill({ color: 0x38B6FF });
-    g.poly([7, 6, 2, 11, 4, 5]).fill({ color: 0x38B6FF });
-    container.addChild(g);
-
-    container.x = 140;
-    container.y = 125;
-    this.effectsLayer.addChild(container);
-
-    this.activeProjectiles.push({
-      container,
-      graphics: g,
-      x: 140,
-      y: 125,
-      vx: 11,
-      vy: 0,
-      targetX: MONSTER_X,
-      targetY: 125,
-      life: 0,
-      maxLife: 25,
-      trailColors: [0x38B6FF, 0x80D4FF, 0xFFFFFF],
-      onHit: () => {
-        for (let b = 0; b < 3; b++) {
-          this.spawnLightningBolt(MONSTER_X + (b - 1) * 14, 125);
-        }
-        this.spawnSparks(MONSTER_X, 125, 24, [0x38B6FF, 0xFFFFFF, 0x80D4FF, 0xF97316]);
-        this.shakeIntensity = 12;
-        this.flashAlpha = 0.75;
-        this.spawnFloatingText(isCleaver ? `STORMBREAKER! +${damageNum}` : `STORM BREAKER! +${damageNum}`, MONSTER_X, 100, 0xF97316, isCrit ? 14 : 12);
-        audioManager.play('crit');
-        this.playMonsterHit();
-      },
-    });
-  }
-
-  /**
-   * SNATCH: Blazing Phoenix / Firebird projectile swooping in an arc
-   */
-  private spawnPhoenixProjectile(power: number, isCrit: boolean, damageNum: number, isTalon: boolean): void {
-    if (!this.effectsLayer) return;
-
-    const container = new Container();
-    const g = new Graphics();
-
-    // Golden beak
-    g.poly([14, 0, 6, -3, 6, 3]).fill({ color: 0xFDE047 });
-    // Fiery body
-    g.ellipse(0, 0, 9, 5).fill({ color: 0xEF4444 });
-    // Swept flame wings
-    g.poly([2, -3, -6, -14, -10, -5, 0, -2]).fill({ color: 0xF97316 });
-    g.poly([2, 3, -6, 14, -10, 5, 0, 2]).fill({ color: 0xF97316 });
-    // Flowing tail feathers
-    g.poly([-8, -3, -20, 0, -8, 3]).fill({ color: 0xDC2626 });
-    container.addChild(g);
-
-    container.x = 140;
-    container.y = 135;
-    this.effectsLayer.addChild(container);
-
-    let t = 0;
-    this.activeProjectiles.push({
-      container,
-      graphics: g,
-      x: 140,
-      y: 135,
-      vx: 8.5,
-      vy: -1.2,
-      targetX: MONSTER_X,
-      targetY: 125,
-      life: 0,
-      maxLife: 28,
-      trailColors: [0xEF4444, 0xF97316, 0xFDE047],
-      onUpdate: (p, delta) => {
-        t += delta * 0.15;
-        p.vy += 0.1 * delta;
-        g.scale.y = 1 + 0.2 * Math.sin(t * 8);
-      },
-      onHit: () => {
-        this.spawnShockwave(MONSTER_X, 125, 0xEF4444);
-        this.spawnSparks(MONSTER_X, 125, 28, [0xEF4444, 0xDC2626, 0xF59E0B, 0xFFFBEA]);
-        this.shakeIntensity = 13;
-        this.flashAlpha = 0.75;
-        this.spawnFloatingText(isTalon ? `SOLAR TALON! +${damageNum}` : `PHOENIX ASCENSION! +${damageNum}`, MONSTER_X, 95, 0xEF4444, isCrit ? 14 : 12);
-        audioManager.play('crit');
-        this.playMonsterHit();
-      },
-    });
-  }
-
-  /**
-   * WINDMILL: Astral Star Orb with dual rotating cosmic rings
-   */
-  private spawnAstralSpireProjectile(power: number, isCrit: boolean, damageNum: number, isWard: boolean): void {
-    if (!this.effectsLayer) return;
-
-    const container = new Container();
-    const g = new Graphics();
-
-    g.circle(0, 0, 6).fill({ color: 0x00EB88 });
-    g.circle(0, 0, 3).fill({ color: 0xFFFFFF });
-    g.ellipse(0, 0, 15, 6).stroke({ width: 2, color: 0x38B6FF, alpha: 0.9 });
-    g.ellipse(0, 0, 6, 15).stroke({ width: 2, color: 0x00EB88, alpha: 0.9 });
-    g.rect(-1.5, -1.5, 3, 3).fill({ color: 0xFFFFFF });
-    container.addChild(g);
-
-    container.x = 140;
-    container.y = 125;
-    this.effectsLayer.addChild(container);
-
-    this.activeProjectiles.push({
-      container,
-      graphics: g,
-      x: 140,
-      y: 125,
-      vx: 8.0,
-      vy: 0,
-      targetX: MONSTER_X,
-      targetY: 125,
-      life: 0,
-      maxLife: 30,
-      rotationSpeed: 0.18,
-      trailColors: [0x00EB88, 0x38B6FF, 0x6EE7B7],
-      onHit: () => {
-        this.spawnShockwave(MONSTER_X, 125, 0x00EB88);
-        this.spawnSparks(MONSTER_X, 125, 20, [0x00EB88, 0x38B6FF, 0x6EE7B7, 0xFFFFFF]);
-        this.shakeIntensity = 8;
-        this.flashAlpha = 0.5;
-        this.spawnFloatingText(isWard ? `COSMIC WARD! +${damageNum}` : `ASTRAL SPIRE! +${damageNum}`, MONSTER_X, 105, 0x00EB88, isCrit ? 13 : 11);
-        audioManager.play('hit');
-        this.playMonsterHit();
-      },
-    });
-  }
-
-  /**
-   * DEADLIFT: Colossal subterranean Mountain Sunder boulders erupting beneath target
-   */
-  private spawnMountainSunder(power: number, isCrit: boolean, damageNum: number): void {
-    if (!this.effectsLayer) return;
-
-    const container = new Container();
-    const g = new Graphics();
-    container.addChild(g);
-    this.effectsLayer.addChild(container);
-
-    let impactTriggered = false;
-
-    this.activeEffects.push({
-      container,
-      life: 0,
-      maxLife: 32,
-      onUpdate: (eff) => {
-        g.clear();
-
-        if (eff.life >= 4 && !impactTriggered) {
-          impactTriggered = true;
-          this.spawnShockwave(MONSTER_X, 168, 0xD97706);
-          this.spawnSparks(MONSTER_X, 140, 24, [0xD97706, 0xF59E0B, 0x78350F, 0xC49A45]);
-          this.shakeIntensity = 15;
-          this.flashAlpha = 0.65;
-          this.spawnFloatingText(`MOUNTAIN SUNDER! +${damageNum}`, MONSTER_X, 90, 0xD97706, isCrit ? 14 : 12);
-          audioManager.play('crit');
-          this.playMonsterHit();
-        }
-
-        const riseT = Math.min(1, eff.life / 10);
-        const currentYRise = 55 * Math.sin(riseT * Math.PI * 0.5);
-        const alpha = 1 - Math.max(0, (eff.life - 18) / 14);
-
-        // Left boulder
-        g.poly([
-          MONSTER_X - 22, 175,
-          MONSTER_X - 10, 175 - currentYRise,
-          MONSTER_X + 5, 175 - currentYRise * 0.9,
-          MONSTER_X + 12, 175
-        ]).fill({ color: 0xD97706, alpha }).stroke({ width: 2, color: 0x78350F, alpha });
-
-        // Right boulder
-        g.poly([
-          MONSTER_X - 2, 175,
-          MONSTER_X + 14, 175 - currentYRise * 0.8,
-          MONSTER_X + 26, 175 - currentYRise * 0.7,
-          MONSTER_X + 22, 175
-        ]).fill({ color: 0xB45309, alpha }).stroke({ width: 2, color: 0x5C2B14, alpha });
-
-        return eff.life >= 32;
-      },
-    });
-  }
-
-  /**
-   * OVERHEAD PRESS: Heavenly Pillar of Divine Light & thunder descending from sky
-   */
-  private spawnHeavenlyPillar(power: number, isCrit: boolean, damageNum: number, isPillar: boolean): void {
-    if (!this.effectsLayer) return;
-
-    const container = new Container();
-    const g = new Graphics();
-    container.addChild(g);
-    this.effectsLayer.addChild(container);
-
-    const beamColor = isPillar ? 0xFBBF24 : 0x38B6FF;
-
-    this.spawnShockwave(MONSTER_X, 168, beamColor);
-    this.spawnSparks(MONSTER_X, 130, 24, [beamColor, 0xFFFFFF, 0x80D4FF]);
-    this.shakeIntensity = 13;
-    this.flashAlpha = 0.8;
-    this.spawnFloatingText(isPillar ? `HEAVENLY PILLAR! +${damageNum}` : `THUNDER SMITE! +${damageNum}`, MONSTER_X, 90, beamColor, isCrit ? 14 : 11);
-    audioManager.play('crit');
-    this.playMonsterHit();
-
-    this.activeEffects.push({
-      container,
-      life: 0,
-      maxLife: 20,
-      onUpdate: (eff) => {
-        g.clear();
-        const alpha = 1 - (eff.life / 20);
-
-        g.rect(MONSTER_X - 14, 0, 28, 170).fill({ color: beamColor, alpha: alpha * 0.65 });
-        g.rect(MONSTER_X - 5, 0, 10, 170).fill({ color: 0xFFFFFF, alpha: alpha * 0.95 });
-
-        g.moveTo(MONSTER_X, 0)
-          .lineTo(MONSTER_X - 8, 40)
-          .lineTo(MONSTER_X + 6, 85)
-          .lineTo(MONSTER_X - 4, 130)
-          .lineTo(MONSTER_X, 168)
-          .stroke({ width: 2, color: 0xFFFFFF, alpha });
-
-        return eff.life >= 20;
-      },
-    });
-  }
-
-  /**
-   * THRUSTER: Pulsing Solar Plasma Core detonating in an expanding Supernova shockwave
-   */
-  private spawnSolarEruptionProjectile(power: number, isCrit: boolean, damageNum: number, isSupernova: boolean): void {
-    if (!this.effectsLayer) return;
-
-    const container = new Container();
-    const g = new Graphics();
-
-    g.circle(0, 0, 7).fill({ color: 0xFFFFFF });
-    g.circle(0, 0, 12).fill({ color: 0xF59E0B, alpha: 0.85 });
-    g.circle(0, 0, 16).stroke({ width: 2.5, color: 0xDC2626, alpha: 0.7 });
-
-    for (let r = 0; r < 4; r++) {
-      const angle = (r * Math.PI) / 2;
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
-      g.poly([cos * 16, sin * 16, cos * 22, sin * 22, cos * 16 + 2, sin * 16 + 2]).fill({ color: 0xFDE047 });
+    const count = 5;
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.random() - 0.5) * 0.8;
+      const len = length * (0.6 + Math.random() * 0.6);
+      const color = colors[i % colors.length];
+      const startX = x - (Math.random() * 15);
+      const startY = y + (Math.random() - 0.5) * 20;
+      g.moveTo(startX, startY)
+        .lineTo(startX + Math.cos(angle) * len, startY + Math.sin(angle) * len)
+        .stroke({ width: 1.5, color, alpha: 0.9 });
     }
-    container.addChild(g);
-
-    container.x = 140;
-    container.y = 125;
-    this.effectsLayer.addChild(container);
-
-    let pulseT = 0;
-    this.activeProjectiles.push({
-      container,
-      graphics: g,
-      x: 140,
-      y: 125,
-      vx: 8.5,
-      vy: 0,
-      targetX: MONSTER_X,
-      targetY: 125,
-      life: 0,
-      maxLife: 28,
-      rotationSpeed: 0.15,
-      trailColors: [0xF59E0B, 0xDC2626, 0xFFFBEA],
-      onUpdate: (p, delta) => {
-        pulseT += delta * 0.2;
-        container.scale.set(1 + 0.15 * Math.sin(pulseT * 6));
-      },
-      onHit: () => {
-        this.spawnShockwave(MONSTER_X, 125, 0xF59E0B);
-        this.spawnSparks(MONSTER_X, 125, 28, [0xF59E0B, 0xDC2626, 0xFFFBEA, 0xFDE047]);
-        this.shakeIntensity = 14;
-        this.flashAlpha = 0.75;
-        this.spawnFloatingText(isSupernova ? `SUPERNOVA SURGE! +${damageNum}` : `SOLAR ERUPTION! +${damageNum}`, MONSTER_X, 95, 0xF59E0B, isCrit ? 14 : 12);
-        audioManager.play('crit');
-        this.playMonsterHit();
-      },
-    });
+    this.effectsLayer.addChild(g);
+    setTimeout(() => {
+      if (!this.isDestroyed) g.destroy();
+    }, 100);
   }
 
   /**
-   * GORILLA ROW: Twin predatory beast claws flying and leaving cross-slash lacerations
+   * Helper: Spawns a fading motion afterimage silhouette of the knight during dashes/leaps
    */
-  private spawnBeastMawProjectile(power: number, isCrit: boolean, damageNum: number, isShadow: boolean): void {
+  private spawnKnightGhost(x: number, y: number, tint: number, alpha: number = 0.45): void {
     if (!this.effectsLayer) return;
-
-    const container = new Container();
     const g = new Graphics();
-
-    const clawColor = isShadow ? 0x65A30D : 0x84CC16;
-    g.poly([-14, -14, 10, -6, -2, -3, -14, -8]).fill({ color: clawColor });
-    g.poly([-14, 14, 10, 6, -2, 3, -14, 8]).fill({ color: clawColor });
-    g.poly([-10, -8, 6, -4, -4, -3]).fill({ color: 0xFFFFFF });
-    container.addChild(g);
-
-    container.x = 140;
-    container.y = 125;
-    this.effectsLayer.addChild(container);
-
-    this.activeProjectiles.push({
-      container,
-      graphics: g,
-      x: 140,
-      y: 125,
-      vx: 9.5,
-      vy: 0,
-      targetX: MONSTER_X,
-      targetY: 125,
-      life: 0,
-      maxLife: 26,
-      trailColors: [clawColor, 0xBEF264, 0x1A1926],
-      onHit: () => {
-        const slashG = new Graphics();
-        slashG.moveTo(MONSTER_X - 20, 105).lineTo(MONSTER_X + 20, 145).stroke({ width: 3.5, color: clawColor });
-        slashG.moveTo(MONSTER_X - 20, 145).lineTo(MONSTER_X + 20, 105).stroke({ width: 3.5, color: clawColor });
-        this.effectsLayer?.addChild(slashG);
-
-        setTimeout(() => slashG.destroy(), 120);
-
-        this.spawnSparks(MONSTER_X, 125, 20, [clawColor, 0xBEF264, 0xFFFFFF]);
-        this.shakeIntensity = 10;
-        this.flashAlpha = 0.5;
-        this.spawnFloatingText(isShadow ? `SHADOW RIPPER! +${damageNum}` : `BEAST MAW! +${damageNum}`, MONSTER_X, 105, clawColor, isCrit ? 13 : 11);
-        audioManager.play('hit');
-        this.playMonsterHit();
-      },
-    });
+    g.roundRect(-12, -45, 24, 45, 4).fill({ color: tint, alpha });
+    g.rect(4, -30, 14, 20).fill({ color: tint, alpha: alpha * 0.8 });
+    g.x = x;
+    g.y = y;
+    this.effectsLayer.addChild(g);
+    setTimeout(() => {
+      if (!this.isDestroyed) g.destroy();
+    }, 130);
   }
 
   /**
-   * HALO: Swirling 4-Arm Celestial Spiral Galaxy vortex
+   * 1. SWING: Dash into melee range, brutal greatsword cleave / dragon whirlwind, camera punch zoom
    */
-  private spawnAstralVortexProjectile(power: number, isCrit: boolean, damageNum: number, isVortex: boolean): void {
-    if (!this.effectsLayer) return;
-
-    const container = new Container();
-    const g = new Graphics();
-
-    g.circle(0, 0, 4).fill({ color: 0xFFFFFF });
-    g.poly([0, 0, 8, 4, 14, 2, 8, 1]).fill({ color: 0x818CF8 });
-    g.poly([0, 0, -4, 8, -2, 14, -1, 8]).fill({ color: 0xC084FC });
-    g.poly([0, 0, -8, -4, -14, -2, -8, -1]).fill({ color: 0x818CF8 });
-    g.poly([0, 0, 4, -8, 2, -14, 1, -8]).fill({ color: 0xC084FC });
-    g.circle(14, 2, 1.5).fill({ color: 0xFFFFFF });
-    g.circle(-2, 14, 1.5).fill({ color: 0xFFFFFF });
-    container.addChild(g);
-
-    container.x = 140;
-    container.y = 125;
-    this.effectsLayer.addChild(container);
-
-    this.activeProjectiles.push({
-      container,
-      graphics: g,
-      x: 140,
-      y: 125,
-      vx: 7.5,
-      vy: 0,
-      targetX: MONSTER_X,
-      targetY: 125,
-      life: 0,
-      maxLife: 30,
-      rotationSpeed: 0.22,
-      trailColors: [0x818CF8, 0xC084FC, 0xE9D5FF],
-      onHit: () => {
-        this.spawnShockwave(MONSTER_X, 125, 0x818CF8);
-        this.spawnSparks(MONSTER_X, 125, 24, [0x818CF8, 0xC084FC, 0xE9D5FF, 0xFFFFFF]);
-        this.shakeIntensity = 10;
-        this.flashAlpha = 0.55;
-        this.spawnFloatingText(isVortex ? `ASTRAL VORTEX! +${damageNum}` : `CELESTIAL WARD! +${damageNum}`, MONSTER_X, 100, 0x818CF8, isCrit ? 14 : 11);
-        audioManager.play('crit');
-        this.playMonsterHit();
-      },
-    });
-  }
-
-  /**
-   * SINGLE-LEG RDL: Piercing Valkyrie Feather Dart / Crane Lance with needle starburst
-   */
-  private spawnCraneStrikeProjectile(power: number, isCrit: boolean, damageNum: number, isCrane: boolean): void {
-    if (!this.effectsLayer) return;
-
-    const container = new Container();
-    const g = new Graphics();
-
-    g.poly([18, 0, 0, -4, 4, 0, 0, 4]).fill({ color: 0xFFFFFF }).stroke({ width: 1.5, color: 0xEC4899 });
-    g.poly([-14, -8, -2, -1, -12, 0]).fill({ color: 0xF472B6 });
-    g.poly([-14, 8, -2, 1, -12, 0]).fill({ color: 0xF472B6 });
-    g.rect(-14, -1, 16, 2).fill({ color: 0xEC4899 });
-    container.addChild(g);
-
-    container.x = 140;
-    container.y = 125;
-    this.effectsLayer.addChild(container);
-
-    this.activeProjectiles.push({
-      container,
-      graphics: g,
-      x: 140,
-      y: 125,
-      vx: 12.0,
-      vy: 0,
-      targetX: MONSTER_X,
-      targetY: 125,
-      life: 0,
-      maxLife: 22,
-      trailColors: [0xEC4899, 0xF472B6, 0xFFFFFF],
-      onHit: () => {
-        const burstG = new Graphics();
-        for (let a = 0; a < 8; a++) {
-          const ang = (a * Math.PI) / 4;
-          burstG.moveTo(MONSTER_X, 125)
-            .lineTo(MONSTER_X + Math.cos(ang) * 22, 125 + Math.sin(ang) * 22)
-            .stroke({ width: 2, color: 0xEC4899 });
-        }
-        this.effectsLayer?.addChild(burstG);
-        setTimeout(() => burstG.destroy(), 100);
-
-        this.spawnSparks(MONSTER_X, 125, 20, [0xEC4899, 0xF472B6, 0xFFFFFF]);
-        this.shakeIntensity = 9;
-        this.flashAlpha = 0.5;
-        this.spawnFloatingText(isCrane ? `CRANE STRIKE! +${damageNum}` : `VALKYRIE BALANCE! +${damageNum}`, MONSTER_X, 105, 0xEC4899, isCrit ? 14 : 11);
-        audioManager.play('crit');
-        this.playMonsterHit();
-      },
-    });
-  }
-
-  /**
-   * CLEAN: Spinning heavy Iron Anvil with concussive shockwave
-   */
-  private spawnAnvilBreakerProjectile(power: number, isCrit: boolean, damageNum: number): void {
-    if (!this.effectsLayer) return;
-
-    const container = new Container();
-    const g = new Graphics();
-
-    g.rect(-10, 4, 20, 5).fill({ color: 0x1C1F2B });
-    g.poly([-6, 4, 6, 4, 8, -3, -8, -3]).fill({ color: 0x3C445C });
-    g.poly([-14, -7, 10, -7, 10, -2, -8, -2]).fill({ color: 0x7584A6 }).stroke({ width: 1.5, color: 0xF97316 });
-    container.addChild(g);
-
-    container.x = 140;
-    container.y = 125;
-    this.effectsLayer.addChild(container);
-
-    this.activeProjectiles.push({
-      container,
-      graphics: g,
-      x: 140,
-      y: 125,
-      vx: 8.0,
-      vy: 0,
-      targetX: MONSTER_X,
-      targetY: 125,
-      life: 0,
-      maxLife: 30,
-      rotationSpeed: 0.22,
-      trailColors: [0xF97316, 0xF4B41A, 0x7584A6],
-      onHit: () => {
-        this.spawnShockwave(MONSTER_X, 125, 0xF97316);
-        this.spawnSparks(MONSTER_X, 125, 22, [0xF97316, 0xF4B41A, 0x7584A6, 0xFFFFFF]);
-        this.shakeIntensity = 13;
-        this.flashAlpha = 0.6;
-        this.spawnFloatingText(`ANVIL BREAKER! +${damageNum}`, MONSTER_X, 100, 0xF97316, isCrit ? 14 : 11);
-        audioManager.play('hit');
-        this.playMonsterHit();
-      },
-    });
-  }
-
-  /**
-   * LUNGE: Supersonic Valkyrie Dash with phantom afterimages and piercing cone
-   */
-  private spawnValkyrieDash(power: number, isCrit: boolean, damageNum: number): void {
+  private executePhysicalSlash(power: number, isCrit: boolean, damageNum: number, isWhirlwind: boolean): void {
     if (!this.knightContainer || !this.effectsLayer) return;
 
-    this.playKnightAnimation('DASH');
+    this.playKnightAnimation(isWhirlwind ? 'ATTACK4' : KNIGHT_SWING_COMBO[this.attackComboIndex++ % KNIGHT_SWING_COMBO.length]);
+    this.triggerCameraZoom(isWhirlwind ? 1.28 : 1.22, 255, 125, 18);
 
     const container = new Container();
     const g = new Graphics();
     container.addChild(g);
     this.effectsLayer.addChild(container);
 
-    let impactFired = false;
     const startX = 130;
-    const peakX = 215;
+    const clashX = 235;
+    let impactFired = false;
 
     this.activeEffects.push({
       container,
@@ -1557,37 +1034,35 @@ export class GameEngine {
       onUpdate: (eff) => {
         if (!this.knightContainer) return true;
 
-        if (eff.life <= 8) {
-          const forwardT = eff.life / 8;
-          this.knightContainer.x = startX + (peakX - startX) * forwardT;
-
+        if (eff.life <= 6) {
+          const forwardT = eff.life / 6;
+          this.knightContainer.x = startX + (clashX - startX) * forwardT;
           if (eff.life % 2 === 0) {
-            const ghost = new Graphics();
-            ghost.rect(-10, -35, 20, 35).fill({ color: 0xEC4899, alpha: 0.4 });
-            ghost.x = this.knightContainer.x;
-            ghost.y = 168;
-            this.effectsLayer?.addChild(ghost);
-            setTimeout(() => ghost.destroy(), 120);
+            this.spawnKnightGhost(this.knightContainer.x, 168, isWhirlwind ? 0xDC2626 : 0xF4B41A);
           }
         } else {
-          const backT = (eff.life - 8) / 14;
-          this.knightContainer.x = peakX - (peakX - startX) * backT;
-          if (eff.life === 9) {
-            this.playKnightAnimation('DASH_BACK');
-          }
+          const backT = (eff.life - 6) / 16;
+          this.knightContainer.x = clashX - (clashX - startX) * backT;
         }
 
-        if (eff.life >= 8 && !impactFired) {
+        if (eff.life >= 6 && !impactFired) {
           impactFired = true;
-          g.poly([peakX, 125, MONSTER_X, 105, MONSTER_X, 145])
-            .fill({ color: 0xEC4899, alpha: 0.6 })
-            .stroke({ width: 2, color: 0xFFFFFF, alpha: 0.9 });
+          g.clear();
 
-          this.spawnSparks(MONSTER_X, 125, 20, [0xEC4899, 0x38B6FF, 0xFFFFFF]);
-          this.shakeIntensity = 11;
-          this.flashAlpha = 0.55;
-          this.spawnFloatingText(`VALKYRIE DASH! +${damageNum}`, MONSTER_X, 105, 0xEC4899, isCrit ? 14 : 11);
-          audioManager.play(isCrit ? 'crit' : 'hit');
+          if (isWhirlwind) {
+            this.drawPainterlySlashArc(g, clashX + 10, 125, 48, -Math.PI * 0.45, Math.PI * 0.45, 0x450A0A, 0xDC2626, 0xFDE047);
+            this.drawPainterlySlashArc(g, clashX + 25, 125, 38, Math.PI * 0.55, Math.PI * 1.45, 0x450A0A, 0xF97316, 0xFFFBEA);
+            this.spawnSparks(MONSTER_X, 125, 24, [0xDC2626, 0xF97316, 0xFBBF24, 0xFFFFFF]);
+          } else {
+            this.drawPainterlySlashArc(g, clashX + 15, 125, 45, -Math.PI * 0.35, Math.PI * 0.35, 0x78350F, 0xF59E0B, 0xFFFBEA);
+            this.spawnSparks(MONSTER_X, 125, isCrit ? 20 : 12, [0xF4B41A, 0xFFFBEA, 0xDC2626]);
+          }
+
+          this.spawnSpeedStreaks(clashX + 30, 125, 45, isWhirlwind ? [0xDC2626, 0xFBBF24] : [0xF4B41A, 0xFFFFFF]);
+          this.shakeIntensity = isCrit ? 12 : 9;
+          this.flashAlpha = isCrit ? 0.65 : 0.45;
+          this.spawnFloatingText(isWhirlwind ? `DRAGON WHIRLWIND! +${damageNum}` : (isCrit ? `CRIT CLEAVE! +${damageNum}` : `IRON CLEAVE! +${damageNum}`), MONSTER_X, 100, isWhirlwind ? 0xDC2626 : 0xF4B41A, isCrit ? 14 : 11);
+          audioManager.play(isCrit || isWhirlwind ? 'crit' : 'hit');
           this.playMonsterHit();
         }
 
@@ -1600,6 +1075,887 @@ export class GameEngine {
       onDestroy: () => {
         if (this.knightContainer) {
           this.knightContainer.x = startX;
+        }
+      },
+    });
+  }
+
+  /**
+   * 2. SQUAT: Vault high into air, downward greatsword ground plunge, erupting rock pillars, camera slam zoom
+   */
+  private executeLeapingGroundSlam(power: number, isCrit: boolean, damageNum: number, isQuake: boolean): void {
+    if (!this.knightContainer || !this.effectsLayer) return;
+
+    this.playKnightAnimation('ATTACK3');
+    this.triggerCameraZoom(1.34, 255, 130, 22);
+
+    const container = new Container();
+    const g = new Graphics();
+    container.addChild(g);
+    this.effectsLayer.addChild(container);
+
+    const startX = 130;
+    const landX = 240;
+    const peakHeight = 85;
+    let impactFired = false;
+    const accentColor = isQuake ? 0xA855F7 : 0xC49A45;
+    const shadowColor = isQuake ? 0x3B0764 : 0x451A03;
+
+    this.activeEffects.push({
+      container,
+      life: 0,
+      maxLife: 28,
+      onUpdate: (eff) => {
+        if (!this.knightContainer) return true;
+
+        if (eff.life <= 10) {
+          const t = eff.life / 10;
+          this.knightContainer.x = startX + (landX - startX) * t;
+          const arc = Math.sin(t * Math.PI) * peakHeight;
+          this.knightContainer.y = 168 - arc;
+          if (eff.life % 2 === 0) {
+            this.spawnKnightGhost(this.knightContainer.x, this.knightContainer.y, accentColor, 0.4);
+          }
+        } else {
+          this.knightContainer.y = 168;
+          const backT = (eff.life - 10) / 18;
+          this.knightContainer.x = landX - (landX - startX) * backT;
+        }
+
+        if (eff.life >= 10 && !impactFired) {
+          impactFired = true;
+          g.clear();
+
+          this.drawPainterlySlashArc(g, landX + 10, 160, 52, Math.PI * 0.1, Math.PI * 0.9, shadowColor, accentColor, 0xFFFFFF);
+          this.spawnShockwave(MONSTER_X, 168, accentColor);
+          this.spawnSparks(MONSTER_X, 155, 26, isQuake ? [0xA855F7, 0xC084FC, 0xFFFFFF] : [0xC49A45, 0x5C2B14, 0xF59E0B, 0xFF3366]);
+
+          this.shakeIntensity = Math.min(16, 10 + (power / 20));
+          this.flashAlpha = 0.7;
+          this.spawnFloatingText(isQuake ? `COLOSSUS QUAKE! +${damageNum}` : `TITAN SLAM! +${damageNum}`, MONSTER_X, 90, accentColor, isCrit ? 14 : 12);
+          audioManager.play('crit');
+          this.playMonsterHit();
+        }
+
+        if (eff.life >= 10 && eff.life <= 22) {
+          const spikeProgress = Math.min(1, (eff.life - 10) / 6);
+          const h = 45 * Math.sin(spikeProgress * Math.PI * 0.5);
+          const alpha = 1 - Math.max(0, (eff.life - 16) / 6);
+
+          g.clear();
+          g.moveTo(landX, 168).lineTo(MONSTER_X + 25, 168).stroke({ width: 3, color: accentColor, alpha });
+          g.poly([MONSTER_X - 10, 168, MONSTER_X, 168 - h, MONSTER_X + 10, 168])
+            .fill({ color: accentColor, alpha })
+            .stroke({ width: 2, color: shadowColor, alpha });
+          g.poly([MONSTER_X - 26, 168, MONSTER_X - 18, 168 - h * 0.7, MONSTER_X - 10, 168])
+            .fill({ color: accentColor, alpha })
+            .stroke({ width: 2, color: shadowColor, alpha });
+          g.poly([MONSTER_X + 8, 168, MONSTER_X + 18, 168 - h * 0.75, MONSTER_X + 28, 168])
+            .fill({ color: accentColor, alpha })
+            .stroke({ width: 2, color: shadowColor, alpha });
+        } else if (eff.life > 22) {
+          g.clear();
+        }
+
+        return eff.life >= 28;
+      },
+      onDestroy: () => {
+        if (this.knightContainer) {
+          this.knightContainer.x = startX;
+          this.knightContainer.y = 168;
+        }
+      },
+    });
+  }
+
+  /**
+   * 3. CLEAN & PRESS: Kinetic sprint shoulder ram into explosive rising electric greatsword uppercut
+   */
+  private executeShoulderRamUppercut(power: number, isCrit: boolean, damageNum: number, isCleaver: boolean): void {
+    if (!this.knightContainer || !this.effectsLayer) return;
+
+    this.playKnightAnimation('DASH');
+    this.triggerCameraZoom(1.26, 255, 125, 18);
+
+    const container = new Container();
+    const g = new Graphics();
+    container.addChild(g);
+    this.effectsLayer.addChild(container);
+
+    const startX = 130;
+    const ramX = 245;
+    let ramFired = false;
+    let uppercutFired = false;
+
+    this.activeEffects.push({
+      container,
+      life: 0,
+      maxLife: 24,
+      onUpdate: (eff) => {
+        if (!this.knightContainer) return true;
+
+        if (eff.life <= 6) {
+          const t = eff.life / 6;
+          this.knightContainer.x = startX + (ramX - startX) * t;
+          this.spawnKnightGhost(this.knightContainer.x, 168, 0xF97316, 0.4);
+        } else {
+          const backT = (eff.life - 6) / 18;
+          this.knightContainer.x = ramX - (ramX - startX) * backT;
+        }
+
+        if (eff.life >= 6 && !ramFired) {
+          ramFired = true;
+          this.shakeIntensity = 8;
+          audioManager.play('hit');
+          this.spawnSparks(ramX + 15, 140, 10, [0xF97316, 0xFFFFFF]);
+        }
+
+        if (eff.life >= 8 && !uppercutFired) {
+          uppercutFired = true;
+          this.playKnightAnimation('SKILL2RADON');
+          g.clear();
+
+          this.drawPainterlySlashArc(g, ramX + 10, 130, 50, -Math.PI * 0.7, -Math.PI * 0.05, 0x0369A1, 0x38B6FF, 0xFFFFFF);
+
+          for (let b = 0; b < 3; b++) {
+            this.spawnLightningBolt(MONSTER_X + (b - 1) * 14, 125);
+          }
+
+          this.spawnSparks(MONSTER_X, 125, 24, [0x38B6FF, 0x80D4FF, 0xFFFFFF, 0xF97316]);
+          this.shakeIntensity = 13;
+          this.flashAlpha = 0.75;
+          this.spawnFloatingText(isCleaver ? `STORMBREAKER! +${damageNum}` : `STORM BREAKER! +${damageNum}`, MONSTER_X, 90, 0xF97316, isCrit ? 14 : 12);
+          audioManager.play('crit');
+          this.playMonsterHit();
+        }
+
+        if (eff.life > 14) {
+          g.clear();
+        }
+
+        return eff.life >= 24;
+      },
+      onDestroy: () => {
+        if (this.knightContainer) {
+          this.knightContainer.x = startX;
+          this.knightContainer.y = 168;
+        }
+      },
+    });
+  }
+
+  /**
+   * 4. SNATCH: Soaring rising spiral dragon slash with flaming wings, mid-air apex cleave
+   */
+  private executeRisingDragonSlash(power: number, isCrit: boolean, damageNum: number, isTalon: boolean): void {
+    if (!this.knightContainer || !this.effectsLayer) return;
+
+    this.playKnightAnimation('SKILL3TULUC');
+    this.triggerCameraZoom(1.30, 255, 95, 20);
+
+    const container = new Container();
+    const g = new Graphics();
+    container.addChild(g);
+    this.effectsLayer.addChild(container);
+
+    const startX = 130;
+    const apexX = 250;
+    const apexY = 80;
+    let apexFired = false;
+
+    this.activeEffects.push({
+      container,
+      life: 0,
+      maxLife: 26,
+      onUpdate: (eff) => {
+        if (!this.knightContainer) return true;
+
+        if (eff.life <= 9) {
+          const t = eff.life / 9;
+          this.knightContainer.x = startX + (apexX - startX) * t;
+          this.knightContainer.y = 168 - (168 - apexY) * Math.sin(t * Math.PI * 0.5);
+          this.spawnKnightGhost(this.knightContainer.x, this.knightContainer.y, 0xEF4444, 0.45);
+        } else if (eff.life <= 13) {
+          this.knightContainer.x = apexX;
+          this.knightContainer.y = apexY;
+        } else {
+          const tLand = (eff.life - 13) / 13;
+          this.knightContainer.y = apexY + (168 - apexY) * tLand;
+          this.knightContainer.x = apexX - (apexX - startX) * tLand;
+        }
+
+        if (eff.life >= 9 && !apexFired) {
+          apexFired = true;
+          this.playKnightAnimation('ATTACK4');
+          g.clear();
+
+          this.drawPainterlySlashArc(g, apexX + 15, apexY + 25, 52, Math.PI * 0.1, Math.PI * 0.95, 0x450A0A, 0xEF4444, 0xFDE047);
+          this.drawPainterlySlashArc(g, apexX + 5, apexY + 15, 38, -Math.PI * 0.8, -Math.PI * 0.1, 0x7C2D12, 0xF97316, 0xFFFBEA);
+
+          this.spawnShockwave(MONSTER_X, 125, 0xEF4444);
+          this.spawnSparks(MONSTER_X, 125, 28, [0xEF4444, 0xDC2626, 0xF59E0B, 0xFFFBEA]);
+          this.shakeIntensity = 13;
+          this.flashAlpha = 0.75;
+          this.spawnFloatingText(isTalon ? `SOLAR TALON! +${damageNum}` : `PHOENIX ASCENSION! +${damageNum}`, MONSTER_X, 85, 0xEF4444, isCrit ? 14 : 12);
+          audioManager.play('crit');
+          this.playMonsterHit();
+        }
+
+        if (eff.life > 15) {
+          g.clear();
+        }
+
+        return eff.life >= 26;
+      },
+      onDestroy: () => {
+        if (this.knightContainer) {
+          this.knightContainer.x = startX;
+          this.knightContainer.y = 168;
+        }
+      },
+    });
+  }
+
+  /**
+   * 5. WINDMILL: 360-degree broadsword deflection parry ring into lunging physical counter-thrust
+   */
+  private executeParryCounterSlash(power: number, isCrit: boolean, damageNum: number, isWard: boolean): void {
+    if (!this.knightContainer || !this.effectsLayer) return;
+
+    this.playKnightAnimation('DEFENSE');
+    this.triggerCameraZoom(1.20, 245, 125, 18);
+
+    const container = new Container();
+    const g = new Graphics();
+    container.addChild(g);
+    this.effectsLayer.addChild(container);
+
+    const startX = 130;
+    const lungeX = 235;
+    let parryFired = false;
+    let strikeFired = false;
+
+    this.activeEffects.push({
+      container,
+      life: 0,
+      maxLife: 24,
+      onUpdate: (eff) => {
+        if (!this.knightContainer) return true;
+
+        if (eff.life <= 5) {
+          this.knightContainer.x = startX + (180 - startX) * (eff.life / 5);
+        } else if (eff.life <= 9) {
+          const t = (eff.life - 5) / 4;
+          this.knightContainer.x = 180 + (lungeX - 180) * t;
+        } else {
+          const backT = (eff.life - 9) / 15;
+          this.knightContainer.x = lungeX - (lungeX - startX) * backT;
+        }
+
+        if (eff.life >= 4 && !parryFired) {
+          parryFired = true;
+          g.clear();
+          g.circle(180, 130, 32).stroke({ width: 3, color: 0x00EB88, alpha: 0.9 });
+          g.circle(180, 130, 26).stroke({ width: 2, color: 0x38B6FF, alpha: 0.7 });
+          audioManager.play('swing');
+        }
+
+        if (eff.life >= 9 && !strikeFired) {
+          strikeFired = true;
+          this.playKnightAnimation('ATTACK1');
+          g.clear();
+
+          this.drawPainterlySlashArc(g, lungeX + 15, 125, 42, -Math.PI * 0.3, Math.PI * 0.3, 0x064E3B, 0x00EB88, 0xFFFFFF);
+          this.spawnSpeedStreaks(lungeX + 30, 125, 40, [0x00EB88, 0x38B6FF]);
+          this.spawnSparks(MONSTER_X, 125, 20, [0x00EB88, 0x38B6FF, 0x6EE7B7, 0xFFFFFF]);
+          this.shakeIntensity = 9;
+          this.flashAlpha = 0.5;
+          this.spawnFloatingText(isWard ? `COSMIC WARD! +${damageNum}` : `ASTRAL SPIRE! +${damageNum}`, MONSTER_X, 95, 0x00EB88, isCrit ? 13 : 11);
+          audioManager.play('hit');
+          this.playMonsterHit();
+        }
+
+        if (eff.life > 14) {
+          g.clear();
+        }
+
+        return eff.life >= 24;
+      },
+      onDestroy: () => {
+        if (this.knightContainer) {
+          this.knightContainer.x = startX;
+          this.knightContainer.y = 168;
+        }
+      },
+    });
+  }
+
+  /**
+   * 6. DEADLIFT: Low-stance greatsword floor drag with grinding sparks, colossal upward earth sunder
+   */
+  private executeGroundDragSunder(power: number, isCrit: boolean, damageNum: number): void {
+    if (!this.knightContainer || !this.effectsLayer) return;
+
+    this.playKnightAnimation('DASH');
+    this.triggerCameraZoom(1.32, 255, 130, 22);
+
+    const container = new Container();
+    const g = new Graphics();
+    container.addChild(g);
+    this.effectsLayer.addChild(container);
+
+    const startX = 130;
+    const sunderX = 235;
+    let impactFired = false;
+
+    this.activeEffects.push({
+      container,
+      life: 0,
+      maxLife: 28,
+      onUpdate: (eff) => {
+        if (!this.knightContainer) return true;
+
+        if (eff.life <= 7) {
+          const t = eff.life / 7;
+          this.knightContainer.x = startX + (sunderX - startX) * t;
+          this.spawnSparks(this.knightContainer.x - 10, 168, 2, [0xF59E0B, 0xD97706, 0xFFFFFF]);
+        } else {
+          const backT = (eff.life - 7) / 21;
+          this.knightContainer.x = sunderX - (sunderX - startX) * backT;
+        }
+
+        if (eff.life >= 7 && !impactFired) {
+          impactFired = true;
+          this.playKnightAnimation('ATTACK5');
+          g.clear();
+
+          this.drawPainterlySlashArc(g, sunderX + 15, 140, 55, -Math.PI * 0.85, -Math.PI * 0.15, 0x451A03, 0xD97706, 0xFFFBEA);
+          this.spawnShockwave(MONSTER_X, 168, 0xD97706);
+          this.spawnSparks(MONSTER_X, 140, 26, [0xD97706, 0xF59E0B, 0x78350F, 0xC49A45]);
+          this.shakeIntensity = 16;
+          this.flashAlpha = 0.7;
+          this.spawnFloatingText(`MOUNTAIN SUNDER! +${damageNum}`, MONSTER_X, 85, 0xD97706, isCrit ? 14 : 12);
+          audioManager.play('crit');
+          this.playMonsterHit();
+        }
+
+        if (eff.life >= 7 && eff.life <= 20) {
+          const riseT = Math.min(1, (eff.life - 7) / 6);
+          const currentYRise = 55 * Math.sin(riseT * Math.PI * 0.5);
+          const alpha = 1 - Math.max(0, (eff.life - 14) / 6);
+
+          g.poly([
+            MONSTER_X - 22, 175,
+            MONSTER_X - 10, 175 - currentYRise,
+            MONSTER_X + 5, 175 - currentYRise * 0.9,
+            MONSTER_X + 12, 175
+          ]).fill({ color: 0xD97706, alpha }).stroke({ width: 2, color: 0x78350F, alpha });
+
+          g.poly([
+            MONSTER_X - 2, 175,
+            MONSTER_X + 14, 175 - currentYRise * 0.8,
+            MONSTER_X + 26, 175 - currentYRise * 0.7,
+            MONSTER_X + 22, 175
+          ]).fill({ color: 0xB45309, alpha }).stroke({ width: 2, color: 0x5C2B14, alpha });
+        } else if (eff.life > 20) {
+          g.clear();
+        }
+
+        return eff.life >= 28;
+      },
+      onDestroy: () => {
+        if (this.knightContainer) {
+          this.knightContainer.x = startX;
+          this.knightContainer.y = 168;
+        }
+      },
+    });
+  }
+
+  /**
+   * 7. OVERHEAD PRESS: Vault skyward brandishing broadsword, divine lightning pillar crash onto monster crown
+   */
+  private executeSkywardSmitePlunge(power: number, isCrit: boolean, damageNum: number, isPillar: boolean): void {
+    if (!this.knightContainer || !this.effectsLayer) return;
+
+    this.playKnightAnimation('SKILL1');
+    this.triggerCameraZoom(1.28, 255, 120, 20);
+
+    const container = new Container();
+    const g = new Graphics();
+    container.addChild(g);
+    this.effectsLayer.addChild(container);
+
+    const startX = 130;
+    const plungeX = 240;
+    let impactFired = false;
+    const beamColor = isPillar ? 0xFBBF24 : 0x38B6FF;
+
+    this.activeEffects.push({
+      container,
+      life: 0,
+      maxLife: 26,
+      onUpdate: (eff) => {
+        if (!this.knightContainer) return true;
+
+        if (eff.life <= 8) {
+          const t = eff.life / 8;
+          this.knightContainer.x = startX + (plungeX - startX) * t;
+          this.knightContainer.y = 168 - 65 * Math.sin(t * Math.PI * 0.5);
+        } else {
+          this.knightContainer.y = 168;
+          const backT = (eff.life - 8) / 18;
+          this.knightContainer.x = plungeX - (plungeX - startX) * backT;
+        }
+
+        if (eff.life >= 8 && !impactFired) {
+          impactFired = true;
+          this.playKnightAnimation('ATTACK3');
+          g.clear();
+
+          g.rect(MONSTER_X - 14, 0, 28, 170).fill({ color: beamColor, alpha: 0.65 });
+          g.rect(MONSTER_X - 5, 0, 10, 170).fill({ color: 0xFFFFFF, alpha: 0.95 });
+
+          g.moveTo(MONSTER_X, 0)
+            .lineTo(MONSTER_X - 8, 40)
+            .lineTo(MONSTER_X + 6, 85)
+            .lineTo(MONSTER_X - 4, 130)
+            .lineTo(MONSTER_X, 168)
+            .stroke({ width: 2, color: 0xFFFFFF, alpha: 0.9 });
+
+          this.drawPainterlySlashArc(g, plungeX + 15, 155, 48, Math.PI * 0.05, Math.PI * 0.95, 0x0369A1, beamColor, 0xFFFFFF);
+          this.spawnShockwave(MONSTER_X, 168, beamColor);
+          this.spawnSparks(MONSTER_X, 130, 26, [beamColor, 0xFFFFFF, 0x80D4FF]);
+          this.shakeIntensity = 14;
+          this.flashAlpha = 0.8;
+          this.spawnFloatingText(isPillar ? `HEAVENLY PILLAR! +${damageNum}` : `THUNDER SMITE! +${damageNum}`, MONSTER_X, 85, beamColor, isCrit ? 14 : 11);
+          audioManager.play('crit');
+          this.playMonsterHit();
+        }
+
+        if (eff.life > 14) {
+          g.clear();
+        }
+
+        return eff.life >= 26;
+      },
+      onDestroy: () => {
+        if (this.knightContainer) {
+          this.knightContainer.x = startX;
+          this.knightContainer.y = 168;
+        }
+      },
+    });
+  }
+
+  /**
+   * 8. THRUSTER: Coiled deep squat, explosive forward missile leap, molten supernova cleave wave
+   */
+  private executeCoiledSupernovaSlash(power: number, isCrit: boolean, damageNum: number, isSupernova: boolean): void {
+    if (!this.knightContainer || !this.effectsLayer) return;
+
+    this.playKnightAnimation('SKILL3RADON');
+    this.triggerCameraZoom(1.30, 255, 125, 20);
+
+    const container = new Container();
+    const g = new Graphics();
+    container.addChild(g);
+    this.effectsLayer.addChild(container);
+
+    const startX = 130;
+    const strikeX = 240;
+    let slashFired = false;
+
+    this.activeEffects.push({
+      container,
+      life: 0,
+      maxLife: 24,
+      onUpdate: (eff) => {
+        if (!this.knightContainer) return true;
+
+        if (eff.life <= 4) {
+          this.knightContainer.y = 168 + 5;
+        } else if (eff.life <= 8) {
+          const t = (eff.life - 4) / 4;
+          this.knightContainer.x = startX + (strikeX - startX) * t;
+          this.knightContainer.y = 168 - 18 * Math.sin(t * Math.PI);
+          this.spawnKnightGhost(this.knightContainer.x, this.knightContainer.y, 0xF59E0B, 0.45);
+        } else {
+          this.knightContainer.y = 168;
+          const backT = (eff.life - 8) / 16;
+          this.knightContainer.x = strikeX - (strikeX - startX) * backT;
+        }
+
+        if (eff.life >= 8 && !slashFired) {
+          slashFired = true;
+          g.clear();
+
+          this.drawPainterlySlashArc(g, strikeX + 10, 125, 52, -Math.PI * 0.45, Math.PI * 0.45, 0x7F1D1D, 0xF59E0B, 0xFFFBEA);
+          this.drawPainterlySlashArc(g, strikeX + 25, 125, 38, -Math.PI * 0.35, Math.PI * 0.35, 0x991B1B, 0xDC2626, 0xFDE047);
+
+          this.spawnShockwave(MONSTER_X, 125, 0xF59E0B);
+          this.spawnSparks(MONSTER_X, 125, 28, [0xF59E0B, 0xDC2626, 0xFFFBEA, 0xFDE047]);
+          this.shakeIntensity = 14;
+          this.flashAlpha = 0.75;
+          this.spawnFloatingText(isSupernova ? `SUPERNOVA SURGE! +${damageNum}` : `SOLAR ERUPTION! +${damageNum}`, MONSTER_X, 90, 0xF59E0B, isCrit ? 14 : 12);
+          audioManager.play('crit');
+          this.playMonsterHit();
+        }
+
+        if (eff.life > 14) {
+          g.clear();
+        }
+
+        return eff.life >= 24;
+      },
+      onDestroy: () => {
+        if (this.knightContainer) {
+          this.knightContainer.x = startX;
+          this.knightContainer.y = 168;
+        }
+      },
+    });
+  }
+
+  /**
+   * 9. GORILLA ROW: Point-blank 4-hit rapid hacking combo with close-up jittering camera
+   */
+  private executeFrenziedHackingFlurry(power: number, isCrit: boolean, damageNum: number, isShadow: boolean): void {
+    if (!this.knightContainer || !this.effectsLayer) return;
+
+    this.playKnightAnimation('SKILL2TULUC');
+    this.triggerCameraZoom(1.32, 260, 125, 24);
+
+    const container = new Container();
+    const g = new Graphics();
+    container.addChild(g);
+    this.effectsLayer.addChild(container);
+
+    const startX = 130;
+    const hackX = 245;
+    let hitCount = 0;
+    const clawColor = isShadow ? 0x65A30D : 0x84CC16;
+
+    this.activeEffects.push({
+      container,
+      life: 0,
+      maxLife: 26,
+      onUpdate: (eff) => {
+        if (!this.knightContainer) return true;
+
+        if (eff.life <= 4) {
+          this.knightContainer.x = startX + (hackX - startX) * (eff.life / 4);
+        } else if (eff.life <= 17) {
+          this.knightContainer.x = hackX + (Math.random() - 0.5) * 4;
+        } else {
+          const backT = (eff.life - 17) / 9;
+          this.knightContainer.x = hackX - (hackX - startX) * backT;
+        }
+
+        if (eff.life >= 5 && hitCount === 0) {
+          hitCount = 1;
+          g.clear();
+          this.drawPainterlySlashArc(g, hackX + 15, 115, 36, -Math.PI * 0.4, 0, 0x14532D, clawColor, 0xFFFFFF);
+          this.spawnSparks(MONSTER_X, 115, 8, [clawColor, 0xFFFFFF]);
+          this.shakeIntensity = 6;
+          audioManager.play('hit');
+          this.playMonsterHit();
+        } else if (eff.life >= 8 && hitCount === 1) {
+          hitCount = 2;
+          g.clear();
+          this.drawPainterlySlashArc(g, hackX + 15, 135, 36, 0, Math.PI * 0.45, 0x14532D, clawColor, 0xFFFFFF);
+          this.spawnSparks(MONSTER_X, 135, 8, [clawColor, 0xFFFFFF]);
+          this.shakeIntensity = 7;
+          audioManager.play('hit');
+          this.playMonsterHit();
+        } else if (eff.life >= 12 && hitCount === 2) {
+          hitCount = 3;
+          g.clear();
+          this.drawPainterlySlashArc(g, hackX + 20, 125, 42, -Math.PI * 0.5, Math.PI * 0.5, 0x052E16, clawColor, 0xFFFFFF);
+          g.moveTo(MONSTER_X - 18, 105).lineTo(MONSTER_X + 18, 145).stroke({ width: 3.5, color: clawColor });
+          g.moveTo(MONSTER_X - 18, 145).lineTo(MONSTER_X + 18, 105).stroke({ width: 3.5, color: clawColor });
+
+          this.spawnSparks(MONSTER_X, 125, 20, [clawColor, 0xBEF264, 0xFFFFFF]);
+          this.shakeIntensity = 12;
+          this.flashAlpha = 0.55;
+          this.spawnFloatingText(isShadow ? `SHADOW RIPPER! +${damageNum}` : `BEAST MAW! +${damageNum}`, MONSTER_X, 90, clawColor, isCrit ? 14 : 11);
+          audioManager.play('crit');
+          this.playMonsterHit();
+        }
+
+        if (eff.life > 16) {
+          g.clear();
+        }
+
+        return eff.life >= 26;
+      },
+      onDestroy: () => {
+        if (this.knightContainer) {
+          this.knightContainer.x = startX;
+          this.knightContainer.y = 168;
+        }
+      },
+    });
+  }
+
+  /**
+   * 10. HALO: Centrifugal 360-degree orbital greatsword cyclone slashing through monster twice
+   */
+  private executeOrbitalCycloneSweep(power: number, isCrit: boolean, damageNum: number, isVortex: boolean): void {
+    if (!this.knightContainer || !this.effectsLayer) return;
+
+    this.playKnightAnimation('ATTACK4');
+    this.triggerCameraZoom(1.22, 245, 125, 18);
+
+    const container = new Container();
+    const g = new Graphics();
+    container.addChild(g);
+    this.effectsLayer.addChild(container);
+
+    const startX = 130;
+    const sweepX = 230;
+    let sweepFired = false;
+
+    this.activeEffects.push({
+      container,
+      life: 0,
+      maxLife: 24,
+      onUpdate: (eff) => {
+        if (!this.knightContainer) return true;
+
+        if (eff.life <= 7) {
+          const t = eff.life / 7;
+          this.knightContainer.x = startX + (sweepX - startX) * t;
+        } else {
+          const backT = (eff.life - 7) / 17;
+          this.knightContainer.x = sweepX - (sweepX - startX) * backT;
+        }
+
+        if (eff.life >= 7 && !sweepFired) {
+          sweepFired = true;
+          g.clear();
+
+          this.drawPainterlySlashArc(g, sweepX + 20, 125, 50, -Math.PI * 0.6, Math.PI * 0.6, 0x3B0764, 0x818CF8, 0xFFFFFF);
+          this.drawPainterlySlashArc(g, sweepX + 10, 125, 38, Math.PI * 0.4, Math.PI * 1.6, 0x581C87, 0xC084FC, 0xFFFBEA);
+
+          this.spawnShockwave(MONSTER_X, 125, 0x818CF8);
+          this.spawnSparks(MONSTER_X, 125, 24, [0x818CF8, 0xC084FC, 0xE9D5FF, 0xFFFFFF]);
+          this.shakeIntensity = 10;
+          this.flashAlpha = 0.55;
+          this.spawnFloatingText(isVortex ? `ASTRAL VORTEX! +${damageNum}` : `CELESTIAL WARD! +${damageNum}`, MONSTER_X, 95, 0x818CF8, isCrit ? 14 : 11);
+          audioManager.play('crit');
+          this.playMonsterHit();
+        }
+
+        if (eff.life > 14) {
+          g.clear();
+        }
+
+        return eff.life >= 24;
+      },
+      onDestroy: () => {
+        if (this.knightContainer) {
+          this.knightContainer.x = startX;
+          this.knightContainer.y = 168;
+        }
+      },
+    });
+  }
+
+  /**
+   * 11. SINGLE-LEG RDL: Deep needle lunge thrust with speed lines and 8-ray starburst flash
+   */
+  private executeNeedleLungeThrust(power: number, isCrit: boolean, damageNum: number, isCrane: boolean): void {
+    if (!this.knightContainer || !this.effectsLayer) return;
+
+    this.playKnightAnimation('ATTACK1');
+    this.triggerCameraZoom(1.24, 255, 125, 16);
+
+    const container = new Container();
+    const g = new Graphics();
+    container.addChild(g);
+    this.effectsLayer.addChild(container);
+
+    const startX = 130;
+    const lungeX = 242;
+    let thrustFired = false;
+
+    this.activeEffects.push({
+      container,
+      life: 0,
+      maxLife: 20,
+      onUpdate: (eff) => {
+        if (!this.knightContainer) return true;
+
+        if (eff.life <= 5) {
+          const t = eff.life / 5;
+          this.knightContainer.x = startX + (lungeX - startX) * t;
+          this.spawnKnightGhost(this.knightContainer.x, 168, 0xEC4899, 0.4);
+        } else {
+          const backT = (eff.life - 5) / 15;
+          this.knightContainer.x = lungeX - (lungeX - startX) * backT;
+        }
+
+        if (eff.life >= 5 && !thrustFired) {
+          thrustFired = true;
+          g.clear();
+
+          this.spawnSpeedStreaks(lungeX + 15, 125, 55, [0xEC4899, 0xFFFFFF]);
+
+          for (let a = 0; a < 8; a++) {
+            const ang = (a * Math.PI) / 4;
+            g.moveTo(MONSTER_X, 125)
+              .lineTo(MONSTER_X + Math.cos(ang) * 25, 125 + Math.sin(ang) * 25)
+              .stroke({ width: 2, color: 0xEC4899, alpha: 0.9 });
+          }
+
+          this.spawnSparks(MONSTER_X, 125, 22, [0xEC4899, 0xF472B6, 0xFFFFFF]);
+          this.shakeIntensity = 10;
+          this.flashAlpha = 0.55;
+          this.spawnFloatingText(isCrane ? `CRANE STRIKE! +${damageNum}` : `VALKYRIE BALANCE! +${damageNum}`, MONSTER_X, 95, 0xEC4899, isCrit ? 14 : 11);
+          audioManager.play('crit');
+          this.playMonsterHit();
+        }
+
+        if (eff.life > 10) {
+          g.clear();
+        }
+
+        return eff.life >= 20;
+      },
+      onDestroy: () => {
+        if (this.knightContainer) {
+          this.knightContainer.x = startX;
+          this.knightContainer.y = 168;
+        }
+      },
+    });
+  }
+
+  /**
+   * 12. CLEAN: Stomping heavy stride, 10-ton overhead greatsword hack with concussive anvil ring
+   */
+  private executeAnvilCrusherCleave(power: number, isCrit: boolean, damageNum: number): void {
+    if (!this.knightContainer || !this.effectsLayer) return;
+
+    this.playKnightAnimation('ATTACK5');
+    this.triggerCameraZoom(1.28, 255, 130, 20);
+
+    const container = new Container();
+    const g = new Graphics();
+    container.addChild(g);
+    this.effectsLayer.addChild(container);
+
+    const startX = 130;
+    const cleaveX = 238;
+    let impactFired = false;
+
+    this.activeEffects.push({
+      container,
+      life: 0,
+      maxLife: 24,
+      onUpdate: (eff) => {
+        if (!this.knightContainer) return true;
+
+        if (eff.life <= 6) {
+          const t = eff.life / 6;
+          this.knightContainer.x = startX + (cleaveX - startX) * t;
+        } else {
+          const backT = (eff.life - 6) / 18;
+          this.knightContainer.x = cleaveX - (cleaveX - startX) * backT;
+        }
+
+        if (eff.life >= 6 && !impactFired) {
+          impactFired = true;
+          g.clear();
+
+          this.drawPainterlySlashArc(g, cleaveX + 15, 140, 52, Math.PI * 0.1, Math.PI * 0.9, 0x431407, 0xF97316, 0xFFFBEA);
+          this.spawnShockwave(MONSTER_X, 125, 0xF97316);
+          this.spawnSparks(MONSTER_X, 125, 24, [0xF97316, 0xF4B41A, 0x7584A6, 0xFFFFFF]);
+          this.shakeIntensity = 14;
+          this.flashAlpha = 0.65;
+          this.spawnFloatingText(`ANVIL BREAKER! +${damageNum}`, MONSTER_X, 90, 0xF97316, isCrit ? 14 : 11);
+          audioManager.play('hit');
+          this.playMonsterHit();
+        }
+
+        if (eff.life > 12) {
+          g.clear();
+        }
+
+        return eff.life >= 24;
+      },
+      onDestroy: () => {
+        if (this.knightContainer) {
+          this.knightContainer.x = startX;
+          this.knightContainer.y = 168;
+        }
+      },
+    });
+  }
+
+  /**
+   * 13. LUNGE: Supersonic phantom dash with 3 afterimages and high-speed cross cleave
+   */
+  private executePhantomCrossDash(power: number, isCrit: boolean, damageNum: number): void {
+    if (!this.knightContainer || !this.effectsLayer) return;
+
+    this.playKnightAnimation('DASH');
+    this.triggerCameraZoom(1.24, 255, 125, 18);
+
+    const container = new Container();
+    const g = new Graphics();
+    container.addChild(g);
+    this.effectsLayer.addChild(container);
+
+    const startX = 130;
+    const peakX = 245;
+    let impactFired = false;
+
+    this.activeEffects.push({
+      container,
+      life: 0,
+      maxLife: 22,
+      onUpdate: (eff) => {
+        if (!this.knightContainer) return true;
+
+        if (eff.life <= 6) {
+          const forwardT = eff.life / 6;
+          this.knightContainer.x = startX + (peakX - startX) * forwardT;
+          this.spawnKnightGhost(this.knightContainer.x, 168, 0xEC4899, 0.45);
+        } else {
+          const backT = (eff.life - 6) / 16;
+          this.knightContainer.x = peakX - (peakX - startX) * backT;
+          if (eff.life === 7) {
+            this.playKnightAnimation('DASH_BACK');
+          }
+        }
+
+        if (eff.life >= 6 && !impactFired) {
+          impactFired = true;
+          g.clear();
+
+          this.drawPainterlySlashArc(g, peakX + 15, 125, 48, -Math.PI * 0.4, Math.PI * 0.4, 0x831843, 0xEC4899, 0xFFFFFF);
+          this.drawPainterlySlashArc(g, peakX + 25, 125, 38, Math.PI * 0.6, Math.PI * 1.4, 0x0369A1, 0x38B6FF, 0xFFFFFF);
+
+          this.spawnSparks(MONSTER_X, 125, 22, [0xEC4899, 0x38B6FF, 0xFFFFFF]);
+          this.shakeIntensity = 11;
+          this.flashAlpha = 0.55;
+          this.spawnFloatingText(`VALKYRIE DASH! +${damageNum}`, MONSTER_X, 95, 0xEC4899, isCrit ? 14 : 11);
+          audioManager.play(isCrit ? 'crit' : 'hit');
+          this.playMonsterHit();
+        }
+
+        if (eff.life > 12) {
+          g.clear();
+        }
+
+        return eff.life >= 22;
+      },
+      onDestroy: () => {
+        if (this.knightContainer) {
+          this.knightContainer.x = startX;
+          this.knightContainer.y = 168;
         }
       },
     });
@@ -1772,18 +2128,30 @@ export class GameEngine {
         this.flashOverlay.alpha = this.flashAlpha;
       }
 
-      // 3. Update Screen Shake Camera Jitter
+      // 3. Update Dynamic Camera Zoom, Pan & Screen Shake
+      const zoomEase = 0.14 * delta;
+      this.cameraZoom += (this.targetCameraZoom - this.cameraZoom) * Math.min(1, zoomEase);
+      this.cameraFocusX += (this.targetCameraFocusX - this.cameraFocusX) * Math.min(1, zoomEase);
+      this.cameraFocusY += (this.targetCameraFocusY - this.cameraFocusY) * Math.min(1, zoomEase);
+
+      if (this.targetCameraZoom === 1.0 && Math.abs(this.cameraZoom - 1.0) < 0.005) {
+        this.cameraZoom = 1.0;
+        this.cameraFocusX = 213;
+        this.cameraFocusY = 120;
+      }
+
       if (this.rootStage) {
+        let shakeOffsetX = 0;
+        let shakeOffsetY = 0;
         if (this.shakeIntensity > 0) {
-          const offsetX = (Math.random() - 0.5) * this.shakeIntensity * 2;
-          const offsetY = (Math.random() - 0.5) * this.shakeIntensity * 2;
-          this.rootStage.x = this.baseStageX + offsetX;
-          this.rootStage.y = this.baseStageY + offsetY;
+          shakeOffsetX = (Math.random() - 0.5) * this.shakeIntensity * 2;
+          shakeOffsetY = (Math.random() - 0.5) * this.shakeIntensity * 2;
           this.shakeIntensity = Math.max(0, this.shakeIntensity - 0.6 * delta);
-        } else {
-          this.rootStage.x = this.baseStageX;
-          this.rootStage.y = this.baseStageY;
         }
+
+        this.rootStage.scale.set(this.cameraZoom);
+        this.rootStage.x = (213 - this.cameraFocusX * this.cameraZoom) + shakeOffsetX;
+        this.rootStage.y = (120 - this.cameraFocusY * this.cameraZoom) + shakeOffsetY;
       }
 
       // 4. Update Floating Combat Numbers
@@ -1900,6 +2268,18 @@ export class GameEngine {
         await Assets.unload(this.currentPreviewAssetKey);
       } catch (e) {}
       this.currentPreviewAssetKey = null;
+    }
+
+    // Unload battle background texture to prevent VRAM leak across scene transitions
+    if (this.currentBgKey && Assets.cache.has(this.currentBgKey)) {
+      try {
+        await Assets.unload(this.currentBgKey);
+      } catch (e) {}
+      this.currentBgKey = null;
+    } else if (Assets.cache.has(BATTLE_BG_KEY)) {
+      try {
+        await Assets.unload(BATTLE_BG_KEY);
+      } catch (e) {}
     }
 
     // Clean up active projectiles and effects
