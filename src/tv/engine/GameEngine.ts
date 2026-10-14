@@ -61,12 +61,12 @@ export interface SkeletonAttachmentMock {
 const KNIGHT_SKELETON_KEY = '/assets/spine/knight/HulkForm2.json';
 const KNIGHT_ATLAS_KEY = '/assets/spine/knight/HulkForm2.atlas';
 const KNIGHT_SCALE = 0.15;
-// Battle arena background textures (exact 1:1 426x240 retro canvas match)
-const BATTLE_BG_KEY = '/assets/backgrounds/cathedral_crypt_426.webp';
+// Battle arena background textures (clean 1:1 retro canvas match)
+const BATTLE_BG_KEY = '/assets/backgrounds/cathedral_crypt.webp';
 const MONSTER_BACKGROUNDS: Record<MonsterSprite, string> = {
-  TREEMON: '/assets/backgrounds/dark_forest_426.webp',
-  SLIME: '/assets/backgrounds/cathedral_crypt_426.webp',
-  HELLHOUND: '/assets/backgrounds/cathedral_crypt_426.webp',
+  TREEMON: '/assets/backgrounds/dark_forest.webp',
+  SLIME: '/assets/backgrounds/cathedral_crypt.webp',
+  HELLHOUND: '/assets/backgrounds/cathedral_crypt.webp',
 };
 // Lifts combatants + effects so they stand above the battle card hand (which covers the lower half).
 const SCENE_RAISE_Y = 40;
