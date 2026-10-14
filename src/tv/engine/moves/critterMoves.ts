@@ -7,9 +7,10 @@ import type { MonsterMoveId } from '../../../types/battle';
 import { lerp, easeIn, easeOut, easeInOut, arc, rand, INK, BONE, BLOOD, BLOOD_DARK, EMBER, GOLD, GOO, DIRT, FIRE, SMOKE } from '../choreo';
 import * as fx from '../fxKit';
 import {
-  type MoveFn, contact, chest, head, travel, dustAtFeet, drawSpan, projectile, clawRake, jaws, spike, orb, retreat,
-  crown, feet, land, chip, dimSpan, chargeTint, tremble, puff, blink, warnRing, puddle, shoutRings, dart, flier,
-  crawler, hexWard, guard, lean, tentacle,
+  type MoveFn, contact, chest, head, travel, dustAtFeet, drawSpan, projectile, clawRake, jaws, spike, orb,
+  retreat, crown, feet, land, chip, crater, boom, toxic, shatter, circle, portal, regen, flame, blaze, spark,
+  dimSpan, chargeTint, tremble, puff, blink, warnRing, puddle, shoutRings, dart, flier, crawler, hexWard,
+  guard, lean, tentacle,
 } from '../monsterKit';
 
 const BAT_RED = [0xB91C1C, 0xEF4444, 0x7F1D1D, 0xFCA5A5];
@@ -95,6 +96,7 @@ const batScreechDive: MoveFn = (h, tl) => {
   tl.at(60, () => {
     h.stretch(1.25, 0.8);
     h.shockwave(h.knight.x + 6, h.knight.y - 30, SONIC);
+    crater(h, h.knight.x + 6, h.knight.y, 0.9, 'ShockWave_3');
     land(h, { kb: 12, shake: 13, stop: 6, flash: 0.45, color: SONIC, colors: [...BAT_RED, SONIC, BONE], ring: 0xA855F7 });
   });
   tl.during(60, 70, (t) => h.stretch(lerp(1.25, 1, t), lerp(0.8, 1, t)));
@@ -141,6 +143,7 @@ const batBloodDrain: MoveFn = (h, tl) => {
   tl.at(70, () => {
     h.anim('unused_attack1', true);
     h.text('+DRAIN', h.pos().x, h.pos().y - h.height - 10, 0xFF3366, 8);
+    h.vfx('heal', h.pos().x, h.pos().y - h.height * 0.4, { size: 0.7, tint: 0xFF8080 });
   });
   retreat(h, tl, 70, 92, c, 30);
   tl.at(92, () => h.idle());
@@ -215,6 +218,7 @@ const goblinSneakPounce: MoveFn = (h, tl) => {
     () => {
       puff(h, h.home.x, h.home.y, SMOKE, 30);
       puff(h, h.home.x, h.home.y - 16, [...SMOKE, 0x78716C], 20);
+      boom(h, h.home.x, h.home.y - 6, 0.7);
       h.sound('hit');
     });
   tl.during(12, 18, (t) => h.alpha(1 - t));
@@ -247,6 +251,7 @@ const goblinSneakPounce: MoveFn = (h, tl) => {
   });
   tl.at(52, () => {
     h.stretch(1.3, 0.75);
+    crater(h, feet(h).x + 8, feet(h).y, 1, 'ShockWave_3');
     dustAtFeet(h, 10, -1);
     dustAtFeet(h, 10, 1);
     land(h, { kb: 14, shake: 13, stop: 6, flash: 0.35, zoom: 1.3, colors: [BLOOD, BONE, 0xA8A29E], ring: 0xA8A29E });
@@ -332,6 +337,7 @@ const goblinFirebomb: MoveFn = (h, tl) => {
       h.emit(p.x, p.y - 10, { count: 34, colors: [...FIRE, 0x292524], speed: [1.5, 4.5], angle: -Math.PI / 2, spread: 1.3, gravity: 0.12, size: 3, life: [16, 28] });
       h.emit(p.x, p.y - 14, { count: 10, colors: SMOKE, speed: [0.3, 0.9], angle: -Math.PI / 2, spread: 0.7, gravity: -0.04, size: 6, life: [30, 46] });
       h.shockwave(p.x, p.y, EMBER);
+      boom(h, p.x, p.y - 10, 1.3);
       land(h, { kb: 14, shake: 14, stop: 6, flash: 0.55, color: EMBER, zoom: 1.28, colors: FIRE, ring: GOLD });
     },
     (x, y) => h.emit(x, y, { count: 1, colors: SMOKE, speed: [0, 0.3], spread: Math.PI, gravity: -0.02, size: 2, life: [10, 16] }));
@@ -373,6 +379,7 @@ const shroomSporeCloud: MoveFn = (h, tl) => {
     h.emit(e.x + rand(-14, 14), e.y + rand(-14, 14), { count: 1, colors: SPORE_Y, speed: [0.2, 0.6], spread: Math.PI, gravity: -0.01, size: 2, life: [20, 34] });
   });
   [44, 54].forEach((f) => tl.at(f, () => chip(h, SPORE_Y, 2, 3)));
+  tl.at(40, () => h.vfx('poison', chest(h).x, chest(h).y, { size: 1.1, tint: 0xFFE680 }));
   tl.at(64, () => {
     h.flash(0.25, 0xFDE047);
     land(h, { kb: 5, shake: 6, colors: SPORE_Y, sound: 'hit' });
@@ -409,6 +416,7 @@ const shroomToxicBurst: MoveFn = (h, tl) => {
     h.stretch(0.94, 1.06);
     h.emit(p.x - 24, p.y - h.height * 0.6, { count: 40, colors: [...VENOM, ...GOO], speed: [2, 5], angle: Math.PI, spread: 1.2, gravity: 0.2, size: 3, life: [16, 30] });
     h.shockwave(p.x - 10, p.y - h.height * 0.6, 0xA3E635);
+    toxic(h, p.x - 30, p.y - h.height * 0.45, 1.6);
     land(h, { kb: 14, shake: 15, stop: 7, flash: 0.55, color: 0xA3E635, colors: [...VENOM, BONE], ring: 0x65A30D });
   });
   drawSpan(h, tl, 60, 74, (g, t) => fx.starburst(g, h.pos().x - 16, h.pos().y - h.height * 0.6, 34 * easeOut(t), 10, 0.3, fx.pal(0x65A30D, 0xECFCCB), 1 - t));
@@ -493,6 +501,7 @@ const shroomMyceliumSnare: MoveFn = (h, tl) => {
     });
   });
   tl.at(70, () => {
+    h.vfx('poison', h.knight.x + 6, h.knight.y - 18, { size: 1.3, tint: 0x8CFFEA });
     for (const dx of caps) h.emit(h.knight.x + 6 + dx, h.knight.y - 14, { count: 10, colors: [0x2DD4BF, 0x99F6E4, 0xFFFFFF], speed: [1, 3], spread: Math.PI, gravity: 0.02, size: 2, life: [16, 26] });
     land(h, { kb: 8, shake: 10, stop: 4, flash: 0.3, color: 0x2DD4BF, colors: [0x2DD4BF, 0x99F6E4, BONE], ring: 0x0D9488 });
   });
@@ -526,6 +535,7 @@ const spiderVenomFangs: MoveFn = (h, tl) => {
   tl.at(36, () => {
     const p = chest(h);
     h.emit(p.x, p.y, { count: 16, colors: VENOM, speed: [1, 3], spread: Math.PI, gravity: 0.15, size: 2, life: [14, 24] });
+    toxic(h, p.x, p.y, 0.8);
     land(h, { kb: 8, shake: 9, stop: 5, zoom: 1.24, colors: [...VENOM, BONE], sound: 'crit' });
   });
   tl.during(36, 46, (t) => h.stretch(lerp(1.15, 1, t), lerp(0.85, 1, t)));
@@ -737,6 +747,7 @@ const harpyAerialDive: MoveFn = (h, tl) => {
     h.tilt(0);
     h.anim('Attack_01');
     h.emit(chest(h).x, chest(h).y, { count: 14, colors: FEATHER, speed: [1, 3], spread: Math.PI, gravity: 0.03, size: 2, life: [24, 40] });
+    crater(h, h.knight.x + 8, h.knight.y, 0.9, 'ShockWave_3');
     land(h, { kb: 12, shake: 12, stop: 6, flash: 0.35, color: 0xFFF1F2, zoom: 1.28, colors: [...FEATHER, BLOOD], ring: 0xF472B6 });
   });
   tl.at(60, () => h.anim('Move', true));
@@ -888,6 +899,7 @@ const lizardSwampAmbush: MoveFn = (h, tl) => {
     h.alpha(1);
     h.anim('Attack01');
     h.emit(h.knight.x + 16, h.knight.y - 4, { count: 30, colors: [...SWAMP, 0xD1FAE5], speed: [1.5, 4.5], angle: -Math.PI / 2, spread: 0.9, gravity: 0.2, size: 3, life: [16, 28] });
+    toxic(h, h.knight.x + 16, h.knight.y - 12, 0.9);
   });
   tl.during(54, 64, (t) => h.lift(arc(t) * 24));
   drawSpan(h, tl, 54, 64, (g, t) => {

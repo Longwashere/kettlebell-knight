@@ -10,7 +10,7 @@ import { type Timeline, lerp, easeIn, easeOut, easeInOut, arc, rand, INK, BONE, 
 import * as fx from '../fxKit';
 import {
   type MoveFn, contact, chest, head, travel, dustAtFeet, drawSpan, projectile, jaws, spike, orb, sigil, retreat,
-  crown, feet, land, chip, dimSpan, chargeTint, tremble, puff, blink, warnRing, puddle, shoutRings, beam, dart,
+  crown, feet, land, chip, crater, boom, toxic, shatter, circle, portal, regen, flame, blaze, spark, dimSpan, chargeTint, tremble, puff, blink, warnRing, puddle, shoutRings, beam, dart,
   graspingHand, orbitRing, hexWard, guard, lean, flier,
 } from '../monsterKit';
 
@@ -61,6 +61,7 @@ const ghostChillingGrasp: MoveFn = (h, tl) => {
   });
   tl.at(40, () => chip(h, FROST, 2, 4));
   tl.at(52, () => {
+    shatter(h, chest(h).x, chest(h).y, 0.9);
     h.anim('attack_end');
     land(h, { kb: 8, shake: 9, stop: 5, flash: 0.35, color: 0xA5F3FC, colors: [...FROST, ...ECTO] });
   });
@@ -135,6 +136,7 @@ const ghostPhantasmalBolt: MoveFn = (h, tl) => {
     const p = chest(h);
     h.emit(p.x, p.y, { count: 26, colors: ECTO, speed: [1.5, 4], spread: Math.PI, gravity: -0.02, size: 3, life: [14, 26] });
     h.shockwave(p.x, p.y, 0x67E8F9);
+    portal(h, p.x, p.y, 0.7, 0xA5F3FC);
     land(h, { kb: 10, shake: 10, stop: 5, flash: 0.35, color: 0x67E8F9, zoom: 1.22, colors: ECTO });
   });
   tl.end(80);
@@ -185,6 +187,7 @@ const ghostPossession: MoveFn = (h, tl) => {
     h.alpha(1);
     h.stretch(1.3, 1.3);
     h.emit(p.x, p.y, { count: 40, colors: [...ECTO, 0xFFFFFF], speed: [2, 5], spread: Math.PI, gravity: 0, size: 3, life: [16, 30] });
+    portal(h, p.x, p.y, 1.1, 0xA5F3FC);
     land(h, { kb: 16, shake: 16, stop: 8, flash: 0.6, color: 0xECFEFF, colors: [...ECTO, 0xFFFFFF], ring: 0x67E8F9 });
   });
   drawSpan(h, tl, 74, 88, (g, t) => fx.starburst(g, chest(h).x, chest(h).y, 36 * easeOut(t), 12, t, fx.pal(0x67E8F9, 0xFFFFFF), 1 - t));
@@ -229,6 +232,7 @@ const wraithSoulSiphon: MoveFn = (h, tl) => {
   });
   [30, 46, 60].forEach((f) => tl.at(f, () => chip(h, SOUL, 2, 3)));
   tl.at(72, () => land(h, { kb: 8, shake: 9, stop: 4, flash: 0.35, color: BLOOD, colors: SOUL }));
+  tl.at(74, () => h.vfx('heal', h.pos().x, h.pos().y - h.height * 0.4, { size: 0.8, tint: 0xFF8080 }));
   tl.end(98);
 };
 
@@ -265,6 +269,7 @@ const wraithShadowVortex: MoveFn = (h, tl) => {
   [36, 50, 64].forEach((f) => tl.at(f, () => chip(h, [...SHADOW, SOUL[0]], 2, 5)));
   tl.at(84, () => {
     h.emit(vx(), vy(), { count: 40, colors: [...SHADOW, SOUL[0]], speed: [2, 5], spread: Math.PI, gravity: 0, size: 3, life: [16, 28] });
+    portal(h, vx(), vy(), 1.2);
     land(h, { kb: 14, shake: 15, stop: 7, flash: 0.55, color: 0x7C3AED, zoom: 1.32, colors: [...SHADOW, SOUL[0]], ring: 0xA855F7 });
   });
   drawSpan(h, tl, 84, 98, (g, t) => fx.starburst(g, vx(), vy(), 34 * easeOut(t), 10, t, fx.pal(0x7C3AED, 0xF0ABFC), 1 - t));
@@ -279,6 +284,7 @@ const wraithDeathChill: MoveFn = (h, tl) => {
     orbitRing(g, p.x, p.y - h.height * 0.5, 26 * (1 - t * 0.4), 8, f * 0.15, 3, FROST[1], 0xFFFFFF, t);
   });
   chargeTint(h, tl, 4, 30, 0xBAE6FD, 0.6);
+  tl.at(0, () => h.vfx('ice', h.pos().x, h.pos().y - h.height * 0.5, { anim: 'IceNova_2', size: 1.3, start: 20, life: 36 }));
   // A freezing breath rolls across the floor
   tl.at(30, () => {
     h.sound('swing');
@@ -308,6 +314,7 @@ const wraithDeathChill: MoveFn = (h, tl) => {
   tl.at(76, () => {
     const p = chest(h);
     h.emit(p.x, p.y + 10, { count: 34, colors: FROST, speed: [1.5, 4.5], spread: Math.PI, gravity: 0.15, size: 3, life: [16, 28] });
+    shatter(h, p.x, p.y + 6, 1.3);
     land(h, { kb: 10, shake: 12, stop: 6, flash: 0.5, color: 0xE0F2FE, zoom: 1.24, colors: FROST, ring: 0x7DD3FC });
   });
   puddle(h, tl, 76, 120, 28, 0x0C4A6E, 0xBAE6FD);
@@ -434,6 +441,7 @@ const archerPoisonShaft: MoveFn = (h, tl) => {
     () => {
       const p = chest(h);
       h.emit(p.x, p.y, { count: 20, colors: GOO, speed: [1, 3], spread: Math.PI, gravity: 0.08, size: 3, life: [14, 26] });
+      toxic(h, p.x, p.y, 0.9);
       land(h, { kb: 8, shake: 9, stop: 4, flash: 0.3, color: 0x84CC16, zoom: 1.2, colors: [...GOO, BONE] });
     },
     (x, y) => h.emit(x, y, { count: 1, colors: GOO, speed: [0, 0.3], spread: Math.PI, gravity: 0.05, size: 2, life: [8, 12] }));
@@ -482,6 +490,7 @@ const archerSoulArrow: MoveFn = (h, tl) => {
   tl.every(46, 60, 1, () => h.streaks(chest(h).x + 30, chest(h).y, 40, GRAVEFIRE));
   tl.at(50, () => {
     h.emit(chest(h).x, chest(h).y, { count: 34, colors: GRAVEFIRE, speed: [2, 5], angle: Math.PI, spread: 0.8, gravity: -0.02, size: 3, life: [14, 26] });
+    portal(h, chest(h).x, chest(h).y, 1, 0x86EFAC);
     land(h, { kb: 16, shake: 14, stop: 7, flash: 0.55, color: 0x4ADE80, colors: GRAVEFIRE, ring: 0x22C55E });
   });
   tl.end(92);
@@ -606,6 +615,7 @@ const skwarBoneAmbush: MoveFn = (h, tl) => {
     h.alpha(1);
     h.anim('Attack');
     h.emit(h.knight.x + 20, h.knight.y - 10, { count: 20, colors: BONES, speed: [1, 3], angle: -Math.PI / 2, spread: 1.2, gravity: 0.2, size: 2, life: [12, 22] });
+    crater(h, h.knight.x + 22, h.knight.y, 0.9, 'ShockWave_3');
   });
   tl.during(64, 72, (t) => h.stretch(lerp(1.3, 1, t), lerp(0.3, 1, easeOut(t))));
   drawSpan(h, tl, 70, 82, (g, t) => {
@@ -728,6 +738,7 @@ const skknightGraveHands: MoveFn = (h, tl) => {
   });
   tl.at(24, () => {
     h.shockwave(h.pos().x - 20, h.pos().y, 0x22C55E);
+    crater(h, h.pos().x - 20, h.pos().y, 0.9, 'ShockWave_3');
     h.shake(9);
     h.sound('hit');
   });
@@ -745,6 +756,7 @@ const skknightGraveHands: MoveFn = (h, tl) => {
     }
   }, 'ground');
   tl.at(36, () => h.camera(1.26, h.knight.x + 6, h.knight.y - 24, 50));
+  tl.at(34, () => circle(h, h.knight.x + 6, h.knight.y + 1, 1.1, 56, 0x86EFAC));
   // The dead claw up and grab
   const hands = [-18, -6, 8, 20];
   hands.forEach((dx, i) => {
@@ -779,6 +791,7 @@ const colossusCorpseSlam: MoveFn = (h, tl) => {
   tl.at(52, () => h.sound('swing'));
   tl.at(58, () => {
     h.emit(feet(h).x + 6, feet(h).y - 6, { count: 20, colors: [...SMOKE, 0x57534E, 0x7F1D1D], speed: [1, 3], angle: -Math.PI / 2, spread: 1.2, gravity: 0.15, size: 3, life: [16, 26] });
+    crater(h, feet(h).x + 8, feet(h).y, 1.1, 'ShockWave_3');
     land(h, { kb: 14, shake: 15, stop: 7, flash: 0.35, colors: [BLOOD, 0x7F1D1D, BONE], ring: 0x78716C });
   });
   drawSpan(h, tl, 58, 72, (g, t) => fx.starburst(g, chest(h).x + 4, chest(h).y - 6, 30 * easeOut(t), 7, 0.6, fx.pal(0x7F1D1D, 0xFCA5A5), 1 - t));
@@ -823,6 +836,7 @@ const colossusTombCollapse: MoveFn = (h, tl) => {
       const x = h.knight.x + 6 + dx;
       h.emit(x, h.knight.y - 6, { count: 18, colors: [...SMOKE, 0x78716C, 0xA8A29E], speed: [1, 3.5], angle: -Math.PI / 2, spread: 1.3, gravity: 0.15, size: 3, life: [16, 28] });
       h.shockwave(x, h.knight.y, 0xA8A29E);
+      crater(h, x, h.knight.y, last ? 1.3 : 0.9, 'ShockWave_3');
       if (!last) {
         h.shake(9);
         h.sound('hit');
@@ -878,6 +892,7 @@ const colossusBile: MoveFn = (h, tl) => {
   });
   [44, 54].forEach((f) => tl.at(f, () => chip(h, GOO, 2, 4)));
   tl.at(64, () => land(h, { kb: 10, shake: 11, stop: 5, flash: 0.3, color: 0x84CC16, colors: [...GOO, BONE] }));
+  tl.at(54, () => toxic(h, chest(h).x, chest(h).y, 1.1));
   puddle(h, tl, 40, 120, 30, 0x365314, 0x84CC16);
   tl.every(66, 110, 6, () => h.emit(feet(h).x + rand(-20, 20), feet(h).y - 2, { count: 1, colors: [0x65A30D, 0xA8A29E], speed: [0.2, 0.5], angle: -Math.PI / 2, spread: 0.3, gravity: -0.03, size: 4, life: [24, 36] }));
   tl.at(70, () => h.stretch(1, 1));
@@ -927,6 +942,7 @@ const bgolemBoneSpire: MoveFn = (h, tl) => {
   });
   tl.at(26, () => {
     h.shockwave(h.home.x, h.home.y, 0xE7E5E4);
+    crater(h, h.home.x - 8, h.home.y, 1.1, 'ShockWave_3');
     h.shake(10);
     h.sound('hit');
   });
@@ -954,6 +970,7 @@ const bgolemBoneSpire: MoveFn = (h, tl) => {
   });
   tl.at(58, () => {
     h.emit(h.knight.x + 6, h.knight.y - 12, { count: 24, colors: [...BONES, 0x78716C], speed: [1.5, 4.5], angle: -Math.PI / 2, spread: 1, gravity: 0.2, size: 3, life: [18, 30] });
+    crater(h, h.knight.x + 6, h.knight.y, 1.2, 'ShockWave_3');
     land(h, { kb: 14, shake: 16, stop: 8, flash: 0.45, colors: [...BONES, BLOOD] });
   });
   tl.end(98);
@@ -1007,6 +1024,7 @@ const bgolemSkullCannon: MoveFn = (h, tl) => {
         const p = target();
         h.emit(p.x, p.y, { count: last ? 34 : 16, colors: [...GRAVEFIRE, ...BONES], speed: [1.5, 4], angle: -Math.PI / 2, spread: 1.3, gravity: 0.12, size: 3, life: [14, 26] });
         h.shockwave(p.x, h.knight.y, 0x22C55E);
+        boom(h, p.x, p.y, last ? 1.3 : 0.8);
         if (!last) {
           h.shake(8);
           h.knightHit(4);
@@ -1042,6 +1060,7 @@ const lichFrostbolt: MoveFn = (h, tl) => {
     () => {
       const p = chest(h);
       h.emit(p.x, p.y, { count: 26, colors: [...FROST, 0x1E3A8A], speed: [1.5, 4], spread: Math.PI, gravity: 0.12, size: 3, life: [14, 26] });
+      shatter(h, p.x, p.y, 1);
       land(h, { kb: 12, shake: 11, stop: 6, flash: 0.4, color: 0xBAE6FD, zoom: 1.22, colors: [...FROST, 0x1E3A8A] });
     },
     (x, y) => h.emit(x + 8, y, { count: 1, colors: FROST, speed: [0.1, 0.4], spread: Math.PI, gravity: 0.03, size: 2, life: [12, 20] }));
@@ -1056,6 +1075,8 @@ const lichDeathNova: MoveFn = (h, tl) => {
     h.sound('level_up');
   });
   dimSpan(h, tl, 0, 116, 0.65, 0x052E16);
+  tl.at(0, () => circle(h, h.pos().x, h.pos().y + 1, 1.5, 50, 0x86EFAC));
+  tl.at(44, () => portal(h, h.pos().x, h.pos().y - h.height * 0.5, 1.8, 0x86EFAC));
   tl.during(0, 30, (t) => h.lift(easeOut(t) * 18));
   // Necrotic energy spirals in
   tl.every(0, 40, 1, () => {
@@ -1093,6 +1114,7 @@ const lichDeathNova: MoveFn = (h, tl) => {
 
 const lichPhylactery: MoveFn = (h, tl) => {
   tl.at(0, () => h.anim('Skill01'));
+  tl.at(4, () => circle(h, h.pos().x, h.pos().y + 1, 1.3, 54, 0x86EFAC));
   guard(h, tl, 10, [...NECRO, 0xFFFFFF], (g, cx, cy, grow, fade, f) => {
     hexWard(g, cx, cy, 40 * grow, f * 0.02, 0x22C55E, 0xDCFCE7, fade);
     // The phylactery orbits, a glowing soul-gem
@@ -1111,6 +1133,7 @@ const lichGlacialTomb: MoveFn = (h, tl) => {
     h.camera(1.2, h.home.x, h.home.y - 40, 26);
   });
   dimSpan(h, tl, 0, 120, 0.55, 0x0C1A2E);
+  tl.at(14, () => circle(h, h.knight.x + 6, h.knight.y + 1, 1.2, 86, 0x9FD8FF));
   // Frost sigil under the knight
   drawSpan(h, tl, 14, 100, (g, t, f) => {
     const p = feet(h);
@@ -1142,6 +1165,7 @@ const lichGlacialTomb: MoveFn = (h, tl) => {
   tl.at(82, () => {
     const p = chest(h);
     h.emit(p.x, p.y, { count: 50, colors: [...FROST, 0x1E3A8A], speed: [2, 5.5], spread: Math.PI, gravity: 0.18, size: 3, life: [18, 32] });
+    shatter(h, p.x, p.y, 1.6);
     land(h, { kb: 18, shake: 17, stop: 9, flash: 0.65, color: 0xE0F2FE, colors: [...FROST, 0x1E3A8A], ring: 0x7DD3FC });
   });
   drawSpan(h, tl, 82, 96, (g, t) => fx.starburst(g, chest(h).x, chest(h).y, 40 * easeOut(t), 12, 0.2, fx.pal(0x7DD3FC, 0xFFFFFF), 1 - t));

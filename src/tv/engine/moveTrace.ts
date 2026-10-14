@@ -30,6 +30,7 @@ export interface MoveTraceReport {
   length: number; // timeline length in 60 fps frames
   impactFrame: number | null;
   chipFrames: number[];
+  vfx: string[]; // Spine VFX rigs the move played
   offscreenFrames: number;
   errors: string[];
   warnings: string[];
@@ -55,6 +56,12 @@ export class MoveTracer {
   private cancelled = false;
 
   constructor(readonly move: string, readonly selfTarget: boolean) {}
+
+  private vfxUsed = new Set<string>();
+
+  vfx(name: string): void {
+    this.vfxUsed.add(name);
+  }
 
   missingAnim(name: string): void {
     this.missing.add(name);
@@ -125,6 +132,7 @@ export class MoveTracer {
       length: Math.round(this.length),
       impactFrame: this.impactFrame,
       chipFrames: this.chips,
+      vfx: [...this.vfxUsed],
       offscreenFrames: this.offscreen,
       errors,
       warnings,

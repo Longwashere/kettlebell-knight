@@ -1,0 +1,69 @@
+CommonHeal_2.png
+pma: false
+size:512,512
+filter:Linear,Linear
+d1
+bounds:40,436,16,17
+d2
+bounds:78,436,16,16
+rotate: 90
+qq
+bounds:1,1,114,115
+offsets:0,0,115,115
+skill1_3_0005
+bounds:136,1,80,122
+rotate: 90
+skill2_1_0001
+bounds:1,136,43,67
+offsets:1,1,44,68
+skill2_1_0003
+bounds:347,1,48,69
+offsets:0,0,49,70
+skill2_1_0005
+bounds:395,302,48,65
+offsets:1,0,49,66
+rotate: 90
+skill2_1_0007
+bounds:1,371,44,66
+offsets:1,0,45,66
+rotate: 90
+skill2_1_0009
+bounds:279,1,47,72
+offsets:1,0,48,72
+skill2_1_0011
+bounds:416,1,43,69
+offsets:1,0,45,69
+t1
+bounds:282,371,155,32
+y1
+bounds:87,371,125,39
+offsets:3,2,132,41
+y2]
+bounds:216,302,157,48
+offsets:3,1,164,49
+y3
+bounds:64,136,192,61
+offsets:3,4,199,62
+y4
+bounds:278,136,197,56
+offsets:3,2,201,58
+y5
+bounds:1,224,195,56
+offsets:3,1,201,58
+y6
+bounds:216,224,195,56
+offsets:2,1,199,57
+y7
+bounds:1,302,195,48
+offsets:2,1,199,51
+ye
+bounds:1,436,22,19
+offsets:0,1,22,19
+rotate: 90
+z2
+bounds:458,371,28,32
+offsets:0,0,29,32
+z4
+bounds:233,371,35,28
+offsets:1,0,35,28
+rotate: 90

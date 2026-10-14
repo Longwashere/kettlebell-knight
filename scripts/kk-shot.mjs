@@ -35,6 +35,8 @@
  *                             frame and report errors (threw, never landed) and warnings (missing rig anim,
  *                             nothing reached the knight before impact, not back at rest, overlong). Fails on errors.
  *   portraits[:ids]           tight idle portrait of each monster (default: all) → work/rigs/<id>.png
+ *   vfxinfo                   Spine VFX rigs (src/tv/engine/vfx.ts): anims, frames, on-stage size at size 1
+ *   vfxsheet[:name[:n[:size]]]  contact sheet of VFX rigs (all or one), n poses per animation (default 8)
  *   kanims | kmoves           print knight animations (frames + Spine events) / knight move ids (knightMoves.ts)
  *   kmove:<id>[:slots]        play a knight move now, no battle state change (slots: comma list, hit order)
  *   ksheet[:frames[:regex]]   contact sheet of knight animations, e.g. ksheet:6:ATTACK|SKILL
@@ -380,6 +382,15 @@ async function runStep(step) {
         save(id, url.replace(/^data:image\/png;base64,/, ''), dir);
       }
       return `${ids.length} portrait(s) → ${path.relative(ROOT, dir)}/`;
+    }
+    case 'vfxinfo': {
+      const rows = await kk('__kk.vfxInfo()', LONG());
+      return '\n' + rows.map((r) => `    ${r.name.padEnd(10)} ${r.anim.padEnd(14)} ${String(r.frames).padStart(4)}f  ${String(r.w).padStart(4)}x${r.h}px`).join('\n');
+    }
+    case 'vfxsheet': {
+      const [name, frames, size] = arg.split(':');
+      const url = await kk(`__kk.vfxSheet(${name ? js(name) : 'undefined'}, ${Number(frames) || 8}, ${Number(size) || 1})`, LONG());
+      return save(`vfx-${name || 'all'}`, url.replace(/^data:image\/png;base64,/, ''));
     }
     case 'kanims': {
       const anims = await kk('__kk.knightAnims()');

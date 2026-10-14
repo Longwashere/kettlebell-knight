@@ -17,7 +17,7 @@ import type { Spine } from '@esotericsoftware/spine-pixi-v8';
 import type { MonsterMoveId } from '../../types/battle';
 import {
   type MoveHost, type MoveFn, contact, chest, head, travel, dustAtFeet, drawSpan, projectile,
-  clawRake, jaws, spike, orb, sigil, retreat,
+  clawRake, jaws, spike, orb, sigil, retreat, crater, boom, toxic, circle, portal, flame, spark,
 } from './monsterKit';
 import { CRITTER_MOVES } from './moves/critterMoves';
 import { UNDEAD_MOVES } from './moves/undeadMoves';
@@ -47,6 +47,8 @@ function slimeSlap(h: MoveHost, tl: Timeline) {
     const p = chest(h);
     h.emit(p.x + 4, p.y + 6, { count: 18, colors: GOO, speed: [1.5, 4], angle: -Math.PI * 0.6, spread: 0.9, gravity: 0.18, size: 3, life: [16, 28] });
     h.shockwave(h.knight.x + 10, h.knight.y, 0x84CC16);
+    toxic(h, p.x + 4, p.y + 6, 0.8);
+    spark(h, 0x84CC16);
     h.shake(6);
     h.camera(1.15, h.knight.x + 20, h.knight.y - 20, 10);
     h.sound('hit');
@@ -85,6 +87,7 @@ function slimeAcidSpit(h: MoveHost, tl: Timeline) {
         const p = chest(h);
         h.emit(p.x, p.y, { count: 8, colors: GOO, speed: [1, 2.5], spread: Math.PI, gravity: 0.15, size: 2, life: [12, 20] });
         h.emit(p.x, p.y - 4, { count: 5, colors: [0x65A30D, 0x4D7C0F, 0xA8A29E], speed: [0.2, 0.6], angle: -Math.PI / 2, spread: 0.5, gravity: -0.04, size: 4, life: [24, 36] });
+        toxic(h, p.x, p.y, i < 2 ? 0.5 : 0.8);
         if (i < 2) h.knightHit(2);
         else {
           h.impact(4);
@@ -139,6 +142,8 @@ function slimeOozeSlam(h: MoveHost, tl: Timeline) {
     h.flash(0.5, 0xD9F99D);
     h.shockwave(h.knight.x + 8, h.knight.y, 0x84CC16);
     h.shockwave(h.knight.x + 8, h.knight.y, 0x365314);
+    crater(h, h.knight.x + 8, h.knight.y, 1.3, 'ShockWave_2');
+    toxic(h, h.knight.x + 8, h.knight.y - 20, 1.1);
     h.emit(h.knight.x + 8, h.knight.y - 10, { count: 32, colors: GOO, speed: [2, 5], angle: -Math.PI / 2, spread: 1.4, gravity: 0.22, size: 3, life: [18, 32] });
     h.sound('crit');
     h.impact(14);
@@ -201,6 +206,7 @@ function slimeEngulf(h: MoveHost, tl: Timeline) {
     h.emit(p.x, p.y, { count: 26, colors: GOO, speed: [2, 4.5], spread: Math.PI, gravity: 0.2, size: 3, life: [14, 26] });
     h.shockwave(h.knight.x + 6, h.knight.y, 0x84CC16);
     h.stretch(1, 1);
+    toxic(h, p.x, p.y, 1.1);
     h.anim('Move', true);
   });
   travel(h, tl, 86, 110, c, { x: 0, y: 0 }, easeInOut);
@@ -228,6 +234,7 @@ function boarTuskSlash(h: MoveHost, tl: Timeline) {
   tl.at(32, () => {
     const p = chest(h);
     h.sparks(p.x, p.y, 14, [BONE, BLOOD, 0xE7D8B0]);
+    spark(h, BLOOD);
     h.hitStop(3);
     h.shake(8);
     h.camera(1.18, h.knight.x + 20, h.knight.y - 22, 12);
@@ -269,6 +276,8 @@ function boarGoreCharge(h: MoveHost, tl: Timeline) {
     h.shake(15);
     h.sparks(p.x, p.y, 24, [BONE, BLOOD, 0xE7D8B0, 0xFFFFFF]);
     h.shockwave(h.knight.x, h.knight.y, 0xE7D8B0);
+    crater(h, h.knight.x + 4, h.knight.y, 1.1);
+    spark(h, BLOOD, true);
     h.camera(1.3, h.knight.x + 10, h.knight.y - 22, 14);
     h.sound('crit');
     h.impact(18);
@@ -294,6 +303,7 @@ function boarEarthsplitter(h: MoveHost, tl: Timeline) {
     h.shake(9);
     h.shockwave(h.home.x, h.home.y, 0x8B5A2B);
     dustAtFeet(h, 10, -1);
+    crater(h, h.home.x - 8, h.home.y, 1.1, 'ShockWave_3');
     dustAtFeet(h, 10, 1);
     h.sound('hit');
   });
@@ -330,6 +340,8 @@ function boarEarthsplitter(h: MoveHost, tl: Timeline) {
   }, 'fx');
   tl.at(40, () => {
     h.emit(h.knight.x, h.knight.y - 4, { count: 18, colors: DIRT, speed: [1.5, 4], angle: -Math.PI / 2, spread: 0.9, gravity: 0.2, size: 3, life: [16, 28] });
+    crater(h, h.knight.x + 4, h.knight.y, 1.1, 'ShockWave_3');
+    spark(h, 0xD6A15A);
     h.shake(10);
     h.hitStop(4);
     h.camera(1.2, h.knight.x + 10, h.knight.y - 24, 14);
@@ -372,6 +384,7 @@ function boarQuillVolley(h: MoveHost, tl: Timeline) {
       else {
         h.impact(5);
         h.shake(6);
+        spark(h, 0xE7D8B0);
         h.sound('hit');
       }
     });
@@ -427,6 +440,7 @@ function wolfPredatorRake(h: MoveHost, tl: Timeline) {
         h.shake(10);
         h.camera(1.2, h.knight.x + 14, h.knight.y - 24, 12);
         h.impact(8);
+        spark(h, 0xA855F7);
       }
     });
   });
@@ -465,6 +479,8 @@ function wolfShadowPounce(h: MoveHost, tl: Timeline) {
     h.shake(11);
     h.flash(0.35, 0xA855F7);
     h.shockwave(h.knight.x + 10, h.knight.y, 0x7C3AED);
+    crater(h, h.knight.x + 12, h.knight.y, 0.9, 'ShockWave_3');
+    spark(h, 0xA855F7, true);
     h.sparks(p.x, p.y, 16, [...SHADOW, BLOOD]);
     h.camera(1.28, h.knight.x + 14, h.knight.y - 24, 12);
     h.sound('crit');
@@ -514,6 +530,7 @@ function wolfThroatBite(h: MoveHost, tl: Timeline) {
     h.hitStop(7);
     h.flash(0.5, BLOOD);
     h.shake(14);
+    spark(h, BLOOD, true, p);
     h.emit(p.x, p.y + 6, { count: 26, colors: [BLOOD, 0x7F1D1D, 0xFF3366], speed: [1.5, 4], angle: -Math.PI * 0.75, spread: 0.8, gravity: 0.22, size: 3, life: [16, 30] });
     h.camera(1.35, h.knight.x + 10, h.knight.y - 30, 16);
     h.sound('crit');
@@ -586,6 +603,7 @@ function wolfPhantomPack(h: MoveHost, tl: Timeline) {
         h.flash(0.35, 0xA855F7);
         h.sound('crit');
         h.impact(10);
+        spark(h, 0xA855F7, true);
       }
     });
   });
@@ -631,6 +649,7 @@ function treeBranchWhip(h: MoveHost, tl: Timeline) {
     const p = chest(h);
     h.emit(p.x, p.y, { count: 14, colors: [0x4D7C0F, 0x84CC16, DIRT[1]], speed: [1, 3], spread: Math.PI, gravity: 0.06, size: 3, life: [20, 34] });
     h.sparks(p.x, p.y, 8, [BONE, 0x84CC16]);
+    spark(h, 0x84CC16);
     h.hitStop(3);
     h.shake(8);
     h.camera(1.18, h.knight.x + 16, h.knight.y - 24, 12);
@@ -658,6 +677,7 @@ function treeRootStomp(h: MoveHost, tl: Timeline) {
     h.stretch(1.15, 0.9);
     h.shake(9);
     h.shockwave(h.home.x, h.home.y, 0x4D7C0F);
+    crater(h, h.home.x - 8, h.home.y, 1.1, 'ShockWave_3');
     dustAtFeet(h, 8, -1);
     h.sound('hit');
   });
@@ -692,6 +712,8 @@ function treeRootStomp(h: MoveHost, tl: Timeline) {
     h.shake(15);
     h.camera(1.3, h.knight.x + 8, h.knight.y - 30, 18);
     h.emit(h.knight.x + 6, h.knight.y - 10, { count: 22, colors: [...DIRT, 0x4D7C0F], speed: [1.5, 4.5], angle: -Math.PI / 2, spread: 1, gravity: 0.2, size: 3, life: [18, 30] });
+    crater(h, h.knight.x + 6, h.knight.y, 1.1, 'ShockWave_3');
+    spark(h, 0x84CC16, true);
     h.sound('crit');
     h.impact(12);
   });
@@ -731,9 +753,11 @@ function treeBurrowAmbush(h: MoveHost, tl: Timeline) {
     h.anim('Appear');
     h.emit(h.knight.x + 16, h.knight.y - 6, { count: 26, colors: [...DIRT, 0x4D7C0F], speed: [1.5, 4.5], angle: -Math.PI / 2, spread: 1.1, gravity: 0.2, size: 3, life: [18, 30] });
     h.shockwave(h.knight.x + 16, h.knight.y, 0x8B5A2B);
+    crater(h, h.knight.x + 16, h.knight.y, 1.2, 'ShockWave_3');
   });
   tl.at(58, () => {
     h.sparks(chest(h).x, chest(h).y, 14, [BONE, ...DIRT]);
+    spark(h, 0x84CC16, true);
     h.hitStop(5);
     h.flash(0.35);
     h.shake(13);
@@ -789,6 +813,7 @@ function treeSporeBurst(h: MoveHost, tl: Timeline) {
   tl.at(68, () => {
     const p = chest(h);
     h.shockwave(h.knight.x + 6, h.knight.y - 20, 0x2DD4BF);
+    h.vfx('poison', p.x, p.y, { size: 1.2, tint: 0x8CFFEA });
     h.emit(p.x, p.y, { count: 22, colors: SPORE, speed: [1, 3], spread: Math.PI, gravity: -0.02, size: 2, life: [20, 36] });
     h.emit(p.x, p.y, { count: 8, colors: [0x0F766E, 0x134E4A], speed: [0.2, 0.6], angle: -Math.PI / 2, spread: 0.6, gravity: -0.03, size: 5, life: [30, 45] });
     h.flash(0.3, 0x2DD4BF);
@@ -829,6 +854,7 @@ function treeBarkSkin(h: MoveHost, tl: Timeline) {
 // DEMON MONK — sorcery: teleports, hellfire, abyssal ritual circles.
 
 function monkTeleportSmoke(h: MoveHost, x: number, y: number) {
+  portal(h, x, y - h.height * 0.5, 0.8, 0xFF8FC8);
   h.emit(x, y - 6, { count: 18, colors: [...SHADOW, INK], speed: [0.5, 1.6], angle: -Math.PI / 2, spread: 1.2, gravity: -0.04, size: 4, life: [18, 30] });
 }
 
@@ -867,6 +893,7 @@ function monkCursedPalm(h: MoveHost, tl: Timeline) {
   tl.at(42, () => {
     const p = chest(h);
     h.shockwave(h.knight.x + 4, h.knight.y - 20, 0x7C3AED);
+    spark(h, 0x7C3AED, true);
     h.sparks(p.x, p.y, 14, [...SHADOW, 0xFF3366]);
     h.hitStop(4);
     h.shake(10);
@@ -891,6 +918,7 @@ function monkHellfireOrb(h: MoveHost, tl: Timeline) {
     h.anim('cast');
     h.sound('swing');
   });
+  flame(h, tl, 0, 26, hand, 0.5);
   drawSpan(h, tl, 0, 26, (g, t, f) => {
     const p = hand();
     orb(g, p.x, p.y, 2 + 8 * easeOut(t) + Math.sin(f * 0.8) * 0.8, FIRE);
@@ -906,6 +934,7 @@ function monkHellfireOrb(h: MoveHost, tl: Timeline) {
       const p = chest(h);
       h.emit(p.x, p.y, { count: 30, colors: FIRE, speed: [1.5, 4.5], spread: Math.PI, gravity: -0.03, size: 4, life: [14, 26] });
       h.shockwave(h.knight.x + 6, h.knight.y - 24, EMBER);
+      boom(h, p.x, p.y, 1.3);
       h.shockwave(h.knight.x + 6, h.knight.y, BLOOD);
       h.flash(0.4, EMBER);
       h.shake(11);
@@ -931,6 +960,8 @@ function monkAbyssalEdict(h: MoveHost, tl: Timeline) {
   });
   tl.during(0, 22, (t) => h.dim(0.7 * easeOut(t), 0x1E0B33));
   tl.at(28, () => h.camera(1.28, h.knight.x + 10, h.knight.y - 40, 52));
+  tl.at(10, () => circle(h, h.knight.x + 6, h.knight.y + 1, 1.3, 80, 0xFF8FA8));
+  flame(h, tl, 52, 34, () => ({ x: h.knight.x + 6, y: h.knight.y - 16 }), 1);
   // Ritual circle draws itself under the knight
   drawSpan(h, tl, 10, 96, (g, t, f) => {
     const prog = Math.min(1, f / 30);
@@ -958,6 +989,8 @@ function monkAbyssalEdict(h: MoveHost, tl: Timeline) {
     h.hitStop(6);
     h.flash(0.7, 0xFF3366);
     h.shake(16);
+    boom(h, h.knight.x + 6, h.knight.y - 20, 1.4);
+    spark(h, EMBER, true);
     h.sound('crit');
     h.impact(10);
   });
@@ -971,6 +1004,7 @@ function monkChainsOfPenance(h: MoveHost, tl: Timeline) {
     { dx: -32, dy: 2 }, { dx: 36, dy: 3 }, { dx: -22, dy: -6 }, { dx: 28, dy: -7 },
     { dx: -26, dy: -96 }, { dx: 30, dy: -100 },
   ];
+  tl.at(16, () => circle(h, h.knight.x + 6, h.knight.y + 1, 1.2, 50, 0xFF8FC8));
   tl.at(20, () => {
     for (const a of anchors) h.emit(h.knight.x + a.dx, h.knight.y + a.dy, { count: 4, colors: [...SHADOW], speed: [0.5, 1.4], angle: -Math.PI / 2, spread: 0.6, gravity: -0.03, size: 3, life: [14, 22] });
     h.sound('swing');
@@ -1009,6 +1043,7 @@ function monkChainsOfPenance(h: MoveHost, tl: Timeline) {
   tl.at(62, () => {
     const p = chest(h);
     h.sparks(p.x, p.y, 20, [0x6B7280, 0x9CA3AF, SHADOW[2], 0xFF3366]);
+    spark(h, 0xA855F7, true);
     h.sound('crit');
   });
   tl.end(70);
@@ -1035,6 +1070,7 @@ function monkForbiddenWard(h: MoveHost, tl: Timeline) {
   });
   tl.at(20, () => {
     h.sparks(h.pos().x, h.pos().y - h.height * 0.5, 10, [...SHADOW, 0xFF3366]);
+    circle(h, h.pos().x, h.pos().y + 1, 1.1, 44, 0xFF8FC8);
     h.sound('equip');
     h.impact();
   });
@@ -1079,6 +1115,7 @@ function houndTwinMaul(h: MoveHost, tl: Timeline) {
     tl.at(f, () => {
       const p = head(h);
       h.emit(p.x, p.y + 6 + dy, { count: 14, colors: FIRE, speed: [1, 3], spread: Math.PI, gravity: -0.03, size: 3, life: [12, 22] });
+      h.vfx('fire', p.x, p.y + 6 + dy, { size: 0.6, life: 20, loop: true });
       if (i === 0) {
         h.hitStop(4);
         h.shake(8);
@@ -1089,6 +1126,7 @@ function houndTwinMaul(h: MoveHost, tl: Timeline) {
         h.shake(14);
         h.flash(0.5, EMBER);
         h.camera(1.3, h.knight.x + 12, h.knight.y - 30, 14);
+        spark(h, EMBER, true, head(h));
         h.sound('crit');
         h.impact(12);
       }
@@ -1123,6 +1161,7 @@ function houndSavageFrenzy(h: MoveHost, tl: Timeline) {
         h.camera(1.22, h.knight.x + 14, h.knight.y - 26, 12);
         h.sound('crit');
         h.impact(8);
+        spark(h, EMBER);
       }
     });
     drawSpan(h, tl, f + 4, f + 14, (g, t) => {
@@ -1175,11 +1214,13 @@ function houndHellfireBreath(h: MoveHost, tl: Timeline) {
     h.shake(3);
   });
   [46, 58].forEach((f) => tl.at(f, () => h.knightHit(2)));
+  flame(h, tl, 40, 30, () => chest(h), 1);
   tl.at(66, () => {
     h.flash(0.4, EMBER);
     h.hitStop(3);
     h.shake(9);
     h.impact(6);
+    boom(h, chest(h).x, chest(h).y, 1.1);
   });
   tl.every(68, 100, 3, () => {
     const p = chest(h);
@@ -1255,6 +1296,8 @@ function houndMagmaRampage(h: MoveHost, tl: Timeline) {
     h.shake(15);
     h.sound('crit');
     h.impact(10);
+    for (const s of seam) crater(h, lerp(h.home.x - 10, h.home.x + past.x, s), lerp(h.home.y, h.knight.y, s), 0.9, 'ShockWave_2');
+    spark(h, EMBER, true);
   });
   // Wheel around and run home
   tl.at(72, () => {
@@ -1301,6 +1344,7 @@ function houndBrimstoneRain(h: MoveHost, tl: Timeline) {
       },
       () => {
         h.emit(tx, h.knight.y - 6, { count: 24, colors: [...FIRE, 0x1C1917], speed: [1.5, 4], angle: -Math.PI / 2, spread: 1.2, gravity: 0.18, size: 3, life: [14, 26] });
+        boom(h, tx, h.knight.y - 8, last ? 1.4 : 0.9);
         h.shockwave(tx, h.knight.y, EMBER);
         if (!last) {
           h.shake(7);

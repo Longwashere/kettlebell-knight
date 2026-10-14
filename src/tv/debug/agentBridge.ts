@@ -13,6 +13,7 @@ import { networkManager } from '../../shared/NetworkManager';
 import { CARD_CATALOG, MONSTER_CATALOG } from '../../types/battle';
 import { MOVESETS } from '../../shared/monsterMovesets';
 import type { MoveTraceReport } from '../engine/moveTrace';
+import { VFX_NAMES } from '../engine/vfx';
 import { getCardArt, CARD_ART_W, CARD_ART_H } from '../components/cardArt';
 import { EXERCISE_GUIDES, getExerciseFrames, POSE_W, POSE_H } from '../components/exerciseGuide';
 
@@ -416,6 +417,55 @@ const api = {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(img, x, y, w, h, 0, 0, w * scale, h * scale);
     return out.toDataURL('image/png');
+  },
+
+  /**
+   * VFX rigs (vfx.ts) measured at size 1: per animation, its length and the largest on-stage bounds over
+   * 12 sampled poses. Needs an encounter up (VFX load with the monsters).
+   */
+  vfxInfo(): { name: string; anim: string; frames: number; w: number; h: number }[] {
+    const out: { name: string; anim: string; frames: number; w: number; h: number }[] = [];
+    try {
+      for (const name of VFX_NAMES) {
+        const first = call('vfxPose', name) as { animations: { name: string; duration: number }[] };
+        for (const a of first.animations) {
+          let w = 0;
+          let h = 0;
+          for (let k = 0; k < 12; k++) {
+            const { bounds } = call('vfxPose', name, a.name, (a.duration * k) / 11) as { bounds: { w: number; h: number } };
+            w = Math.max(w, bounds.w);
+            h = Math.max(h, bounds.h);
+          }
+          out.push({ name, anim: a.name, frames: Math.round(a.duration * 60), w, h });
+        }
+      }
+    } finally {
+      call('vfxPose', null);
+    }
+    return out;
+  },
+
+  /**
+   * Contact sheet of VFX rigs (all, or `name`): a row per animation, `frames` poses at size `size`,
+   * shown mid-stage over the current arena so it reads at game scale. PNG data URL.
+   */
+  async vfxSheet(name?: string, frames = 8, size = 1): Promise<string> {
+    freezeBattle(true);
+    const names = name ? [name] : VFX_NAMES;
+    const rows: { name: string; duration: number; rig: string }[] = [];
+    for (const n of names) {
+      const { animations } = call('vfxPose', n) as { animations: { name: string; duration: number }[] };
+      for (const a of animations) rows.push({ name: a.name, duration: a.duration, rig: n });
+    }
+    call('vfxPose', null);
+    const crop = { x: 213 - 75, y: 130 - 75, w: 150, h: 150 };
+    let rig = rows[0]?.rig;
+    return contactSheet('', rows.map((r) => ({ name: `${r.rig}/${r.name}`, duration: r.duration })), (anim, t) => {
+      if (anim === null) return call('vfxPose', null);
+      const [n, a] = anim.split('/');
+      rig = n;
+      return call('vfxPose', rig, a, t, size);
+    }, crop, frames);
   },
 
   /** MONSTER_CATALOG ids (for looping over the bestiary). */

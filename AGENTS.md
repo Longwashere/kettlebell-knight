@@ -21,6 +21,7 @@ npm run preview
 npm run shot -- <steps>   # headless /tv run: screenshots + state + console errors → work/shots/ (see kk-verify skill)
 npm run balance [-- N cards]  # combat balance simulator: win rate / fight length / HP left per encounter
 npm run rigs [-- ids]         # monster rig reference → work/rigs.md: anims + frame lengths + events, moveset, portraits
+npm run vfx:shrink            # TV-sized copies of the Spine VFX: public/assets/spine/vfx → vfx-tv (rerun after adding one)
 ```
 
 Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test` (alias `/lab`) motion-detection lab.
@@ -108,7 +109,14 @@ Workflow for new or changed moves:
    lesser hits after the damage label.
 4. `npm run shot -- films:<monster>` — one sheet per monster, a row per move with the impact frame boxed in red. Look
    at it: the red frame should show the hit connecting.
-5. New intents change damage per second: keep `damage / durationSeconds` near the monster's existing average and run
+5. Spine VFX (`engine/vfx.ts`, rigs in `public/assets/spine/vfx-tv/`) load with the monsters and unload with them
+   (~8 MB VRAM). `land()`/`chip()` (monsters) and the knight's `land()` already add a hit spark coloured to the
+   attack; for themed bursts use the kit beats `boom` (explosion), `crater` (slam dust), `toxic` (poison),
+   `shatter` (ice), `circle` (floor rune), `portal` (ring burst), `flame` (follows a point), `blaze` (fire arc),
+   `regen` (heal glow) or `h.vfx(name, x, y, opts)`. Knight cards take `land(h, i, { burst: 'crater' | 'explosion' | … })`.
+   `h.vfx()` returns null while rigs load, so keep the Graphics VFX too. Preview/size with `vfxinfo` / `vfxsheet`.
+   Ground-layer rigs are hidden behind bodies at their feet; bursts at someone's feet go on the fx layer.
+6. New intents change damage per second: keep `damage / durationSeconds` near the monster's existing average and run
    `npm run balance`.
 
 ## Spine assets

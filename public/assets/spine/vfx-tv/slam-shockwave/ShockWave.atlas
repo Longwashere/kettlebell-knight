@@ -1,0 +1,225 @@
+ShockWave.png
+pma: false
+size:512,512
+filter:Linear,Linear
+G2
+bounds:320,358,28,27
+rotate: 90
+baozhaguang2
+bounds:414,358,41,22
+offsets:0,0,41,22
+di0022
+bounds:404,1,87,33
+offsets:0,0,87,33
+rotate: 90
+diy0001
+bounds:189,284,57,46
+offsets:29,11,117,87
+rotate: 90
+diy0002
+bounds:287,204,64,81
+offsets:28,4,121,87
+rotate: 90
+diy0003
+bounds:447,1,63,81
+offsets:27,4,117,87
+diy0004
+bounds:71,112,69,76
+offsets:24,5,119,87
+diy0005
+bounds:1,204,77,69
+offsets:21,7,117,87
+diy0007
+bounds:1,112,81,60
+offsets:17,9,117,87
+rotate: 90
+diy0009
+bounds:336,1,87,56
+offsets:14,10,117,87
+rotate: 90
+diy0011
+bounds:277,1,91,49
+offsets:13,11,117,87
+rotate: 90
+diy0013
+bounds:217,1,94,49
+offsets:11,11,117,87
+rotate: 90
+diy0015
+bounds:157,1,98,49
+offsets:9,11,117,87
+rotate: 90
+diy0017
+bounds:1,1,101,48
+offsets:8,11,117,87
+rotate: 90
+diy0019
+bounds:59,1,100,46
+offsets:8,13,117,87
+rotate: 90
+diy0021
+bounds:435,284,48,39
+offsets:31,17,117,87
+rotate: 90
+dyan0001
+bounds:140,401,38,17
+offsets:11,3,59,27
+dyan0002
+bounds:358,358,46,23
+offsets:7,1,59,27
+dyan0003
+bounds:354,284,52,24
+offsets:3,1,59,27
+rotate: 90
+dyan0004
+bounds:318,284,54,25
+offsets:2,1,59,27
+rotate: 90
+dyan0005
+bounds:282,284,56,25
+offsets:1,1,59,27
+rotate: 90
+dyan0006
+bounds:246,284,57,25
+offsets:1,1,59,27
+rotate: 90
+dyan0008
+bounds:190,401,46,16
+offsets:5,3,59,27
+dyan0009
+bounds:382,401,6,6
+offsets:12,12,59,27
+dyan007
+bounds:73,401,57,17
+offsets:1,2,59,27
+idyan0001
+bounds:1,401,18,62
+offsets:8,1,33,67
+rotate: 90
+idyan0002
+bounds:174,204,23,67
+offsets:5,0,33,67
+idyan0003
+bounds:209,204,27,66
+offsets:3,1,33,67
+idyan0005
+bounds:247,204,29,65
+offsets:2,1,33,67
+idyan0006
+bounds:246,358,30,64
+offsets:2,1,33,67
+rotate: 90
+idyan0007
+bounds:1,284,30,63
+offsets:1,1,33,67
+idyan0008
+bounds:120,358,31,52
+offsets:2,3,34,67
+rotate: 90
+idyan0009
+bounds:183,358,31,52
+offsets:0,3,33,67
+rotate: 90
+idyan0010
+bounds:1,358,33,51
+offsets:0,3,33,67
+rotate: 90
+idyan0011
+bounds:389,284,35,48
+offsets:1,3,36,67
+idyan0012
+bounds:62,358,31,47
+offsets:0,4,33,67
+rotate: 90
+q
+bounds:117,1,30,99
+offsets:14,8,55,120
+qqy0001
+bounds:379,204,64,25
+offsets:5,1,75,30
+rotate: 90
+qqy0003
+bounds:368,112,69,28
+offsets:2,1,75,30
+rotate: 90
+qqy0005
+bounds:407,112,69,28
+offsets:2,1,75,30
+rotate: 90
+qqy0007
+bounds:205,112,74,29
+offsets:0,1,75,30
+rotate: 90
+qqy0009
+bounds:296,112,72,25
+offsets:1,1,75,30
+rotate: 90
+qqy0011
+bounds:332,112,72,25
+offsets:1,1,75,30
+rotate: 90
+qqy0013
+bounds:88,204,68,25
+offsets:4,1,75,30
+rotate: 90
+qqy0015
+bounds:414,204,63,26
+offsets:5,2,75,30
+rotate: 90
+qqy0017
+bounds:451,204,63,26
+offsets:5,2,75,30
+rotate: 90
+qqy0019
+bounds:41,284,63,24
+offsets:6,2,75,30
+rotate: 90
+qqy0021
+bounds:75,284,60,24
+offsets:7,2,75,30
+rotate: 90
+qqy0023
+bounds:110,284,60,24
+offsets:7,2,75,30
+rotate: 90
+st1
+bounds:266,401,35,11
+st2
+bounds:312,401,9,11
+offsets:0,0,9,11
+st3
+bounds:400,401,5,6
+st4
+bounds:415,401,4,5
+st5
+bounds:350,401,5,7
+st6
+bounds:246,401,11,9
+offsets:0,0,11,9
+rotate: 90
+st7
+bounds:366,401,6,6
+offsets:1,0,6,6
+rotate: 90
+st8
+bounds:332,401,8,7
+offsets:0,0,8,7
+w1
+bounds:485,284,41,24
+offsets:0,0,41,24
+rotate: 90
+w2
+bounds:145,284,59,33
+offsets:0,0,59,33
+rotate: 90
+w3
+bounds:124,204,67,39
+offsets:0,0,68,39
+rotate: 90
+w4
+bounds:244,112,72,41
+offsets:0,0,72,41
+rotate: 90
+w5
+bounds:151,112,75,43
+rotate: 90

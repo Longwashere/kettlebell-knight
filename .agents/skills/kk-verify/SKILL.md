@@ -37,6 +37,9 @@ npm run shot -- encounter:kraken idle moves film:0:kraken_tidal_crash
 npm run shot -- encounter:solo_wolf idle film:0:wolf_phantom_pack
 npm run shot -- "encounter:wolf,boar,slime" idle film:2:slime_ooze_slam:10:10   # from a back formation slot
 
+# Spine VFX rigs (src/tv/engine/vfx.ts): sizes at size 1, and a contact sheet of one or all (needs an encounter up)
+npm run shot -- encounter:wolf idle vfxinfo vfxsheet vfxsheet:ice:8:1.5
+
 # Every animation in a monster's Spine rig as a contact sheet, cropped to that monster (pick animations for new moves).
 # For names/lengths/events without a browser use `npm run rigs -- boar`; portraits: `npm run shot -- portraits`
 npm run shot -- encounter:boar idle sheet:0

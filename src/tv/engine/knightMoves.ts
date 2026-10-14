@@ -24,6 +24,8 @@
  * Review with `npm run shot -- "encounter:wolf,boar,slime" idle kfilm:<templateId>:12:5:<slots>` (film strip).
  */
 import type { Container, Graphics } from 'pixi.js';
+import type { Spine } from '@esotericsoftware/spine-pixi-v8';
+import { sparkAnim, type VfxName, type VfxOpts } from './vfx';
 import type { ExerciseType } from '../../types/game';
 import { CARD_CATALOG, type CardRarity, type CardTarget } from '../../types/battle';
 import {
@@ -54,6 +56,7 @@ export interface KnightMoveContext {
   target: CardTarget;
   shatter: boolean;
   stagger: number; // seconds
+  color: number; // the card's colour (hit sparks match it)
   block: number; // Block this cast grants (show it with h.guard)
   heal: number;
 }
@@ -72,6 +75,8 @@ export interface KnightMoveHost {
   /** 'fx' draws over everything, 'back' behind the knight (wings, auras), 'ground' as floor decals. */
   gfx(layer?: Layer): Graphics;
   container(layer?: Layer): Container;
+  /** Plays a Spine VFX rig (vfx.ts) at (x, y) on `opts.layer` (default fx); null while the rigs load. */
+  vfx(name: VfxName, x: number, y: number, opts?: Omit<VfxOpts, 'layer'> & { layer?: Layer }): Spine | null;
 
   /** Plays a knight Spine animation (returns to IDLE after a one-shot). Returns its length in frames. */
   anim(name: string, loop?: boolean): number;
@@ -151,10 +156,38 @@ const shoulders = (h: KnightMoveHost): P => ({ x: h.pos().x - 4, y: h.pos().y - 
  * The contact beat: lands hit `i` (or all) and sells it with rarity-scaled hit-stop, shake, flash and a
  * hit-flash on the target. `scale` boosts or softens it (finishers > jabs).
  */
-function land(h: KnightMoveHost, i: number | undefined, o: { scale?: number; tint?: number; flash?: number; sfx?: SfxName } = {}) {
+type Burst = 'explosion' | 'crater' | 'quake' | 'fire' | 'ice' | 'poison' | 'portal' | 'slash';
+
+/** Themed Spine burst on a target as a hit lands: at its feet (crater/quake) or body (the rest). */
+function burst(h: KnightMoveHost, t: KnightTarget, kind: Burst, size: number) {
+  const body = { x: t.x - 4, y: t.y - t.height * 0.5 };
+  if (kind === 'crater' || kind === 'quake') h.vfx('shockwave', t.x, t.y - 10 * size, { size, anim: kind === 'quake' ? 'ShockWave_2' : 'ShockWave_1' });
+  else if (kind === 'explosion') h.vfx('explosion', body.x, body.y, { size });
+  else if (kind === 'fire') h.vfx('fire', body.x, body.y, { size, life: 30, loop: true });
+  else if (kind === 'ice') h.vfx('ice', body.x, body.y, { size, start: 66 });
+  else if (kind === 'poison') h.vfx('poison', body.x, body.y, { size });
+  else if (kind === 'portal') h.vfx('summon', body.x, body.y, { anim: 'animation2', size });
+  else h.vfx('slash', body.x, body.y, { size, life: 14 });
+}
+
+function land(h: KnightMoveHost, i: number | undefined, o: { scale?: number; tint?: number; flash?: number; sfx?: SfxName; spark?: number | false; burst?: Burst; burstSize?: number } = {}) {
   const w = WEIGHT[h.ctx.rarity];
   const s = o.scale ?? 1;
   h.impact(i);
+  if (o.spark !== false) {
+    // Spine hit spark on each target body, in the card's colour; epic+ and crits get the big variant
+    const heavy = h.ctx.crit || h.ctx.rarity === 'epic' || h.ctx.rarity === 'legendary';
+    for (const k of i === undefined ? h.targets.map((_, n) => n) : [i]) {
+      const t = h.targets[k];
+      if (t) h.vfx('hitSpark', t.x - 4, t.y - t.height * 0.5, { anim: sparkAnim(o.spark ?? h.ctx.color, heavy), size: (heavy ? 1 : 0.8) * Math.min(1.3, s) });
+    }
+  }
+  if (o.burst) {
+    for (const k of i === undefined ? h.targets.map((_, n) => n) : [i]) {
+      const t = h.targets[k];
+      if (t) burst(h, t, o.burst, o.burstSize ?? 1);
+    }
+  }
   h.hitStop(Math.round(w.stop * s) + (h.ctx.crit ? 2 : 0));
   h.shake(w.shake * s);
   h.flash(w.flash * s, o.flash);
@@ -439,7 +472,7 @@ function dragonWhirlwind(h: KnightMoveHost, tl: Timeline) {
     const passAt = SPIN_FROM + Math.round((SPIN_TO - SPIN_FROM) * Math.min(1, Math.max(0, (t.x - 20 - h.home.x) / (far - h.home.x))));
     hitFx(h, tl, passAt, chest(t), P_FIRE, 14);
     tl.at(passAt, () => {
-      land(h, i, { scale: 0.8 });
+      land(h, i, { scale: 0.8, burst: 'slash', burstSize: 1.1 });
       h.knock(i, 12, 8);
     });
   });
@@ -504,7 +537,7 @@ function titanGroundSlam(h: KnightMoveHost, tl: Timeline) {
   each(h).forEach((t, i) => {
     const at = LAND + Math.max(1, Math.round((t.x - (h.home.x + landAt.x)) / 10));
     tl.at(at, () => {
-      land(h, i, { scale: 0.85, tint: 0xFF8FA8 });
+      land(h, i, { scale: 0.85, tint: 0xFF8FA8, burst: 'crater' });
       h.knock(i, 4, 16);
       debris(h, { x: t.x, y: t.y }, 8);
     });
@@ -629,7 +662,7 @@ function colossusQuake(h: KnightMoveHost, tl: Timeline) {
       spike(g, t.x, t.y + 6, 58 * up, 11, 0x2E1A40, 0x6D28D9, 0xF3E8FF);
     });
     tl.at(at, () => {
-      land(h, i, { scale: 0.75, tint: 0xD8B4FE });
+      land(h, i, { scale: 0.75, tint: 0xD8B4FE, burst: 'quake', burstSize: 1.2 });
       h.knock(i, 6, 30);
       debris(h, { x: t.x, y: t.y }, 14, [...DIRT, 0xA855F7]);
     });
@@ -710,7 +743,7 @@ function heavenlyPillar(h: KnightMoveHost, tl: Timeline) {
     pillar(g, t0.x, 20, t0.y, w, P_HOLY, 1);
   });
   tl.at(SLAM, () => {
-    land(h, 0, { scale: 1.1, tint: 0xFFF1B8, flash: 0xFFF7D6 });
+    land(h, 0, { scale: 1.1, tint: 0xFFF1B8, flash: 0xFFF7D6, burst: 'crater', burstSize: 1.2 });
     h.camera(1.28, t0.x, c.y, 12, true);
     h.knock(0, 0, -6);
     shards(h, c, 20);
@@ -749,7 +782,7 @@ function arcaneScepter(h: KnightMoveHost, tl: Timeline) {
       },
       () => {
         if (last) {
-          land(h, 0, { tint: 0xBFDBFE, flash: 0xBFDBFE });
+          land(h, 0, { tint: 0xBFDBFE, flash: 0xBFDBFE, burst: 'portal', burstSize: 0.9 });
           h.knock(0, 8, 2);
         } else {
           h.flashTarget(0, 0xBFDBFE, 4);
@@ -808,7 +841,7 @@ function anvilBreaker(h: KnightMoveHost, tl: Timeline) {
   ringFx(h, tl, HIT, { x: t0.x, y: t0.y }, 6, 90, 0xF97316, 18, 4);
   crackFx(h, tl, HIT, { x: t0.x - 30, y: t0.y + 2 }, { x: t0.x + 30, y: t0.y - 2 }, P_FORGE, 6, 40);
   tl.at(HIT, () => {
-    land(h, 0, { scale: 1.2, tint: 0xFFB37A, flash: 0xFFD7B0 });
+    land(h, 0, { scale: 1.2, tint: 0xFFB37A, flash: 0xFFD7B0, burst: 'crater', burstSize: 1.2 });
     h.camera(1.28, t0.x - 10, c.y, 10, true);
     h.knock(0, 6, -8);
     h.stretch(1.1, 0.92);
@@ -866,7 +899,7 @@ function stormbreakerCleaver(h: KnightMoveHost, tl: Timeline) {
     const at = BURST + i * 3;
     hitFx(h, tl, at, chest(t), P_STORM, 18);
     tl.at(at, () => {
-      land(h, i, { scale: 1.1, tint: 0xFFD08A, flash: 0xFFE7C2 });
+      land(h, i, { scale: 1.1, tint: 0xFFD08A, flash: 0xFFE7C2, burst: 'slash', burstSize: 1.3 });
       h.knock(i, 14, 8);
     });
   });
@@ -924,7 +957,7 @@ function phoenixAscension(h: KnightMoveHost, tl: Timeline) {
     wing(g, c.x, c.y, 46 * easeOut(t), 1, 1, P_FIRE, 1 - t);
   });
   tl.at(HIT, () => {
-    land(h, 0, { tint: 0xFF9C7A, flash: 0xFFD0B0 });
+    land(h, 0, { tint: 0xFF9C7A, flash: 0xFFD0B0, burst: 'fire', burstSize: 1.2 });
     h.knock(0, 12, 14);
     embers(h, c, 18);
   });
@@ -1005,7 +1038,7 @@ function solarTalon(h: KnightMoveHost, tl: Timeline) {
   tl.at(HIT, () => {
     h.tint(0xFFFFFF);
     h.anim('LANDING_END');
-    land(h, 0, { scale: 1.2, tint: 0xFFE0A0, flash: 0xFFF3D6 });
+    land(h, 0, { scale: 1.2, tint: 0xFFE0A0, flash: 0xFFF3D6, burst: 'fire', burstSize: 1.3 });
     h.camera(1.36, c.x, c.y, 14, true);
     h.knock(0, 22, 14);
     embers(h, c, 26);
@@ -1247,7 +1280,7 @@ function mountainSunder(h: KnightMoveHost, tl: Timeline) {
     const at = RIDGE + Math.max(0, k) * 2;
     hitFx(h, tl, at, chest(t), P_AMBER, 22, [0xD97706, 0xFEF3C7, 0xFFFFFF]);
     tl.at(at, () => {
-      land(h, i, { scale: i === 0 ? 1.15 : 0.9, tint: 0xFDE68A, flash: 0xFFF1D0 });
+      land(h, i, { scale: i === 0 ? 1.15 : 0.9, tint: 0xFDE68A, flash: 0xFFF1D0, burst: 'quake', burstSize: i === 0 ? 1.3 : 1 });
       if (i === 0) h.camera(1.3, t.x, t.y - 30, 10, true);
       h.knock(i, 10, 32);
       shards(h, chest(t), 14);
@@ -1298,7 +1331,7 @@ function solarEruption(h: KnightMoveHost, tl: Timeline) {
   ringFx(h, tl, HIT, { x: t0.x, y: t0.y }, 8, 110, 0xF59E0B, 20, 4);
   drawSpan(h, tl, HIT, HIT + 50, (g, t) => scorch(g, t0.x, t0.y, 20, EMBER, 1 - t), 'ground');
   tl.at(HIT, () => {
-    land(h, 0, { tint: 0xFFC48A, flash: 0xFFE2B8 });
+    land(h, 0, { tint: 0xFFC48A, flash: 0xFFE2B8, burst: 'explosion', burstSize: 1.4 });
     h.camera(1.22, t0.x, c.y, 10, true);
     h.knock(0, 10, 12);
     embers(h, c, 20);
@@ -1356,7 +1389,7 @@ function supernovaSurge(h: KnightMoveHost, tl: Timeline) {
     const at = NOVA + 3 + i * 2;
     hitFx(h, tl, at, chest(t), P_SUN, 18, [GOLD, 0xFFFBEB, 0xFFFFFF]);
     tl.at(at, () => {
-      land(h, i, { scale: 0.85, tint: 0xFFE6A0, flash: 0xFFF7D6 });
+      land(h, i, { scale: 0.85, tint: 0xFFE6A0, flash: 0xFFF7D6, burst: 'explosion', burstSize: 1.2 });
       h.knock(i, 18, 10);
       embers(h, chest(t), 8);
     });
@@ -1548,7 +1581,7 @@ function astralVortex(h: KnightMoveHost, tl: Timeline) {
   foes.forEach((t, i) => {
     const at = ARRIVE + 10 + i * 6;
     hitFx(h, tl, at, chest(t), P_VIOLET, 11);
-    tl.at(at, () => land(h, i, { scale: 0.6, tint: 0xE9D5FF }));
+    tl.at(at, () => land(h, i, { scale: 0.6, tint: 0xE9D5FF, burst: 'portal', burstSize: 0.8 }));
   });
   // Collapse and burst
   hitFx(h, tl, BURST, { x: cx, y: cy }, P_VIOLET, 30);
@@ -1862,6 +1895,7 @@ export function knightMoveCard(id: KnightMoveId): Omit<KnightMoveContext, 'power
     target: c?.target ?? 'SINGLE',
     shatter: !!c?.shatter,
     stagger: c?.stagger ?? 0,
+    color: c ? parseInt(c.colorHex.slice(1), 16) : 0xF4B41A,
     block: c?.block ?? 0,
     heal: c?.heal ?? 0,
   };

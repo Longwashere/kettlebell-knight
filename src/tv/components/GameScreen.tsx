@@ -12,6 +12,7 @@ import { EquipmentItem, HubLocation, RepTelemetry, ExerciseType } from '../../ty
 import { audioManager } from '../../shared/AudioManager';
 import { registerDebug } from '../debug/agentBridge';
 import type { MonsterMoveId } from '../../types/battle';
+import type { VfxName } from '../engine/vfx';
 import { BATTLE_MAPS, BattleMapId } from '../engine/GameEngine';
 import { 
   Tv, 
@@ -161,6 +162,7 @@ export const GameScreen: React.FC = () => {
       knightMove: (id: string, targets?: number[], damage?: number) => engineRef.current?.debugKnightMove(id, targets, damage),
       monsterMove: (slot: number, move: MonsterMoveId, selfTarget?: boolean) => engineRef.current?.debugMonsterMove(slot, move, selfTarget),
       moveTrace: () => engineRef.current?.debugMoveTrace() ?? null,
+      vfxPose: (name: VfxName | null, anim?: string, time?: number, size?: number) => engineRef.current?.debugVfxPose(name, anim, time, size),
       background: (key: string) =>
         engineRef.current?.loadBackground(BATTLE_MAPS[key.toUpperCase() as BattleMapId] ?? key),
     },

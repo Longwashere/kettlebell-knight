@@ -8,8 +8,9 @@ import type { MonsterMoveId } from '../../../types/battle';
 import { lerp, easeIn, easeOut, easeInOut, arc, rand, INK, BONE, BLOOD, BLOOD_DARK, EMBER, GOLD, DIRT, SHADOW, SMOKE } from '../choreo';
 import * as fx from '../fxKit';
 import {
-  type MoveFn, type MoveHost, contact, chest, head, travel, dustAtFeet, drawSpan, projectile, spike, orb, sigil, retreat,
-  crown, feet, land, chip, dimSpan, chargeTint, tremble, puff, blink, warnRing, shoutRings, beam, hexWard, guard, lean,
+  type MoveFn, type MoveHost, contact, chest, head, travel, dustAtFeet, drawSpan, projectile, spike, orb,
+  sigil, retreat, crown, feet, land, chip, crater, boom, toxic, shatter, circle, portal, regen, flame, blaze,
+  spark, dimSpan, chargeTint, tremble, puff, blink, warnRing, shoutRings, beam, hexWard, guard, lean,
 } from '../monsterKit';
 
 const STEEL = [0xA8A29E, 0xD6D3D1, 0xFFFFFF, 0x78716C];
@@ -47,6 +48,7 @@ const orcAxeChop: MoveFn = (h, tl) => {
     h.tilt(-0.2);
     land(h, { kb: 12, shake: 13, stop: 6, flash: 0.3, zoom: 1.24, colors: [...STEEL, BLOOD], ring: 0x8B5A2B });
     h.emit(feet(h).x + 10, feet(h).y, { count: 14, colors: DIRT, speed: [1, 3], angle: -Math.PI / 2, spread: 0.9, gravity: 0.2, size: 3, life: [14, 22] });
+    crater(h, feet(h).x + 12, feet(h).y, 0.8, 'ShockWave_3');
   });
   tl.during(46, 56, (t) => h.tilt(lerp(-0.2, 0, t)));
   tl.at(60, () => h.anim('Run', true));
@@ -106,6 +108,7 @@ const orcWarCrySlam: MoveFn = (h, tl) => {
     dustAtFeet(h, 12, 1);
     h.shockwave(h.pos().x, h.pos().y, 0x8B5A2B);
     h.shockwave(h.pos().x, h.pos().y, 0xFDE047);
+    crater(h, h.pos().x - 10, h.pos().y, 1.2);
     land(h, { kb: 16, shake: 16, stop: 7, flash: 0.4, zoom: 1.28, colors: [...DIRT, BONE] });
   });
   // Cracked earth spokes under the impact
@@ -248,6 +251,7 @@ const trollRegrowth: MoveFn = (h, tl) => {
     }
   });
   tl.at(28, () => h.text('+REGEN', h.pos().x, h.pos().y - h.height - 6, 0x86EFAC, 8));
+  tl.at(6, () => regen(h, 1.3));
   tl.end(62);
 };
 
@@ -295,6 +299,7 @@ const trollBoulderToss: MoveFn = (h, tl) => {
     () => {
       const p = feet(h);
       h.emit(p.x, p.y - 10, { count: 34, colors: [...ROCK, ...DIRT, ...MOSS], speed: [1.5, 4.5], angle: -Math.PI / 2, spread: 1.3, gravity: 0.2, size: 3, life: [16, 30] });
+      crater(h, p.x, p.y, 1.3);
       land(h, { kb: 18, shake: 17, stop: 8, flash: 0.4, zoom: 1.28, colors: [...ROCK, BONE], ring: 0x78716C });
     });
   tl.end(96);
@@ -361,6 +366,7 @@ const minoLabyrinthCharge: MoveFn = (h, tl) => {
   tl.at(58, () => {
     h.tilt(0);
     h.shockwave(h.knight.x, h.knight.y, 0xE7D8B0);
+    crater(h, h.knight.x + 6, h.knight.y, 1.3);
     land(h, { kb: 26, shake: 20, stop: 9, flash: 0.7, zoom: 1.34, colors: [BONE, BLOOD, 0xFFFFFF], ring: 0xA8A29E });
   });
   drawSpan(h, tl, 58, 72, (g, t) => fx.starburst(g, chest(h).x, chest(h).y, 40 * easeOut(t), 10, 0.2, fx.pal(BLOOD, 0xFFFFFF), 1 - t));
@@ -383,6 +389,7 @@ const minoClubCrush: MoveFn = (h, tl) => {
     h.tilt(0);
     h.stretch(1.15, 0.88);
     h.shockwave(feet(h).x, feet(h).y, 0x8B5A2B);
+    crater(h, feet(h).x, feet(h).y, 1.3, 'ShockWave_2');
     land(h, { kb: 16, shake: 17, stop: 8, flash: 0.4, zoom: 1.3, colors: [...DIRT, BONE] });
   });
   tl.during(30, 40, (t) => h.stretch(lerp(1.15, 1, t), lerp(0.88, 1, t)));
@@ -437,6 +444,7 @@ const minoBellow: MoveFn = (h, tl) => {
       },
       () => {
         h.emit(h.knight.x + dx, h.knight.y - 8, { count: 16, colors: ROCK, speed: [1, 3], angle: -Math.PI / 2, spread: 1.2, gravity: 0.2, size: 3, life: [14, 24] });
+        crater(h, h.knight.x + dx, h.knight.y, i < 2 ? 0.7 : 1.1, 'ShockWave_3');
         if (i < 2) {
           h.shake(8);
           h.sound('hit');
@@ -462,6 +470,7 @@ const dkBlackBlade: MoveFn = (h, tl) => {
   drawSpan(h, tl, 26, 40, (g, t) => cleave(g, h, t, -Math.PI * 0.8, Math.PI * 1.25, 30, 9, 0x7C3AED, 0xF0ABFC));
   tl.at(30, () => {
     h.emit(chest(h).x, chest(h).y, { count: 18, colors: DARKFLAME, speed: [1, 3], angle: -Math.PI / 2, spread: 1.2, gravity: -0.05, size: 3, life: [16, 26] });
+    h.vfx('fire', chest(h).x, chest(h).y, { size: 0.8, life: 30, loop: true, tint: 0xC9A0FF });
     land(h, { kb: 12, shake: 12, stop: 6, flash: 0.4, color: 0x7C3AED, zoom: 1.24, colors: [...DARKFLAME, BONE] });
   });
   // Shadow-flame clings to the knight
@@ -572,6 +581,7 @@ const emperorImperialSlash: MoveFn = (h, tl) => {
   drawSpan(h, tl, 20, 32, (g, t) => cleave(g, h, t, -Math.PI * 0.75, Math.PI * 1.2, 30, 9, GOLD, 0xFFFFFF));
   drawSpan(h, tl, 28, 40, (g, t) => cleave(g, h, t, Math.PI * 0.6, -Math.PI * 1.1, 34, 9, 0x7C3AED, 0xF0ABFC));
   tl.at(22, () => chip(h, [GOLD, BONE], 5, 7));
+  tl.at(20, () => blaze(h, chest(h).x + 8, chest(h).y - 4, 1.3));
   tl.at(30, () => land(h, { kb: 14, shake: 14, stop: 7, flash: 0.45, color: GOLD, zoom: 1.28, colors: [GOLD, ...VOID, BONE] }));
   tl.at(44, () => h.anim('pose_move_back', true));
   retreat(h, tl, 44, 66, c);
@@ -589,6 +599,8 @@ const emperorSovereignRuin: MoveFn = (h, tl) => {
   dimSpan(h, tl, 0, 130, 0.75, 0x05010A);
   // A void portal tears open above the knight
   tl.at(26, () => h.camera(1.12, h.knight.x + 10, h.knight.y - 60, 80));
+  tl.at(20, () => portal(h, h.knight.x + 6, h.knight.y - 130, 1.5));
+  tl.at(30, () => circle(h, h.knight.x + 6, h.knight.y + 1, 1.3, 60));
   drawSpan(h, tl, 20, 110, (g, t, f) => {
     const open = easeOut(Math.min(1, f / 20));
     const fade = f > 74 ? 1 - (f - 74) / 16 : 1;
@@ -614,6 +626,8 @@ const emperorSovereignRuin: MoveFn = (h, tl) => {
     h.emit(kx(), h.knight.y - 10, { count: 44, colors: [...VOID, GOLD, BONE], speed: [2, 5.5], angle: -Math.PI / 2, spread: 1.4, gravity: 0.15, size: 3, life: [18, 32] });
     h.shockwave(kx(), h.knight.y, 0xA855F7);
     h.shockwave(kx(), h.knight.y, GOLD);
+    boom(h, kx(), h.knight.y - 16, 1.7);
+    crater(h, kx(), h.knight.y, 1.4, 'ShockWave_2');
     land(h, { kb: 20, shake: 22, stop: 12, flash: 0.8, color: 0xF0ABFC, zoom: 1.34, colors: [...VOID, GOLD, BONE] });
   });
   drawSpan(h, tl, 76, 92, (g, t) => fx.starburst(g, kx(), h.knight.y - 20, 50 * easeOut(t), 12, 0.2, fx.pal(0x7C3AED, 0xFFFFFF), 1 - t));
@@ -644,6 +658,7 @@ const emperorShadowLegion: MoveFn = (h, tl) => {
     h.camera(1.06, 220, 130, 120);
     h.sound('level_up');
   });
+  tl.at(6, () => [0, 1, 2].forEach((i) => circle(h, 380 - i * 10, h.knight.y + [-6, 6, 0][i], 0.7, 56)));
   dimSpan(h, tl, 0, 124, 0.6, 0x05010A);
   // Sigils open on the floor behind the knight's line
   drawSpan(h, tl, 6, 60, (g, t, f) => {
@@ -810,6 +825,7 @@ const stagMoonBellow: MoveFn = (h, tl) => {
     drawSpan(h, tl, f, f + 16, (g, t) => fx.pillar(g, h.knight.x + 6 + dx, 40, h.knight.y + 2, (last ? 22 : 14) * (1 - t * 0.6), fx.pal(0x67E8F9, 0xFFFFFF), 1 - t));
     tl.at(f, () => {
       h.emit(h.knight.x + 6 + dx, h.knight.y - 4, { count: 14, colors: SPECTRAL, speed: [1, 3], angle: -Math.PI / 2, spread: 1, gravity: -0.02, size: 2, life: [14, 24] });
+      h.vfx('ice', h.knight.x + 6 + dx, h.knight.y - 10, { size: last ? 1 : 0.6, start: 66, tint: 0xCFFAFE });
       if (!last) {
         h.shake(6);
         h.sound('hit');

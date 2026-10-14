@@ -8,7 +8,7 @@ import { lerp, easeIn, easeOut, easeInOut, arc, rand, INK, BONE, BLOOD, EMBER, G
 import * as fx from '../fxKit';
 import {
   type MoveFn, type MoveHost, contact, chest, head, travel, drawSpan, projectile, orb, sigil, retreat,
-  crown, feet, land, chip, dimSpan, chargeTint, tremble, puff, warnRing, puddle, shoutRings, beam, tentacle,
+  crown, feet, land, chip, crater, boom, toxic, shatter, circle, portal, regen, flame, blaze, spark, dimSpan, chargeTint, tremble, puff, warnRing, puddle, shoutRings, beam, tentacle,
   flier, orbitRing, hexWard, guard, lean,
 } from '../monsterKit';
 
@@ -91,6 +91,7 @@ const mageShadowBolt: MoveFn = (h, tl) => {
       const p = chest(h);
       h.emit(p.x, p.y, { count: 24, colors: HEX, speed: [1.5, 4], spread: Math.PI, gravity: -0.02, size: 3, life: [14, 24] });
       h.shockwave(p.x, p.y, 0x7C3AED);
+      portal(h, p.x, p.y, 0.8);
       land(h, { kb: 10, shake: 10, stop: 5, flash: 0.35, color: 0x7C3AED, zoom: 1.2, colors: HEX });
     },
     (x, y) => h.emit(x + 6, y, { count: 1, colors: HEX, speed: [0.2, 0.6], angle: 0, spread: 0.6, gravity: -0.03, size: 2, life: [10, 16] }));
@@ -105,6 +106,7 @@ const mageDoomCurse: MoveFn = (h, tl) => {
   });
   dimSpan(h, tl, 0, 110, 0.6, 0x12021F);
   tl.at(30, () => h.camera(1.28, h.knight.x + 6, h.knight.y - 34, 70));
+  tl.at(16, () => circle(h, h.knight.x + 6, h.knight.y + 1, 1.2, 84));
   drawSpan(h, tl, 16, 100, (g, t, f) => {
     const p = feet(h);
     const fade = f > 70 ? 1 - (f - 70) / 14 : 1;
@@ -126,6 +128,7 @@ const mageDoomCurse: MoveFn = (h, tl) => {
   tl.at(74, () => {
     const p = chest(h);
     h.emit(p.x, p.y, { count: 40, colors: HEX, speed: [2, 5], spread: Math.PI, gravity: -0.02, size: 3, life: [16, 28] });
+    portal(h, p.x, p.y, 1.3);
     land(h, { kb: 16, shake: 16, stop: 8, flash: 0.6, color: 0xA855F7, colors: [...HEX, BONE], ring: 0x7C3AED });
   });
   drawSpan(h, tl, 74, 90, (g, t) => {
@@ -136,6 +139,7 @@ const mageDoomCurse: MoveFn = (h, tl) => {
 
 const mageNetherWard: MoveFn = (h, tl) => {
   tl.at(0, () => h.anim('skill1'));
+  tl.at(4, () => circle(h, h.pos().x, h.pos().y + 1, 1.1, 54));
   guard(h, tl, 4, HEX, (g, cx, cy, grow, fade, f) => {
     fx.runeCircle(g, cx, cy + h.height * 0.5, 30 * grow, f * 0.05, fx.pal(0x7C3AED, 0xF0ABFC), fade);
     hexWard(g, cx, cy, 36 * grow, f * 0.02, 0xA855F7, 0xF0ABFC, fade);
@@ -217,6 +221,7 @@ const prophetEldritchSigil: MoveFn = (h, tl) => {
     drawSpan(h, tl, pop, pop + 10, (g, t) => fx.starburst(g, feet(h).x + dx, feet(h).y + dy, (last ? 26 : 14) * easeOut(t), 6, i, fx.pal(0x6366F1, 0xF472B6), 1 - t));
     tl.at(pop, () => {
       h.emit(feet(h).x + dx, feet(h).y + dy, { count: last ? 30 : 10, colors: COSMIC, speed: [1, 3.5], spread: Math.PI, gravity: 0, size: 2, life: [12, 22] });
+      portal(h, feet(h).x + dx, feet(h).y + dy, last ? 1 : 0.5, 0xF9A8D4);
       if (!last) chip(h, COSMIC, 3, 4);
       else land(h, { kb: 12, shake: 13, stop: 6, flash: 0.45, color: 0x6366F1, colors: COSMIC });
     });
@@ -232,6 +237,8 @@ const prophetCosmicRift: MoveFn = (h, tl) => {
   });
   dimSpan(h, tl, 0, 130, 0.8, 0x02010A);
   tl.at(30, () => h.camera(1.08, h.knight.x + 10, h.knight.y - 60, 90));
+  tl.at(20, () => portal(h, h.knight.x + 6, h.knight.y - 130, 1.5, 0xF9A8D4));
+  tl.at(40, () => circle(h, h.knight.x + 6, h.knight.y + 1, 1.3, 70, 0xF9A8D4));
   // A tear in the sky above the knight, full of stars
   const stars = Array.from({ length: 18 }, () => ({ x: rand(-30, 30), y: rand(-6, 6), s: rand(0.5, 1.5) }));
   drawSpan(h, tl, 20, 116, (g, t, f) => {
@@ -295,6 +302,7 @@ const prophetVoidTendrils: MoveFn = (h, tl) => {
     }, 'fx');
     tl.at(f, () => {
       h.emit(feet(h).x + dx, h.knight.y - 2, { count: 8, colors: COSMIC, speed: [0.6, 2], angle: -Math.PI / 2, spread: 0.6, gravity: 0, size: 2, life: [12, 20] });
+      portal(h, feet(h).x + dx, h.knight.y - 4, 0.45, 0xF9A8D4);
       if (i < roots.length - 1) chip(h, COSMIC, 3, 5);
       else land(h, { kb: 12, shake: 13, stop: 6, flash: 0.4, color: 0x6366F1, zoom: 1.26, colors: COSMIC });
     });
@@ -329,6 +337,7 @@ const bishopAshLiturgy: MoveFn = (h, tl) => {
     });
     tl.at(f0 + 34, () => {
       h.emit(chest(h).x, chest(h).y, { count: 6, colors: FIRE, speed: [0.8, 2], spread: Math.PI, gravity: -0.03, size: 2, life: [12, 18] });
+      h.vfx('fire', chest(h).x + (i % 3 - 1) * 10, chest(h).y + (i % 2 ? -10 : 10), { size: 0.45 });
       if (i < 5) {
         if (i % 2) chip(h, FIRE, 2, 4);
       } else land(h, { kb: 10, shake: 12, stop: 6, flash: 0.4, color: EMBER, zoom: 1.22, colors: [...FIRE, ...ASH] });
@@ -346,6 +355,9 @@ const bishopProfanePillar: MoveFn = (h, tl) => {
   });
   dimSpan(h, tl, 0, 140, 0.8, 0x0A0302);
   tl.at(30, () => h.camera(1.1, h.knight.x + 10, h.knight.y - 60, 100));
+  tl.at(34, () => circle(h, h.knight.x + 6, h.knight.y + 1, 1.3, 80, 0xFF9966));
+  flame(h, tl, 82, 32, () => ({ x: h.knight.x + 6, y: h.knight.y - 18 }), 1.2);
+  tl.at(82, () => boom(h, h.knight.x + 6, h.knight.y - 20, 1.5));
   // A black sun appears above the knight
   drawSpan(h, tl, 20, 120, (g, t, f) => {
     const open = easeOut(Math.min(1, f / 24));
@@ -386,6 +398,7 @@ const bishopProfanePillar: MoveFn = (h, tl) => {
 
 const bishopAegis: MoveFn = (h, tl) => {
   tl.at(0, () => h.anim(`${BISHOP}006B_Defense`));
+  tl.at(6, () => circle(h, h.pos().x, h.pos().y + 1, 1.4, 54, 0xFF9966));
   guard(h, tl, 6, [...FIRE, ...ASH], (g, cx, cy, grow, fade, f) => {
     fx.runeCircle(g, cx, cy + h.height * 0.5, 40 * grow, f * 0.04, fx.pal(BLOOD, GOLD), fade);
     hexWard(g, cx, cy, 46 * grow, f * 0.01, EMBER, GOLD, fade);
@@ -429,8 +442,10 @@ const bishopBrimstoneCenser: MoveFn = (h, tl) => {
   });
   tl.every(4, 52, 2, () => h.emit(tip.x, tip.y, { count: 2, colors: [...FIRE, ...ASH], speed: [0.2, 0.8], angle: -Math.PI / 2, spread: 1, gravity: -0.02, size: 2, life: [16, 26] }));
   tl.every(10, 44, 9, () => h.sound('swing'));
+  flame(h, tl, 4, 50, () => tip, 0.45);
   tl.at(52, () => {
     h.emit(chest(h).x, chest(h).y, { count: 34, colors: [...FIRE, ...ASH], speed: [1.5, 4.5], spread: Math.PI, gravity: 0.05, size: 3, life: [16, 28] });
+    boom(h, chest(h).x, chest(h).y, 1.2);
     land(h, { kb: 16, shake: 15, stop: 8, flash: 0.5, color: EMBER, zoom: 1.28, colors: [...FIRE, BONE], ring: EMBER });
   });
   puddle(h, tl, 52, 110, 26, 0x1C1917, EMBER);
@@ -463,6 +478,7 @@ const horrorTentacleGrasp: MoveFn = (h, tl) => {
     tl.at(f, () => h.emit(feet(h).x + dx, h.knight.y, { count: 8, colors: [...ELDER, 0x57534E], speed: [1, 2.5], angle: -Math.PI / 2, spread: 0.7, gravity: 0.15, size: 3, life: [12, 20] }));
   });
   tl.at(34, () => h.camera(1.28, h.knight.x + 6, h.knight.y - 30, 40));
+  tl.at(12, () => circle(h, h.knight.x + 6, h.knight.y + 1, 1.2, 66, 0x86EFAC));
   [38, 48].forEach((f) => tl.at(f, () => chip(h, ELDER, 3, 6)));
   tl.at(60, () => land(h, { kb: 12, shake: 15, stop: 8, flash: 0.45, color: 0x22C55E, colors: [...ELDER, BONE] }));
   tl.end(84);
@@ -510,6 +526,7 @@ const horrorCosmicMadness: MoveFn = (h, tl) => {
   [70, 82, 94].forEach((f) => tl.at(f, () => chip(h, [0x22C55E, 0xF472B6, 0x6366F1], 5, 8)));
   // The gaze lands
   tl.at(96, () => h.sound('crit'));
+  tl.at(102, () => portal(h, chest(h).x, chest(h).y, 1.4, 0x86EFAC));
   drawSpan(h, tl, 100, 118, (g, t) => {
     const x = lerp(213, h.knight.x, 0.25);
     const e = chest(h);
@@ -521,6 +538,7 @@ const horrorCosmicMadness: MoveFn = (h, tl) => {
 
 const horrorVoidDistortion: MoveFn = (h, tl) => {
   tl.at(0, () => h.anim('move'));
+  tl.at(4, () => circle(h, h.pos().x, h.pos().y + 1, 1.6, 54, 0x86EFAC));
   guard(h, tl, 4, [...ELDER, ...COSMIC], (g, cx, cy, grow, fade, f) => {
     // Space folds: concentric warped rings
     for (let k = 0; k < 4; k++) {
@@ -577,6 +595,7 @@ const horrorAbyssalGaze: MoveFn = (h, tl) => {
     g.moveTo(h.knight.x + 70, h.knight.y + 2).lineTo(h.knight.x, h.knight.y + 1).stroke({ width: 2, color: 0x22C55E, alpha: 1 - t });
   }, 'ground');
   tl.at(68, () => chip(h, ELDER, 4, 8));
+  tl.at(78, () => portal(h, chest(h).x, chest(h).y, 1.2, 0x86EFAC));
   tl.at(78, () => land(h, { kb: 18, shake: 18, stop: 10, flash: 0.7, color: 0xA7F3D0, colors: [...ELDER, 0xFFFFFF] }));
   tl.end(126);
 };
@@ -766,6 +785,7 @@ const krakenMaelstrom: MoveFn = (h, tl) => {
     tl.at(f, () => h.emit(feet(h).x + dx, h.knight.y - 2, { count: 10, colors: [...WATER, 0xFFFFFF], speed: [1, 3], angle: -Math.PI / 2, spread: 0.6, gravity: 0.2, size: 2, life: [12, 20] }));
   });
   tl.every(60, 106, 4, () => h.shake(4));
+  tl.at(12, () => circle(h, h.knight.x + 6, h.knight.y + 1, 1.4, 120, 0x7FD4FF));
   [66, 80, 94].forEach((f) => tl.at(f, () => chip(h, [...WATER, 0xFDBA74], 3, 6)));
   tl.at(108, () => land(h, { kb: 18, shake: 20, stop: 10, flash: 0.6, color: 0xBAE6FD, zoom: 1.3, colors: [...WATER, 0xFDBA74, BONE], ring: 0x0EA5E9 }));
   tl.at(140, () => h.idle());
@@ -799,6 +819,7 @@ const krakenInkCloud: MoveFn = (h, tl) => {
   tl.during(30, 90, (t) => h.dim(0.4 * arc(t), 0x020617));
   tl.every(30, 70, 2, () => h.emit(chest(h).x + rand(-20, 20), chest(h).y + rand(-20, 20), { count: 1, colors: [0x312E81, 0x6366F1], speed: [0.2, 0.8], spread: Math.PI, gravity: 0.06, size: 2, life: [14, 22] }));
   [42, 54].forEach((f) => tl.at(f, () => chip(h, INK_BLK, 3, 5)));
+  tl.at(36, () => h.vfx('poison', chest(h).x, chest(h).y, { size: 1.5, tint: 0x6A5ACD }));
   tl.at(66, () => land(h, { kb: 12, shake: 13, stop: 6, flash: 0.3, color: 0x6366F1, colors: [...INK_BLK, 0x6366F1, BONE] }));
   puddle(h, tl, 60, 130, 34, 0x020617, 0x312E81);
   tl.end(130);

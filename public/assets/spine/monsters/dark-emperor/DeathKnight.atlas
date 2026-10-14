@@ -1,127 +1,127 @@
 DeathKnight.png
 pma: false
-size:2618,2618
+size:1309,1309
 filter:Linear,Linear
 elite/armL1
-bounds:3,56,307,447
+bounds:2,28,154,224
 rotate: 90
 elite/armL1_crack
-bounds:1799,567,194,264
+bounds:900,284,97,132
 rotate: 90
 elite/armL2
-bounds:2066,570,234,191
+bounds:1033,285,117,96
 elite/armL2_1
-bounds:848,23,199,291
+bounds:424,12,100,146
 rotate: 90
 elite/armR1
-bounds:848,225,263,391
+bounds:424,113,132,196
 rotate: 90
 elite/clothCenter
-bounds:957,761,184,558
+bounds:479,381,92,279
 rotate: 90
 elite/clothL
-bounds:845,491,267,502
+bounds:423,246,134,251
 rotate: 90
 elite/clothR
-bounds:339,387,101,464
+bounds:170,194,51,232
 rotate: 90
 elite/footL
-bounds:2420,390,172,186
+bounds:1210,195,86,93
 elite/footR
-bounds:2043,291,273,198
+bounds:1022,146,137,99
 rotate: 90
 elite/handL
-bounds:2288,212,126,166
+bounds:1144,106,63,83
 elite/handL_1
-bounds:2303,579,187,188
+bounds:1152,290,94,94
 elite/handL_2
-bounds:1553,567,243,264
+bounds:777,284,122,132
 elite/handL_3
-bounds:2079,32,256,206
+bounds:1040,16,128,103
 rotate: 90
 elite/head1
-bounds:1608,290,274,215
+bounds:804,145,137,108
 rotate: 90
 elite/head2
-bounds:1608,72,275,215
+bounds:804,36,138,108
 elite/legL2
-bounds:1874,1040,229,339
+bounds:937,520,115,170
 elite/legR2
-bounds:2339,1037,229,331
+bounds:1170,519,115,166
 elite/ranseur
-bounds:200,843,193,1772
+bounds:100,422,97,886
 elite/shield1
-bounds:821,1373,421,1242
+bounds:411,687,211,621
 elite/shield2
-bounds:396,948,422,1242
+bounds:198,474,211,621
 rotate: 90
 elite/torso
-bounds:1670,1382,391,615
+bounds:835,691,196,308
 elite/waist
-bounds:2064,1844,387,384
+bounds:1032,922,194,192
 normal/armL1
-bounds:2064,1394,308,447
+bounds:1032,697,154,224
 normal/armL1_crack
-bounds:1641,834,194,264
+bounds:821,417,97,132
 rotate: 90
 normal/armL2
-bounds:1886,53,234,190
+bounds:943,27,117,95
 rotate: 90
 normal/armL2_1
-bounds:1350,467,200,291
+bounds:675,234,100,146
 normal/armR1
-bounds:453,122,262,392
+bounds:227,61,131,196
 rotate: 90
 normal/clothCenter
-bounds:396,761,184,558
+bounds:198,381,92,279
 rotate: 90
 normal/clothL
-bounds:339,491,267,503
+bounds:170,246,134,252
 rotate: 90
 normal/clothR
-bounds:2454,2151,101,464
+bounds:1227,1076,51,232
 normal/footL
-bounds:2244,381,173,186
+bounds:1122,191,87,93
 normal/footR
-bounds:1908,764,273,198
+bounds:954,382,137,99
 rotate: 90
 normal/groin
-bounds:1242,227,363,237
+bounds:621,114,182,119
 elite/groin
-bounds:1242,227,363,237
+bounds:621,114,182,119
 normal/handL
-bounds:2454,1982,126,166
+bounds:1227,991,63,83
 normal/handL_1
-bounds:1401,36,188,188
+bounds:701,18,94,94
 normal/handL_2
-bounds:2327,770,243,264
+bounds:1164,385,122,132
 normal/handL_3
-bounds:1142,17,256,205
+bounds:571,9,128,103
 normal/head1
-bounds:2109,782,274,215
+bounds:1055,391,137,108
 rotate: 90
 normal/head2
-bounds:1826,290,274,214
+bounds:913,145,137,107
 rotate: 90
 normal/legL1
-bounds:3,366,333,474
+bounds:2,183,167,237
 elite/legL1
-bounds:3,366,333,474
+bounds:2,183,167,237
 normal/legL2
-bounds:1641,1031,230,339
+bounds:821,516,115,170
 normal/legR1
-bounds:2375,1371,240,470
+bounds:1188,686,120,235
 elite/legR1
-bounds:2375,1371,240,470
+bounds:1188,686,120,235
 normal/legR2
-bounds:2106,1059,230,332
+bounds:1053,530,115,166
 normal/ranseur
-bounds:3,843,194,1772
+bounds:2,422,97,886
 normal/shield1
-bounds:396,1373,422,1242
+bounds:198,687,211,621
 normal/shield2
-bounds:1245,1373,422,1242
+bounds:623,687,211,621
 normal/torso
-bounds:1670,2000,391,615
+bounds:835,1000,196,308
 normal/waist
-bounds:2064,2231,387,384
+bounds:1032,1116,194,192

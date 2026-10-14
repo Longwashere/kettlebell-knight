@@ -5,6 +5,7 @@
  */
 import type { Container, Graphics } from 'pixi.js';
 import type { Spine } from '@esotericsoftware/spine-pixi-v8';
+import { sparkAnim, themeColor, type VfxName, type VfxOpts } from './vfx';
 import {
   Timeline, type EmitOptions, type SfxName,
   lerp, easeIn, easeOut, easeInOut, arc, rand,
@@ -28,6 +29,8 @@ export interface MoveHost {
   /** Current feet position (home + offset). */
   pos(): { x: number; y: number };
   gfx(layer?: 'fx' | 'ground'): Graphics;
+  /** Plays a Spine VFX rig (vfx.ts) at (x, y); null while the rigs load, so keep a Graphics fallback nearby. */
+  vfx(name: VfxName, x: number, y: number, opts?: VfxOpts & { layer?: 'fx' | 'ground' }): Spine | null;
   container(layer?: 'fx' | 'ground'): Container;
 
   anim(name: string, loop?: boolean): void;
@@ -244,6 +247,7 @@ export interface LandOpts {
   ring?: number; // floor shockwave colour
   sound?: SfxName;
   at?: { x: number; y: number };
+  spark?: number | false; // hitSpark colour (default: the flash colour, else the palette's theme colour); false = none
 }
 
 /** The final, damage-dealing contact: hit-stop, shake, flash, camera punch, sparks and impact. */
@@ -255,6 +259,10 @@ export function land(h: MoveHost, o: LandOpts = {}) {
   if (o.zoom) h.camera(o.zoom, h.knight.x + 12, h.knight.y - 28, 14);
   h.sparks(p.x, p.y, o.sparks ?? 14, o.colors ?? [BONE, BLOOD]);
   if (o.ring !== undefined) h.shockwave(h.knight.x + 6, h.knight.y, o.ring);
+  if (o.spark !== false) {
+    const heavy = (o.stop ?? 0) >= 7;
+    h.vfx('hitSpark', p.x, p.y, { anim: sparkAnim(o.spark ?? o.color ?? themeColor(o.colors, BLOOD), heavy), size: heavy ? 1 : 0.8 });
+  }
   h.sound(o.sound ?? 'crit');
   h.impact(o.kb ?? 10);
 }
@@ -262,7 +270,10 @@ export function land(h: MoveHost, o: LandOpts = {}) {
 /** A lesser hit ahead of the final one: reaction, sparks and a small shake. */
 export function chip(h: MoveHost, colors: number[], kb = 3, shake = 5) {
   const p = chest(h);
-  h.sparks(p.x + rand(-4, 4), p.y + rand(-10, 8), 7, colors);
+  const x = p.x + rand(-4, 4);
+  const y = p.y + rand(-10, 8);
+  h.sparks(x, y, 7, colors);
+  h.vfx('hitSpark', x, y, { anim: sparkAnim(themeColor(colors, BLOOD)), size: 0.5 });
   h.knightHit(kb);
   h.shake(shake);
   h.sound('hit');
@@ -296,6 +307,7 @@ export function puff(h: MoveHost, x: number, y: number, colors: number[], count 
 export function blink(h: MoveHost, tl: Timeline, at: number, to: { x: number; y: number }, colors: number[], dur = 10) {
   tl.at(at, () => {
     puff(h, h.pos().x, h.pos().y, colors);
+    portal(h, h.pos().x, h.pos().y - h.height * 0.5, 0.7);
     h.sound('swing');
   });
   tl.during(at, at + dur, (t) => {
@@ -305,6 +317,7 @@ export function blink(h: MoveHost, tl: Timeline, at: number, to: { x: number; y:
   tl.at(at + dur + 2, () => {
     h.offset(to.x, to.y);
     puff(h, h.home.x + to.x, h.home.y + to.y, colors);
+    portal(h, h.home.x + to.x, h.home.y + to.y - h.height * 0.5, 0.7);
   });
   tl.during(at + dur + 2, at + dur * 2 + 2, (t) => {
     h.alpha(t);
@@ -489,3 +502,49 @@ export function lean(h: MoveHost, tl: Timeline, from: number, to: number, radian
   tl.during(to, to + back, (t) => h.tilt(radians * (1 - easeInOut(t))));
 }
 
+
+// ---------------------------------------------------------------------------------------------
+// Spine VFX beats (vfx.ts). Each pairs with the move's Graphics VFX, which still draw while rigs load.
+
+/** Fireball blast at (x, y). */
+export const boom = (h: MoveHost, x: number, y: number, size = 1) => h.vfx('explosion', x, y - 6 * size, { size });
+
+/** Fiery crater and dust burst on the floor at (x, groundY): slams, stomps, landings. */
+export const crater = (h: MoveHost, x: number, groundY: number, size = 1, anim = 'ShockWave_1') =>
+  h.vfx('shockwave', x, groundY - 10 * size, { size, anim });
+
+/** Toxic cloud burst at (x, y). */
+export const toxic = (h: MoveHost, x: number, y: number, size = 1) => h.vfx('poison', x, y, { size });
+
+/** Ice shatter at (x, y) (skips the rig's wind-up so it bursts immediately). */
+export const shatter = (h: MoveHost, x: number, y: number, size = 1) => h.vfx('ice', x, y, { size, start: 66 });
+
+/** Arcane circle laid flat on the floor for `life` frames: rituals, curses, summonings. */
+export const circle = (h: MoveHost, x: number, groundY: number, size: number, life: number, tint?: number) =>
+  h.vfx('summon', x, groundY, { size, life, squash: 0.35, layer: 'ground', tint });
+
+/** Arcane ring burst at (x, y): portals opening, teleports, glyphs popping. */
+export const portal = (h: MoveHost, x: number, y: number, size = 1, tint?: number) => h.vfx('summon', x, y, { anim: 'animation2', size, tint });
+
+/** Rising green restorative glow on the monster. */
+export const regen = (h: MoveHost, size = 1) => h.vfx('heal', h.pos().x, h.pos().y - h.height * 0.45, { size });
+
+/** Burning flame ball; follows `at()` until `life` frames (projectiles, fire on a target). */
+export function flame(h: MoveHost, tl: Timeline, from: number, life: number, at: () => { x: number; y: number }, size = 1) {
+  let f: Spine | null = null;
+  tl.at(from, () => {
+    const p = at();
+    f = h.vfx('fire', p.x, p.y, { size, life, loop: true });
+  });
+  tl.during(from, from + life, () => {
+    if (f && !f.destroyed) f.position.set(at().x, at().y);
+  });
+}
+
+/** Flaming crescent held for `life` frames at (x, y): fire- and gold-edged blade strikes. */
+export const blaze = (h: MoveHost, x: number, y: number, size = 1, flipX = false, life = 14) =>
+  h.vfx('slash', x, y, { size, flipX, life });
+
+/** Spine hit spark in the attack's colour, for moves that call h.impact() directly instead of land(). */
+export const spark = (h: MoveHost, color: number, heavy = false, at: { x: number; y: number } = chest(h)) =>
+  h.vfx('hitSpark', at.x, at.y, { anim: sparkAnim(color, heavy), size: heavy ? 1 : 0.8 });

@@ -7,6 +7,7 @@ import type { MonsterSprite, MonsterMoveId } from '../../types/battle';
 import { MONSTER_MOVES, type MoveHost, type ImpactResult } from './monsterMoves';
 import { Timeline, type EmitOptions } from './choreo';
 import { MoveTracer, type Box, type MoveTraceReport } from './moveTrace';
+import { VFX_RIGS, VFX_NAMES, type VfxName, type VfxOpts } from './vfx';
 import {
   KNIGHT_MOVES, KNIGHT_MOVE_IDS, knightMoveFor, knightMoveCard,
   type KnightMoveId, type KnightMoveHost, type KnightMoveContext, type KnightTarget,
@@ -611,6 +612,8 @@ function applyRigSkin(spine: Spine, rig: MonsterRig): void {
   }
 }
 
+let vfxRefs = 0; // engines holding the battle VFX rigs (see vfx.ts)
+
 const MONSTER_X = 300;
 const MONSTER_LUNGE_DISTANCE = 110; // how far toward the knight an attack dashes
 const monsterAssetRefs = new Map<string, number>(); // shared rig → slots holding it
@@ -789,6 +792,9 @@ export class GameEngine {
   private extraSpines: Set<Spine> = new Set(); // move-spawned rig clones (e.g. phantom wolves)
   private knightKnockX: number = 0;
   private debugClock: number = 0;
+  private holdsVfx = false; // this engine's ref on the shared VFX rigs (loaded while monsters are up)
+  private vfxReady = false;
+  private debugVfx: Spine | null = null;
   private pendingMoveTrace: MoveTracer | null = null; // armed by debugMonsterMove, consumed by the next playMonsterMove
   private activeMoveTrace: MoveTracer | null = null;
 
@@ -1161,6 +1167,7 @@ export class GameEngine {
     // never unloaded and immediately reloaded. Each ref passes to its slot once the slot is created.
     for (const type of requestedTypes.slice(0, count)) retainMonsterRig(MONSTER_RIGS[type]);
     this.clearAllMonsters();
+    this.retainVfx();
 
     const formations: { x: number; y: number; zIndex: number }[][] = [
       // 1 monster (Solo boss/target)
@@ -1318,6 +1325,87 @@ export class GameEngine {
   public clearMonsters(): void {
     this.monsterLoadToken++;
     this.clearAllMonsters();
+    this.releaseVfx();
+  }
+
+  /** Loads the battle VFX rigs (vfx.ts) once per engine; they stay up until the monsters are cleared. */
+  private retainVfx(): void {
+    if (this.holdsVfx) return;
+    this.holdsVfx = true;
+    vfxRefs++;
+    void this.trackLoad(
+      Promise.all(VFX_NAMES.map((n) => loadSpineRig(VFX_RIGS[n].skeleton, VFX_RIGS[n].atlas)))
+        .then(() => {
+          if (this.holdsVfx && !this.isDestroyed) this.vfxReady = true;
+        })
+        .catch((err) => console.warn('[GameEngine] VFX rigs failed to load; moves fall back to Graphics VFX', err)),
+    );
+  }
+
+  private releaseVfx(): void {
+    if (!this.holdsVfx) return;
+    this.holdsVfx = false;
+    this.vfxReady = false;
+    this.debugVfx?.destroy();
+    this.debugVfx = null;
+    if (--vfxRefs <= 0) {
+      vfxRefs = 0;
+      for (const n of VFX_NAMES) void unloadSpineRig(VFX_RIGS[n].skeleton, VFX_RIGS[n].atlas, 1);
+    }
+  }
+
+  /**
+   * Plays a VFX rig at (x, y) in `parent` (a move-owned layer, so it never outlives its move). One-shots
+   * remove themselves when their animation ends. Returns the Spine, or null while the rigs are loading
+   * (callers keep their Graphics VFX, so a missing rig never leaves a move without effects).
+   */
+  private spawnVfx(parent: Container, name: VfxName, x: number, y: number, o: VfxOpts = {}): Spine | null {
+    const rig = VFX_RIGS[name];
+    if (!this.vfxReady || !rig || !this.app || parent.destroyed) return null;
+    let vfx: Spine;
+    try {
+      vfx = Spine.from({ skeleton: rig.skeleton, atlas: rig.atlas, scale: 1, autoUpdate: true });
+    } catch {
+      return null;
+    }
+    vfx.ticker = this.app.ticker;
+    if (rig.skin) {
+      vfx.skeleton.setSkinByName(rig.skin);
+      vfx.skeleton.setSlotsToSetupPose();
+    }
+    const anim = o.anim && vfx.skeleton.data.findAnimation(o.anim) ? o.anim : rig.anims[0];
+    const entry = vfx.state.setAnimation(0, anim, !!o.loop || o.life !== undefined);
+    if (o.start) entry.trackTime = o.start / 60;
+    vfx.state.timeScale = o.speed ?? 1;
+    const size = rig.scale * (o.size ?? 1);
+    vfx.scale.set(size * (o.flipX ? -1 : 1), size * (o.squash ?? 1));
+    vfx.rotation = o.rotation ?? 0;
+    vfx.position.set(x, y);
+    if (o.tint !== undefined) vfx.tint = o.tint;
+    vfx.alpha = o.alpha ?? 1;
+    parent.addChild(vfx);
+    vfx.update(0);
+    if (!o.loop || o.life !== undefined) {
+      const baseAlpha = vfx.alpha;
+      let age = 0;
+      this.activeEffects.push({
+        container: new Container(),
+        life: 0,
+        maxLife: Number.POSITIVE_INFINITY,
+        onUpdate: (_eff, delta) => {
+          if (vfx.destroyed) return true;
+          age += delta;
+          if (o.life !== undefined) {
+            const fade = 8;
+            if (age > o.life - fade) vfx.alpha = baseAlpha * Math.max(0, (o.life - age) / fade);
+            if (age < o.life) return false;
+          } else if (!entry.isComplete()) return false;
+          vfx.destroy();
+          return true;
+        },
+      });
+    }
+    return vfx;
   }
 
   /** Plays an animation on a specific monster slot. */
@@ -1480,6 +1568,10 @@ export class GameEngine {
       height: rig?.height ?? 40,
       pos: () => ({ x: slot.baseX + slot.offX, y: slot.baseY + slot.offY }),
       gfx: (layer = 'fx') => (layer === 'ground' ? ground : fx).addChild(new Graphics()),
+      vfx: (name, x, y, o = {}) => {
+        trace?.vfx(name);
+        return this.spawnVfx(o.layer === 'ground' ? ground : fx, name, x, y, o);
+      },
       container: (layer = 'fx') => (layer === 'ground' ? ground : fx).addChild(new Container()),
       anim: (name, loop = false) => {
         if (spine && !spine.skeleton.data.findAnimation(name)) trace?.missingAnim(name);
@@ -1668,6 +1760,30 @@ export class GameEngine {
 
   private lastMoveTrace: MoveTracer | null = null;
 
+  /**
+   * Dev bridge: shows VFX rig `name` frozen on `anim` at `time` seconds in the middle of the stage (null hides
+   * it). Returns the rig's animations and the current bounds, for contact sheets and size calibration.
+   */
+  public debugVfxPose(name: VfxName | null, anim?: string, time = 0, size = 1) {
+    this.debugVfx?.destroy();
+    this.debugVfx = null;
+    if (!name) return null;
+    const rig = VFX_RIGS[name];
+    if (!rig) throw new Error(`Unknown VFX "${name}". Known: ${VFX_NAMES.join(', ')}`);
+    if (!this.vfxReady || !this.effectsLayer) throw new Error('VFX rigs are not loaded (start an encounter first)');
+    const vfx = this.spawnVfx(this.effectsLayer, name, 213, 130, { anim, size, loop: true });
+    if (!vfx) throw new Error(`VFX "${name}" failed to spawn`);
+    this.debugVfx = vfx;
+    const data = vfx.skeleton.data;
+    const animations = data.animations.map((a) => ({ name: a.name, duration: Number(a.duration.toFixed(3)) }));
+    const track = vfx.state.getCurrent(0)!;
+    track.trackTime = time;
+    vfx.state.timeScale = 0;
+    vfx.update(0);
+    const b = vfx.getBounds();
+    return { animations, bounds: { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), h: Math.round(b.height) } };
+  }
+
   /** Dev bridge: the last debugMonsterMove()'s trace (`done` false while it's still playing). */
   public debugMoveTrace(): (MoveTraceReport & { done: boolean }) | null {
     const t = this.lastMoveTrace;
@@ -1741,6 +1857,7 @@ export class GameEngine {
       ctx,
       pos: () => ({ x: home.x + offX, y: home.y + offY - liftH }),
       gfx: (layer = 'fx') => ({ fx, ground, back })[layer].addChild(new Graphics()),
+      vfx: (name, x, y, o = {}) => this.spawnVfx({ fx, ground, back }[o.layer ?? 'fx'], name, x, y, o),
       container: (layer = 'fx') => ({ fx, ground, back })[layer].addChild(new Container()),
       anim: (name, loop = false) => {
         const animation = spine?.skeleton.data.findAnimation(name);
@@ -1804,6 +1921,8 @@ export class GameEngine {
       guard: (color) => {
         this.knightGuardShown = true;
         this.drawGuardRing(color);
+        // Healing cards: restorative glow rising around the knight
+        if (ctx.heal > 0 && knight) this.spawnVfx(fx, 'heal', knight.x + 4, knight.y - 30, { size: 1.1 });
       },
       camera: (zoom, x, y, holdFrames, snap) => this.moveCamera(zoom, x, y, holdFrames, snap),
       shake: (intensity) => this.moveShake(intensity),
@@ -2854,6 +2973,7 @@ export class GameEngine {
     this.isDestroyed = true;
     this.knightSpine = null;
     this.clearAllMonsters();
+    this.releaseVfx();
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
 
