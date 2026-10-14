@@ -164,11 +164,13 @@ export interface PeerMessage {
 }
 
 export type EquipmentSlot = 'weapon' | 'shield' | 'armor' | 'helmet';
+export type WeaponType = 'bell' | 'sword' | 'mace' | 'morningstar';
 
 export interface EquipmentItem {
   id: string;
   name: string;
   slot: EquipmentSlot;
+  weaponType?: WeaponType;
   attachmentId: string;
   level: number;
   powerBonus: number;

@@ -2260,11 +2260,19 @@ export class GameEngine {
   private getWeaponInfo(weaponId: string) {
     switch (weaponId) {
       case 'excalibur_bell':
+      case 'excalibur_morningstar':
         return { mainColor: 0xF4B41A, highlightColor: 0xFFFBEA, handleColor: 0x38B6FF, runeColor: 0x38B6FF };
       case 'dragon_kettlebell':
+      case 'dragon_morningstar':
         return { mainColor: 0xDC2626, highlightColor: 0xF87171, handleColor: 0xF59E0B, runeColor: 0xFBBF24 };
       case 'void_bell':
+      case 'void_morningstar':
         return { mainColor: 0x6B21A8, highlightColor: 0xA855F7, handleColor: 0xC084FC, runeColor: 0x00EB88 };
+      case 'iron_morningstar':
+      case 'iron_mace':
+        return { mainColor: 0x4B5563, highlightColor: 0x9CA3AF, handleColor: 0x374151, runeColor: null };
+      case 'sword':
+        return { mainColor: 0x94A3B8, highlightColor: 0xE2E8F0, handleColor: 0x475569, runeColor: 0x38B6FF };
       case 'iron_kettlebell':
       default:
         return { mainColor: 0x374151, highlightColor: 0x6B7280, handleColor: 0x1F2937, runeColor: null };

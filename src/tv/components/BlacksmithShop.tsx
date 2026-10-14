@@ -3,45 +3,155 @@ import { EquipmentItem } from '../../types/game';
 import { Shield, Hammer, Sparkles, Coins, ArrowLeft } from 'lucide-react';
 
 export const SHOP_ITEMS: EquipmentItem[] = [
+  // --- MORNING STAR TYPES (Handle + chains + spiked kettlebell) ---
+  {
+    id: 'iron_morningstar',
+    name: 'Iron Morning Star',
+    slot: 'weapon',
+    weaponType: 'morningstar',
+    attachmentId: 'iron_morningstar',
+    level: 3,
+    powerBonus: 25,
+    formMultiplier: 1.15,
+    price: 150,
+    rarity: 'rare',
+    description: '32kg spiked kettlebell swung from heavy forged iron chain links.',
+    colorHex: '#94A3B8',
+  },
+  {
+    id: 'excalibur_morningstar',
+    name: 'Solar Morning Star',
+    slot: 'weapon',
+    weaponType: 'morningstar',
+    attachmentId: 'excalibur_morningstar',
+    level: 6,
+    powerBonus: 45,
+    formMultiplier: 1.3,
+    price: 350,
+    rarity: 'epic',
+    description: '48kg spiked sun-core bell bound by enchanted golden chain links.',
+    colorHex: '#FBBF24',
+  },
+  {
+    id: 'dragon_morningstar',
+    name: 'Dragon Morning Star',
+    slot: 'weapon',
+    weaponType: 'morningstar',
+    attachmentId: 'dragon_morningstar',
+    level: 8,
+    powerBonus: 65,
+    formMultiplier: 1.45,
+    price: 600,
+    rarity: 'legendary',
+    description: '64kg molten spiked bell connected by searing dragon inferno chains.',
+    colorHex: '#EF4444',
+  },
+  {
+    id: 'void_morningstar',
+    name: 'Void Morning Star',
+    slot: 'weapon',
+    weaponType: 'morningstar',
+    attachmentId: 'void_morningstar',
+    level: 10,
+    powerBonus: 85,
+    formMultiplier: 1.6,
+    price: 900,
+    rarity: 'legendary',
+    description: '100kg cosmic spiked sphere tethered by gravitational warp chains.',
+    colorHex: '#C084FC',
+  },
+
+  // --- BELL TYPES (Pure compact kettlebells gripped by top handle) ---
+  {
+    id: 'iron_kettlebell',
+    name: 'Cast Iron Bell',
+    slot: 'weapon',
+    weaponType: 'bell',
+    attachmentId: 'iron_kettlebell',
+    level: 1,
+    powerBonus: 0,
+    formMultiplier: 1.0,
+    price: 0,
+    rarity: 'common',
+    description: 'Standard 32kg competition cast iron bell. Indestructible grip.',
+    colorHex: '#6B7280',
+  },
   {
     id: 'excalibur_bell',
     name: 'Excalibur Bell',
     slot: 'weapon',
+    weaponType: 'bell',
     attachmentId: 'excalibur_bell',
     level: 5,
     powerBonus: 35,
     formMultiplier: 1.25,
     price: 250,
     rarity: 'epic',
-    description: 'Forged in holy fire. Blasts golden critical waves on 90+ power lockout.',
+    description: '48kg bell forged in holy fire. Blasts golden shockwaves on lockout.',
     colorHex: '#F4B41A',
   },
   {
     id: 'dragon_kettlebell',
     name: 'Dragon Bell',
     slot: 'weapon',
+    weaponType: 'bell',
     attachmentId: 'dragon_kettlebell',
     level: 8,
     powerBonus: 55,
     formMultiplier: 1.4,
     price: 500,
     rarity: 'legendary',
-    description: 'Molten dragon core. Emits searing flames with each explosive drive.',
+    description: '64kg molten dragon core. Emits searing flames with each explosive drive.',
     colorHex: '#DC2626',
   },
   {
     id: 'void_bell',
     name: 'Void Bell',
     slot: 'weapon',
+    weaponType: 'bell',
     attachmentId: 'void_bell',
     level: 10,
     powerBonus: 70,
     formMultiplier: 1.5,
     price: 750,
     rarity: 'legendary',
-    description: 'Forged from fallen stars. Gravity snap amplifies rep momentum.',
+    description: '100kg fallen star bell. Gravity snap amplifies rep momentum.',
     colorHex: '#A855F7',
   },
+
+  // --- MACE TYPES (Rigid haft with welded kettlebell head) ---
+  {
+    id: 'iron_mace',
+    name: 'Iron Kettle Mace',
+    slot: 'weapon',
+    weaponType: 'mace',
+    attachmentId: 'iron_mace',
+    level: 4,
+    powerBonus: 30,
+    formMultiplier: 1.2,
+    price: 200,
+    rarity: 'rare',
+    description: 'Rigid oak haft with steel collar welded to a 32kg flanged kettlebell head.',
+    colorHex: '#78716C',
+  },
+
+  // --- SWORD TYPES (Classic blades) ---
+  {
+    id: 'knight_sword',
+    name: "Knight's Greatsword",
+    slot: 'weapon',
+    weaponType: 'sword',
+    attachmentId: 'sword',
+    level: 1,
+    powerBonus: 10,
+    formMultiplier: 1.05,
+    price: 50,
+    rarity: 'common',
+    description: 'The tempered steel broadsword carried by Sir Kettleburne.',
+    colorHex: '#94A3B8',
+  },
+
+  // --- DEFENSIVE GEAR ---
   {
     id: 'aegis_shield',
     name: 'Aegis Shield',
@@ -80,19 +190,6 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'rare',
     description: 'Masterwork armor. Enhances core stability during the hike phase.',
     colorHex: '#D97706',
-  },
-  {
-    id: 'iron_kettlebell',
-    name: 'Cast Iron Bell',
-    slot: 'weapon',
-    attachmentId: 'iron_kettlebell',
-    level: 1,
-    powerBonus: 0,
-    formMultiplier: 1.0,
-    price: 0,
-    rarity: 'common',
-    description: 'Standard 16kg competition bell. Balanced, indestructible.',
-    colorHex: '#6B7280',
   },
 ];
 
@@ -147,6 +244,11 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
           return (
             <div
               key={item.id}
+              ref={(el) => {
+                if (isSelected) {
+                  el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                }
+              }}
               onClick={() => onSelectItem(item)}
               onMouseEnter={() => onHoverItem(item)}
               className={`p-3 border-2 transition-all cursor-pointer ${
@@ -166,9 +268,21 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
                       {item.name}
                     </span>
                   </div>
-                  <span className="text-[9px] font-pixel uppercase tracking-widest text-[#38B6FF] block mt-0.5">
-                    {item.slot} • LVL {item.level}
-                  </span>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="text-[9px] font-pixel uppercase tracking-widest text-[#38B6FF]">
+                      {item.slot} • LVL {item.level}
+                    </span>
+                    {item.weaponType && (
+                      <span className={`text-[8px] font-pixel px-1 py-0.5 rounded border leading-none ${
+                        item.weaponType === 'morningstar' ? 'bg-[#EC4899]/20 border-[#EC4899] text-[#EC4899]' :
+                        item.weaponType === 'mace' ? 'bg-[#F97316]/20 border-[#F97316] text-[#F97316]' :
+                        item.weaponType === 'bell' ? 'bg-[#F59E0B]/20 border-[#F59E0B] text-[#F59E0B]' :
+                        'bg-[#38B6FF]/20 border-[#38B6FF] text-[#38B6FF]'
+                      }`}>
+                        {item.weaponType.toUpperCase()}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {isEquipped ? (

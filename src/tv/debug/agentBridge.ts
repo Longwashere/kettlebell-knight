@@ -482,6 +482,8 @@ const api = {
    * Plays a knight move now without touching battle state (stand-in damage labels). `targets` are monster
    * slots in hit order; default is the targeted monster.
    */
+  /** Equip/preview equipment slot on the knight skeleton. */
+  equip: (slot: string, attachment: string) => call('equip', slot, attachment),
   knightMove: (id: string, targets?: number[], damage?: number) => call('knightMove', id, targets, damage),
 
   /**
