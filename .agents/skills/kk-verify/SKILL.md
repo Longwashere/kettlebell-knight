@@ -33,6 +33,13 @@ npm run shot -- "encounter:wolf,boar,slime" idle film:2:slime_ooze_slam:10:10   
 # Every animation in a monster's Spine rig as a contact sheet (pick animations for new moves)
 npm run shot -- encounter:solo_boar idle sheet:0
 
+# Card art and exercise technique poses as review sheets
+npm run shot -- cardart
+npm run shot -- guides:4
+
+# A card's technique side (Enter flips the focused card)
+npm run shot -- encounter:solo_boar freeze idle "eval:__kk.call('focusCard', 2)" key:Enter wait:900 shot:howto
+
 # Menus via the real D-pad path
 npm run shot -- key:ArrowLeft key:Enter idle shot:after-select state
 ```

@@ -14,26 +14,30 @@ export const CARD_ART_H = 52;
 const W = CARD_ART_W;
 const H = CARD_ART_H;
 
-const INK = 0x0F0E17;
+export const INK = 0x0F0E17;
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
-const bayer = (x: number, y: number) => BAYER[(y & 3) * 4 + (x & 3)];
+export const bayer = (x: number, y: number) => BAYER[(y & 3) * 4 + (x & 3)];
 
 // ---------------------------------------------------------------------------------------------
 // Pixel buffer
 
-class Layer {
-  readonly px = new Uint32Array(W * H); // 0 = transparent, else 0xFFrrggbb
+export class Layer {
+  readonly px: Uint32Array; // 0 = transparent, else 0xFFrrggbb
+
+  constructor(readonly w = W, readonly h = H) {
+    this.px = new Uint32Array(w * h);
+  }
 
   get(x: number, y: number): number {
-    if (x < 0 || y < 0 || x >= W || y >= H) return 0;
-    return this.px[y * W + x];
+    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return 0;
+    return this.px[y * this.w + x];
   }
 
   set(x: number, y: number, c: number): void {
     x = Math.round(x);
     y = Math.round(y);
-    if (x < 0 || y < 0 || x >= W || y >= H) return;
-    this.px[y * W + x] = 0xFF000000 | c;
+    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
+    this.px[y * this.w + x] = 0xFF000000 | c;
   }
 
   rect(x: number, y: number, w: number, h: number, c: number): void {
@@ -103,7 +107,7 @@ class Layer {
 // Colour helpers
 
 const rgb = (c: number) => [(c >> 16) & 255, (c >> 8) & 255, c & 255];
-function mix(a: number, b: number, t: number): number {
+export function mix(a: number, b: number, t: number): number {
   const [ar, ag, ab] = rgb(a);
   const [br, bg, bb] = rgb(b);
   return (Math.round(ar + (br - ar) * t) << 16) | (Math.round(ag + (bg - ag) * t) << 8) | Math.round(ab + (bb - ab) * t);
@@ -175,7 +179,7 @@ function paintStars(base: Layer, rng: Rng, count: number, colors = [0xFFFBEA, 0x
 }
 
 /** Dithered radial light, brightest at the centre. */
-function glow(layer: Layer, cx: number, cy: number, r: number, colors: number[], strength = 1): void {
+export function glow(layer: Layer, cx: number, cy: number, r: number, colors: number[], strength = 1): void {
   for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) {
     for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
       const t = (1 - Math.hypot(x - cx, (y - cy) * 1.15) / r) * strength;
@@ -230,11 +234,12 @@ function paintHorizon(base: Layer, kind: Horizon, horizon: number, sky: Sky, rng
 }
 
 /** Rim light (top-left) and core shadow (bottom-right), then a 1px ink outline. */
-function shadeAndOutline(m: Layer, light = 0xFFFBEA, rimAmount = 0.45, shadowAmount = 0.35): void {
+export function shadeAndOutline(m: Layer, light = 0xFFFBEA, rimAmount = 0.45, shadowAmount = 0.35): void {
   const src = m.px.slice();
-  const at = (x: number, y: number) => (x < 0 || y < 0 || x >= W || y >= H ? 0 : src[y * W + x]);
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
+  const { w, h } = m;
+  const at = (x: number, y: number) => (x < 0 || y < 0 || x >= w || y >= h ? 0 : src[y * w + x]);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
       const c = at(x, y);
       if (c) {
         const col = c & 0xFFFFFF;
@@ -880,20 +885,25 @@ export function getCardArt(templateId: string): string {
   }
   vignette(base);
 
+  const url = toDataUrl(base);
+  cache.set(templateId, url);
+  return url;
+}
+
+/** Encodes a layer as a PNG data URL. */
+export function toDataUrl(layer: Layer): string {
   const canvas = document.createElement('canvas');
-  canvas.width = W;
-  canvas.height = H;
+  canvas.width = layer.w;
+  canvas.height = layer.h;
   const ctx = canvas.getContext('2d')!;
-  const img = ctx.createImageData(W, H);
-  for (let i = 0; i < base.px.length; i++) {
-    const c = base.px[i];
+  const img = ctx.createImageData(layer.w, layer.h);
+  for (let i = 0; i < layer.px.length; i++) {
+    const c = layer.px[i];
     img.data[i * 4] = (c >> 16) & 255;
     img.data[i * 4 + 1] = (c >> 8) & 255;
     img.data[i * 4 + 2] = c & 255;
     img.data[i * 4 + 3] = c ? 255 : 0;
   }
   ctx.putImageData(img, 0, 0);
-  const url = canvas.toDataURL('image/png');
-  cache.set(templateId, url);
-  return url;
+  return canvas.toDataURL('image/png');
 }

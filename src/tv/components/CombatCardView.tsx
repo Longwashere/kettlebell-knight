@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { CardRarity, CombatCard } from '../../types/battle';
 import { getCardArt } from './cardArt';
+import { EXERCISE_GUIDES, getExerciseFrames, getExerciseStrip } from './exerciseGuide';
 
 /** Frame metal per rarity: iron, blued silver, amethyst, gilded. */
 const RARITY: Record<CardRarity, { rim: string; rimDark: string; gem: string; foil: string | null }> = {
@@ -22,17 +23,86 @@ interface CombatCardViewProps {
   index: number;
   handSize: number;
   focused: boolean;
+  flipped: boolean;
   onSelect: () => void;
 }
+
+/**
+ * Card back: how to perform the card's exercise. A looping pixel flipbook of the key positions at
+ * the movement's tempo, a step strip naming each position, and short form cues.
+ */
+const TechniqueSide: React.FC<{ card: CombatCard; active: boolean }> = ({ card, active }) => {
+  const guide = EXERCISE_GUIDES[card.exercise];
+  const frames = useMemo(() => getExerciseFrames(card.exercise, parseInt(card.colorHex.slice(1), 16)), [card.exercise, card.colorHex]);
+  const [frame, setFrame] = useState(0);
+
+  // Only tick while the back is showing; UI-rate state (a few changes per second), not per-frame
+  useEffect(() => {
+    if (!active) {
+      setFrame(0);
+      return;
+    }
+    const id = setInterval(() => setFrame((f) => (f + 1) % frames.length), guide.tempoMs);
+    return () => clearInterval(id);
+  }, [active, frames.length, guide.tempoMs]);
+
+  return (
+    <div className="kk-card kk-card--back">
+      <div className="kk-card__head">
+        <div className="kk-card__cost" title={`${card.requiredReps} reps to cast`}>
+          <span>{card.requiredReps}</span>
+        </div>
+        <div className="kk-card__name" style={{ fontSize: guide.name.length > 16 ? 8 : 9 }}>{guide.name}</div>
+      </div>
+
+      <div className="kk-card__art kk-card__art--guide">
+        {frames.map((url, i) => (
+          <img key={i} src={url} alt="" className="pixelated" draggable={false} style={{ opacity: i === frame ? 1 : 0 }} />
+        ))}
+        <div className="kk-guide__label">
+          <span>{frame + 1}</span>
+          {guide.frames[frame].label}
+        </div>
+      </div>
+
+      <div className="kk-guide__steps">
+        {guide.frames.map((f, i) => (
+          <React.Fragment key={f.label}>
+            {i > 0 && <i className="kk-guide__arrow">▸</i>}
+            <span className={`kk-guide__step ${i === frame ? 'kk-guide__step--on' : ''}`}>{f.label}</span>
+          </React.Fragment>
+        ))}
+      </div>
+
+      <ul className="kk-guide__cues">
+        {guide.cues.map((cue) => (
+          <li key={cue}>{cue}</li>
+        ))}
+      </ul>
+
+      <div className="kk-guide__foot">
+        {card.requiredReps} REPS TO CAST • <b>ENTER</b> FLIP
+      </div>
+    </div>
+  );
+};
 
 /**
  * A combat card drawn like a 90s dark-fantasy TCG card: rarity-metal frame with rivets, rep-cost gem,
  * engraved name banner, pixel-art illustration (cardArt.ts), type line, parchment rules text,
  * rep pips and heraldic DMG / BLOCK plaques. Cards fan out in the hand; the focused one lifts.
  */
-export const CombatCardView: React.FC<CombatCardViewProps> = ({ card, index, handSize, focused, onSelect }) => {
+export const CombatCardView: React.FC<CombatCardViewProps> = ({ card, index, handSize, focused, flipped, onSelect }) => {
   const art = useMemo(() => getCardArt(card.templateId), [card.templateId]);
   const rarity = RARITY[card.rarity];
+  const guide = EXERCISE_GUIDES[card.exercise];
+  const strip = useMemo(() => getExerciseStrip(card.exercise, parseInt(card.colorHex.slice(1), 16)), [card.exercise, card.colorHex]);
+  // The figure and its step label loop with the same stepped CSS animation, so they stay in sync
+  const loopStyle = {
+    '--strip': `url(${strip})`,
+    '--n': guide.frames.length,
+    '--dur': `${guide.frames.length * guide.tempoMs}ms`,
+  } as React.CSSProperties;
 
   // Animate only the pip that was just earned
   const prevReps = useRef(card.currentReps);
@@ -59,11 +129,12 @@ export const CombatCardView: React.FC<CombatCardViewProps> = ({ card, index, han
 
   return (
     <div
-      className={`kk-card-slot ${focused ? 'kk-card-slot--focused' : ''} ${primed ? 'kk-card-slot--primed' : ''}`}
+      className={`kk-card-slot ${focused ? 'kk-card-slot--focused' : ''} ${primed ? 'kk-card-slot--primed' : ''} ${flipped ? 'kk-card-slot--flipped' : ''}`}
       style={style}
       onClick={onSelect}
     >
-      <div className="kk-card">
+      <div className="kk-card-flip">
+      <div className="kk-card kk-card--front">
         <div className="kk-card__head">
           <div className="kk-card__cost" title={`${card.requiredReps} reps to cast`}>
             <span>{card.requiredReps}</span>
@@ -88,18 +159,33 @@ export const CombatCardView: React.FC<CombatCardViewProps> = ({ card, index, han
 
         <div className="kk-card__text">{card.effectDesc}</div>
 
-        <div className="kk-card__foot">
-          <div className="kk-card__exercise">{card.exerciseLabel}</div>
-          <div className="kk-card__pips" aria-label={`${card.currentReps} of ${card.requiredReps} reps`}>
-            {Array.from({ length: card.requiredReps }, (_, i) => (
-              <i
-                key={i}
-                className={`kk-pip ${i < card.currentReps ? 'kk-pip--on' : ''} ${i === newPip ? 'kk-pip--new' : ''}`}
-              />
-            ))}
+        <div className="kk-card__foot" style={loopStyle}>
+          <div className="kk-loop" aria-label={`How to: ${guide.name}`}>
+            <div className="kk-loop__img pixelated" />
           </div>
-          <div className="kk-card__count">
-            {card.currentReps}/{card.requiredReps} REPS
+          <div className="kk-card__how">
+            <div className="kk-card__exercise">{card.exerciseLabel}</div>
+            <div className="kk-loop__steps">
+              <div className="kk-loop__track">
+                {guide.frames.map((f, i) => (
+                  <span key={f.label}>
+                    <b>{i + 1}</b>
+                    {f.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="kk-card__pips" aria-label={`${card.currentReps} of ${card.requiredReps} reps`}>
+              {Array.from({ length: card.requiredReps }, (_, i) => (
+                <i
+                  key={i}
+                  className={`kk-pip ${i < card.currentReps ? 'kk-pip--on' : ''} ${i === newPip ? 'kk-pip--new' : ''}`}
+                />
+              ))}
+            </div>
+            <div className="kk-card__count">
+              {card.currentReps}/{card.requiredReps} REPS
+            </div>
           </div>
         </div>
 
@@ -119,6 +205,8 @@ export const CombatCardView: React.FC<CombatCardViewProps> = ({ card, index, han
             </div>
           </div>
         )}
+        </div>
+        <TechniqueSide card={card} active={flipped} />
       </div>
     </div>
   );

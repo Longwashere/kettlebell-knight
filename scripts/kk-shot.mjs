@@ -25,6 +25,7 @@
  *   sheet[:slot[:frames]]     contact sheet of every animation on a monster slot (freezes timers)
  *   attack:<slot>:<move>      play a monster move now (move id or name, e.g. attack:0:wolf_throat_bite)
  *   film:<slot>:<move>[:n[:step]]  film strip of a move: n frames, every `step` 60fps frames (default 16, 6)
+ *   guides[:scale]            sheet of every exercise guide pose (src/tv/components/exerciseGuide.ts)
  *   cardart[:scale]           sheet of every card illustration (src/tv/components/cardArt.ts)
  *   state | textures          print __kk.state() / GPU texture stats as JSON
  *   eval:<js>                 evaluate an expression in the page (awaited) and print it
@@ -304,6 +305,10 @@ async function runStep(step) {
       const [slot, move, count, step] = arg.split(':');
       const url = await kk(`__kk.film(${Number(slot) || 0}, ${js(move)}, ${Number(count) || 16}, ${Number(step) || 6})`);
       return save(`film-${move}`, url.replace(/^data:image\/png;base64,/, ''));
+    }
+    case 'guides': {
+      const url = await kk(`__kk.guideSheet(${Number(arg) || 3})`);
+      return save('exercise-guides', url.replace(/^data:image\/png;base64,/, ''));
     }
     case 'cardart': {
       const url = await kk(`__kk.cardArtSheet(${Number(arg) || 3})`);

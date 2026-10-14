@@ -130,6 +130,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const [playerBlock, setPlayerBlock] = useState<number>(0);
   const [hand, setHand] = useState<CombatCard[]>([]);
   const [focusedCardIndex, setFocusedCardIndex] = useState<number>(0);
+  // Card showing its technique side (Enter flips the focused card); flips back on its own
+  const [flippedCardId, setFlippedCardId] = useState<string | null>(null);
   const [battleStatus, setBattleStatus] = useState<'FIGHTING' | 'VICTORY' | 'DEFEAT'>('FIGHTING');
   const [recentCombatLog, setRecentCombatLog] = useState<string>('Battle commenced! Perform exercises to cast cards.');
 
@@ -416,6 +418,23 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     setHand(deckManagerRef.current.dealInitialHand());
   };
 
+  const toggleFlip = useCallback((cardId: string | undefined) => {
+    if (!cardId) return;
+    setFlippedCardId((cur) => (cur === cardId ? null : cardId));
+    audioManager.play('ui_select');
+  }, []);
+
+  // Moving focus away, or the card being cast, turns it face-up again; otherwise it flips back after 10s
+  useEffect(() => {
+    if (!flippedCardId) return;
+    if (hand[focusedCardIndex]?.id !== flippedCardId) {
+      setFlippedCardId(null);
+      return;
+    }
+    const id = setTimeout(() => setFlippedCardId(null), 10000);
+    return () => clearTimeout(id);
+  }, [flippedCardId, focusedCardIndex, hand]);
+
   // Dev automation bridge (window.__kk): battle state + encounter control
   useEffect(() => registerDebug(
     'battle',
@@ -442,6 +461,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             currentReps: hand[focusedCardIndex].currentReps, requiredReps: hand[focusedCardIndex].requiredReps }
         : null,
       frozen: atbFrozenRef.current,
+      flippedCard: flippedCardId,
       log: recentCombatLog,
     }),
     {
@@ -475,6 +495,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       moves: (slotIndex: number) => (MOVESETS[monstersRef.current[slotIndex]?.id] ?? []).map((t) => t.move),
       freeze: (on: boolean) => { atbFrozenRef.current = on; },
       focusCard: (index: number) => setFocusedCardIndex(Math.max(0, Math.min(hand.length - 1, index))),
+      flip: () => toggleFlip(hand[focusedCardIndex]?.id),
       target: (index: number) => setTargetedMonsterIndex(index),
     },
   ));
@@ -516,6 +537,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     onSelect: () => {
       if (battleStatus !== 'FIGHTING') {
         handleNextEncounter();
+      } else {
+        toggleFlip(hand[focusedCardIndex]?.id);
       }
     },
     onBack: () => {
@@ -752,7 +775,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           </div>
 
           <span className="font-pixel text-[9px] text-[#38B6FF]">
-            [D-PAD ◀ / ▶] SELECT • [SPACE / PLAY] DEMO SWING
+            [◀ / ▶] SELECT • [ENTER] HOW TO • [SPACE] DEMO REP
           </span>
         </div>
 
@@ -765,7 +788,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
               index={index}
               handSize={hand.length}
               focused={focusedCardIndex === index}
-              onSelect={() => setFocusedCardIndex(index)}
+              flipped={flippedCardId === card.id}
+              onSelect={() => (focusedCardIndex === index ? toggleFlip(card.id) : setFocusedCardIndex(index))}
             />
           ))}
         </div>

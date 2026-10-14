@@ -232,7 +232,7 @@ canvas,
 /* Illustration window */
 .kk-card__art {
   position: relative;
-  height: 92px;
+  height: 76px;
   flex: none;
   overflow: hidden;
   background: #000;
@@ -323,26 +323,82 @@ canvas,
   -webkit-box-orient: vertical;
 }
 
-/* Exercise + rep pips (room left/right for the stat plaques) */
+/* Technique band: looping exercise figure + exercise name, current step, rep pips */
 .kk-card__foot {
-  height: 38px;
+  height: 64px;
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  --fw: 55px; /* displayed width of one strip frame (44px art at 1.25x) */
+}
+.kk-loop {
+  flex: none;
+  width: calc(var(--fw) + 4px);
+  height: 64px;
+  padding: 1px;
+  background: #000;
+  border: 1px solid var(--rim-dark);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.5), 0 0 0 1px #000;
+}
+.kk-loop__img {
+  width: var(--fw);
+  height: 60px;
+  background-image: var(--strip);
+  background-repeat: no-repeat;
+  background-size: calc(var(--fw) * var(--n)) 60px;
+  animation: kkLoop var(--dur) steps(var(--n)) infinite;
+}
+.kk-card__how {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 3px;
-  padding: 0 28px;
+}
+.kk-loop__steps {
+  height: 12px;
+  overflow: hidden;
+}
+.kk-loop__track {
+  display: flex;
+  flex-direction: column;
+  animation: kkSteps var(--dur) steps(var(--n)) infinite;
+}
+.kk-loop__track span {
+  height: 12px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 7px;
+  color: #F3E9CF;
+  text-shadow: 1px 1px 0 #000;
+}
+.kk-loop__track b {
+  display: grid;
+  place-items: center;
+  width: 10px;
+  height: 10px;
+  font-weight: normal;
+  font-size: 6px;
+  color: #000;
+  text-shadow: none;
+  background: var(--accent);
 }
 .kk-card__exercise {
   max-width: 100%;
+  text-align: center;
   font-family: "Press Start 2P", monospace;
   font-size: 6px;
+  line-height: 8px;
   color: var(--accent);
   text-shadow: 1px 1px 0 #000;
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 .kk-card__pips {
   display: flex;
@@ -373,15 +429,15 @@ canvas,
 /* Heraldic stat plaques on the bottom corners */
 .kk-stat {
   position: absolute;
-  bottom: -7px;
-  width: 34px;
-  height: 38px;
+  top: 82px; /* lower corners of the art window */
+  width: 30px;
+  height: 33px;
   padding: 2px;
   background: #000;
   clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%);
 }
-.kk-stat--dmg { left: -7px; }
-.kk-stat--block { right: -7px; }
+.kk-stat--dmg { left: 4px; }
+.kk-stat--block { right: 4px; }
 .kk-stat__inner {
   width: 100%;
   height: 100%;
@@ -407,6 +463,149 @@ canvas,
   font-family: serif;
 }
 
+/* Flip to the technique side (Enter on the focused card) */
+.kk-card-flip {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 420ms cubic-bezier(0.3, 1.3, 0.5, 1);
+}
+.kk-card-slot--flipped .kk-card-flip {
+  transform: rotateY(180deg);
+}
+.kk-card--front,
+.kk-card--back {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.kk-card--back {
+  transform: rotateY(180deg);
+  animation: none;
+}
+/* Pulses belong to whichever face is showing */
+.kk-card-slot--flipped .kk-card--front::after { opacity: 0 !important; animation: none; }
+.kk-card-slot--focused.kk-card-slot--flipped .kk-card--back {
+  box-shadow:
+    inset 0 0 0 2px var(--rim),
+    inset 0 0 0 4px #0a0910,
+    inset 0 0 0 5px var(--rim-dark),
+    0 0 0 3px #F4B41A,
+    0 0 0 5px #000,
+    0 0 26px rgba(var(--accent-rgb), 0.7),
+    6px 10px 0 rgba(0, 0, 0, 0.6);
+}
+
+.kk-card__art--guide {
+  height: 100px;
+}
+.kk-card__art--guide img {
+  position: absolute;
+  inset: 0;
+  object-fit: contain;
+  background: #07060c;
+}
+.kk-guide__label {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 5px 2px 2px;
+  background: rgba(10, 9, 16, 0.85);
+  border: 1px solid #000;
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.6);
+  font-family: "Press Start 2P", monospace;
+  font-size: 7px;
+  color: #F3E9CF;
+  text-shadow: 1px 1px 0 #000;
+}
+.kk-guide__label span {
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  color: #000;
+  text-shadow: none;
+}
+.kk-guide__steps {
+  height: 15px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: #15131f;
+  border: 1px solid #000;
+  font-family: "Press Start 2P", monospace;
+  font-size: 6px;
+}
+.kk-guide__step {
+  padding: 2px 3px;
+  color: #6B6880;
+}
+.kk-guide__step--on {
+  color: #000;
+  background: var(--accent);
+}
+.kk-guide__arrow {
+  font-style: normal;
+  color: #4A4660;
+}
+.kk-guide__cues {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 3px 6px 3px 6px;
+  list-style: none;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.12) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #2c241a, #1b1610);
+  border: 1px solid #000;
+  box-shadow: inset 0 0 0 1px rgba(231, 216, 176, 0.14);
+  font-family: "VT323", monospace;
+  font-size: 14px;
+  line-height: 11px;
+  color: #E7D8B0;
+  overflow: hidden;
+}
+.kk-guide__cues li {
+  position: relative;
+  padding-left: 9px;
+  margin-bottom: 3px;
+}
+.kk-guide__cues li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  width: 4px;
+  height: 4px;
+  transform: rotate(45deg);
+  background: var(--accent);
+}
+.kk-guide__foot {
+  height: 12px;
+  flex: none;
+  text-align: center;
+  font-family: "Press Start 2P", monospace;
+  font-size: 6px;
+  color: #A7A9BE;
+}
+.kk-guide__foot b {
+  color: #F4B41A;
+  font-weight: normal;
+}
+
+@keyframes kkLoop {
+  from { background-position-x: 0; }
+  to { background-position-x: calc(var(--fw) * var(--n) * -1); }
+}
+@keyframes kkSteps {
+  from { transform: translateY(0); }
+  to { transform: translateY(calc(var(--n) * -12px)); }
+}
 @keyframes kkDeal {
   from { transform: translateY(90px) rotate(9deg) scale(0.92); opacity: 0; }
   to { transform: none; opacity: 1; }

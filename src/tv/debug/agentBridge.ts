@@ -12,6 +12,7 @@ import type { RepTelemetry, ExerciseType } from '../../types/game';
 import { networkManager } from '../../shared/NetworkManager';
 import { CARD_CATALOG } from '../../types/battle';
 import { getCardArt, CARD_ART_W, CARD_ART_H } from '../components/cardArt';
+import { EXERCISE_GUIDES, getExerciseFrames, POSE_W, POSE_H } from '../components/exerciseGuide';
 
 type StateProvider = () => unknown;
 type Action = (...args: any[]) => unknown;
@@ -212,6 +213,33 @@ const api = {
       ctx.fillText(`${move} f${(i + 1) * step}`, x + 3, y + 12);
     }
     call('resume');
+    return out.toDataURL('image/png');
+  },
+
+  /** Every exercise guide (exerciseGuide.ts): one row per exercise, its keyframes left to right. */
+  async guideSheet(scale = 3): Promise<string> {
+    const entries = Object.entries(EXERCISE_GUIDES);
+    const w = POSE_W * scale;
+    const h = POSE_H * scale + 14;
+    const out = document.createElement('canvas');
+    out.width = w * 3;
+    out.height = h * entries.length;
+    const ctx = out.getContext('2d')!;
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = '#0F0E17';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.font = '11px monospace';
+    for (const [row, [exercise, guide]] of entries.entries()) {
+      const frames = getExerciseFrames(exercise as keyof typeof EXERCISE_GUIDES);
+      for (const [col, url] of frames.entries()) {
+        const img = new Image();
+        img.src = url;
+        await img.decode();
+        ctx.drawImage(img, col * w, row * h + 14, w, POSE_H * scale);
+        ctx.fillStyle = '#F4B41A';
+        ctx.fillText(`${guide.name}: ${guide.frames[col].label}`, col * w + 3, row * h + 11);
+      }
+    }
     return out.toDataURL('image/png');
   },
 
