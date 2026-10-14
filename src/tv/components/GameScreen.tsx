@@ -8,7 +8,7 @@ import { BlacksmithShop, SHOP_ITEMS } from './BlacksmithShop';
 import { BattleScreen } from './BattleScreen';
 import { QRCodeModal } from './QRCodeModal';
 import { QRCodeSVG } from 'qrcode.react';
-import { EquipmentItem, HubLocation, RepTelemetry } from '../../types/game';
+import { EquipmentItem, HubLocation, RepTelemetry, ExerciseType } from '../../types/game';
 import { audioManager } from '../../shared/AudioManager';
 import { 
   Tv, 
@@ -241,7 +241,11 @@ export const GameScreen: React.FC = () => {
     onDemoSwing: () => {
       const demoPower = 85 + Math.floor(Math.random() * 30);
       const demoForm = Number((0.95 + Math.random() * 0.05).toFixed(2));
-      const demoExercises: ('SWING' | 'SQUAT' | 'OVERHEAD_PRESS')[] = ['SWING', 'SQUAT', 'OVERHEAD_PRESS'];
+      const demoExercises: ExerciseType[] = [
+        'SWING', 'SQUAT', 'CLEAN_AND_PRESS', 'SNATCH', 'WINDMILL',
+        'DEADLIFT', 'OVERHEAD_PRESS', 'THRUSTER', 'GORILLA_ROW',
+        'HALO', 'SINGLE_LEG_RDL', 'CLEAN', 'LUNGE'
+      ];
       const chosen = demoExercises[Math.floor(Math.random() * demoExercises.length)];
 
       if (engineRef.current) {

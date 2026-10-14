@@ -2,7 +2,7 @@ import { Application, Container, Graphics, Text, Assets, Sprite, Texture, Cache 
 import { Spine, SpineTexture } from '@esotericsoftware/spine-pixi-v8';
 import type { TextureAtlas } from '@esotericsoftware/spine-core';
 import { audioManager } from '../../shared/AudioManager';
-import { ExerciseType } from '../../types/game';
+import { ExerciseType, EXERCISE_SKILLS } from '../../types/game';
 import type { MonsterSprite } from '../../types/battle';
 
 interface FloatingCombatText {
@@ -24,6 +24,31 @@ interface Particle {
   life: number;
   maxLife: number;
   color: number;
+}
+
+interface ActiveProjectile {
+  container: Container;
+  graphics: Graphics;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  targetX: number;
+  targetY: number;
+  life: number;
+  maxLife: number;
+  rotationSpeed?: number;
+  trailColors?: number[];
+  onHit: () => void;
+  onUpdate?: (p: ActiveProjectile, delta: number) => void;
+}
+
+interface ActiveCombatEffect {
+  container: Container;
+  life: number;
+  maxLife: number;
+  onUpdate: (eff: ActiveCombatEffect, delta: number) => boolean;
+  onDestroy?: () => void;
 }
 
 export interface SkeletonAttachmentMock {
@@ -160,6 +185,8 @@ export class GameEngine {
   // Combat entities
   private floatingTexts: FloatingCombatText[] = [];
   private particles: Particle[] = [];
+  private activeProjectiles: ActiveProjectile[] = [];
+  private activeEffects: ActiveCombatEffect[] = [];
 
   // Equipment & Texture Cache (VRAM management)
   private currentPreviewAssetKey: string | null = null;
@@ -728,7 +755,7 @@ export class GameEngine {
    * engineRef.current.onRepCompleted()."
    */
   /**
-   * Dispatches specialized attack animations based on the performed exercise
+   * Dispatches specialized attack animations and projectiles/VFX based on the performed exercise and card
    */
   public onRepCompleted(
     power: number = 80, 
@@ -742,61 +769,840 @@ export class GameEngine {
 
     const isCrit = power >= 95;
     const damageNum = Math.round(power * form * 14);
+    const nameLower = (skillName || EXERCISE_SKILLS[exercise]?.skillName || '').toLowerCase();
 
-    // 1. Attack type specific visuals
+    // 1. Attack type specific visuals, animations & projectiles
     switch (exercise) {
+      case 'SWING': {
+        const isWhirlwind = nameLower.includes('whirlwind') || nameLower.includes('dragon');
+        if (isWhirlwind) {
+          this.playKnightAnimation('ATTACK4');
+          this.spawnWhirlwindProjectile(power, isCrit, damageNum);
+        } else {
+          this.playKnightAnimation(KNIGHT_SWING_COMBO[this.attackComboIndex++ % KNIGHT_SWING_COMBO.length]);
+          this.spawnSlashWaveProjectile(power, isCrit, damageNum);
+        }
+        break;
+      }
+
       case 'SQUAT': {
+        const isQuake = nameLower.includes('quake') || nameLower.includes('colossus');
         this.playKnightAnimation('ATTACK3');
-        // TITAN GROUND SLAM: Heavy tremor, shockwave along floor, earth particles
-        this.shakeIntensity = Math.min(14, 6 + (power / 20));
-        this.flashAlpha = 0.55;
-        this.spawnShockwave(300, 168, 0xFF3366);
-        this.spawnSparks(300, 168, 16, [0xFF3366, 0xC49A45, 0x5C2B14]);
-        
-        const label = `TITAN SLAM! +${damageNum}`;
-        this.spawnFloatingText(label, 300, 100, 0xFF3366, isCrit ? 13 : 11);
-        audioManager.play('hit');
+        this.spawnTectonicGroundSlam(power, isCrit, damageNum, isQuake);
+        break;
+      }
+
+      case 'CLEAN_AND_PRESS': {
+        const isCleaver = nameLower.includes('cleaver') || nameLower.includes('stormbreaker');
+        this.playKnightAnimation('SKILL2RADON');
+        this.spawnLightningJavelinProjectile(power, isCrit, damageNum, isCleaver);
+        break;
+      }
+
+      case 'SNATCH': {
+        const isTalon = nameLower.includes('talon') || nameLower.includes('solar');
+        this.playKnightAnimation('SKILL3TULUC');
+        this.spawnPhoenixProjectile(power, isCrit, damageNum, isTalon);
+        break;
+      }
+
+      case 'WINDMILL': {
+        const isWard = nameLower.includes('ward') || nameLower.includes('cosmic');
+        this.playKnightAnimation('BUFF');
+        this.spawnAstralSpireProjectile(power, isCrit, damageNum, isWard);
+        break;
+      }
+
+      case 'DEADLIFT': {
+        this.playKnightAnimation('ATTACK5');
+        this.spawnMountainSunder(power, isCrit, damageNum);
         break;
       }
 
       case 'OVERHEAD_PRESS': {
+        const isPillar = nameLower.includes('pillar') || nameLower.includes('heavenly') || nameLower.includes('judgement');
         this.playKnightAnimation('SKILL1');
-        // THUNDER SMITE: Lightning bolt from sky striking enemy, electric cyan sparks
-        this.shakeIntensity = Math.min(10, 4 + (power / 25));
-        this.flashAlpha = 0.7;
-        this.spawnLightningBolt(300, 100);
-        this.spawnSparks(300, 110, 20, [0x38B6FF, 0xFFFFFF, 0x80D4FF]);
-
-        const label = `THUNDER SMITE! +${damageNum}`;
-        this.spawnFloatingText(label, 300, 90, 0x38B6FF, isCrit ? 14 : 11);
-        audioManager.play('crit');
+        this.spawnHeavenlyPillar(power, isCrit, damageNum, isPillar);
         break;
       }
 
-      case 'SWING':
-      default: {
-        // IRON CLEAVE: knight sword combo (ATTACK1/2/4 alternate), gold slash sparks
-        this.playKnightAnimation(KNIGHT_SWING_COMBO[this.attackComboIndex++ % KNIGHT_SWING_COMBO.length]);
-        this.isSwinging = true;
-        this.swingProgress = 0;
-        this.swingVelocity = 0.05 + (power / 100) * 0.06;
-        this.flashAlpha = isCrit ? 0.75 : 0.45;
-        this.shakeIntensity = Math.min(10, 3 + (power / 25));
+      case 'THRUSTER': {
+        const isSupernova = nameLower.includes('supernova') || nameLower.includes('surge');
+        this.playKnightAnimation('SKILL3RADON');
+        this.spawnSolarEruptionProjectile(power, isCrit, damageNum, isSupernova);
+        break;
+      }
 
-        const label = isCrit ? `CRIT CLEAVE! +${damageNum}` : `CLEAVE! +${damageNum}`;
-        this.spawnFloatingText(label, 300, 110, 0xF4B41A, isCrit ? 14 : 11);
-        this.spawnSparks(300, 126, isCrit ? 16 : 8, [0xF4B41A, 0xFFFBEA, 0xDC2626]);
-        audioManager.play(isCrit ? 'crit' : 'hit');
+      case 'GORILLA_ROW': {
+        const isShadow = nameLower.includes('shadow') || nameLower.includes('ripper');
+        this.playKnightAnimation('SKILL2TULUC');
+        this.spawnBeastMawProjectile(power, isCrit, damageNum, isShadow);
+        break;
+      }
+
+      case 'HALO': {
+        const isVortex = nameLower.includes('vortex') || nameLower.includes('astral');
+        this.playKnightAnimation('ATTACK4');
+        this.spawnAstralVortexProjectile(power, isCrit, damageNum, isVortex);
+        break;
+      }
+
+      case 'SINGLE_LEG_RDL': {
+        const isCrane = nameLower.includes('crane');
+        this.playKnightAnimation('ATTACK1');
+        this.spawnCraneStrikeProjectile(power, isCrit, damageNum, isCrane);
+        break;
+      }
+
+      case 'CLEAN': {
+        this.playKnightAnimation('ATTACK5');
+        this.spawnAnvilBreakerProjectile(power, isCrit, damageNum);
+        break;
+      }
+
+      case 'LUNGE': {
+        this.spawnValkyrieDash(power, isCrit, damageNum);
+        break;
+      }
+
+      default: {
+        this.playKnightAnimation(KNIGHT_SWING_COMBO[this.attackComboIndex++ % KNIGHT_SWING_COMBO.length]);
+        this.spawnSlashWaveProjectile(power, isCrit, damageNum);
         break;
       }
     }
-
-    this.playMonsterHit();
 
     // Form feedback text
     if (form >= 0.94) {
       this.spawnFloatingText('PERFECT FORM!', 300, 75, 0x00EB88, 9);
     }
+  }
+
+  /**
+   * SWING: Flying golden crescent slash arc projectile
+   */
+  private spawnSlashWaveProjectile(power: number, isCrit: boolean, damageNum: number): void {
+    if (!this.effectsLayer) return;
+
+    const container = new Container();
+    const g = new Graphics();
+
+    // Golden crescent arc
+    g.poly([0, -16, 8, -8, 12, 0, 8, 8, 0, 16, 2, 8, 4, 0, 2, -8]).fill({ color: 0xF4B41A });
+    g.poly([2, -10, 6, -4, 8, 0, 6, 4, 2, 10, 3, 5, 4, 0, 3, -5]).fill({ color: 0xFFFBEA });
+    container.addChild(g);
+
+    container.x = 140;
+    container.y = 125;
+    this.effectsLayer.addChild(container);
+
+    this.activeProjectiles.push({
+      container,
+      graphics: g,
+      x: 140,
+      y: 125,
+      vx: 9.5,
+      vy: 0,
+      targetX: MONSTER_X,
+      targetY: 125,
+      life: 0,
+      maxLife: 30,
+      trailColors: [0xF4B41A, 0xFFFBEA],
+      onHit: () => {
+        this.spawnSparks(MONSTER_X, 125, isCrit ? 18 : 10, [0xF4B41A, 0xFFFBEA, 0xDC2626]);
+        this.shakeIntensity = isCrit ? 10 : 7;
+        this.flashAlpha = isCrit ? 0.7 : 0.45;
+        this.spawnFloatingText(isCrit ? `CRIT CLEAVE! +${damageNum}` : `IRON CLEAVE! +${damageNum}`, MONSTER_X, 110, 0xF4B41A, isCrit ? 14 : 11);
+        audioManager.play(isCrit ? 'crit' : 'hit');
+        this.playMonsterHit();
+      },
+    });
+  }
+
+  /**
+   * SWING (Dragon Whirlwind): Twin spinning flaming crescent dragon blades
+   */
+  private spawnWhirlwindProjectile(power: number, isCrit: boolean, damageNum: number): void {
+    if (!this.effectsLayer) return;
+
+    const container = new Container();
+    const g = new Graphics();
+
+    g.poly([0, -18, 12, -9, 15, 0, 10, 9, 0, 18, 3, 9, 6, 0, 3, -9]).fill({ color: 0xDC2626 });
+    g.poly([0, 18, -12, 9, -15, 0, -10, -9, 0, -18, -3, -9, -6, 0, -3, 9]).fill({ color: 0xF97316 });
+    g.circle(0, 0, 5).fill({ color: 0xFDE047 });
+    container.addChild(g);
+
+    container.x = 140;
+    container.y = 125;
+    this.effectsLayer.addChild(container);
+
+    this.activeProjectiles.push({
+      container,
+      graphics: g,
+      x: 140,
+      y: 125,
+      vx: 8.5,
+      vy: 0,
+      targetX: MONSTER_X,
+      targetY: 125,
+      life: 0,
+      maxLife: 30,
+      rotationSpeed: 0.25,
+      trailColors: [0xDC2626, 0xF97316, 0xFBBF24],
+      onHit: () => {
+        this.spawnShockwave(MONSTER_X, 125, 0xDC2626);
+        this.spawnSparks(MONSTER_X, 125, 24, [0xDC2626, 0xF97316, 0xFBBF24]);
+        this.shakeIntensity = 11;
+        this.flashAlpha = 0.7;
+        this.spawnFloatingText(`DRAGON WHIRLWIND! +${damageNum}`, MONSTER_X, 110, 0xDC2626, isCrit ? 14 : 12);
+        audioManager.play('crit');
+        this.playMonsterHit();
+      },
+    });
+  }
+
+  /**
+   * SQUAT: Tectonic floor fracture and erupting stone spikes / crystal pillars
+   */
+  private spawnTectonicGroundSlam(power: number, isCrit: boolean, damageNum: number, isQuake: boolean): void {
+    if (!this.effectsLayer) return;
+
+    const container = new Container();
+    const g = new Graphics();
+    container.addChild(g);
+    this.effectsLayer.addChild(container);
+
+    const spikeColor = isQuake ? 0xA855F7 : 0xC49A45;
+    const spikeBorder = isQuake ? 0x7E22CE : 0x5C2B14;
+    const accentColor = isQuake ? 0xA855F7 : 0xFF3366;
+
+    let crackX = 130;
+    let impactTriggered = false;
+
+    this.activeEffects.push({
+      container,
+      life: 0,
+      maxLife: 35,
+      onUpdate: (eff, delta) => {
+        g.clear();
+
+        // 1. Fissure traveling from knight to monster
+        if (crackX < MONSTER_X) {
+          crackX = Math.min(MONSTER_X, crackX + 18 * delta);
+          g.moveTo(130, 168).lineTo(crackX, 168).stroke({ width: 3, color: accentColor, alpha: 0.9 });
+          if (Math.random() < 0.6) {
+            this.spawnSparks(crackX, 168, 1, [accentColor, 0xC49A45]);
+          }
+        }
+
+        // 2. Once fissure reaches monster, erupt spikes!
+        if (crackX >= MONSTER_X) {
+          if (!impactTriggered) {
+            impactTriggered = true;
+            this.spawnShockwave(MONSTER_X, 168, accentColor);
+            this.spawnSparks(MONSTER_X, 168, 20, isQuake ? [0xA855F7, 0xC084FC, 0xFFFFFF] : [0xFF3366, 0xC49A45, 0x5C2B14]);
+            this.shakeIntensity = Math.min(16, 8 + (power / 20));
+            this.flashAlpha = 0.6;
+            this.spawnFloatingText(isQuake ? `COLOSSUS QUAKE! +${damageNum}` : `TITAN SLAM! +${damageNum}`, MONSTER_X, 100, accentColor, isCrit ? 14 : 11);
+            audioManager.play(isCrit ? 'crit' : 'hit');
+            this.playMonsterHit();
+          }
+
+          // Animate erupting spikes
+          const postProgress = Math.min(1, (eff.life - 8) / 12);
+          const heightProgress = Math.sin(postProgress * Math.PI * 0.5);
+          const alpha = 1 - Math.max(0, (eff.life - 20) / 15);
+
+          const h1 = 50 * heightProgress;
+          const h2 = 36 * heightProgress;
+          const h3 = 32 * heightProgress;
+
+          // Main center spike
+          g.poly([MONSTER_X - 10, 168, MONSTER_X, 168 - h1, MONSTER_X + 10, 168])
+            .fill({ color: spikeColor, alpha })
+            .stroke({ width: 1.5, color: spikeBorder, alpha });
+
+          // Left spike
+          g.poly([MONSTER_X - 25, 168, MONSTER_X - 17, 168 - h2, MONSTER_X - 9, 168])
+            .fill({ color: spikeColor, alpha })
+            .stroke({ width: 1.5, color: spikeBorder, alpha });
+
+          // Right spike
+          g.poly([MONSTER_X + 7, 168, MONSTER_X + 17, 168 - h3, MONSTER_X + 27, 168])
+            .fill({ color: spikeColor, alpha })
+            .stroke({ width: 1.5, color: spikeBorder, alpha });
+        }
+
+        return eff.life >= 35;
+      },
+    });
+  }
+
+  /**
+   * CLEAN & PRESS: Electric Lightning Javelin with branching thunder impact
+   */
+  private spawnLightningJavelinProjectile(power: number, isCrit: boolean, damageNum: number, isCleaver: boolean): void {
+    if (!this.effectsLayer) return;
+
+    const container = new Container();
+    const g = new Graphics();
+
+    // Diamond spearhead
+    g.poly([18, 0, 7, -6, -2, 0, 7, 6]).fill({ color: 0xFFFFFF }).stroke({ width: 2, color: 0x38B6FF });
+    // Electric spear shaft
+    g.rect(-24, -2, 28, 4).fill({ color: 0x38B6FF });
+    g.rect(-20, -1, 24, 2).fill({ color: 0xFFFFFF });
+    // Electric barbs
+    g.poly([7, -6, 2, -11, 4, -5]).fill({ color: 0x38B6FF });
+    g.poly([7, 6, 2, 11, 4, 5]).fill({ color: 0x38B6FF });
+    container.addChild(g);
+
+    container.x = 140;
+    container.y = 125;
+    this.effectsLayer.addChild(container);
+
+    this.activeProjectiles.push({
+      container,
+      graphics: g,
+      x: 140,
+      y: 125,
+      vx: 11,
+      vy: 0,
+      targetX: MONSTER_X,
+      targetY: 125,
+      life: 0,
+      maxLife: 25,
+      trailColors: [0x38B6FF, 0x80D4FF, 0xFFFFFF],
+      onHit: () => {
+        for (let b = 0; b < 3; b++) {
+          this.spawnLightningBolt(MONSTER_X + (b - 1) * 14, 125);
+        }
+        this.spawnSparks(MONSTER_X, 125, 24, [0x38B6FF, 0xFFFFFF, 0x80D4FF, 0xF97316]);
+        this.shakeIntensity = 12;
+        this.flashAlpha = 0.75;
+        this.spawnFloatingText(isCleaver ? `STORMBREAKER! +${damageNum}` : `STORM BREAKER! +${damageNum}`, MONSTER_X, 100, 0xF97316, isCrit ? 14 : 12);
+        audioManager.play('crit');
+        this.playMonsterHit();
+      },
+    });
+  }
+
+  /**
+   * SNATCH: Blazing Phoenix / Firebird projectile swooping in an arc
+   */
+  private spawnPhoenixProjectile(power: number, isCrit: boolean, damageNum: number, isTalon: boolean): void {
+    if (!this.effectsLayer) return;
+
+    const container = new Container();
+    const g = new Graphics();
+
+    // Golden beak
+    g.poly([14, 0, 6, -3, 6, 3]).fill({ color: 0xFDE047 });
+    // Fiery body
+    g.ellipse(0, 0, 9, 5).fill({ color: 0xEF4444 });
+    // Swept flame wings
+    g.poly([2, -3, -6, -14, -10, -5, 0, -2]).fill({ color: 0xF97316 });
+    g.poly([2, 3, -6, 14, -10, 5, 0, 2]).fill({ color: 0xF97316 });
+    // Flowing tail feathers
+    g.poly([-8, -3, -20, 0, -8, 3]).fill({ color: 0xDC2626 });
+    container.addChild(g);
+
+    container.x = 140;
+    container.y = 135;
+    this.effectsLayer.addChild(container);
+
+    let t = 0;
+    this.activeProjectiles.push({
+      container,
+      graphics: g,
+      x: 140,
+      y: 135,
+      vx: 8.5,
+      vy: -1.2,
+      targetX: MONSTER_X,
+      targetY: 125,
+      life: 0,
+      maxLife: 28,
+      trailColors: [0xEF4444, 0xF97316, 0xFDE047],
+      onUpdate: (p, delta) => {
+        t += delta * 0.15;
+        p.vy += 0.1 * delta;
+        g.scale.y = 1 + 0.2 * Math.sin(t * 8);
+      },
+      onHit: () => {
+        this.spawnShockwave(MONSTER_X, 125, 0xEF4444);
+        this.spawnSparks(MONSTER_X, 125, 28, [0xEF4444, 0xDC2626, 0xF59E0B, 0xFFFBEA]);
+        this.shakeIntensity = 13;
+        this.flashAlpha = 0.75;
+        this.spawnFloatingText(isTalon ? `SOLAR TALON! +${damageNum}` : `PHOENIX ASCENSION! +${damageNum}`, MONSTER_X, 95, 0xEF4444, isCrit ? 14 : 12);
+        audioManager.play('crit');
+        this.playMonsterHit();
+      },
+    });
+  }
+
+  /**
+   * WINDMILL: Astral Star Orb with dual rotating cosmic rings
+   */
+  private spawnAstralSpireProjectile(power: number, isCrit: boolean, damageNum: number, isWard: boolean): void {
+    if (!this.effectsLayer) return;
+
+    const container = new Container();
+    const g = new Graphics();
+
+    g.circle(0, 0, 6).fill({ color: 0x00EB88 });
+    g.circle(0, 0, 3).fill({ color: 0xFFFFFF });
+    g.ellipse(0, 0, 15, 6).stroke({ width: 2, color: 0x38B6FF, alpha: 0.9 });
+    g.ellipse(0, 0, 6, 15).stroke({ width: 2, color: 0x00EB88, alpha: 0.9 });
+    g.rect(-1.5, -1.5, 3, 3).fill({ color: 0xFFFFFF });
+    container.addChild(g);
+
+    container.x = 140;
+    container.y = 125;
+    this.effectsLayer.addChild(container);
+
+    this.activeProjectiles.push({
+      container,
+      graphics: g,
+      x: 140,
+      y: 125,
+      vx: 8.0,
+      vy: 0,
+      targetX: MONSTER_X,
+      targetY: 125,
+      life: 0,
+      maxLife: 30,
+      rotationSpeed: 0.18,
+      trailColors: [0x00EB88, 0x38B6FF, 0x6EE7B7],
+      onHit: () => {
+        this.spawnShockwave(MONSTER_X, 125, 0x00EB88);
+        this.spawnSparks(MONSTER_X, 125, 20, [0x00EB88, 0x38B6FF, 0x6EE7B7, 0xFFFFFF]);
+        this.shakeIntensity = 8;
+        this.flashAlpha = 0.5;
+        this.spawnFloatingText(isWard ? `COSMIC WARD! +${damageNum}` : `ASTRAL SPIRE! +${damageNum}`, MONSTER_X, 105, 0x00EB88, isCrit ? 13 : 11);
+        audioManager.play('hit');
+        this.playMonsterHit();
+      },
+    });
+  }
+
+  /**
+   * DEADLIFT: Colossal subterranean Mountain Sunder boulders erupting beneath target
+   */
+  private spawnMountainSunder(power: number, isCrit: boolean, damageNum: number): void {
+    if (!this.effectsLayer) return;
+
+    const container = new Container();
+    const g = new Graphics();
+    container.addChild(g);
+    this.effectsLayer.addChild(container);
+
+    let impactTriggered = false;
+
+    this.activeEffects.push({
+      container,
+      life: 0,
+      maxLife: 32,
+      onUpdate: (eff) => {
+        g.clear();
+
+        if (eff.life >= 4 && !impactTriggered) {
+          impactTriggered = true;
+          this.spawnShockwave(MONSTER_X, 168, 0xD97706);
+          this.spawnSparks(MONSTER_X, 140, 24, [0xD97706, 0xF59E0B, 0x78350F, 0xC49A45]);
+          this.shakeIntensity = 15;
+          this.flashAlpha = 0.65;
+          this.spawnFloatingText(`MOUNTAIN SUNDER! +${damageNum}`, MONSTER_X, 90, 0xD97706, isCrit ? 14 : 12);
+          audioManager.play('crit');
+          this.playMonsterHit();
+        }
+
+        const riseT = Math.min(1, eff.life / 10);
+        const currentYRise = 55 * Math.sin(riseT * Math.PI * 0.5);
+        const alpha = 1 - Math.max(0, (eff.life - 18) / 14);
+
+        // Left boulder
+        g.poly([
+          MONSTER_X - 22, 175,
+          MONSTER_X - 10, 175 - currentYRise,
+          MONSTER_X + 5, 175 - currentYRise * 0.9,
+          MONSTER_X + 12, 175
+        ]).fill({ color: 0xD97706, alpha }).stroke({ width: 2, color: 0x78350F, alpha });
+
+        // Right boulder
+        g.poly([
+          MONSTER_X - 2, 175,
+          MONSTER_X + 14, 175 - currentYRise * 0.8,
+          MONSTER_X + 26, 175 - currentYRise * 0.7,
+          MONSTER_X + 22, 175
+        ]).fill({ color: 0xB45309, alpha }).stroke({ width: 2, color: 0x5C2B14, alpha });
+
+        return eff.life >= 32;
+      },
+    });
+  }
+
+  /**
+   * OVERHEAD PRESS: Heavenly Pillar of Divine Light & thunder descending from sky
+   */
+  private spawnHeavenlyPillar(power: number, isCrit: boolean, damageNum: number, isPillar: boolean): void {
+    if (!this.effectsLayer) return;
+
+    const container = new Container();
+    const g = new Graphics();
+    container.addChild(g);
+    this.effectsLayer.addChild(container);
+
+    const beamColor = isPillar ? 0xFBBF24 : 0x38B6FF;
+
+    this.spawnShockwave(MONSTER_X, 168, beamColor);
+    this.spawnSparks(MONSTER_X, 130, 24, [beamColor, 0xFFFFFF, 0x80D4FF]);
+    this.shakeIntensity = 13;
+    this.flashAlpha = 0.8;
+    this.spawnFloatingText(isPillar ? `HEAVENLY PILLAR! +${damageNum}` : `THUNDER SMITE! +${damageNum}`, MONSTER_X, 90, beamColor, isCrit ? 14 : 11);
+    audioManager.play('crit');
+    this.playMonsterHit();
+
+    this.activeEffects.push({
+      container,
+      life: 0,
+      maxLife: 20,
+      onUpdate: (eff) => {
+        g.clear();
+        const alpha = 1 - (eff.life / 20);
+
+        g.rect(MONSTER_X - 14, 0, 28, 170).fill({ color: beamColor, alpha: alpha * 0.65 });
+        g.rect(MONSTER_X - 5, 0, 10, 170).fill({ color: 0xFFFFFF, alpha: alpha * 0.95 });
+
+        g.moveTo(MONSTER_X, 0)
+          .lineTo(MONSTER_X - 8, 40)
+          .lineTo(MONSTER_X + 6, 85)
+          .lineTo(MONSTER_X - 4, 130)
+          .lineTo(MONSTER_X, 168)
+          .stroke({ width: 2, color: 0xFFFFFF, alpha });
+
+        return eff.life >= 20;
+      },
+    });
+  }
+
+  /**
+   * THRUSTER: Pulsing Solar Plasma Core detonating in an expanding Supernova shockwave
+   */
+  private spawnSolarEruptionProjectile(power: number, isCrit: boolean, damageNum: number, isSupernova: boolean): void {
+    if (!this.effectsLayer) return;
+
+    const container = new Container();
+    const g = new Graphics();
+
+    g.circle(0, 0, 7).fill({ color: 0xFFFFFF });
+    g.circle(0, 0, 12).fill({ color: 0xF59E0B, alpha: 0.85 });
+    g.circle(0, 0, 16).stroke({ width: 2.5, color: 0xDC2626, alpha: 0.7 });
+
+    for (let r = 0; r < 4; r++) {
+      const angle = (r * Math.PI) / 2;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      g.poly([cos * 16, sin * 16, cos * 22, sin * 22, cos * 16 + 2, sin * 16 + 2]).fill({ color: 0xFDE047 });
+    }
+    container.addChild(g);
+
+    container.x = 140;
+    container.y = 125;
+    this.effectsLayer.addChild(container);
+
+    let pulseT = 0;
+    this.activeProjectiles.push({
+      container,
+      graphics: g,
+      x: 140,
+      y: 125,
+      vx: 8.5,
+      vy: 0,
+      targetX: MONSTER_X,
+      targetY: 125,
+      life: 0,
+      maxLife: 28,
+      rotationSpeed: 0.15,
+      trailColors: [0xF59E0B, 0xDC2626, 0xFFFBEA],
+      onUpdate: (p, delta) => {
+        pulseT += delta * 0.2;
+        container.scale.set(1 + 0.15 * Math.sin(pulseT * 6));
+      },
+      onHit: () => {
+        this.spawnShockwave(MONSTER_X, 125, 0xF59E0B);
+        this.spawnSparks(MONSTER_X, 125, 28, [0xF59E0B, 0xDC2626, 0xFFFBEA, 0xFDE047]);
+        this.shakeIntensity = 14;
+        this.flashAlpha = 0.75;
+        this.spawnFloatingText(isSupernova ? `SUPERNOVA SURGE! +${damageNum}` : `SOLAR ERUPTION! +${damageNum}`, MONSTER_X, 95, 0xF59E0B, isCrit ? 14 : 12);
+        audioManager.play('crit');
+        this.playMonsterHit();
+      },
+    });
+  }
+
+  /**
+   * GORILLA ROW: Twin predatory beast claws flying and leaving cross-slash lacerations
+   */
+  private spawnBeastMawProjectile(power: number, isCrit: boolean, damageNum: number, isShadow: boolean): void {
+    if (!this.effectsLayer) return;
+
+    const container = new Container();
+    const g = new Graphics();
+
+    const clawColor = isShadow ? 0x65A30D : 0x84CC16;
+    g.poly([-14, -14, 10, -6, -2, -3, -14, -8]).fill({ color: clawColor });
+    g.poly([-14, 14, 10, 6, -2, 3, -14, 8]).fill({ color: clawColor });
+    g.poly([-10, -8, 6, -4, -4, -3]).fill({ color: 0xFFFFFF });
+    container.addChild(g);
+
+    container.x = 140;
+    container.y = 125;
+    this.effectsLayer.addChild(container);
+
+    this.activeProjectiles.push({
+      container,
+      graphics: g,
+      x: 140,
+      y: 125,
+      vx: 9.5,
+      vy: 0,
+      targetX: MONSTER_X,
+      targetY: 125,
+      life: 0,
+      maxLife: 26,
+      trailColors: [clawColor, 0xBEF264, 0x1A1926],
+      onHit: () => {
+        const slashG = new Graphics();
+        slashG.moveTo(MONSTER_X - 20, 105).lineTo(MONSTER_X + 20, 145).stroke({ width: 3.5, color: clawColor });
+        slashG.moveTo(MONSTER_X - 20, 145).lineTo(MONSTER_X + 20, 105).stroke({ width: 3.5, color: clawColor });
+        this.effectsLayer?.addChild(slashG);
+
+        setTimeout(() => slashG.destroy(), 120);
+
+        this.spawnSparks(MONSTER_X, 125, 20, [clawColor, 0xBEF264, 0xFFFFFF]);
+        this.shakeIntensity = 10;
+        this.flashAlpha = 0.5;
+        this.spawnFloatingText(isShadow ? `SHADOW RIPPER! +${damageNum}` : `BEAST MAW! +${damageNum}`, MONSTER_X, 105, clawColor, isCrit ? 13 : 11);
+        audioManager.play('hit');
+        this.playMonsterHit();
+      },
+    });
+  }
+
+  /**
+   * HALO: Swirling 4-Arm Celestial Spiral Galaxy vortex
+   */
+  private spawnAstralVortexProjectile(power: number, isCrit: boolean, damageNum: number, isVortex: boolean): void {
+    if (!this.effectsLayer) return;
+
+    const container = new Container();
+    const g = new Graphics();
+
+    g.circle(0, 0, 4).fill({ color: 0xFFFFFF });
+    g.poly([0, 0, 8, 4, 14, 2, 8, 1]).fill({ color: 0x818CF8 });
+    g.poly([0, 0, -4, 8, -2, 14, -1, 8]).fill({ color: 0xC084FC });
+    g.poly([0, 0, -8, -4, -14, -2, -8, -1]).fill({ color: 0x818CF8 });
+    g.poly([0, 0, 4, -8, 2, -14, 1, -8]).fill({ color: 0xC084FC });
+    g.circle(14, 2, 1.5).fill({ color: 0xFFFFFF });
+    g.circle(-2, 14, 1.5).fill({ color: 0xFFFFFF });
+    container.addChild(g);
+
+    container.x = 140;
+    container.y = 125;
+    this.effectsLayer.addChild(container);
+
+    this.activeProjectiles.push({
+      container,
+      graphics: g,
+      x: 140,
+      y: 125,
+      vx: 7.5,
+      vy: 0,
+      targetX: MONSTER_X,
+      targetY: 125,
+      life: 0,
+      maxLife: 30,
+      rotationSpeed: 0.22,
+      trailColors: [0x818CF8, 0xC084FC, 0xE9D5FF],
+      onHit: () => {
+        this.spawnShockwave(MONSTER_X, 125, 0x818CF8);
+        this.spawnSparks(MONSTER_X, 125, 24, [0x818CF8, 0xC084FC, 0xE9D5FF, 0xFFFFFF]);
+        this.shakeIntensity = 10;
+        this.flashAlpha = 0.55;
+        this.spawnFloatingText(isVortex ? `ASTRAL VORTEX! +${damageNum}` : `CELESTIAL WARD! +${damageNum}`, MONSTER_X, 100, 0x818CF8, isCrit ? 14 : 11);
+        audioManager.play('crit');
+        this.playMonsterHit();
+      },
+    });
+  }
+
+  /**
+   * SINGLE-LEG RDL: Piercing Valkyrie Feather Dart / Crane Lance with needle starburst
+   */
+  private spawnCraneStrikeProjectile(power: number, isCrit: boolean, damageNum: number, isCrane: boolean): void {
+    if (!this.effectsLayer) return;
+
+    const container = new Container();
+    const g = new Graphics();
+
+    g.poly([18, 0, 0, -4, 4, 0, 0, 4]).fill({ color: 0xFFFFFF }).stroke({ width: 1.5, color: 0xEC4899 });
+    g.poly([-14, -8, -2, -1, -12, 0]).fill({ color: 0xF472B6 });
+    g.poly([-14, 8, -2, 1, -12, 0]).fill({ color: 0xF472B6 });
+    g.rect(-14, -1, 16, 2).fill({ color: 0xEC4899 });
+    container.addChild(g);
+
+    container.x = 140;
+    container.y = 125;
+    this.effectsLayer.addChild(container);
+
+    this.activeProjectiles.push({
+      container,
+      graphics: g,
+      x: 140,
+      y: 125,
+      vx: 12.0,
+      vy: 0,
+      targetX: MONSTER_X,
+      targetY: 125,
+      life: 0,
+      maxLife: 22,
+      trailColors: [0xEC4899, 0xF472B6, 0xFFFFFF],
+      onHit: () => {
+        const burstG = new Graphics();
+        for (let a = 0; a < 8; a++) {
+          const ang = (a * Math.PI) / 4;
+          burstG.moveTo(MONSTER_X, 125)
+            .lineTo(MONSTER_X + Math.cos(ang) * 22, 125 + Math.sin(ang) * 22)
+            .stroke({ width: 2, color: 0xEC4899 });
+        }
+        this.effectsLayer?.addChild(burstG);
+        setTimeout(() => burstG.destroy(), 100);
+
+        this.spawnSparks(MONSTER_X, 125, 20, [0xEC4899, 0xF472B6, 0xFFFFFF]);
+        this.shakeIntensity = 9;
+        this.flashAlpha = 0.5;
+        this.spawnFloatingText(isCrane ? `CRANE STRIKE! +${damageNum}` : `VALKYRIE BALANCE! +${damageNum}`, MONSTER_X, 105, 0xEC4899, isCrit ? 14 : 11);
+        audioManager.play('crit');
+        this.playMonsterHit();
+      },
+    });
+  }
+
+  /**
+   * CLEAN: Spinning heavy Iron Anvil with concussive shockwave
+   */
+  private spawnAnvilBreakerProjectile(power: number, isCrit: boolean, damageNum: number): void {
+    if (!this.effectsLayer) return;
+
+    const container = new Container();
+    const g = new Graphics();
+
+    g.rect(-10, 4, 20, 5).fill({ color: 0x1C1F2B });
+    g.poly([-6, 4, 6, 4, 8, -3, -8, -3]).fill({ color: 0x3C445C });
+    g.poly([-14, -7, 10, -7, 10, -2, -8, -2]).fill({ color: 0x7584A6 }).stroke({ width: 1.5, color: 0xF97316 });
+    container.addChild(g);
+
+    container.x = 140;
+    container.y = 125;
+    this.effectsLayer.addChild(container);
+
+    this.activeProjectiles.push({
+      container,
+      graphics: g,
+      x: 140,
+      y: 125,
+      vx: 8.0,
+      vy: 0,
+      targetX: MONSTER_X,
+      targetY: 125,
+      life: 0,
+      maxLife: 30,
+      rotationSpeed: 0.22,
+      trailColors: [0xF97316, 0xF4B41A, 0x7584A6],
+      onHit: () => {
+        this.spawnShockwave(MONSTER_X, 125, 0xF97316);
+        this.spawnSparks(MONSTER_X, 125, 22, [0xF97316, 0xF4B41A, 0x7584A6, 0xFFFFFF]);
+        this.shakeIntensity = 13;
+        this.flashAlpha = 0.6;
+        this.spawnFloatingText(`ANVIL BREAKER! +${damageNum}`, MONSTER_X, 100, 0xF97316, isCrit ? 14 : 11);
+        audioManager.play('hit');
+        this.playMonsterHit();
+      },
+    });
+  }
+
+  /**
+   * LUNGE: Supersonic Valkyrie Dash with phantom afterimages and piercing cone
+   */
+  private spawnValkyrieDash(power: number, isCrit: boolean, damageNum: number): void {
+    if (!this.knightContainer || !this.effectsLayer) return;
+
+    this.playKnightAnimation('DASH');
+
+    const container = new Container();
+    const g = new Graphics();
+    container.addChild(g);
+    this.effectsLayer.addChild(container);
+
+    let impactFired = false;
+    const startX = 130;
+    const peakX = 215;
+
+    this.activeEffects.push({
+      container,
+      life: 0,
+      maxLife: 22,
+      onUpdate: (eff) => {
+        if (!this.knightContainer) return true;
+
+        if (eff.life <= 8) {
+          const forwardT = eff.life / 8;
+          this.knightContainer.x = startX + (peakX - startX) * forwardT;
+
+          if (eff.life % 2 === 0) {
+            const ghost = new Graphics();
+            ghost.rect(-10, -35, 20, 35).fill({ color: 0xEC4899, alpha: 0.4 });
+            ghost.x = this.knightContainer.x;
+            ghost.y = 168;
+            this.effectsLayer?.addChild(ghost);
+            setTimeout(() => ghost.destroy(), 120);
+          }
+        } else {
+          const backT = (eff.life - 8) / 14;
+          this.knightContainer.x = peakX - (peakX - startX) * backT;
+          if (eff.life === 9) {
+            this.playKnightAnimation('DASH_BACK');
+          }
+        }
+
+        if (eff.life >= 8 && !impactFired) {
+          impactFired = true;
+          g.poly([peakX, 125, MONSTER_X, 105, MONSTER_X, 145])
+            .fill({ color: 0xEC4899, alpha: 0.6 })
+            .stroke({ width: 2, color: 0xFFFFFF, alpha: 0.9 });
+
+          this.spawnSparks(MONSTER_X, 125, 20, [0xEC4899, 0x38B6FF, 0xFFFFFF]);
+          this.shakeIntensity = 11;
+          this.flashAlpha = 0.55;
+          this.spawnFloatingText(`VALKYRIE DASH! +${damageNum}`, MONSTER_X, 105, 0xEC4899, isCrit ? 14 : 11);
+          audioManager.play(isCrit ? 'crit' : 'hit');
+          this.playMonsterHit();
+        }
+
+        if (eff.life > 10) {
+          g.clear();
+        }
+
+        return eff.life >= 22;
+      },
+      onDestroy: () => {
+        if (this.knightContainer) {
+          this.knightContainer.x = startX;
+        }
+      },
+    });
   }
 
   /**
@@ -1019,6 +1825,53 @@ export class GameEngine {
           this.particles.splice(i, 1);
         }
       }
+
+      // 6. Update Active Projectiles
+      for (let i = this.activeProjectiles.length - 1; i >= 0; i--) {
+        const p = this.activeProjectiles[i];
+        p.life += delta;
+        p.x += p.vx * delta;
+        p.y += p.vy * delta;
+        p.container.x = p.x;
+        p.container.y = p.y;
+
+        if (p.rotationSpeed) {
+          p.graphics.rotation += p.rotationSpeed * delta;
+        }
+        if (p.onUpdate) {
+          p.onUpdate(p, delta);
+        }
+
+        // Periodic trail sparks
+        if (Math.random() < 0.45 && p.trailColors && this.effectsLayer) {
+          this.spawnSparks(p.x, p.y, 1, p.trailColors);
+        }
+
+        // Reached target or lifetime expired
+        if (p.x >= p.targetX || p.life >= p.maxLife) {
+          p.onHit();
+          if (this.effectsLayer) {
+            this.effectsLayer.removeChild(p.container);
+          }
+          p.container.destroy({ children: true });
+          this.activeProjectiles.splice(i, 1);
+        }
+      }
+
+      // 7. Update Active Combat Effects
+      for (let i = this.activeEffects.length - 1; i >= 0; i--) {
+        const eff = this.activeEffects[i];
+        eff.life += delta;
+        const isComplete = eff.onUpdate(eff, delta) || eff.life >= eff.maxLife;
+        if (isComplete) {
+          eff.onDestroy?.();
+          if (this.effectsLayer) {
+            this.effectsLayer.removeChild(eff.container);
+          }
+          eff.container.destroy({ children: true });
+          this.activeEffects.splice(i, 1);
+        }
+      }
     });
   }
 
@@ -1048,6 +1901,18 @@ export class GameEngine {
       } catch (e) {}
       this.currentPreviewAssetKey = null;
     }
+
+    // Clean up active projectiles and effects
+    for (const p of this.activeProjectiles) {
+      p.container.destroy({ children: true });
+    }
+    this.activeProjectiles = [];
+
+    for (const eff of this.activeEffects) {
+      eff.onDestroy?.();
+      eff.container.destroy({ children: true });
+    }
+    this.activeEffects = [];
 
     if (this.app) {
       try {
