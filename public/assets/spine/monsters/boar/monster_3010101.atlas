@@ -1,0 +1,97 @@
+monster_3010101.png
+pma: false
+size:377,212
+filter:Linear,Linear
+1_00000
+bounds:137,173,144,39
+1_00001
+bounds:0,54,126,39
+1_00002
+bounds:137,132,106,38
+1_00003
+bounds:137,98,79,31
+body
+bounds:0,96,134,116
+chenfei0001
+bounds:266,27,33,12
+chenfei0002
+bounds:333,39,38,15
+chenfei0003
+bounds:362,171,41,15
+rotate: 90
+chenfei0004
+bounds:222,30,41,15
+frontFoot1
+bounds:345,57,32,56
+frontleg2
+bounds:282,116,40,66
+rotate: 90
+fur1
+bounds:222,48,41,21
+fur2
+bounds:282,57,59,21
+fur3
+bounds:0,0,51,23
+fur4
+bounds:320,0,19,17
+fur5
+bounds:296,0,21,17
+fur6
+bounds:99,0,23,21
+rotate: 90
+fur7
+bounds:362,161,13,7
+innerear
+bounds:197,63,32,19
+rotate: 90
+innereye1
+bounds:222,8,19,36
+rotate: 90
+innereye2
+bounds:54,0,23,42
+rotate: 90
+innerfoot1
+bounds:137,66,29,57
+rotate: 90
+innerfoot2
+bounds:192,21,27,39
+innerteeth
+bounds:302,20,19,28
+rotate: 90
+mouth
+bounds:284,159,75,53
+mouth2
+bounds:0,26,87,25
+nose
+bounds:219,72,60,53
+outear
+bounds:90,26,48,25
+outeye2
+bounds:141,21,48,42
+outteeth
+bounds:282,81,60,32
+saliva1
+bounds:351,117,39,26
+rotate: 90
+saliva2
+bounds:195,8,10,24
+rotate: 90
+smile
+bounds:342,8,10,29
+rotate: 90
+tail
+bounds:261,0,32,24
+tail2
+bounds:282,42,48,12
+toe
+bounds:246,128,42,33
+rotate: 90
+yanchen0001
+bounds:333,21,32,15
+yanchen0002
+bounds:123,2,33,16
+yanchen0003
+bounds:159,2,33,16
+yanchen0004
+bounds:266,44,25,13
+rotate: 90

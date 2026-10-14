@@ -31,7 +31,11 @@ export const GameScreen: React.FC = () => {
   const pixiContainerRef = useRef<HTMLDivElement | null>(null);
 
   // TV UI Views: 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'ALCHEMIST' | 'SANCTUARY'
-  const [currentView, setCurrentView] = useState<'HUB' | 'BLACKSMITH' | 'COMBAT' | 'ALCHEMIST' | 'SANCTUARY'>('HUB');
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const initialView = (searchParams?.get('view')?.toUpperCase() as any) || 'HUB';
+  const [currentView, setCurrentView] = useState<'HUB' | 'BLACKSMITH' | 'COMBAT' | 'ALCHEMIST' | 'SANCTUARY'>(
+    ['HUB', 'BLACKSMITH', 'COMBAT', 'ALCHEMIST', 'SANCTUARY'].includes(initialView) ? initialView : 'HUB'
+  );
 
   // Navigation indices
   const [hubIndex, setHubIndex] = useState<number>(1); // Default to Blacksmith
@@ -50,6 +54,7 @@ export const GameScreen: React.FC = () => {
   // High-level workout session counters (updated periodically or on reps)
   const [sessionReps, setSessionReps] = useState<number>(0);
   const [highestPower, setHighestPower] = useState<number>(0);
+  const [isEngineReady, setIsEngineReady] = useState<boolean>(false);
 
   // 1. Initialize PixiJS GameEngine strictly inside container div
   useEffect(() => {
@@ -58,7 +63,9 @@ export const GameScreen: React.FC = () => {
     if (pixiContainerRef.current) {
       engine = new GameEngine(pixiContainerRef.current);
       engineRef.current = engine;
-      engine.init().catch((err) => {
+      engine.init().then(() => {
+        setIsEngineReady(true);
+      }).catch((err) => {
         console.error('[GameScreen] Pixi engine init error:', err);
       });
     }
@@ -68,6 +75,7 @@ export const GameScreen: React.FC = () => {
         engine.destroy();
       }
       engineRef.current = null;
+      setIsEngineReady(false);
     };
   }, []);
 
@@ -286,6 +294,7 @@ export const GameScreen: React.FC = () => {
       {currentView === 'COMBAT' ? (
         <BattleScreen
           engineRef={engineRef}
+          isEngineReady={isEngineReady}
           onExitBattle={() => setCurrentView('HUB')}
         />
       ) : (

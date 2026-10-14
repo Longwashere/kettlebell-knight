@@ -62,11 +62,31 @@ const KNIGHT_SKELETON_KEY = '/assets/spine/knight/HulkForm2.json';
 const KNIGHT_ATLAS_KEY = '/assets/spine/knight/HulkForm2.atlas';
 const KNIGHT_SCALE = 0.15;
 // Battle arena background textures (clean 1:1 retro canvas match)
-const BATTLE_BG_KEY = '/assets/backgrounds/cathedral_crypt.webp';
+export const BATTLE_MAPS = {
+  CATHEDRAL_CRYPT: '/assets/backgrounds/cathedral_crypt.webp',
+  DARK_FOREST: '/assets/backgrounds/dark_forest.webp',
+  VERDANT_FOREST: '/assets/backgrounds/verdant_forest.webp',
+  OBSIDIAN_THRONE: '/assets/backgrounds/obsidian_throne.webp',
+  VOLCANIC_FORGE: '/assets/backgrounds/volcanic_forge.webp',
+  BLOOD_CEMETERY: '/assets/backgrounds/blood_cemetery.webp',
+  SUNKEN_CISTERN: '/assets/backgrounds/sunken_cistern.webp',
+  BELFRY_RAMPARTS: '/assets/backgrounds/belfry_ramparts.webp',
+  ELDRITCH_ALTAR: '/assets/backgrounds/eldritch_altar.webp',
+  CATHEDRAL_VAULT: '/assets/backgrounds/cathedral_vault.webp',
+  TOWN_NIGHT: '/assets/backgrounds/town_night.webp',
+  TOWN_SQUARE: '/assets/backgrounds/town_square.webp',
+} as const;
+
+export type BattleMapId = keyof typeof BATTLE_MAPS;
+
+const BATTLE_BG_KEY = BATTLE_MAPS.CATHEDRAL_CRYPT;
 const MONSTER_BACKGROUNDS: Record<MonsterSprite, string> = {
-  TREEMON: '/assets/backgrounds/dark_forest.webp',
-  SLIME: '/assets/backgrounds/cathedral_crypt.webp',
-  HELLHOUND: '/assets/backgrounds/cathedral_crypt.webp',
+  TREEMON: BATTLE_MAPS.DARK_FOREST,
+  SLIME: BATTLE_MAPS.SUNKEN_CISTERN,
+  HELLHOUND: BATTLE_MAPS.VOLCANIC_FORGE,
+  BOAR: BATTLE_MAPS.VERDANT_FOREST,
+  DEMON_MONK: BATTLE_MAPS.ELDRITCH_ALTAR,
+  WOLF: BATTLE_MAPS.BLOOD_CEMETERY,
 };
 // Lifts combatants + effects so they stand above the battle card hand (which covers the lower half).
 const SCENE_RAISE_Y = 40;
@@ -85,6 +105,7 @@ interface MonsterRig {
   defend?: string;
   hit: string;
   death: string;
+  flipX?: boolean;
 }
 
 // Spine 4.2 monster rigs (public/assets/spine/monsters). They're authored facing right (or
@@ -124,6 +145,41 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
     hit: 'Hit',
     death: 'Death',
   },
+  BOAR: {
+    skeleton: `${MONSTER_DIR}/boar/monster_3010101.json`,
+    atlas: `${MONSTER_DIR}/boar/monster_3010101.atlas`,
+    scale: 0.38,
+    idle: 'idle',
+    attack: 'skill',
+    heavyAttack: 'skill2',
+    hit: 'hit',
+    death: 'die',
+    flipX: false, // boar is authored facing left toward the knight
+  },
+  DEMON_MONK: {
+    skeleton: `${MONSTER_DIR}/demonMonk/spine_monster_201150001.json`,
+    atlas: `${MONSTER_DIR}/demonMonk/spine_monster_201150001.atlas`,
+    scale: 0.26,
+    idle: 'idle',
+    attack: 'attack',
+    heavyAttack: 'bothcast',
+    defend: 'selfcast',
+    hit: 'hit',
+    death: 'hit',
+    flipX: false, // demon monk is authored facing left toward the knight
+  },
+  WOLF: {
+    skeleton: `${MONSTER_DIR}/wolf/Unit_Spine_Wolf1.json`,
+    atlas: `${MONSTER_DIR}/wolf/Unit_Spine_Wolf1.atlas`,
+    scale: 0.13,
+    idle: 'stand',
+    appear: 'posture',
+    attack: 'attack',
+    heavyAttack: 'skill1',
+    hit: 'hurt',
+    death: 'death',
+    flipX: false, // wolf is authored facing left toward the knight
+  },
 };
 const MONSTER_X = 300;
 const MONSTER_LUNGE_DISTANCE = 110; // how far toward the knight an attack dashes
@@ -150,6 +206,21 @@ async function unloadSpineRig(skeleton: string, atlas: string, scale: number): P
  *    Uses Assets.load/unload on scene transitions to prevent WebGL Context Loss on 1GB Fire TV sticks.
  * 3. Dynamic Spine/Attachment preview swapping with proactive asset unloading.
  */
+export interface MonsterSlot {
+  container: Container;
+  shadow: Graphics;
+  spine: Spine | null;
+  rig: MonsterRig | null;
+  spriteType: MonsterSprite;
+  slotIndex: number;
+  baseX: number;
+  baseY: number;
+  isAlive: boolean;
+  isLocked: boolean; // true once death animation starts
+  lungeT: number;
+  shakeX: number;
+}
+
 export class GameEngine {
   private app: Application | null = null;
   private containerElement: HTMLElement;
@@ -170,6 +241,7 @@ export class GameEngine {
   private hitReactionIndex: number = 0;
   private holdsKnightAssets: boolean = false;
   private knightLocked: boolean = false; // true while on a terminal pose (victory / defeat)
+
   private enemyDummy: Container | null = null;
   private monsterSpine: Spine | null = null;
   private monsterRig: MonsterRig | null = null;
@@ -179,6 +251,12 @@ export class GameEngine {
   private monsterLoadToken = 0; // discards stale loads when monsters are switched quickly
   private monsterLocked = false; // true once the death animation starts
   private monsterLungeT = 1; // 0→1 during an attack dash; 1 = idle at home
+
+  // Multi-Monster Encounters (1 to 3 monsters simultaneously)
+  private monsterSlots: MonsterSlot[] = [];
+  private targetSlotIndex: number = 0;
+  private targetReticle: Graphics | null = null;
+  private queuedMonsters: MonsterSprite[] = ['SLIME'];
   private flashOverlay: Graphics | null = null;
 
   // Animation States
@@ -534,146 +612,303 @@ export class GameEngine {
     this.enemyDummy.y = 168;
     this.gameLayer.addChild(this.enemyDummy);
 
-    void this.loadMonster(this.monsterSprite);
+    this.createTargetReticle();
+    void this.setMonsters(this.queuedMonsters);
+  }
+
+  private createTargetReticle(): void {
+    if (!this.gameLayer) return;
+    this.targetReticle = new Graphics();
+    // Glowing retro arrow pointing down ▼
+    this.targetReticle.poly([-5, -12, 5, -12, 0, -3]).fill({ color: 0xF4B41A });
+    this.targetReticle.poly([-3, -10, 3, -10, 0, -4]).fill({ color: 0xFFFBEA });
+    this.targetReticle.zIndex = 100;
+    this.gameLayer.addChild(this.targetReticle);
   }
 
   /**
-   * Swaps the enemy to the given Spine monster. Safe to call before init(): the request is
-   * remembered and loaded once the scene exists.
+   * Sets multiple monsters (1 to 3) in formation on the battlefield.
+   */
+  public async setMonsters(monstersInput: (MonsterSprite | { spriteType: MonsterSprite })[]): Promise<void> {
+    const token = ++this.monsterLoadToken;
+    const requestedTypes: MonsterSprite[] = monstersInput.map(t => typeof t === 'string' ? t : t.spriteType);
+    this.queuedMonsters = requestedTypes;
+
+    if (!this.gameLayer) return;
+
+    this.clearAllMonsters();
+
+    const count = Math.min(3, Math.max(1, requestedTypes.length));
+    const formations: { x: number; y: number; zIndex: number }[][] = [
+      // 1 monster (Solo boss/target)
+      [{ x: 310, y: 168, zIndex: 10 }],
+      // 2 monsters (Diagonal depth: front & back)
+      [
+        { x: 285, y: 175, zIndex: 20 },
+        { x: 345, y: 160, zIndex: 10 },
+      ],
+      // 3 monsters (Staggered triangle formation)
+      [
+        { x: 280, y: 176, zIndex: 30 },
+        { x: 330, y: 158, zIndex: 10 },
+        { x: 370, y: 170, zIndex: 20 },
+      ],
+    ];
+    const coords = formations[count - 1];
+
+    // Pick appropriate arena background
+    if (requestedTypes.includes('HELLHOUND')) {
+      void this.loadBackground(BATTLE_MAPS.VOLCANIC_FORGE);
+    } else if (requestedTypes.includes('TREEMON')) {
+      void this.loadBackground(BATTLE_MAPS.DARK_FOREST);
+    } else {
+      void this.loadBackground(BATTLE_MAPS.CATHEDRAL_CRYPT);
+    }
+
+    for (let i = 0; i < count; i++) {
+      const type = requestedTypes[i];
+      const pos = coords[i];
+
+      const slotContainer = new Container();
+      slotContainer.x = pos.x;
+      slotContainer.y = pos.y;
+      slotContainer.zIndex = pos.zIndex;
+
+      // Drop shadow for monster
+      const shadow = new Graphics();
+      shadow.ellipse(0, 0, 24, 5).fill({ color: 0x000000, alpha: 0.4 });
+      slotContainer.addChild(shadow);
+
+      const rig = MONSTER_RIGS[type];
+      const slot: MonsterSlot = {
+        container: slotContainer,
+        shadow,
+        spine: null,
+        rig,
+        spriteType: type,
+        slotIndex: i,
+        baseX: pos.x,
+        baseY: pos.y,
+        isAlive: true,
+        isLocked: false,
+        lungeT: 1,
+        shakeX: 0,
+      };
+
+      this.monsterSlots.push(slot);
+      this.gameLayer.addChild(slotContainer);
+
+      monsterAssetRefs.set(rig.skeleton, (monsterAssetRefs.get(rig.skeleton) ?? 0) + 1);
+
+      try {
+        await Assets.load([rig.skeleton, rig.atlas]);
+      } catch (err) {
+        console.error(`[GameEngine] Failed to load monster rig ${type}:`, err);
+        continue;
+      }
+
+      if (this.isDestroyed || token !== this.monsterLoadToken) return;
+
+      const spine = Spine.from({ skeleton: rig.skeleton, atlas: rig.atlas, scale: rig.scale, autoUpdate: true });
+      if (this.app) spine.ticker = this.app.ticker;
+      if (rig.flipX !== false) {
+        spine.scale.x *= -1; // face knight on the left
+      }
+
+      for (const page of Assets.get<TextureAtlas>(rig.atlas).pages) {
+        const source = (page.texture as SpineTexture).texture.source;
+        source.autoGenerateMipmaps = true;
+        source.style.scaleMode = 'linear';
+        source.style.mipmapFilter = 'linear';
+        source.style.update();
+      }
+
+      spine.state.data.defaultMix = 0.1;
+      if (rig.appear) {
+        spine.state.setAnimation(0, rig.appear, false);
+        spine.state.addAnimation(0, rig.idle, true, 0);
+      } else {
+        spine.state.setAnimation(0, rig.idle, true);
+      }
+
+      slot.spine = spine;
+      slotContainer.addChild(spine);
+    }
+
+    // Retain compatibility with legacy single-monster references
+    this.monsterSpine = this.monsterSlots[0]?.spine ?? null;
+    this.monsterRig = this.monsterSlots[0]?.rig ?? null;
+    this.monsterSprite = requestedTypes[0];
+    this.targetSlotIndex = 0;
+  }
+
+  /**
+   * Legacy single-monster setter.
    */
   public setMonster(type: MonsterSprite = 'SLIME'): void {
-    // Already showing (or loading) this monster alive: nothing to do.
-    if (this.heldMonsterRig === MONSTER_RIGS[type] && !this.monsterLocked) return;
-    this.monsterSprite = type;
-    if (this.bgLayer) void this.loadBackground(MONSTER_BACKGROUNDS[type]);
-    if (this.enemyDummy) void this.loadMonster(type);
+    void this.setMonsters([type]);
   }
 
   /**
-   * Loads a monster rig, mounts it facing the knight, and releases the previous rig's
-   * textures so only one monster atlas is resident on the Fire TV at a time.
+   * Sets which monster is currently targeted by Sir Kettleburne.
    */
-  private async loadMonster(type: MonsterSprite): Promise<void> {
-    const token = ++this.monsterLoadToken;
-    const rig = MONSTER_RIGS[type];
-
-    this.clearMonster();
-    monsterAssetRefs.set(rig.skeleton, (monsterAssetRefs.get(rig.skeleton) ?? 0) + 1);
-    this.heldMonsterRig = rig;
-
-    try {
-      await Assets.load([rig.skeleton, rig.atlas]);
-    } catch (err) {
-      console.error(`[GameEngine] Failed to load monster rig ${type}:`, err);
-      return;
+  public setTargetMonster(index: number): void {
+    if (index >= 0 && index < this.monsterSlots.length) {
+      this.targetSlotIndex = index;
     }
-    if (this.isDestroyed || token !== this.monsterLoadToken || !this.enemyDummy) return;
-
-    const spine = Spine.from({ skeleton: rig.skeleton, atlas: rig.atlas, scale: rig.scale, autoUpdate: true });
-    if (this.app) spine.ticker = this.app.ticker;
-    spine.scale.x *= -1; // face the knight
-    // Full-resolution atlases drawn at ~15-30%: linear mipmaps keep them from shimmering.
-    // (Pixi skips mipmaps where WebGL1 can't do them for non-power-of-two pages.)
-    for (const page of Assets.get<TextureAtlas>(rig.atlas).pages) {
-      const source = (page.texture as SpineTexture).texture.source;
-      source.autoGenerateMipmaps = true;
-      source.style.scaleMode = 'linear';
-      source.style.mipmapFilter = 'linear';
-      source.style.update();
-    }
-    spine.state.data.defaultMix = 0.1;
-    if (rig.appear) {
-      spine.state.setAnimation(0, rig.appear, false);
-      spine.state.addAnimation(0, rig.idle, true, 0);
-    } else {
-      spine.state.setAnimation(0, rig.idle, true);
-    }
-
-    this.monsterSpine = spine;
-    this.monsterRig = rig;
-    this.monsterLocked = false;
-    this.monsterLungeT = 1;
-    this.enemyDummy.addChild(spine);
   }
 
-  /** Destroys the current monster and unloads its assets once no engine holds them. */
-  private clearMonster(): void {
-    this.monsterSpine?.destroy();
+  /**
+   * Returns the coordinates of the currently targeted alive monster (or first alive monster).
+   */
+  public getTargetMonsterPos(): { x: number; y: number } {
+    const slot = this.monsterSlots[this.targetSlotIndex] ?? this.monsterSlots.find(s => s.isAlive);
+    if (slot && slot.isAlive) {
+      return { x: slot.baseX, y: slot.baseY };
+    }
+    return { x: 300, y: 168 };
+  }
+
+  /**
+   * Returns positions of all alive monsters for AOE cleave attacks.
+   */
+  public getAllAliveMonsterPositions(): { x: number; y: number; slotIndex: number }[] {
+    return this.monsterSlots
+      .filter(s => s.isAlive && !s.isLocked)
+      .map(s => ({ x: s.baseX, y: s.baseY, slotIndex: s.slotIndex }));
+  }
+
+  /** Destroys all current monster slots and unloads their assets. */
+  private clearAllMonsters(): void {
+    for (const slot of this.monsterSlots) {
+      if (slot.spine) {
+        slot.spine.destroy();
+        slot.spine = null;
+      }
+      if (slot.container && this.gameLayer) {
+        this.gameLayer.removeChild(slot.container);
+        slot.container.destroy({ children: true });
+      }
+      if (slot.rig) {
+        const refs = (monsterAssetRefs.get(slot.rig.skeleton) ?? 1) - 1;
+        if (refs > 0) {
+          monsterAssetRefs.set(slot.rig.skeleton, refs);
+        } else {
+          monsterAssetRefs.delete(slot.rig.skeleton);
+          void unloadSpineRig(slot.rig.skeleton, slot.rig.atlas, slot.rig.scale);
+        }
+      }
+    }
+    this.monsterSlots = [];
     this.monsterSpine = null;
     this.monsterRig = null;
+  }
 
-    const held = this.heldMonsterRig;
-    if (!held) return;
-    this.heldMonsterRig = null;
-    const refs = (monsterAssetRefs.get(held.skeleton) ?? 1) - 1;
-    if (refs > 0) {
-      monsterAssetRefs.set(held.skeleton, refs);
-    } else {
-      monsterAssetRefs.delete(held.skeleton);
-      void unloadSpineRig(held.skeleton, held.atlas, held.scale);
+  private clearMonster(): void {
+    this.clearAllMonsters();
+  }
+
+  /** Plays an animation on a specific monster slot. */
+  private playMonsterAnimationOnSlot(slot: MonsterSlot, name: string | undefined): void {
+    if (!slot.spine || !slot.rig || !name || slot.isLocked) return;
+    if (!slot.spine.skeleton.data.findAnimation(name)) return;
+    slot.spine.state.setAnimation(0, name, false);
+    slot.spine.state.addAnimation(0, slot.rig.idle, true, 0);
+  }
+
+  /** Monster flinches when an attack lands. */
+  public playMonsterHit(slotIndex?: number): void {
+    const slot = (slotIndex !== undefined ? this.monsterSlots[slotIndex] : null)
+      ?? this.monsterSlots[this.targetSlotIndex]
+      ?? this.monsterSlots.find(s => s.isAlive);
+    if (!slot) return;
+    this.playMonsterAnimationOnSlot(slot, slot.rig?.hit);
+    slot.shakeX = (Math.random() > 0.5 ? 1 : -1) * 8;
+  }
+
+  /** All alive monsters flinch simultaneously from AOE cleave attacks. */
+  public playAllMonstersHit(): void {
+    for (const slot of this.monsterSlots) {
+      if (slot.isAlive && !slot.isLocked) {
+        this.playMonsterAnimationOnSlot(slot, slot.rig?.hit);
+        slot.shakeX = (Math.random() > 0.5 ? 1 : -1) * 8;
+      }
     }
-  }
-
-  /** Plays a one-shot monster animation and returns to idle afterwards. */
-  private playMonsterAnimation(name: string | undefined): void {
-    const spine = this.monsterSpine;
-    const rig = this.monsterRig;
-    if (!spine || !rig || !name || this.monsterLocked) return;
-    spine.state.setAnimation(0, name, false);
-    spine.state.addAnimation(0, rig.idle, true, 0);
-  }
-
-  /** Monster flinches when a card lands. */
-  public playMonsterHit(): void {
-    this.playMonsterAnimation(this.monsterRig?.hit);
   }
 
   /** Monster gains block (DEFEND intent). */
-  public playMonsterDefend(): void {
-    this.playMonsterAnimation(this.monsterRig?.defend);
+  public playMonsterDefend(slotIndex?: number): void {
+    const slot = (slotIndex !== undefined ? this.monsterSlots[slotIndex] : null)
+      ?? this.monsterSlots[this.targetSlotIndex]
+      ?? this.monsterSlots.find(s => s.isAlive);
+    if (!slot) return;
+    this.playMonsterAnimationOnSlot(slot, slot.rig?.defend);
   }
 
-  /** Death animation, held on its last frame until the next monster loads. */
-  public playMonsterDeath(): void {
-    const spine = this.monsterSpine;
-    const rig = this.monsterRig;
-    if (!spine || !rig || this.monsterLocked) return;
-    this.monsterLocked = true;
-    this.monsterLungeT = 1;
-    spine.state.setAnimation(0, rig.death, false);
+  /** Monster plays death animation and fades away. */
+  public playMonsterDeath(slotIndex?: number): void {
+    const slot = (slotIndex !== undefined ? this.monsterSlots[slotIndex] : null)
+      ?? this.monsterSlots[this.targetSlotIndex]
+      ?? this.monsterSlots.find(s => s.isAlive);
+    if (!slot || slot.isLocked) return;
+    slot.isLocked = true;
+    slot.isAlive = false;
+    slot.lungeT = 1;
+
+    if (slot.spine && slot.rig) {
+      const deathAnim = slot.rig.death && slot.spine.skeleton.data.findAnimation(slot.rig.death)
+        ? slot.rig.death
+        : (slot.rig.hit && slot.spine.skeleton.data.findAnimation(slot.rig.hit) ? slot.rig.hit : null);
+
+      if (deathAnim) {
+        slot.spine.state.setAnimation(0, deathAnim, false);
+      }
+      let fadeProgress = 0;
+      const interval = setInterval(() => {
+        fadeProgress += 0.08;
+        if (slot.container) {
+          slot.container.alpha = Math.max(0, 1 - fadeProgress);
+        }
+        if (fadeProgress >= 1) {
+          clearInterval(interval);
+        }
+      }, 50);
+    }
   }
 
   /**
-   * Monster attack: plays its attack animation while dashing toward the knight and back.
+   * Monster attack: plays attack animation while dashing toward the knight and back.
    */
-  public monsterAttackLunge(heavy: boolean = false): void {
-    if (!this.enemyDummy || this.monsterLocked) return;
+  public monsterAttackLunge(slotIndex?: number, heavy: boolean = false): void {
+    const slot = (slotIndex !== undefined ? this.monsterSlots[slotIndex] : null)
+      ?? this.monsterSlots[this.targetSlotIndex]
+      ?? this.monsterSlots.find(s => s.isAlive);
+    if (!slot || !slot.isAlive || slot.isLocked) return;
 
     this.flashAlpha = 0.65;
     this.shakeIntensity = heavy ? 10 : 8;
-
-    // Knight reels from the hit
     this.playKnightHit();
 
-    this.playMonsterAnimation(heavy ? this.monsterRig?.heavyAttack : this.monsterRig?.attack);
-    this.monsterLungeT = 0;
+    this.playMonsterAnimationOnSlot(slot, heavy ? slot.rig?.heavyAttack : slot.rig?.attack);
+    slot.lungeT = 0;
 
     // Claw slash graphic
     if (this.effectsLayer) {
-      const lungeX = MONSTER_X - MONSTER_LUNGE_DISTANCE;
+      const lungeX = slot.baseX - MONSTER_LUNGE_DISTANCE;
       const claw = new Graphics();
-      claw.moveTo(lungeX - 25, 120);
-      claw.lineTo(lungeX + 15, 160);
-      claw.moveTo(lungeX - 15, 115);
-      claw.lineTo(lungeX + 25, 155);
-      claw.stroke({ width: 3, color: 0xFF3366 });
+      claw.moveTo(lungeX - 25, slot.baseY - 48);
+      claw.lineTo(lungeX + 15, slot.baseY - 8);
+      claw.moveTo(lungeX - 15, slot.baseY - 53);
+      claw.lineTo(lungeX + 25, slot.baseY - 13);
+      claw.stroke({ width: heavy ? 3.5 : 2, color: heavy ? 0xFF0033 : 0xF97316, alpha: 0.9 });
       this.effectsLayer.addChild(claw);
 
       setTimeout(() => {
-        if (claw && !this.isDestroyed) {
+        if (claw && !this.isDestroyed && this.effectsLayer) {
+          this.effectsLayer.removeChild(claw);
           claw.destroy();
         }
-      }, 150);
+      }, 180);
     }
   }
 
@@ -2113,13 +2348,32 @@ export class GameEngine {
         }
       }
 
-      // Monster attack dash: out toward the knight and back over ~0.5s
-      if (this.monsterLungeT < 1) {
-        this.monsterLungeT = Math.min(1, this.monsterLungeT + ticker.deltaMS / 500);
+      // Update each monster slot (lunges, shakes)
+      for (const slot of this.monsterSlots) {
+        if (!slot.container) continue;
+        if (slot.lungeT < 1) {
+          slot.lungeT = Math.min(1, slot.lungeT + ticker.deltaMS / 500);
+        }
+        const lunge = Math.sin(slot.lungeT * Math.PI) * MONSTER_LUNGE_DISTANCE;
+        const shake = (slot.slotIndex === this.targetSlotIndex ? enemyShakeX : 0) + slot.shakeX;
+        slot.container.x = slot.baseX - lunge + shake;
+        slot.container.y = slot.baseY;
+        if (slot.shakeX !== 0) {
+          slot.shakeX = slot.shakeX > 0 ? Math.max(0, slot.shakeX - delta) : Math.min(0, slot.shakeX + delta);
+        }
       }
-      if (this.enemyDummy) {
-        const lunge = Math.sin(this.monsterLungeT * Math.PI) * MONSTER_LUNGE_DISTANCE;
-        this.enemyDummy.x = MONSTER_X - lunge + enemyShakeX;
+
+      // Update Target Reticle over active monster
+      if (this.targetReticle) {
+        const targetSlot = this.monsterSlots[this.targetSlotIndex] ?? this.monsterSlots.find(s => s.isAlive);
+        if (targetSlot && targetSlot.isAlive && !targetSlot.isLocked) {
+          this.targetReticle.visible = true;
+          this.targetReticle.x += (targetSlot.baseX - this.targetReticle.x) * 0.25;
+          const bobY = Math.sin(performance.now() * 0.007) * 3;
+          this.targetReticle.y = targetSlot.baseY - 76 + bobY;
+        } else {
+          this.targetReticle.visible = false;
+        }
       }
 
       // 2. Update Screen Flash Overlay Fade
@@ -2249,7 +2503,7 @@ export class GameEngine {
   public async destroy(): Promise<void> {
     this.isDestroyed = true;
     this.knightSpine = null;
-    this.clearMonster();
+    this.clearAllMonsters();
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
 

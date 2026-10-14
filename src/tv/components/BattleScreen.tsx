@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { CombatCard, MonsterState, BattleState, MonsterIntent, MONSTER_CATALOG } from '../../types/battle';
+import { CombatCard, MonsterState, BattleState, MonsterIntent, MONSTER_CATALOG, ENCOUNTERS, EncounterTemplate } from '../../types/battle';
 import { ExerciseType, RepTelemetry } from '../../types/game';
 import { CardDeckManager } from '../../shared/CardDeckManager';
 import { audioManager } from '../../shared/AudioManager';
@@ -16,11 +16,14 @@ import {
   Trophy, 
   Skull, 
   RotateCcw,
-  Zap
+  Zap,
+  Target,
+  Users
 } from 'lucide-react';
 
 interface BattleScreenProps {
   engineRef: React.RefObject<GameEngine | null>;
+  isEngineReady?: boolean;
   onExitBattle: () => void;
   onBattleStateSync?: (state: {
     hand: CombatCard[];
@@ -41,6 +44,21 @@ const MONSTER_INTENTS: Record<string, MonsterIntent[]> = {
     { type: 'HEAVY_ATTACK', damage: 38, name: 'Root Stomp', description: 'Earth-splitting shockwave', durationSeconds: 5.8, remainingSeconds: 5.8 },
     { type: 'DEFEND', damage: 0, name: 'Bark Skin', description: 'Hardens its bark (+25 Block)', durationSeconds: 4.0, remainingSeconds: 4.0 },
   ],
+  boar: [
+    { type: 'HEAVY_ATTACK', damage: 32, name: 'Gore Charge', description: 'Violent headlong tusk impale', durationSeconds: 5.2, remainingSeconds: 5.2 },
+    { type: 'ATTACK', damage: 18, name: 'Tusk Slash', description: 'Quick upward tusk thrust', durationSeconds: 3.6, remainingSeconds: 3.6 },
+    { type: 'DEFEND', damage: 0, name: 'Iron Bristles', description: 'Toughens coarse hide (+20 Block)', durationSeconds: 4.2, remainingSeconds: 4.2 },
+  ],
+  wolf: [
+    { type: 'HEAVY_ATTACK', damage: 35, name: 'Throat Bite', description: 'Ferocious neck puncture', durationSeconds: 4.8, remainingSeconds: 4.8 },
+    { type: 'ATTACK', damage: 20, name: 'Shadow Pounce', description: 'Agile leap from behind', durationSeconds: 3.2, remainingSeconds: 3.2 },
+    { type: 'ATTACK', damage: 24, name: 'Predator Rake', description: 'Razor claw laceration', durationSeconds: 3.8, remainingSeconds: 3.8 },
+  ],
+  demon_monk: [
+    { type: 'HEAVY_ATTACK', damage: 42, name: 'Abyssal Edict', description: 'Dark unholy necrotic blast', durationSeconds: 5.5, remainingSeconds: 5.5 },
+    { type: 'ATTACK', damage: 26, name: 'Cursed Palm', description: 'Infused demonic strike', durationSeconds: 3.8, remainingSeconds: 3.8 },
+    { type: 'DEFEND', damage: 0, name: 'Forbidden Ward', description: 'Dark sorcery shield (+28 Block)', durationSeconds: 4.0, remainingSeconds: 4.0 },
+  ],
   hellhound: [
     { type: 'HEAVY_ATTACK', damage: 45, name: 'Twin Maul', description: 'Both heads bite at once', durationSeconds: 5.0, remainingSeconds: 5.0 },
     { type: 'ATTACK', damage: 24, name: 'Savage Frenzy', description: 'Wild snapping bites', durationSeconds: 3.2, remainingSeconds: 3.2 },
@@ -48,8 +66,38 @@ const MONSTER_INTENTS: Record<string, MonsterIntent[]> = {
   ],
 };
 
+function createEncounterFromTemplate(template: EncounterTemplate): MonsterState[] {
+  const counts: Record<string, number> = {};
+  return template.monsterIds.map((mId, slotIndex) => {
+    const cat = MONSTER_CATALOG.find(c => c.id === mId) || MONSTER_CATALOG[0];
+    counts[mId] = (counts[mId] || 0) + 1;
+    const count = counts[mId];
+    const totalOfThisType = template.monsterIds.filter(id => id === mId).length;
+    const suffix = totalOfThisType > 1 ? ` ${String.fromCharCode(64 + count)}` : '';
+
+    const intents = MONSTER_INTENTS[cat.id] || MONSTER_INTENTS.green_slime;
+    const rawIntent = intents[slotIndex % intents.length] || intents[0];
+    const initialIntent = {
+      ...rawIntent,
+      remainingSeconds: rawIntent.durationSeconds + slotIndex * 0.85,
+    };
+
+    return {
+      ...cat,
+      name: `${cat.name}${suffix}`,
+      instanceId: `${template.id}_${slotIndex}_${Date.now()}`,
+      slotIndex,
+      isAlive: true,
+      currentHp: cat.maxHp,
+      block: 0,
+      intent: initialIntent,
+    };
+  });
+}
+
 export const BattleScreen: React.FC<BattleScreenProps> = ({
   engineRef,
+  isEngineReady,
   onExitBattle,
   onBattleStateSync,
 }) => {
@@ -65,22 +113,21 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const [battleStatus, setBattleStatus] = useState<'FIGHTING' | 'VICTORY' | 'DEFEAT'>('FIGHTING');
   const [recentCombatLog, setRecentCombatLog] = useState<string>('Battle commenced! Perform exercises to cast cards.');
 
-  // Current Monster
-  const [currentMonsterIndex, setCurrentMonsterIndex] = useState<number>(0);
-  const [monster, setMonster] = useState<MonsterState>(() => {
-    const template = MONSTER_CATALOG[0];
-    const initialIntent = { ...MONSTER_INTENTS[template.id][0] };
-    return {
-      ...template,
-      currentHp: template.maxHp,
-      block: 0,
-      intent: initialIntent,
-    };
+  // Multi-Monster Encounters (1 to 3 monsters simultaneously)
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const initialEncounterParam = parseInt(searchParams?.get('encounter') || '0', 10);
+  const safeEncounterIndex = isNaN(initialEncounterParam) ? 0 : Math.max(0, Math.min(initialEncounterParam, ENCOUNTERS.length - 1));
+  const [currentEncounterIndex, setCurrentEncounterIndex] = useState<number>(safeEncounterIndex);
+  const [monsters, setMonsters] = useState<MonsterState[]>(() => {
+    return createEncounterFromTemplate(ENCOUNTERS[safeEncounterIndex]);
   });
+  const [targetedMonsterIndex, setTargetedMonsterIndex] = useState<number>(0);
 
-  // Reference for real-time timer calculations
-  const monsterRef = useRef<MonsterState>(monster);
-  monsterRef.current = monster;
+  // References for real-time timer calculations
+  const monstersRef = useRef<MonsterState[]>(monsters);
+  monstersRef.current = monsters;
+  const targetedIndexRef = useRef<number>(targetedMonsterIndex);
+  targetedIndexRef.current = targetedMonsterIndex;
   const playerHpRef = useRef<number>(playerHp);
   playerHpRef.current = playerHp;
   const playerBlockRef = useRef<number>(playerBlock);
@@ -88,27 +135,33 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const battleStatusRef = useRef<'FIGHTING' | 'VICTORY' | 'DEFEAT'>(battleStatus);
   battleStatusRef.current = battleStatus;
 
-  // Initialize Battle
+  // Initialize Battle & Sync with Engine
   useEffect(() => {
     const initialHand = deckManagerRef.current.dealInitialHand();
     setHand(initialHand);
-    const template = MONSTER_CATALOG[currentMonsterIndex];
-    engineRef.current?.setMonster?.(template.spriteType);
-
+    if (engineRef.current) {
+      engineRef.current.setMonsters(monsters);
+    }
     audioManager.play('level_up');
-  }, [currentMonsterIndex, engineRef]);
+  }, [currentEncounterIndex, isEngineReady, engineRef]);
+
+  // Update engine target when targetedMonsterIndex changes
+  useEffect(() => {
+    engineRef.current?.setTargetMonster?.(targetedMonsterIndex);
+  }, [targetedMonsterIndex, engineRef]);
 
   // Sync state to parent / phone WebRTC
   useEffect(() => {
+    const activeMonster = monsters[targetedMonsterIndex] || monsters.find(m => m.isAlive) || monsters[0];
     onBattleStateSync?.({
       hand,
-      monster,
+      monster: activeMonster,
       playerHp,
       playerBlock,
     });
-  }, [hand, monster, playerHp, playerBlock, onBattleStateSync]);
+  }, [hand, monsters, targetedMonsterIndex, playerHp, playerBlock, onBattleStateSync]);
 
-  // Real-Time Monster Attack ATB Timer Loop
+  // Real-Time Multi-Monster Attack ATB Timer Loop
   useEffect(() => {
     if (battleStatus !== 'FIGHTING') return;
 
@@ -120,33 +173,39 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       const dt = (now - lastTime) / 1000;
       lastTime = now;
 
-      setMonster((prev) => {
-        if (!prev || prev.currentHp <= 0) return prev;
+      setMonsters((prevMonsters) => {
+        let anyAttacked = false;
+        const nextMonsters = prevMonsters.map((m) => {
+          if (!m.isAlive || m.currentHp <= 0) return m;
 
-        const newRemaining = prev.intent.remainingSeconds - dt;
+          const newRemaining = m.intent.remainingSeconds - dt;
 
-        // When monster attack timer reaches 0: Unleash Attack!
-        if (newRemaining <= 0) {
-          executeMonsterAttack(prev);
+          // When a monster's attack timer reaches 0: Unleash Attack!
+          if (newRemaining <= 0) {
+            anyAttacked = true;
+            executeMonsterAttack(m);
 
-          // Select next random intent for this monster
-          const intents = MONSTER_INTENTS[prev.id] || MONSTER_INTENTS.green_slime;
-          const nextIntentTemplate = intents[Math.floor(Math.random() * intents.length)];
-          const nextIntent = { ...nextIntentTemplate, remainingSeconds: nextIntentTemplate.durationSeconds };
+            // Select next random intent for this monster
+            const intents = MONSTER_INTENTS[m.id] || MONSTER_INTENTS.green_slime;
+            const nextIntentTemplate = intents[Math.floor(Math.random() * intents.length)];
+            const nextIntent = { ...nextIntentTemplate, remainingSeconds: nextIntentTemplate.durationSeconds };
+
+            return {
+              ...m,
+              intent: nextIntent,
+            };
+          }
 
           return {
-            ...prev,
-            intent: nextIntent,
+            ...m,
+            intent: {
+              ...m.intent,
+              remainingSeconds: newRemaining,
+            },
           };
-        }
+        });
 
-        return {
-          ...prev,
-          intent: {
-            ...prev.intent,
-            remainingSeconds: newRemaining,
-          },
-        };
+        return nextMonsters;
       });
     }, 50);
 
@@ -159,8 +218,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
     if (intent.type === 'DEFEND') {
       // Monster buffs armor
-      setMonster((prev) => ({ ...prev, block: prev.block + 25 }));
-      engineRef.current?.playMonsterDefend?.();
+      setMonsters((prev) => prev.map(mon => mon.instanceId === m.instanceId ? { ...mon, block: mon.block + 25 } : mon));
+      engineRef.current?.playMonsterDefend?.(m.slotIndex);
       engineRef.current?.spawnFloatingText?.(`+25 BLOCK`, 300, 100, 0x38B6FF, 12);
       setRecentCombatLog(`${m.name} hardened their armor (+25 Block)!`);
       audioManager.play('equip');
@@ -196,7 +255,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     });
 
     // Monster Visual Attack in Engine
-    engineRef.current?.monsterAttackLunge?.(intent.type === 'HEAVY_ATTACK');
+    engineRef.current?.monsterAttackLunge?.(m.slotIndex, intent.type === 'HEAVY_ATTACK');
     setRecentCombatLog(`${m.name} used ${intent.name}! Dealt ${rawDamage} DMG.`);
     audioManager.play('hit');
   }, [engineRef]);
@@ -216,34 +275,76 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       // Card activation SFX & VFX in PixiJS Engine
       engineRef.current?.onRepCompleted?.(power, form, exercise, card.name);
 
-      // Apply Damage to Monster
+      // Apply Damage to Monster(s)
       if (result.damage > 0) {
-        setMonster((prev) => {
-          let dmg = result.damage;
-          let newBlock = prev.block;
-          let newHp = prev.currentHp;
+        const isCleave = card.name.toLowerCase().includes('whirlwind') 
+          || card.name.toLowerCase().includes('slam') 
+          || card.name.toLowerCase().includes('quake') 
+          || card.name.toLowerCase().includes('vortex') 
+          || card.name.toLowerCase().includes('phoenix') 
+          || card.name.toLowerCase().includes('sunder')
+          || card.name.toLowerCase().includes('eruption');
 
-          if (newBlock >= dmg) {
-            newBlock -= dmg;
-          } else {
-            dmg -= newBlock;
-            newBlock = 0;
-            newHp = Math.max(0, newHp - dmg);
-          }
+        setMonsters((prevMonsters) => {
+          let allDefeated = true;
+          const nextMonsters = prevMonsters.map((m, idx) => {
+            if (!m.isAlive || m.currentHp <= 0) return m;
 
-          if (newHp <= 0) {
+            // If not cleave/AOE, only damage the targeted monster
+            if (!isCleave && idx !== targetedIndexRef.current) {
+              allDefeated = false;
+              return m;
+            }
+
+            let dmg = result.damage;
+            let newBlock = m.block;
+            let newHp = m.currentHp;
+
+            if (newBlock >= dmg) {
+              newBlock -= dmg;
+            } else {
+              dmg -= newBlock;
+              newBlock = 0;
+              newHp = Math.max(0, newHp - dmg);
+            }
+
+            if (newHp <= 0) {
+              engineRef.current?.playMonsterDeath?.(m.slotIndex);
+              return {
+                ...m,
+                block: 0,
+                currentHp: 0,
+                isAlive: false,
+              };
+            } else {
+              allDefeated = false;
+            }
+
+            return {
+              ...m,
+              block: newBlock,
+              currentHp: newHp,
+            };
+          });
+
+          // Check for full victory
+          if (nextMonsters.every(m => m.currentHp <= 0)) {
             setBattleStatus('VICTORY');
-            setRecentCombatLog(`Victory! ${prev.name} has been vanquished!`);
+            setRecentCombatLog(`Victory! All enemies in the encounter have been vanquished!`);
             audioManager.play('level_up');
             engineRef.current?.playKnightVictory?.();
-            engineRef.current?.playMonsterDeath?.();
+          } else {
+            // If the targeted monster died, auto-retarget to next alive monster
+            const currentTarget = nextMonsters[targetedIndexRef.current];
+            if (!currentTarget || currentTarget.currentHp <= 0) {
+              const nextAliveIdx = nextMonsters.findIndex(m => m.currentHp > 0);
+              if (nextAliveIdx !== -1) {
+                setTargetedMonsterIndex(nextAliveIdx);
+              }
+            }
           }
 
-          return {
-            ...prev,
-            block: newBlock,
-            currentHp: newHp,
-          };
+          return nextMonsters;
         });
       }
 
@@ -268,19 +369,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     };
   }, [handleApplyRep]);
 
-  // Restart / Next Monster
-  const handleNextMonster = () => {
-    const nextIdx = (currentMonsterIndex + 1) % MONSTER_CATALOG.length;
-    setCurrentMonsterIndex(nextIdx);
-    const template = MONSTER_CATALOG[nextIdx];
-    const initialIntent = { ...MONSTER_INTENTS[template.id][0] };
+  // Restart / Next Encounter (Cycles through 1 to 3 monster encounters)
+  const handleNextEncounter = () => {
+    const nextIdx = (currentEncounterIndex + 1) % ENCOUNTERS.length;
+    setCurrentEncounterIndex(nextIdx);
+    const newMonsters = createEncounterFromTemplate(ENCOUNTERS[nextIdx]);
 
-    setMonster({
-      ...template,
-      currentHp: template.maxHp,
-      block: 0,
-      intent: initialIntent,
-    });
+    setMonsters(newMonsters);
+    setTargetedMonsterIndex(0);
     setPlayerHp(100);
     setPlayerBlock(0);
     setBattleStatus('FIGHTING');
@@ -289,8 +385,34 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     setHand(deckManagerRef.current.dealInitialHand());
   };
 
-  // TV Remote D-Pad Navigation for Hand Cards
+  // TV Remote D-Pad Navigation for Hand Cards & Target Switching
   useTVRemote({
+    onUp: () => {
+      // Target previous alive monster
+      setTargetedMonsterIndex((prev) => {
+        const aliveIndices = monstersRef.current
+          .map((m, idx) => ({ idx, isAlive: m.isAlive && m.currentHp > 0 }))
+          .filter(m => m.isAlive)
+          .map(m => m.idx);
+        if (aliveIndices.length <= 1) return prev;
+        const currentPos = aliveIndices.indexOf(prev);
+        if (currentPos <= 0) return aliveIndices[aliveIndices.length - 1];
+        return aliveIndices[currentPos - 1];
+      });
+    },
+    onDown: () => {
+      // Target next alive monster
+      setTargetedMonsterIndex((prev) => {
+        const aliveIndices = monstersRef.current
+          .map((m, idx) => ({ idx, isAlive: m.isAlive && m.currentHp > 0 }))
+          .filter(m => m.isAlive)
+          .map(m => m.idx);
+        if (aliveIndices.length <= 1) return prev;
+        const currentPos = aliveIndices.indexOf(prev);
+        if (currentPos === -1 || currentPos >= aliveIndices.length - 1) return aliveIndices[0];
+        return aliveIndices[currentPos + 1];
+      });
+    },
     onLeft: () => {
       setFocusedCardIndex((prev) => Math.max(0, prev - 1));
     },
@@ -299,13 +421,12 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     },
     onSelect: () => {
       if (battleStatus !== 'FIGHTING') {
-        handleNextMonster();
+        handleNextEncounter();
       }
     },
     onBack: () => {
       onExitBattle();
     },
-    // Demo swing triggers a rep for currently focused card's exercise!
     onDemoSwing: () => {
       if (hand.length > 0) {
         const focusedCard = hand[focusedCardIndex];
@@ -358,65 +479,112 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           <p className="font-mono text-xs text-[#F4B41A] truncate">{recentCombatLog}</p>
         </div>
 
-        {/* MONSTER STATUS & REAL-TIME ATTACK INTENT (RIGHT) */}
-        <div className="bg-[#1A1926]/95 border-4 border-[#FF3366] p-4 rounded shadow-pixel-box backdrop-blur-md max-w-sm w-full text-right">
-          <div className="flex items-center justify-between mb-2 flex-row-reverse">
-            <div className="text-right">
-              <span className="font-pixel text-xs text-[#FF3366] block">{monster.name}</span>
-              <span className="font-pixel text-[8px] text-[#A7A9BE]">{monster.title}</span>
-            </div>
-            {monster.block > 0 && (
-              <div className="flex items-center space-x-1 bg-[#FF3366] text-white px-2 py-0.5 rounded font-pixel text-[10px] shadow-pixel-box">
-                <Shield className="w-3.5 h-3.5" />
-                <span>{monster.block} BLOCK</span>
-              </div>
+        {/* MULTI-MONSTER STATUS & REAL-TIME INTENT SQUAD (RIGHT) */}
+        <div className="flex flex-col gap-2 max-w-sm w-full">
+          {/* Header indicator */}
+          <div className="flex items-center justify-between px-1">
+            <span className="font-pixel text-[9px] text-[#A7A9BE] flex items-center gap-1.5">
+              <Users className="w-3 h-3 text-[#FF3366]" />
+              {ENCOUNTERS[currentEncounterIndex]?.name.toUpperCase() || 'ENCOUNTER'} ({monsters.filter(m => m.currentHp > 0).length}/{monsters.length})
+            </span>
+            {monsters.filter(m => m.currentHp > 0).length > 1 && (
+              <span className="font-pixel text-[8px] text-[#F4B41A] flex items-center gap-1">
+                <Target className="w-2.5 h-2.5" /> [▲/▼] TARGET
+              </span>
             )}
           </div>
 
-          {/* Monster HP Bar */}
-          <div className="space-y-1">
-            <div className="flex justify-between text-[10px] font-mono text-[#A7A9BE] flex-row-reverse">
-              <span className="font-bold text-white">{monster.currentHp} / {monster.maxHp}</span>
-              <span>ENEMY HP</span>
-            </div>
-            <div className="w-full h-4 bg-[#0F0E17] border-2 border-[#2E2B44] overflow-hidden p-0.5">
-              <div
-                className="h-full bg-[#FF3366] transition-all duration-300"
-                style={{ width: `${(monster.currentHp / monster.maxHp) * 100}%` }}
-              />
-            </div>
-          </div>
+          {/* Monster Cards List */}
+          {monsters.map((m, idx) => {
+            const isTargeted = idx === targetedMonsterIndex;
+            const isDead = m.currentHp <= 0;
 
-          {/* SLAY THE SPIRE REAL-TIME INTENT & COUNTDOWN */}
-          <div className="mt-3 bg-[#0F0E17] border-2 border-[#FF3366] p-2 rounded text-left">
-            <div className="flex items-center justify-between text-[9px] font-pixel text-[#FF3366] mb-1">
-              <span className="flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3 text-[#FF3366] animate-bounce" />
-                INTENT: {monster.intent.name}
-              </span>
-              <span className="font-bold text-[#F4B41A]">
-                {monster.intent.type === 'DEFEND' ? '+25 SHIELD' : `${monster.intent.damage} DMG`}
-              </span>
-            </div>
-
-            {/* Real-Time Attack Charge Progress Bar */}
-            <div className="w-full h-2 bg-[#2E2B44] rounded overflow-hidden">
+            return (
               <div
-                className={`h-full transition-all duration-75 ${
-                  monster.intent.remainingSeconds < 1.5 ? 'bg-[#FF3366] animate-pulse' : 'bg-[#F4B41A]'
+                key={m.instanceId || idx}
+                onClick={() => !isDead && setTargetedMonsterIndex(idx)}
+                className={`bg-[#1A1926]/95 border-2 rounded p-2.5 shadow-pixel-box backdrop-blur-md transition-all duration-150 cursor-pointer ${
+                  isDead
+                    ? 'opacity-35 grayscale border-[#2E2B44]'
+                    : isTargeted
+                    ? 'border-[#F4B41A] ring-2 ring-[#F4B41A]/60 scale-102 bg-[#252238]/95'
+                    : 'border-[#FF3366]/60 hover:border-[#FF3366]'
                 }`}
-                style={{
-                  width: `${Math.max(0, (1 - monster.intent.remainingSeconds / monster.intent.durationSeconds) * 100)}%`,
-                }}
-              />
-            </div>
-            <div className="flex justify-between text-[8px] font-mono text-[#A7A9BE] mt-1">
-              <span>{monster.intent.description}</span>
-              <span className="font-bold text-white">
-                {Math.max(0, monster.intent.remainingSeconds).toFixed(1)}s
-              </span>
-            </div>
-          </div>
+              >
+                {/* Name, Target Badge, & Block */}
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5">
+                    {isTargeted && !isDead && (
+                      <span className="bg-[#F4B41A] text-[#0F0E17] font-pixel text-[7px] px-1 py-0.2 rounded font-bold animate-pulse">
+                        TARGET 🎯
+                      </span>
+                    )}
+                    <span className={`font-pixel text-[10px] ${isTargeted ? 'text-[#F4B41A]' : 'text-[#FF3366]'}`}>
+                      {m.name}
+                    </span>
+                    <span className="font-pixel text-[7px] text-[#A7A9BE]">
+                      LVL {m.level}
+                    </span>
+                  </div>
+
+                  {m.block > 0 && !isDead && (
+                    <div className="flex items-center space-x-1 bg-[#FF3366] text-white px-1.5 py-0.2 rounded font-pixel text-[8px] shadow-pixel-box">
+                      <Shield className="w-2.5 h-2.5" />
+                      <span>{m.block}</span>
+                    </div>
+                  )}
+
+                  {isDead && (
+                    <span className="font-pixel text-[8px] text-[#A7A9BE] flex items-center gap-1">
+                      <Skull className="w-3 h-3 text-[#A7A9BE]" /> SLAIN
+                    </span>
+                  )}
+                </div>
+
+                {/* HP Bar */}
+                {!isDead && (
+                  <div className="space-y-0.5 mb-1.5">
+                    <div className="flex justify-between text-[8px] font-mono text-[#A7A9BE]">
+                      <span>HP</span>
+                      <span className="font-bold text-white">{m.currentHp} / {m.maxHp}</span>
+                    </div>
+                    <div className="w-full h-2.5 bg-[#0F0E17] border border-[#2E2B44] overflow-hidden p-0.2">
+                      <div
+                        className="h-full bg-gradient-to-r from-[#DC2626] to-[#FF3366] transition-all duration-200"
+                        style={{ width: `${(m.currentHp / m.maxHp) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Intent & Countdown Bar */}
+                {!isDead && (
+                  <div className="bg-[#0F0E17] border border-[#2E2B44] p-1.5 rounded">
+                    <div className="flex items-center justify-between text-[8px] font-pixel text-[#FF3366] mb-0.5">
+                      <span className="flex items-center gap-1 truncate max-w-[170px]">
+                        <AlertTriangle className="w-2.5 h-2.5 text-[#FF3366] flex-shrink-0" />
+                        {m.intent.name}
+                      </span>
+                      <span className="font-bold text-[#F4B41A] flex-shrink-0">
+                        {m.intent.type === 'DEFEND' ? '+25 SHIELD' : `${m.intent.damage} DMG`}
+                      </span>
+                    </div>
+
+                    <div className="w-full h-1.5 bg-[#2E2B44] rounded overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-75 ${
+                          m.intent.remainingSeconds < 1.2 ? 'bg-[#FF3366] animate-pulse' : 'bg-[#F4B41A]'
+                        }`}
+                        style={{
+                          width: `${Math.max(0, (1 - m.intent.remainingSeconds / m.intent.durationSeconds) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -427,19 +595,19 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             {battleStatus === 'VICTORY' ? (
               <>
                 <Trophy className="w-16 h-16 text-[#F4B41A] mx-auto mb-3 animate-bounce" />
-                <h2 className="font-pixel text-lg text-[#F4B41A] mb-2">MONSTER VANQUISHED!</h2>
+                <h2 className="font-pixel text-lg text-[#F4B41A] mb-2">ENCOUNTER CLEARED!</h2>
                 <p className="text-xs text-[#A7A9BE] font-mono mb-4">
-                  Your rapid exercise output destroyed the beast before it could overwhelm you.
+                  All monsters in the squad were vanquished by your relentless physical output.
                 </p>
                 <div className="bg-[#0F0E17] border-2 border-[#F4B41A] p-3 rounded text-center mb-6">
-                  <span className="text-[10px] font-pixel text-[#00EB88]">+120 GOLD • +350 XP EARNED</span>
+                  <span className="text-[10px] font-pixel text-[#00EB88]">+{monsters.length * 90} GOLD • +{monsters.length * 250} XP EARNED</span>
                 </div>
                 <div className="flex gap-3">
                   <button
-                    onClick={handleNextMonster}
+                    onClick={handleNextEncounter}
                     className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
                   >
-                    NEXT MONSTER ▶
+                    NEXT BATTLE ▶
                   </button>
                   <button
                     onClick={onExitBattle}
@@ -451,17 +619,25 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
               </>
             ) : (
               <>
-                <Skull className="w-16 h-16 text-[#FF3366] mx-auto mb-3 animate-pulse" />
-                <h2 className="font-pixel text-lg text-[#FF3366] mb-2">YOU HAVE FALLEN</h2>
-                <p className="text-xs text-[#A7A9BE] font-mono mb-4">
-                  The monster's attacks broke your defense! Pick up the bell and try again.
+                <Skull className="w-16 h-16 text-[#FF3366] mx-auto mb-3" />
+                <h2 className="font-pixel text-lg text-[#FF3366] mb-2">DEFEAT!</h2>
+                <p className="text-xs text-[#A7A9BE] font-mono mb-6">
+                  The monster squad overwhelmed Sir Kettleburne. Rest and recover before trying again.
                 </p>
-                <button
-                  onClick={handleNextMonster}
-                  className="w-full bg-[#FF3366] text-white font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
-                >
-                  RETRY BATTLE
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleNextEncounter}
+                    className="flex-1 bg-[#FF3366] hover:bg-[#ff5588] text-white font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
+                  >
+                    RETRY BATTLE
+                  </button>
+                  <button
+                    onClick={onExitBattle}
+                    className="bg-[#2E2B44] text-white font-pixel text-xs py-3 px-4 border-2 border-black shadow-pixel-box"
+                  >
+                    TOWN HUB
+                  </button>
+                </div>
               </>
             )}
           </div>

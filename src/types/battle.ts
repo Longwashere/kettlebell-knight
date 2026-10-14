@@ -39,16 +39,21 @@ export interface MonsterState {
   intent: MonsterIntent;
   level: number;
   spriteType: MonsterSprite;
+  slotIndex?: number;
+  instanceId?: string;
+  isAlive?: boolean;
 }
 
 /** Spine monster rigs in public/assets/spine/monsters (see MONSTER_RIGS in GameEngine). */
-export type MonsterSprite = 'SLIME' | 'TREEMON' | 'HELLHOUND';
+export type MonsterSprite = 'SLIME' | 'TREEMON' | 'HELLHOUND' | 'BOAR' | 'DEMON_MONK' | 'WOLF';
 
 export interface BattleState {
   playerHp: number;
   playerMaxHp: number;
   playerBlock: number;
   monster: MonsterState;
+  monsters?: MonsterState[];
+  targetedMonsterIndex?: number;
   hand: CombatCard[];
   drawPileCount: number;
   discardPileCount: number;
@@ -457,12 +462,36 @@ export const MONSTER_CATALOG: Omit<MonsterState, 'currentHp' | 'block' | 'intent
     spriteType: 'SLIME',
   },
   {
+    id: 'boar',
+    name: 'RAZORBACK BOAR',
+    title: 'TUSKED CHARGER',
+    maxHp: 260,
+    level: 6,
+    spriteType: 'BOAR',
+  },
+  {
+    id: 'wolf',
+    name: 'SHADOW WOLF',
+    title: 'NOCTURNAL PREDATOR',
+    maxHp: 290,
+    level: 7,
+    spriteType: 'WOLF',
+  },
+  {
     id: 'treemon',
     name: 'TREEMON',
     title: 'ROOTBOUND GUARDIAN',
     maxHp: 320,
     level: 8,
     spriteType: 'TREEMON',
+  },
+  {
+    id: 'demon_monk',
+    name: 'DEMON MONK',
+    title: 'CORRUPTED ACOLYTE',
+    maxHp: 390,
+    level: 10,
+    spriteType: 'DEMON_MONK',
   },
   {
     id: 'hellhound',
@@ -472,4 +501,38 @@ export const MONSTER_CATALOG: Omit<MonsterState, 'currentHp' | 'block' | 'intent
     level: 12,
     spriteType: 'HELLHOUND',
   },
+];
+
+export interface EncounterTemplate {
+  id: string;
+  name: string;
+  description: string;
+  monsterIds: string[]; // references MONSTER_CATALOG id
+}
+
+export const ENCOUNTERS: EncounterTemplate[] = [
+  // 1-Monster (Solo Encounters)
+  { id: 'solo_slime', name: 'Dungeon Ooze', description: 'A lone acid slime blocks the path.', monsterIds: ['green_slime'] },
+  { id: 'solo_boar', name: 'Razorback Charger', description: 'A furious wild boar scrapes its hooves on the dirt.', monsterIds: ['boar'] },
+  { id: 'solo_wolf', name: 'The Lone Predator', description: 'A solitary shadow wolf stalking in the darkness.', monsterIds: ['wolf'] },
+  { id: 'solo_treemon', name: 'Rootbound Guardian', description: 'An ancient animated wood golem emerges from the roots.', monsterIds: ['treemon'] },
+  { id: 'solo_monk', name: 'The Corrupted Priest', description: 'A demonic monk chanting forbidden curses.', monsterIds: ['demon_monk'] },
+  { id: 'solo_hellhound', name: 'The Twin-Headed Beast', description: 'A terrifying volcanic hellhound hungry for flesh.', monsterIds: ['hellhound'] },
+
+  // 2-Monsters (Duo Encounters)
+  { id: 'duo_slimes', name: 'Twin Slimes', description: 'Two corrosive oozes working in tandem.', monsterIds: ['green_slime', 'green_slime'] },
+  { id: 'wolf_pack', name: 'Twin Shadow Wolves', description: 'Two cunning wolves flanking from both sides.', monsterIds: ['wolf', 'wolf'] },
+  { id: 'wild_stampede', name: 'Wild Beasts', description: 'A rampaging boar charged alongside a shadow wolf.', monsterIds: ['boar', 'wolf'] },
+  { id: 'forest_ambush', name: 'Forest Guardians', description: 'A Treemon flanked by a toxic forest slime.', monsterIds: ['treemon', 'green_slime'] },
+  { id: 'unholy_covenant', name: 'Unholy Covenant', description: 'A Demon Monk shielded by a giant Treemon.', monsterIds: ['demon_monk', 'treemon'] },
+  { id: 'hound_pack', name: 'Hounds of Fire & Ooze', description: 'A ferocious Hellhound supported by a dungeon slime.', monsterIds: ['hellhound', 'green_slime'] },
+  { id: 'iron_tusks_fire', name: 'Tusks of Hellfire', description: 'A brutal duo: Hellhound and Razorback Boar!', monsterIds: ['hellhound', 'boar'] },
+
+  // 3-Monsters (Trio Encounters)
+  { id: 'slime_swarm', name: 'Ooze Swarm', description: 'A triple swarm of hungry dungeon slimes!', monsterIds: ['green_slime', 'green_slime', 'green_slime'] },
+  { id: 'wolf_hunting_pack', name: 'Wolf Hunting Pack', description: 'Three coordinated shadow wolves hunting in the gloom.', monsterIds: ['wolf', 'wolf', 'wolf'] },
+  { id: 'beast_stampede', name: 'Woodland Stampede', description: 'Two heavy boars led by a fierce shadow wolf.', monsterIds: ['boar', 'wolf', 'boar'] },
+  { id: 'forest_trio', name: 'Sylvan Syndicate', description: 'A fortified Treemon supported by two stinging slimes.', monsterIds: ['green_slime', 'treemon', 'green_slime'] },
+  { id: 'demonic_conclave', name: 'Demonic Conclave', description: 'A Demon Monk backed by a Hellhound and an acid slime.', monsterIds: ['demon_monk', 'hellhound', 'green_slime'] },
+  { id: 'boss_trio', name: 'The Dread Menagerie', description: 'A legendary trio: Hellhound, Demon Monk, and Treemon!', monsterIds: ['demon_monk', 'treemon', 'hellhound'] },
 ];
