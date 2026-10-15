@@ -168,9 +168,16 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const battleStatusRef = useRef<'FIGHTING' | 'VICTORY' | 'DEFEAT' | 'ENCOUNTER_CLEARED' | 'EXPEDITION_VICTORY'>(battleStatus);
   battleStatusRef.current = battleStatus;
   const atbFrozenRef = useRef<boolean>(false); // dev bridge: pause monster timers during captures
+  const isAwaitingVictoryRef = useRef<boolean>(false);
+  const victoryFallbackTimerRef = useRef<number | null>(null);
 
   // Initialize Battle & Sync with Engine
   useEffect(() => {
+    isAwaitingVictoryRef.current = false;
+    if (victoryFallbackTimerRef.current) {
+      clearTimeout(victoryFallbackTimerRef.current);
+      victoryFallbackTimerRef.current = null;
+    }
     const initialHand = deckManagerRef.current.dealInitialHand();
     setHand(initialHand);
     if (engineRef.current) {
@@ -185,7 +192,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
   // Leaving battle: remove monsters from the stage and free their rigs
   useEffect(() => {
-    return () => engineRef.current?.clearMonsters();
+    return () => {
+      if (victoryFallbackTimerRef.current) {
+        clearTimeout(victoryFallbackTimerRef.current);
+        victoryFallbackTimerRef.current = null;
+      }
+      engineRef.current?.clearMonsters();
+    };
   }, [engineRef]);
 
   // Update engine target when targetedMonsterIndex changes
@@ -290,7 +303,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
    * If the card reaches required reps, it activates and damages monster / grants block!
    */
   const handleApplyRep = useCallback((exercise: ExerciseType, power: number = 80, form: number = 1.0) => {
-    if (battleStatusRef.current !== 'FIGHTING') return;
+    if (battleStatusRef.current !== 'FIGHTING' || isAwaitingVictoryRef.current) return;
 
     const result = deckManagerRef.current.recordRep(exercise, power, form);
 
@@ -311,6 +324,70 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       const res = resolveCard(card, before, targetedIndexRef.current, { power: result.power, form: result.form });
       const engine = engineRef.current;
       const primary = res.hits[0];
+      const fatalHit = res.hits.slice().reverse().find((h) => h.killed) || primary;
+      const isVictory = res.monsters.every((m) => m.currentHp <= 0);
+
+      // Define victory completion callback (invoked by engine when kill cam finishes)
+      let onFinishVictory: (() => void) | undefined = undefined;
+
+      if (isVictory) {
+        isAwaitingVictoryRef.current = true;
+
+        const triggerVictoryModal = () => {
+          if (battleStatusRef.current !== 'FIGHTING') return; // already displayed
+          if (victoryFallbackTimerRef.current) {
+            clearTimeout(victoryFallbackTimerRef.current);
+            victoryFallbackTimerRef.current = null;
+          }
+
+          if (isExpeditionMode && expeditionStep < expeditionEncounters.length - 1) {
+            // Breather between encounters: +20 HP catch breath heal
+            const heal = Math.min(PLAYER_MAX_HP, playerHpRef.current + 20) - playerHpRef.current;
+            playerHpRef.current += heal;
+            setPlayerHp(playerHpRef.current);
+            battleStatusRef.current = 'ENCOUNTER_CLEARED';
+            setBattleStatus('ENCOUNTER_CLEARED');
+            setRecentCombatLog(`Encounter ${expeditionStep + 1} of ${expeditionEncounters.length} Cleared! Catch thy breath (+${heal} HP)!`);
+            audioManager.play('victory', { delay: 0.1 });
+          } else if (isExpeditionMode) {
+            // Entire Level Conquered!
+            battleStatusRef.current = 'EXPEDITION_VICTORY';
+            setBattleStatus('EXPEDITION_VICTORY');
+            setRecentCombatLog(`Level ${currentLevel} Expedition Conquered! All enemies vanquished!`);
+            audioManager.play('victory', { delay: 0.1 });
+
+            // Save progression
+            const mapCfg = getMapConfig(currentMap);
+            const lvlCfg = mapCfg.levels.find((l) => l.level === currentLevel) || mapCfg.levels[0];
+            const nextMap = currentLevel >= 5 ? getNextCampaignMap(currentMap) : undefined;
+            profileManager.recordLevelVictory(
+              currentMap,
+              currentLevel,
+              totalLevelReps + 1,
+              lvlCfg.goldReward,
+              lvlCfg.xpReward,
+              nextMap || undefined
+            );
+          } else {
+            battleStatusRef.current = 'VICTORY';
+            setBattleStatus('VICTORY');
+            setRecentCombatLog(`Victory! All enemies in the encounter have been vanquished!`);
+            audioManager.play('victory', { delay: 0.1 });
+          }
+        };
+
+        onFinishVictory = triggerVictoryModal;
+
+        // 10-second safety fallback: show victory screen anyway if kill cam does not signal finish
+        victoryFallbackTimerRef.current = window.setTimeout(() => {
+          console.warn('[BattleScreen] 10s victory safety fallback fired');
+          triggerVictoryModal();
+        }, 10000);
+      } else if (res.monsters[targetedIndexRef.current]?.currentHp <= 0) {
+        // Target died: move to the next living foe, front row first
+        const next = frontTarget(res.monsters);
+        if (next !== -1) setTargetedMonsterIndex(next);
+      }
 
       // The attack plays at the foes hit, in order (e.g. the back row for BACK cards). The knight move
       // lands each hit on its impact frame; damage labels and deaths show then.
@@ -326,55 +403,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           ctx: { block: res.block, heal: res.heal },
           targets: res.hits.map((hit) => hit.index),
           onImpact: (i) => showHit(res.hits[i]),
+          onFinish: onFinishVictory,
+          isKillCam: isVictory,
+          killSlot: fatalHit ? fatalHit.index : targetedMonsterIndex,
           stagger: card.target === 'CHAIN' ? 8 : 2,
         });
       }
 
       commitMonsters(res.monsters);
-
-      if (res.monsters.every((m) => m.currentHp <= 0)) {
-        if (isExpeditionMode && expeditionStep < expeditionEncounters.length - 1) {
-          // Breather between encounters: +20 HP catch breath heal
-          const heal = Math.min(PLAYER_MAX_HP, playerHpRef.current + 20) - playerHpRef.current;
-          playerHpRef.current += heal;
-          setPlayerHp(playerHpRef.current);
-          battleStatusRef.current = 'ENCOUNTER_CLEARED';
-          setBattleStatus('ENCOUNTER_CLEARED');
-          setRecentCombatLog(`Encounter ${expeditionStep + 1} of ${expeditionEncounters.length} Cleared! Catch thy breath (+${heal} HP)!`);
-          audioManager.play('victory', { delay: 0.3 });
-          window.setTimeout(() => engineRef.current?.playKnightVictory?.(), 300);
-        } else if (isExpeditionMode) {
-          // Entire Level Conquered!
-          battleStatusRef.current = 'EXPEDITION_VICTORY';
-          setBattleStatus('EXPEDITION_VICTORY');
-          setRecentCombatLog(`Level ${currentLevel} Expedition Conquered! All enemies vanquished!`);
-          audioManager.play('victory', { delay: 0.5 });
-          window.setTimeout(() => engineRef.current?.playKnightVictory?.(), 400);
-
-          // Save progression
-          const mapCfg = getMapConfig(currentMap);
-          const lvlCfg = mapCfg.levels.find((l) => l.level === currentLevel) || mapCfg.levels[0];
-          const nextMap = currentLevel >= 5 ? getNextCampaignMap(currentMap) : undefined;
-          profileManager.recordLevelVictory(
-            currentMap,
-            currentLevel,
-            totalLevelReps + 1,
-            lvlCfg.goldReward,
-            lvlCfg.xpReward,
-            nextMap || undefined
-          );
-        } else {
-          battleStatusRef.current = 'VICTORY';
-          setBattleStatus('VICTORY');
-          setRecentCombatLog(`Victory! All enemies in the encounter have been vanquished!`);
-          audioManager.play('victory', { delay: 0.5 });
-          window.setTimeout(() => engineRef.current?.playKnightVictory?.(), 400);
-        }
-      } else if (res.monsters[targetedIndexRef.current]?.currentHp <= 0) {
-        // Target died: move to the next living foe, front row first
-        const next = frontTarget(res.monsters);
-        if (next !== -1) setTargetedMonsterIndex(next);
-      }
 
       if (res.block > 0) {
         playerBlockRef.current += res.block;

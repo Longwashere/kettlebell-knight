@@ -1047,6 +1047,7 @@ export class GameEngine {
   private knightShieldPending = false; // Block pulse requested during a move
   private knightGuardShown = false; // the current move drew its own Block ward (guard())
   private knightTimeScale = 1; // Spine playback speed set by a move (hit-stop overrides it)
+  public isKillCamActive: boolean = false;
 
   // Dev automation (window.__kk): ready once init() finishes; loadsInFlight counts pending asset loads
   private isReady: boolean = false;
@@ -1378,6 +1379,12 @@ export class GameEngine {
   public resetKnight(): void {
     this.knightLocked = false;
     this.knightVictoryPending = false;
+    this.isKillCamActive = false;
+    if (this.app?.ticker) this.app.ticker.speed = 1.0;
+    this.targetCameraZoom = 1.0;
+    this.cameraZoom = 1.0;
+    this.cameraFocusX = 213;
+    this.cameraFocusY = 120;
     this.knightSpine?.state.setAnimation(0, 'IDLE', true);
   }
 
@@ -1634,6 +1641,8 @@ export class GameEngine {
       }
       if (slot.rig) releaseMonsterRig(slot.rig);
     }
+    this.isKillCamActive = false;
+    if (this.app?.ticker) this.app.ticker.speed = 1.0;
     this.monsterSlots = [];
     this.monsterSpine = null;
     this.monsterRig = null;
@@ -1816,16 +1825,29 @@ export class GameEngine {
       if (deathAnim) {
         slot.spine.state.setAnimation(0, deathAnim, false);
       }
-      let fadeProgress = 0;
-      const interval = setInterval(() => {
-        fadeProgress += 0.08;
-        if (slot.container) {
-          slot.container.alpha = Math.max(0, 1 - fadeProgress);
-        }
-        if (fadeProgress >= 1) {
-          clearInterval(interval);
-        }
-      }, 50);
+
+      const animDuration = (deathAnim ? slot.spine.skeleton.data.findAnimation(deathAnim)?.duration : 0.6) ?? 0.6;
+      // Hold for the duration of the death animation (in 60fps delta frames), then fade out over 25 frames
+      const holdFrames = Math.max(30, Math.round(animDuration * 60));
+      const fadeFrames = 25;
+      let frameCount = 0;
+
+      this.activeEffects.push({
+        container: new Container(),
+        life: 0,
+        maxLife: holdFrames + fadeFrames,
+        onUpdate: (_eff, delta) => {
+          frameCount += delta;
+          if (frameCount >= holdFrames && slot.container) {
+            const p = (frameCount - holdFrames) / fadeFrames;
+            slot.container.alpha = Math.max(0, 1 - p);
+          }
+          return frameCount >= holdFrames + fadeFrames;
+        },
+        onDestroy: () => {
+          if (slot.container) slot.container.alpha = 0;
+        },
+      });
     }
   }
 
@@ -2159,7 +2181,15 @@ export class GameEngine {
    */
   public playKnightMove(
     id: KnightMoveId,
-    opts: { targets?: number[]; ctx?: Partial<KnightMoveContext>; onImpact?: (i: number) => void; stagger?: number } = {},
+    opts: {
+      targets?: number[];
+      ctx?: Partial<KnightMoveContext>;
+      onImpact?: (i: number) => void;
+      onFinish?: () => void;
+      isKillCam?: boolean;
+      killSlot?: number;
+      stagger?: number;
+    } = {},
   ): void {
     const ctx: KnightMoveContext = { power: 100, form: 1, crit: false, damage: 0, ...knightMoveCard(id), ...opts.ctx };
     const defaultSlot = (this.monsterSlots[this.targetSlotIndex]?.isAlive ? this.monsterSlots[this.targetSlotIndex] : null)
@@ -2175,6 +2205,9 @@ export class GameEngine {
       landed.add(i);
       this.playMonsterHit(targets[i].slot);
       opts.onImpact?.(i);
+      if (opts.isKillCam && (opts.killSlot === undefined || targets[i].slot === opts.killSlot)) {
+        this.triggerKillCam(targets[i].slot);
+      }
     };
     const landAll = () => targets.forEach((_, i) => land(i));
     const stagger = opts.stagger ?? 2;
@@ -2346,11 +2379,17 @@ export class GameEngine {
       cleanup();
       return;
     }
-    this.runKnightTimeline(id, tl, cleanup);
+    this.runKnightTimeline(id, tl, cleanup, opts.onFinish, opts.isKillCam);
   }
 
   /** Ticks a knight move's timeline on the engine loop; `cleanup` runs once when it ends or is cut short. */
-  private runKnightTimeline(id: KnightMoveId, tl: Timeline, cleanup: () => void): void {
+  private runKnightTimeline(
+    id: KnightMoveId,
+    tl: Timeline,
+    cleanup: () => void,
+    onFinish?: () => void,
+    isKillCam?: boolean,
+  ): void {
     let finished = false;
     const handle = {
       id,
@@ -2363,9 +2402,30 @@ export class GameEngine {
           this.knightShieldPending = false;
           if (!this.knightGuardShown) this.playerShieldPulse();
         }
-        if (this.knightVictoryPending && !this.activeKnightMove) {
-          this.knightVictoryPending = false;
+
+        if (isKillCam) {
+          // Restore normal engine speed
+          if (this.app?.ticker) {
+            this.app.ticker.speed = 1.0;
+          }
+          this.isKillCamActive = false;
+
+          // Pull camera smoothly back to neutral framing
+          this.triggerCameraZoom(1.0, 213, 120, 25);
+
+          // Play knight victory celebration pose
           this.playKnightVictory();
+
+          // Wait a brief cinematic beat (800ms) for camera ease and victory flourish, then invoke onFinish
+          setTimeout(() => {
+            onFinish?.();
+          }, 800);
+        } else {
+          if (this.knightVictoryPending && !this.activeKnightMove) {
+            this.knightVictoryPending = false;
+            this.playKnightVictory();
+          }
+          onFinish?.();
         }
       },
     };
@@ -2464,6 +2524,40 @@ export class GameEngine {
       this.cameraZoom = zoom;
       this.cameraFocusX = fx;
       this.cameraFocusY = fy;
+    }
+  }
+
+  /**
+   * Cinematic Kill Cam: dramatic slow motion, dynamic punch-in camera zoom,
+   * heavy screen impact flash & shake, particle sparks, and fatal blow banner.
+   */
+  public triggerKillCam(slotIndex?: number): void {
+    if (this.isKillCamActive || this.isDestroyed) return;
+    this.isKillCamActive = true;
+
+    const slot = (slotIndex !== undefined ? this.monsterSlots[slotIndex] : null)
+      ?? this.monsterSlots[this.targetSlotIndex]
+      ?? this.monsterSlots.find((s) => s.isAlive || s.isLocked);
+
+    const targetX = slot ? slot.baseX : 280;
+    const targetY = slot ? slot.baseY - (slot.rig?.height ?? 40) * 0.45 : 125;
+
+    // 1. Dynamic Camera Zoom Punch-In on the fatal clash
+    this.moveCamera(1.55, targetX - 15, targetY, 90, true);
+
+    // 2. Heavy impact punch, flash, shake
+    this.moveShake(14);
+    this.moveFlash(0.65, 0xFFFFFF);
+    audioManager.play('impact_crit', { pan: 0.1, rate: 0.8, vol: 1.2 });
+
+    // 3. Cinematic VFX: sparks, speed streaks, and FATAL FINISH banner
+    this.spawnSparks(targetX, targetY, 22, [0xFF3366, 0xF4B41A, 0xFFFFFF, 0xFF1744]);
+    this.spawnSpeedStreaks(targetX, targetY, 70, [0xFF3366, 0xF4B41A, 0xFFE082]);
+    this.spawnFloatingText('★ FATAL BLOW ★', targetX - 12, targetY - 35, 0xFF3366, 13);
+
+    // 4. Dramatic slow motion on ticker
+    if (this.app?.ticker) {
+      this.app.ticker.speed = 0.22;
     }
   }
 
@@ -2819,7 +2913,16 @@ export class GameEngine {
     skillName?: string,
     displayDamage?: number, // the real damage dealt (battle); otherwise a showcase number from power/form
     // battle: the card's move (templateId), slots hit in order, Block/heal granted
-    hits: { move?: string; targets?: number[]; onImpact?: (i: number) => void; stagger?: number; ctx?: Partial<KnightMoveContext> } = {},
+    hits: {
+      move?: string;
+      targets?: number[];
+      onImpact?: (i: number) => void;
+      onFinish?: () => void;
+      isKillCam?: boolean;
+      killSlot?: number;
+      stagger?: number;
+      ctx?: Partial<KnightMoveContext>;
+    } = {},
   ): void {
     this.totalRepsCount++;
     this.currentCombo++;
