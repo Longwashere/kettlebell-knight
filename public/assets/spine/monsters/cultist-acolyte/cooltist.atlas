@@ -1,0 +1,59 @@
+cooltist.png
+pma: false
+size:2080,2080
+filter:Linear,Linear
+arm
+bounds:0,1490,301,368
+offsets:1,1,302,368
+arm_knife
+bounds:0,754,1140,672
+chain
+bounds:871,1490,434,185
+eye
+bounds:1293,1922,73,77
+offsets:1,0,74,77
+eye_closed
+bounds:265,1922,104,38
+rotate: 90
+hat1
+bounds:507,1490,300,213
+offsets:0,1,300,213
+hat2
+bounds:518,1922,434,83
+hat3
+bounds:365,1490,278,78
+offsets:2,1,278,78
+rotate: 90
+head
+bounds:1667,754,311,588
+hood
+bounds:0,0,690,1019
+rotate: 90
+hood_bg
+bounds:1204,754,399,645
+mouth_closed
+bounds:1632,1922,218,47
+offsets:1,0,218,47
+mouth_open
+bounds:1369,1490,207,168
+offsets:1,0,207,168
+mouth_scream
+bounds:0,1922,120,201
+rotate: 90
+mouth_teeth
+bounds:1016,1922,213,81
+offsets:1,1,213,81
+nut
+bounds:1640,1490,177,152
+offsets:1,1,177,152
+nut1
+bounds:1881,1490,177,151
+offsets:1,1,177,152
+nut_string
+bounds:1914,1922,34,36
+zipper_1
+bounds:367,1922,87,86
+offsets:1,1,87,86
+zipper_2
+bounds:1430,1922,66,138
+rotate: 90

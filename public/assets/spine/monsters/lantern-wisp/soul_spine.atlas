@@ -1,0 +1,14 @@
+soul_spine.png
+pma: false
+size:672,672
+filter:Linear,Linear
+soul01
+bounds:466,0,232,90
+offsets:0,0,233,90
+rotate: 90
+soul02
+bounds:139,511,72,83
+soul03
+bounds:0,511,75,83
+soul04
+bounds:0,0,402,447

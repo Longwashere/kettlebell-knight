@@ -120,7 +120,33 @@ export type MonsterMoveId =
   // Magma Dragon
   | 'dragon_tail_whip' | 'dragon_inferno_breath' | 'dragon_scales' | 'dragon_meteor_storm'
   // Eldritch Horror
-  | 'horror_tentacle_grasp' | 'horror_cosmic_madness' | 'horror_void_distortion' | 'horror_abyssal_gaze';
+  | 'horror_tentacle_grasp' | 'horror_cosmic_madness' | 'horror_void_distortion' | 'horror_abyssal_gaze'
+  // Crypt Crawler & Plague Rat
+  | 'crawler_mandible_pinch' | 'crawler_burrow_dash' | 'crawler_acid_spurt' | 'crawler_chitin_shell'
+  | 'rat_frenzied_gnaw' | 'rat_plague_bite' | 'rat_filth_slash'
+  // Ember Serpent & Cinder Imp
+  | 'serpent_ember_strike' | 'serpent_lava_spit' | 'serpent_inferno_coil'
+  | 'imp_cinder_fireball' | 'imp_scorch_claw' | 'imp_hellfire_eruption'
+  // Thorn Stalker
+  | 'stalker_thorn_volley' | 'stalker_bramble_lash' | 'stalker_needle_barrage' | 'stalker_prickly_guard'
+  // Giant Crab & Sewer Lurker
+  | 'crab_pincer_snap' | 'crab_crushing_clamp' | 'crab_bubble_blast' | 'crab_chitin_guard'
+  | 'lurker_lure_strike' | 'lurker_abyssal_bite' | 'lurker_sludge_belch'
+  // Giant Beetle & Forest Bear
+  | 'beetle_horn_toss' | 'beetle_chitin_slam' | 'beetle_carapace_wall'
+  | 'bear_crushing_swipe' | 'bear_grizzly_maul' | 'bear_territorial_roar'
+  // Cultist Acolyte
+  | 'acolyte_void_dagger' | 'acolyte_eldritch_hex' | 'acolyte_sacrificial_blast' | 'acolyte_shadow_ward'
+  // Lantern Wisp
+  | 'wisp_soul_flame' | 'wisp_spectral_burn' | 'wisp_spirit_veil'
+  // Throne Guardian
+  | 'guardian_colossal_cleave' | 'guardian_throne_smash' | 'guardian_obsidian_bulwark'
+  // Storm Crow
+  | 'crow_dive_bomb' | 'crow_tempest_screech' | 'crow_gale_slash'
+  // Vault Hound
+  | 'hound_vault_pounce' | 'hound_iron_jaw' | 'hound_guard_frenzy'
+  // Bard
+  | 'bard_dissonant_chord' | 'bard_cutting_ballad' | 'bard_cacophony' | 'bard_tempo_ward';
 
 export interface MonsterIntent {
   type: 'ATTACK' | 'HEAVY_ATTACK' | 'DEFEND' | 'BUFF';
@@ -187,7 +213,22 @@ export type MonsterSprite =
   | 'VAULT_GUARDIAN'
   | 'VOID_PROPHET'
   | 'WATER_ELEMENTAL'
-  | 'WRAITH';
+  | 'WRAITH'
+  | 'CRYPT_CRAWLER'
+  | 'PLAGUE_RAT'
+  | 'EMBER_SERPENT'
+  | 'CINDER_IMP'
+  | 'THORN_STALKER'
+  | 'GIANT_CRAB'
+  | 'SEWER_LURKER'
+  | 'GIANT_BEETLE'
+  | 'FOREST_BEAR'
+  | 'CULTIST_ACOLYTE'
+  | 'LANTERN_WISP'
+  | 'THRONE_GUARDIAN'
+  | 'STORM_CROW'
+  | 'VAULT_HOUND'
+  | 'BARD';
 
 export interface BattleState {
   playerHp: number;
@@ -347,6 +388,23 @@ export const MONSTER_CATALOG: Omit<MonsterState, 'currentHp' | 'block' | 'intent
   { id: 'dark_emperor', name: 'DARK EMPEROR', title: 'SOVEREIGN OF RUIN', maxHp: 400, level: 18, spriteType: 'DARK_EMPEROR' },
   { id: 'magma_dragon', name: 'MAGMA DRAGON', title: 'SCORCHED WYRM', maxHp: 420, level: 19, spriteType: 'MAGMA_DRAGON' },
   { id: 'eldritch_horror', name: 'ELDRITCH HORROR', title: 'CTHULHU INCARNATE', maxHp: 450, level: 20, spriteType: 'ELDRITCH_HORROR' },
+
+  // New expansion monsters
+  { id: 'plague_rat', name: 'PLAGUE RAT', title: 'FILTH CARRIER', maxHp: 110, level: 3, spriteType: 'PLAGUE_RAT' },
+  { id: 'lantern_wisp', name: 'LANTERN WISP', title: 'SPECTRAL FLAME', maxHp: 120, level: 4, spriteType: 'LANTERN_WISP' },
+  { id: 'giant_crab', name: 'GIANT CRAB', title: 'TIDAL PINCH', maxHp: 150, level: 5, spriteType: 'GIANT_CRAB' },
+  { id: 'crypt_crawler', name: 'CRYPT CRAWLER', title: 'BURROWING SCUTTLER', maxHp: 150, level: 6, spriteType: 'CRYPT_CRAWLER' },
+  { id: 'cinder_imp', name: 'CINDER IMP', title: 'HELLFIRE PYROMANCER', maxHp: 150, level: 6, spriteType: 'CINDER_IMP' },
+  { id: 'storm_crow', name: 'STORM CROW', title: 'RAMPART HARBINGER', maxHp: 160, level: 7, spriteType: 'STORM_CROW' },
+  { id: 'giant_beetle', name: 'GIANT BEETLE', title: 'IRON CARAPACE', maxHp: 190, level: 8, spriteType: 'GIANT_BEETLE' },
+  { id: 'thorn_stalker', name: 'THORN STALKER', title: 'VERDANT AMBUSHER', maxHp: 190, level: 8, spriteType: 'THORN_STALKER' },
+  { id: 'bard', name: 'ROGUE BARD', title: 'DISCORDANT MINSTREL', maxHp: 180, level: 9, spriteType: 'BARD' },
+  { id: 'cultist_acolyte', name: 'CULTIST ACOLYTE', title: 'FORBIDDEN DEVOTEE', maxHp: 180, level: 9, spriteType: 'CULTIST_ACOLYTE' },
+  { id: 'vault_hound', name: 'VAULT HOUND', title: 'IRONFANG SENTRY', maxHp: 220, level: 10, spriteType: 'VAULT_HOUND' },
+  { id: 'ember_serpent', name: 'EMBER SERPENT', title: 'PYROCLASTIC COIL', maxHp: 220, level: 11, spriteType: 'EMBER_SERPENT' },
+  { id: 'forest_bear', name: 'FOREST BEAR', title: 'GROVE APEX', maxHp: 250, level: 11, spriteType: 'FOREST_BEAR' },
+  { id: 'sewer_lurker', name: 'SEWER LURKER', title: 'ABYSSAL DEEP-JAW', maxHp: 270, level: 12, spriteType: 'SEWER_LURKER' },
+  { id: 'throne_guardian', name: 'THRONE GUARDIAN', title: 'OBSIDIAN JUGGERNAUT', maxHp: 320, level: 14, spriteType: 'THRONE_GUARDIAN' },
 ];
 
 export interface EncounterTemplate {
@@ -376,6 +434,21 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   { id: 'solo_magma_dragon', name: 'Scorched Wyrm', description: 'A terrifying dragon bathed in flowing lava.', monsterIds: ['magma_dragon'] },
   { id: 'solo_dark_emperor', name: 'Sovereign of Ruin', description: 'The dark emperor clad in shadowed plate armor.', monsterIds: ['dark_emperor'] },
   { id: 'solo_eldritch_horror', name: 'Cthulhu Incarnate', description: 'An ancient dread god that defies comprehension.', monsterIds: ['eldritch_horror'] },
+  { id: 'solo_plague_rat', name: 'Filth Carrier', description: 'A foul disease-ridden rodent with virulent fangs.', monsterIds: ['plague_rat'] },
+  { id: 'solo_lantern_wisp', name: 'Spectral Flame', description: 'A floating soul light drifting across the gravestones.', monsterIds: ['lantern_wisp'] },
+  { id: 'solo_giant_crab', name: 'Tidal Pinch', description: 'A massive armored crustacean guarding the flooded cistern.', monsterIds: ['giant_crab'] },
+  { id: 'solo_crypt_crawler', name: 'Burrowing Scuttler', description: 'A giant armored insect crawling from the catacombs.', monsterIds: ['crypt_crawler'] },
+  { id: 'solo_cinder_imp', name: 'Hellfire Pyromancer', description: 'A mischievous winged demon hurling searing sparks.', monsterIds: ['cinder_imp'] },
+  { id: 'solo_storm_crow', name: 'Rampart Harbinger', description: 'A storm-touched corvid perched on the high belfry.', monsterIds: ['storm_crow'] },
+  { id: 'solo_giant_beetle', name: 'Iron Carapace', description: 'A heavy armored beetle with razor-sharp mandibles.', monsterIds: ['giant_beetle'] },
+  { id: 'solo_thorn_stalker', name: 'Verdant Ambusher', description: 'A spiked plant beast camouflaged in the dark forest.', monsterIds: ['thorn_stalker'] },
+  { id: 'solo_bard', name: 'Rogue Bard', description: 'A wandering musician wielding blade and dissonant song.', monsterIds: ['bard'] },
+  { id: 'solo_cultist_acolyte', name: 'Forbidden Devotee', description: 'A zealot channeling shadowy eldritch power.', monsterIds: ['cultist_acolyte'] },
+  { id: 'solo_vault_hound', name: 'Ironfang Sentry', description: 'A ferocious armored war dog guarding the vault gate.', monsterIds: ['vault_hound'] },
+  { id: 'solo_ember_serpent', name: 'Pyroclastic Coil', description: 'A serpentine dragon of living magma and ash.', monsterIds: ['ember_serpent'] },
+  { id: 'solo_forest_bear', name: 'Grove Apex', description: 'A massive brown bear guarding the deep verdant woods.', monsterIds: ['forest_bear'] },
+  { id: 'solo_sewer_lurker', name: 'Abyssal Deep-Jaw', description: 'A predatory bioluminescent beast lurking in the dark waters.', monsterIds: ['sewer_lurker'] },
+  { id: 'solo_throne_guardian', name: 'Obsidian Juggernaut', description: 'An undying armored colossus standing vigil over the throne.', monsterIds: ['throne_guardian'] },
 
   // 2-Monsters (Duo Encounters)
   { id: 'duo_slimes', name: 'Twin Slimes', description: 'Two corrosive oozes working in tandem.', monsterIds: ['green_slime', 'green_slime'] },

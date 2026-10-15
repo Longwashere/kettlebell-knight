@@ -1,0 +1,68 @@
+zombie_CL_tank.png
+pma: false
+size:768,768
+filter:Linear,Linear
+L_arm
+bounds:310,181,76,60
+rotate: 90
+L_eye
+bounds:218,563,30,31
+L_foot
+bounds:0,449,61,50
+L_hand
+bounds:255,449,61,46
+L_hip
+bounds:508,323,45,52
+L_leg
+bounds:408,323,36,53
+R_arm
+bounds:434,181,58,76
+R_eye
+bounds:120,563,32,34
+offsets:0,2,32,34
+rotate: 90
+R_finger
+bounds:380,449,45,50
+offsets:4,1,45,50
+rotate: 90
+R_foot
+bounds:707,181,67,50
+offsets:15,8,67,50
+rotate: 90
+R_hand
+bounds:617,323,45,51
+R_hip
+bounds:0,563,34,56
+rotate: 90
+R_leg
+bounds:620,449,35,53
+offsets:2,7,35,53
+rotate: 90
+body
+bounds:0,0,117,101
+rotate: 90
+butt
+bounds:125,449,66,47
+head
+bounds:165,0,87,87
+helmet_1
+bounds:0,181,114,78
+helmet_2
+bounds:494,449,39,62
+offsets:1,1,39,62
+rotate: 90
+helmet_3
+bounds:178,181,78,68
+rotate: 90
+lance
+bounds:0,323,344,62
+offsets:0,6,344,62
+shield
+bounds:446,0,78,219
+rotate: 90
+skirt_1
+bounds:316,0,86,66
+offsets:0,12,86,66
+rotate: 90
+skirt_2
+bounds:556,181,87,68

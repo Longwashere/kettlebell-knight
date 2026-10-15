@@ -1,0 +1,58 @@
+Unit_Spine_RebelDog1.png
+pma: false
+size:816,816
+filter:Linear,Linear
+Unit_Spine_RebelDog1_1
+bounds:119,239,69,67
+offsets:0,1,69,68
+rotate: 90
+Unit_Spine_RebelDog1_2
+bounds:517,378,63,86
+rotate: 90
+Unit_Spine_RebelDog1_3
+bounds:663,509,45,69
+offsets:0,1,45,69
+rotate: 90
+Unit_Spine_RebelDog1_4
+bounds:136,509,55,74
+rotate: 90
+Unit_Spine_RebelDog1_5
+bounds:379,239,68,63
+offsets:1,0,68,63
+rotate: 90
+Unit_Spine_RebelDog1_6
+bounds:667,378,58,79
+rotate: 90
+Unit_Spine_RebelDog1_7
+bounds:528,509,45,71
+offsets:0,1,45,71
+rotate: 90
+Unit_Spine_RebelDog1_8
+bounds:0,239,55,75
+Unit_Spine_RebelDog1_biyan
+bounds:506,239,138,67
+offsets:0,1,138,68
+Unit_Spine_RebelDog1_body
+bounds:522,0,245,150
+Unit_Spine_RebelDog1_head
+bounds:0,0,175,237
+rotate: 90
+Unit_Spine_RebelDog1_quan
+bounds:301,0,157,166
+offsets:1,1,158,167
+Unit_Spine_RebelDog1_weiba
+bounds:274,509,54,48
+Unit_Spine_RebelDog1_yan2
+bounds:0,378,137,67
+offsets:0,1,137,68
+Unit_Spine_RebelDog1_yz
+bounds:201,378,252,66
+Unit_Spine_RebelDog1_zui1
+bounds:392,509,45,72
+rotate: 90
+Unit_Spine_RebelDog1_zui2
+bounds:250,239,69,65
+rotate: 90
+Unit_Spine_RebelDog1_zui3
+bounds:0,509,72,58
+offsets:0,6,72,92

@@ -1,0 +1,51 @@
+CactusMonster.png
+pma: false
+size:2368,2368
+filter:Linear,Linear
+elite/armL1
+bounds:0,2043,255,253
+elite/armL2
+bounds:747,801,253,488
+rotate: 180
+elite/armR1
+bounds:437,1593,385,374
+elite/armR2
+bounds:1532,801,400,465
+elite/backSection
+bounds:886,1593,231,338
+rotate: 180
+elite/head
+bounds:518,0,454,736
+rotate: 180
+elite/lowerJaw
+bounds:319,2043,224,221
+rotate: 90
+elite/torsoBottom
+bounds:1036,0,683,728
+normal/armL1
+bounds:2027,1593,255,254
+rotate: 90
+normal/armL2
+bounds:1476,1593,276,487
+rotate: 270
+normal/armR1
+bounds:0,1593,386,373
+rotate: 90
+normal/armR2
+bounds:1064,801,404,465
+normal/backSection
+bounds:1181,1593,231,337
+normal/bigThorn
+bounds:1371,2043,179,406
+rotate: 90
+elite/bigThorn
+bounds:901,2043,206,406
+rotate: 90
+normal/head
+bounds:0,0,454,737
+normal/lowerJaw
+bounds:604,2043,233,221
+rotate: 180
+normal/torsoBottom
+bounds:0,801,683,728
+rotate: 180

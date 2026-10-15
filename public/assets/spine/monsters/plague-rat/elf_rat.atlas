@@ -1,0 +1,126 @@
+elf_rat.png
+pma: false
+size:1120,1120
+filter:Linear,Linear
+beij
+bounds:946,766,37,37
+offsets:1,1,40,40
+beij2
+bounds:1047,766,35,35
+beij3
+bounds:843,766,39,37
+ery
+bounds:628,446,164,93
+ery2
+bounds:856,446,96,93
+offsets:0,1,96,93
+ery3
+bounds:1016,446,96,93
+offsets:0,1,96,93
+erz
+bounds:841,238,61,100
+offsets:2,3,65,104
+erz2
+bounds:0,446,60,99
+offsets:0,1,60,99
+erz3
+bounds:124,446,60,99
+offsets:0,1,60,99
+meiy
+bounds:490,766,62,39
+offsets:2,1,65,43
+meiy2
+bounds:718,766,61,38
+offsets:0,1,62,38
+meiy3
+bounds:254,766,67,42
+meiz
+bounds:143,766,44,47
+offsets:5,6,48,50
+rotate: 90
+meiz2
+bounds:616,766,39,38
+offsets:1,0,39,38
+rotate: 90
+meiz3
+bounds:385,766,41,42
+o_other_716
+bounds:966,238,83,99
+offsets:2,2,86,102
+o_other_738
+bounds:593,238,106,68
+offsets:1,0,107,68
+rotate: 90
+shent
+bounds:0,238,222,144
+offsets:2,2,225,147
+shouy
+bounds:985,609,49,78
+offsets:1,6,52,81
+rotate: 90
+shouy2
+bounds:712,609,48,77
+shouy3
+bounds:0,766,47,79
+offsets:0,7,47,80
+rotate: 90
+shouz
+bounds:824,609,52,97
+rotate: 90
+shouz2
+bounds:725,238,52,101
+offsets:0,3,52,101
+shouz3
+bounds:600,609,48,78
+offsets:3,0,48,78
+tou
+bounds:612,0,236,174
+offsets:2,2,239,177
+tou2
+bounds:0,0,245,174
+offsets:5,0,245,174
+tou3
+bounds:309,0,239,174
+offsets:2,0,239,174
+tuiy
+bounds:248,446,63,98
+offsets:0,5,67,101
+tuiy2
+bounds:501,446,63,95
+tuiy3
+bounds:375,446,62,98
+wei
+bounds:912,0,156,121
+offsets:35,14,159,124
+rotate: 90
+xiaba
+bounds:280,609,87,64
+offsets:1,1,87,65
+rotate: 90
+yan
+bounds:286,238,120,36
+offsets:2,2,123,41
+rotate: 90
+yan2
+bounds:386,238,118,42
+offsets:2,2,119,42
+rotate: 90
+yan3
+bounds:492,238,118,37
+offsets:1,1,119,38
+rotate: 90
+yant
+bounds:188,609,93,28
+offsets:2,5,96,33
+rotate: 90
+yant2
+bounds:0,609,93,30
+offsets:0,3,93,30
+rotate: 90
+yant3
+bounds:94,609,93,30
+offsets:0,3,93,30
+rotate: 90
+zui
+bounds:408,609,128,78
+offsets:6,2,131,81

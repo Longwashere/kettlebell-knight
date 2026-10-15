@@ -1,0 +1,77 @@
+giant_claw_crab.png
+pma: false
+size:880,880
+filter:Linear,Linear
+beij
+bounds:133,547,44,55
+beij2
+bounds:619,404,46,56
+beij3
+bounds:729,404,43,56
+meimao
+bounds:489,547,76,45
+meimao2
+bounds:0,666,62,41
+meimao3
+bounds:126,666,55,41
+o_other_716
+bounds:478,404,59,77
+offsets:2,5,62,80
+rotate: 90
+shent
+bounds:0,217,123,110
+offsets:5,7,126,113
+rotate: 90
+shent2
+bounds:174,217,117,99
+offsets:1,0,117,99
+rotate: 90
+shent3
+bounds:337,217,117,99
+offsets:1,0,117,99
+rotate: 90
+tui
+bounds:629,547,32,43
+tui2
+bounds:725,547,30,42
+tui3
+bounds:245,666,30,42
+rotate: 90
+yanjing
+bounds:241,547,50,60
+offsets:0,7,54,64
+rotate: 90
+yanjing2
+bounds:0,547,55,69
+offsets:3,7,56,69
+rotate: 90
+yanjing3
+bounds:365,547,49,60
+offsets:1,5,49,61
+rotate: 90
+yshou
+bounds:318,404,73,96
+rotate: 90
+yshou2
+bounds:159,404,77,95
+rotate: 90
+yshou3
+bounds:0,404,79,95
+rotate: 90
+zshou
+bounds:0,0,153,158
+rotate: 90
+zshou2
+bounds:222,0,150,155
+rotate: 90
+zshou3
+bounds:441,0,150,155
+rotate: 90
+zui
+bounds:705,217,141,89
+zui2
+bounds:500,217,141,89
+zui3
+bounds:660,0,141,89
+offsets:0,6,141,89
+rotate: 90

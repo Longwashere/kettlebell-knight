@@ -24,6 +24,7 @@ import { UNDEAD_MOVES } from './moves/undeadMoves';
 import { WARBAND_MOVES } from './moves/warbandMoves';
 import { ARCANE_MOVES } from './moves/arcaneMoves';
 import { TITAN_MOVES } from './moves/titanMoves';
+import { EXPANSION_MOVES } from './moves/expansionMoves';
 import {
   Timeline, type EmitOptions, type SfxName,
   lerp, easeIn, easeOut, easeInOut, arc, rand,
@@ -1552,4 +1553,5 @@ export const MONSTER_MOVES: Record<MonsterMoveId, MoveFn> = {
   ...WARBAND_MOVES,
   ...ARCANE_MOVES,
   ...TITAN_MOVES,
+  ...EXPANSION_MOVES,
 };

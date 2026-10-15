@@ -242,6 +242,86 @@ export const MOVESETS: Record<string, IntentTemplate[]> = {
     { type: 'DEFEND', damage: 0, block: 50, name: 'Void Distortion', description: 'Warps local space-time (+50 Block)', durationSeconds: 14.0, move: 'horror_void_distortion' },
     { type: 'HEAVY_ATTACK', damage: 27, name: 'Abyssal Gaze', description: 'A searing beam from the eye beyond', durationSeconds: 14.0, move: 'horror_abyssal_gaze' },
   ],
+  crypt_crawler: [
+    { type: 'ATTACK', damage: 12, name: 'Mandible Pinch', description: 'Snapping razor jaws crunch down', durationSeconds: 10.5, move: 'crawler_mandible_pinch' },
+    { type: 'HEAVY_ATTACK', damage: 20, name: 'Burrow Dash', description: 'Burrows underground and launches forward', durationSeconds: 15.0, move: 'crawler_burrow_dash' },
+    { type: 'ATTACK', damage: 14, name: 'Acid Spurt', description: 'Spits corrosive digestive acid', durationSeconds: 11.5, move: 'crawler_acid_spurt' },
+    { type: 'DEFEND', damage: 0, block: 22, name: 'Chitin Shell', description: 'Hardens thick carapace (+22 Block)', durationSeconds: 12.0, move: 'crawler_chitin_shell' },
+  ],
+  plague_rat: [
+    { type: 'ATTACK', damage: 10, name: 'Frenzied Gnaw', description: 'Rabid flurry of diseased bites', durationSeconds: 9.5, move: 'rat_frenzied_gnaw' },
+    { type: 'HEAVY_ATTACK', damage: 18, name: 'Plague Bite', description: 'Deep bite oozing black pestilence', durationSeconds: 14.0, move: 'rat_plague_bite' },
+    { type: 'ATTACK', damage: 12, name: 'Filth Slash', description: 'Rakes jagged claws caked with venom', durationSeconds: 10.5, move: 'rat_filth_slash' },
+  ],
+  ember_serpent: [
+    { type: 'ATTACK', damage: 16, name: 'Ember Strike', description: 'Dives forward with glowing fangs', durationSeconds: 11.0, move: 'serpent_ember_strike' },
+    { type: 'ATTACK', damage: 18, name: 'Lava Spit', description: 'Hurls a molten ball of magma', durationSeconds: 12.5, move: 'serpent_lava_spit' },
+    { type: 'HEAVY_ATTACK', damage: 26, name: 'Inferno Coil', description: 'Constricts in a searing vortex of flame', durationSeconds: 16.0, move: 'serpent_inferno_coil' },
+  ],
+  cinder_imp: [
+    { type: 'ATTACK', damage: 14, name: 'Cinder Fireball', description: 'Lobs sputtering demonic brimstone', durationSeconds: 11.0, move: 'imp_cinder_fireball' },
+    { type: 'ATTACK', damage: 12, name: 'Scorch Claw', description: 'Quick claw slash trailing red embers', durationSeconds: 9.5, move: 'imp_scorch_claw' },
+    { type: 'HEAVY_ATTACK', damage: 22, name: 'Hellfire Eruption', description: 'Calls down a geyser of infernal flame', durationSeconds: 15.0, move: 'imp_hellfire_eruption' },
+  ],
+  thorn_stalker: [
+    { type: 'ATTACK', damage: 14, name: 'Thorn Volley', description: 'Launches a barrage of barbed needles', durationSeconds: 11.0, move: 'stalker_thorn_volley' },
+    { type: 'ATTACK', damage: 17, name: 'Bramble Lash', description: 'Whips spiked thorny tendril', durationSeconds: 12.5, move: 'stalker_bramble_lash' },
+    { type: 'HEAVY_ATTACK', damage: 25, name: 'Needle Barrage', description: 'Furious spray of poisonous quills', durationSeconds: 16.0, move: 'stalker_needle_barrage' },
+    { type: 'DEFEND', damage: 0, block: 24, name: 'Prickly Guard', description: 'Braces with defensive spine shield (+24 Block)', durationSeconds: 12.0, move: 'stalker_prickly_guard' },
+  ],
+  giant_crab: [
+    { type: 'ATTACK', damage: 13, name: 'Pincer Snap', description: 'Snaps heavy claw with armor-shattering force', durationSeconds: 10.5, move: 'crab_pincer_snap' },
+    { type: 'HEAVY_ATTACK', damage: 23, name: 'Crushing Clamp', description: 'Vice-like grip that grinds steel to dust', durationSeconds: 15.5, move: 'crab_crushing_clamp' },
+    { type: 'ATTACK', damage: 11, name: 'Bubble Blast', description: 'Fires high-pressure caustic brine bubbles', durationSeconds: 10.0, move: 'crab_bubble_blast' },
+    { type: 'DEFEND', damage: 0, block: 25, name: 'Chitin Guard', description: 'Shelters behind massive primary claw (+25 Block)', durationSeconds: 12.0, move: 'crab_chitin_guard' },
+  ],
+  sewer_lurker: [
+    { type: 'ATTACK', damage: 17, name: 'Lure Strike', description: 'Bait globe flashes blinding light then lunges', durationSeconds: 12.0, move: 'lurker_lure_strike' },
+    { type: 'HEAVY_ATTACK', damage: 28, name: 'Abyssal Bite', description: 'Enormous jaws close in a murky tidal wave', durationSeconds: 16.5, move: 'lurker_abyssal_bite' },
+    { type: 'ATTACK', damage: 15, name: 'Sludge Belch', description: 'Vomits rancid toxic sewer waste', durationSeconds: 11.5, move: 'lurker_sludge_belch' },
+  ],
+  giant_beetle: [
+    { type: 'ATTACK', damage: 15, name: 'Horn Toss', description: 'Gouging horn toss throws you backward', durationSeconds: 11.5, move: 'beetle_horn_toss' },
+    { type: 'HEAVY_ATTACK', damage: 24, name: 'Chitin Slam', description: 'Full-body armored charge impact', durationSeconds: 15.0, move: 'beetle_chitin_slam' },
+    { type: 'DEFEND', damage: 0, block: 28, name: 'Carapace Wall', description: 'Hardens wing cases into iron shield (+28 Block)', durationSeconds: 12.5, move: 'beetle_carapace_wall' },
+  ],
+  forest_bear: [
+    { type: 'ATTACK', damage: 18, name: 'Crushing Swipe', description: 'Heavy paw swipe that caves in shields', durationSeconds: 12.0, move: 'bear_crushing_swipe' },
+    { type: 'HEAVY_ATTACK', damage: 27, name: 'Grizzly Maul', description: 'Rears up and brings down crushing weight', durationSeconds: 16.0, move: 'bear_grizzly_maul' },
+    { type: 'ATTACK', damage: 14, name: 'Territorial Roar', description: 'Intimidating deafening roar that shocks', durationSeconds: 11.0, move: 'bear_territorial_roar' },
+  ],
+  cultist_acolyte: [
+    { type: 'ATTACK', damage: 14, name: 'Void Dagger', description: 'Quick thrust with a curved obsidian blade', durationSeconds: 10.5, move: 'acolyte_void_dagger' },
+    { type: 'ATTACK', damage: 16, name: 'Eldritch Hex', description: 'Chants a curse of shadowy tendrils', durationSeconds: 12.0, move: 'acolyte_eldritch_hex' },
+    { type: 'HEAVY_ATTACK', damage: 25, name: 'Sacrificial Blast', description: 'Channels dark pact into a concentrated blast', durationSeconds: 16.0, move: 'acolyte_sacrificial_blast' },
+    { type: 'DEFEND', damage: 0, block: 22, name: 'Shadow Ward', description: 'Wraps self in shadowy ward (+22 Block)', durationSeconds: 11.5, move: 'acolyte_shadow_ward' },
+  ],
+  lantern_wisp: [
+    { type: 'ATTACK', damage: 12, name: 'Soul Flame', description: 'Eerie blue will-o-wisp flings searing spirit fire', durationSeconds: 10.0, move: 'wisp_soul_flame' },
+    { type: 'HEAVY_ATTACK', damage: 20, name: 'Spectral Burn', description: 'Bright cold flare that burns the life force', durationSeconds: 14.5, move: 'wisp_spectral_burn' },
+    { type: 'DEFEND', damage: 0, block: 20, name: 'Spirit Veil', description: 'Fades partially into ethereal realm (+20 Block)', durationSeconds: 11.0, move: 'wisp_spirit_veil' },
+  ],
+  throne_guardian: [
+    { type: 'ATTACK', damage: 22, name: 'Colossal Cleave', description: 'Sweeps an enormous stone slab blade', durationSeconds: 13.0, move: 'guardian_colossal_cleave' },
+    { type: 'HEAVY_ATTACK', damage: 34, name: 'Throne Smash', description: 'Crushing overhead hammer blow shatters stone', durationSeconds: 17.5, move: 'guardian_throne_smash' },
+    { type: 'DEFEND', damage: 0, block: 32, name: 'Obsidian Bulwark', description: 'Braces behind impenetrable dark steel (+32 Block)', durationSeconds: 13.0, move: 'guardian_obsidian_bulwark' },
+  ],
+  storm_crow: [
+    { type: 'ATTACK', damage: 14, name: 'Dive Bomb', description: 'High-speed dive with outstretched talons', durationSeconds: 10.5, move: 'crow_dive_bomb' },
+    { type: 'ATTACK', damage: 12, name: 'Tempest Screech', description: 'Harsh sonic caw summons shockwaves', durationSeconds: 10.0, move: 'crow_tempest_screech' },
+    { type: 'HEAVY_ATTACK', damage: 22, name: 'Gale Slash', description: 'Wing beats razor wind blades into your chest', durationSeconds: 15.0, move: 'crow_gale_slash' },
+  ],
+  vault_hound: [
+    { type: 'ATTACK', damage: 16, name: 'Vault Pounce', description: 'Steel-armored hound leaps with crushing weight', durationSeconds: 11.0, move: 'hound_vault_pounce' },
+    { type: 'HEAVY_ATTACK', damage: 26, name: 'Iron Jaw', description: 'Crushes armor in reinforced steel teeth', durationSeconds: 15.5, move: 'hound_iron_jaw' },
+    { type: 'ATTACK', damage: 18, name: 'Guard Frenzy', description: 'Savage guard dog rapid biting flurry', durationSeconds: 12.0, move: 'hound_guard_frenzy' },
+  ],
+  bard: [
+    { type: 'ATTACK', damage: 14, name: 'Dissonant Chord', description: 'Strums a discordant ringing note that ruptures', durationSeconds: 11.0, move: 'bard_dissonant_chord' },
+    { type: 'ATTACK', damage: 16, name: 'Cutting Ballad', description: 'Fierce flourish and concealed blade cut', durationSeconds: 12.0, move: 'bard_cutting_ballad' },
+    { type: 'HEAVY_ATTACK', damage: 24, name: 'Cacophony', description: 'Deafening crescendo of sonic disruption', durationSeconds: 15.5, move: 'bard_cacophony' },
+    { type: 'DEFEND', damage: 0, block: 22, name: 'Tempo Ward', description: 'Nimble footwork dances away (+22 Block)', durationSeconds: 11.5, move: 'bard_tempo_ward' },
+  ],
 };
 
 export const MONSTER_INTENTS: Record<string, MonsterIntent[]> = Object.fromEntries(

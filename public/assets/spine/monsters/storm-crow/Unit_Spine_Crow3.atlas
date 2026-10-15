@@ -1,0 +1,54 @@
+Unit_Spine_Crow3.png
+pma: false
+size:1056,1056
+filter:Linear,Linear
+attack
+bounds:821,571,77,59
+offsets:2,0,77,59
+body
+bounds:790,0,206,248
+rotate: 90
+bs
+bounds:539,326,224,167
+offsets:1,0,224,167
+lhand
+bounds:272,761,50,66
+rotate: 90
+lhand2
+bounds:827,326,87,134
+lhand3
+bounds:387,571,54,73
+no
+bounds:0,761,77,56
+rhand
+bounds:145,571,111,178
+rotate: 90
+rhand2
+bounds:962,571,58,83
+offsets:1,1,58,83
+rotate: 90
+rhand3
+bounds:656,761,44,82
+rotate: 90
+tou
+bounds:525,0,211,201
+offsets:1,0,212,201
+rotate: 90
+tou1
+bounds:333,326,142,169
+tui
+bounds:141,761,67,55
+tui2
+bounds:536,761,56,49
+ty
+bounds:505,571,252,66
+wq
+bounds:0,0,262,461
+rotate: 90
+ya
+bounds:0,571,126,81
+rotate: 90
+yf
+bounds:0,326,269,181
+yf2
+bounds:402,761,70,49
