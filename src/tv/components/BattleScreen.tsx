@@ -596,6 +596,18 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                     <span className="font-pixel text-[7px] text-[#A7A9BE]">
                       LVL {m.level}
                     </span>
+                    {m.affix && !isDead && (
+                      <span
+                        className="font-pixel text-[7px] px-1 py-0.2 rounded border uppercase font-bold"
+                        style={{
+                          borderColor: m.outlineColor ? `#${m.outlineColor.toString(16).padStart(6, '0')}` : '#F4B41A',
+                          color: m.outlineColor ? `#${m.outlineColor.toString(16).padStart(6, '0')}` : '#F4B41A',
+                          backgroundColor: 'rgba(0,0,0,0.5)',
+                        }}
+                      >
+                        {m.affix}
+                      </span>
+                    )}
                   </div>
 
                   {m.block > 0 && !isDead && (

@@ -6,9 +6,11 @@ import { discoveryManager } from '../../shared/DiscoveryManager';
 import { HubMenu, HUB_NODES } from './HubMenu';
 import { BlacksmithShop, SHOP_ITEMS } from './BlacksmithShop';
 import { BattleScreen } from './BattleScreen';
+import { TitleScreen } from './TitleScreen';
 import { QRCodeModal } from './QRCodeModal';
 import { QRCodeSVG } from 'qrcode.react';
 import { EquipmentItem, HubLocation, RepTelemetry, ExerciseType } from '../../types/game';
+import { profileManager, PlayerProfile } from '../../shared/ProfileManager';
 import { audioManager } from '../../shared/AudioManager';
 import { registerDebug } from '../debug/agentBridge';
 import type { MonsterMoveId } from '../../types/battle';
@@ -26,20 +28,28 @@ import {
   Activity, 
   Heart, 
   Shield,
-  Wifi
+  Wifi,
+  LogOut
 } from 'lucide-react';
+
+export type TVScreenView = 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'ALCHEMIST' | 'SANCTUARY' | 'TITLE';
 
 export const GameScreen: React.FC = () => {
   // GameEngine Reference - Strictly isolated from React re-renders!
   const engineRef = useRef<GameEngine | null>(null);
   const pixiContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // TV UI Views: 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'ALCHEMIST' | 'SANCTUARY'
+  // TV UI Views: 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'ALCHEMIST' | 'SANCTUARY' | 'TITLE'
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const initialView = (searchParams?.get('view')?.toUpperCase() as any) || 'HUB';
-  const [currentView, setCurrentView] = useState<'HUB' | 'BLACKSMITH' | 'COMBAT' | 'ALCHEMIST' | 'SANCTUARY'>(
-    ['HUB', 'BLACKSMITH', 'COMBAT', 'ALCHEMIST', 'SANCTUARY'].includes(initialView) ? initialView : 'HUB'
-  );
+  const urlView = searchParams?.get('view')?.toUpperCase() as TVScreenView | undefined;
+  const validViews: TVScreenView[] = ['HUB', 'BLACKSMITH', 'COMBAT', 'ALCHEMIST', 'SANCTUARY', 'TITLE'];
+  const initialView: TVScreenView = urlView && validViews.includes(urlView)
+    ? urlView
+    : profileManager.hasSavedProfile()
+    ? 'HUB'
+    : 'TITLE';
+
+  const [currentView, setCurrentView] = useState<TVScreenView>(initialView);
   // Read by the telemetry listener (registered once), so it can tell whether a battle is running
   const currentViewRef = useRef(currentView);
   currentViewRef.current = currentView;
@@ -54,8 +64,12 @@ export const GameScreen: React.FC = () => {
   const [isQrModalOpen, setIsQrModalOpen] = useState<boolean>(false);
 
   // RPG Progression state
-  const [playerGold, setPlayerGold] = useState<number>(650);
-  const [equippedItems, setEquippedItems] = useState<Set<string>>(new Set(['iron_kettlebell']));
+  const [profile, setProfile] = useState<PlayerProfile | null>(() => profileManager.getActiveProfile());
+  const [playerGold, setPlayerGold] = useState<number>(() => profileManager.getActiveProfile()?.gold ?? 150);
+  const [equippedItems, setEquippedItems] = useState<Set<string>>(() => {
+    const active = profileManager.getActiveProfile();
+    return new Set(active?.equippedItems ? Object.values(active.equippedItems).filter(Boolean) as string[] : ['iron_kettlebell']);
+  });
   const [isMuted, setIsMuted] = useState<boolean>(false);
 
   // High-level workout session counters (updated periodically or on reps)
@@ -132,9 +146,23 @@ export const GameScreen: React.FC = () => {
         }
 
         // Lightweight stats increment
-        setSessionReps((prev) => prev + 1);
-        setHighestPower((prev) => Math.max(prev, telemetry.power));
-        setPlayerGold((prev) => prev + Math.round(telemetry.power * 0.5));
+        setSessionReps((prev) => {
+          const next = prev + 1;
+          profileManager.saveActiveProfile({
+            repsCompleted: (profileManager.getActiveProfile()?.repsCompleted || 0) + 1,
+          });
+          return next;
+        });
+        setHighestPower((prev) => {
+          const next = Math.max(prev, telemetry.power);
+          profileManager.saveActiveProfile({ highestPower: next });
+          return next;
+        });
+        setPlayerGold((prev) => {
+          const next = prev + Math.round(telemetry.power * 0.5);
+          profileManager.saveActiveProfile({ gold: next });
+          return next;
+        });
       }
     });
 
@@ -145,6 +173,57 @@ export const GameScreen: React.FC = () => {
       networkManager.cleanup();
     };
   }, []);
+
+  // Sync profile changes across components
+  useEffect(() => {
+    return profileManager.subscribe((active) => {
+      setProfile(active);
+      if (active) {
+        setPlayerGold(active.gold);
+        setEquippedItems(new Set(Object.values(active.equippedItems).filter(Boolean) as string[]));
+      }
+    });
+  }, []);
+
+  // Sync 90s dark fantasy background and character visibility to current view
+  useEffect(() => {
+    if (!isEngineReady || !engineRef.current) return;
+    if (currentView === 'TITLE') {
+      engineRef.current.setCharactersVisible(false);
+      void engineRef.current.loadBackground(BATTLE_MAPS.OBSIDIAN_THRONE);
+    } else {
+      engineRef.current.setCharactersVisible(true);
+      if (currentView === 'HUB') {
+        void engineRef.current.loadBackground(BATTLE_MAPS.TOWN_NIGHT);
+      }
+    }
+  }, [currentView, isEngineReady]);
+
+  // Handle transition from Title Screen into the game
+  const handleStartGameFromTitle = useCallback((loadedProfile: PlayerProfile) => {
+    setProfile(loadedProfile);
+    setPlayerGold(loadedProfile.gold);
+    setEquippedItems(new Set(Object.values(loadedProfile.equippedItems).filter(Boolean) as string[]));
+    setCurrentView('HUB');
+    if (engineRef.current) {
+      void engineRef.current.loadBackground(BATTLE_MAPS.TOWN_NIGHT);
+    }
+  }, []);
+
+  // Handle Save & Quit / Return to Title Screen
+  const handleGoToTitle = useCallback(() => {
+    if (profile) {
+      profileManager.saveActiveProfile({
+        gold: playerGold,
+        highestPower,
+        repsCompleted: (profile.repsCompleted || 0) + sessionReps,
+      });
+    }
+    setCurrentView('TITLE');
+    if (engineRef.current) {
+      void engineRef.current.loadBackground(BATTLE_MAPS.OBSIDIAN_THRONE);
+    }
+  }, [profile, playerGold, highestPower, sessionReps]);
 
   // Dev automation bridge (window.__kk): engine introspection + view navigation for agents/scripts
   useEffect(() => registerDebug(
@@ -181,12 +260,16 @@ export const GameScreen: React.FC = () => {
         setEquippedItems((prev) => new Set([...[...prev].filter((e) => SHOP_ITEMS.find((si) => si.id === e)?.slot !== item.slot), id]));
         engineRef.current?.previewEquipment(item.slot, item.attachmentId);
       },
-      goto: (view: typeof currentView) => {
+      goto: (view: TVScreenView) => {
         setIsQrModalOpen(false);
         setCurrentView(view);
         if (view === 'BLACKSMITH') {
           setShopIndex(0);
           engineRef.current?.previewEquipment(SHOP_ITEMS[0].slot, SHOP_ITEMS[0].attachmentId);
+        } else if (view === 'TITLE') {
+          engineRef.current?.loadBackground(BATTLE_MAPS.OBSIDIAN_THRONE);
+        } else if (view === 'HUB') {
+          engineRef.current?.loadBackground(BATTLE_MAPS.TOWN_NIGHT);
         }
       },
     },
@@ -216,6 +299,13 @@ export const GameScreen: React.FC = () => {
       });
       handlePreviewShopItem(item);
       audioManager.play('equip');
+      profileManager.saveActiveProfile({
+        gold: playerGold >= item.price && !equippedItems.has(item.id) ? playerGold - item.price : playerGold,
+        equippedItems: {
+          ...(profile?.equippedItems || { weapon: 'iron_kettlebell' }),
+          [item.slot]: item.id,
+        },
+      });
     }
   };
 
@@ -284,6 +374,8 @@ export const GameScreen: React.FC = () => {
           setCurrentView('ALCHEMIST');
         } else if (selectedNode === 'SANCTUARY') {
           setCurrentView('SANCTUARY');
+        } else if (selectedNode === 'TITLE') {
+          handleGoToTitle();
         }
       } else if (currentView === 'BLACKSMITH') {
         handleEquipShopItem(SHOP_ITEMS[shopIndex]);
@@ -318,11 +410,25 @@ export const GameScreen: React.FC = () => {
         (window as any).__onKettlebellRepCompleted(chosen, demoPower, demoForm);
       }
 
-      setSessionReps((prev) => prev + 1);
-      setHighestPower((prev) => Math.max(prev, demoPower));
-      setPlayerGold((prev) => prev + Math.round(demoPower * 0.5));
+      setSessionReps((prev) => {
+        const next = prev + 1;
+        profileManager.saveActiveProfile({
+          repsCompleted: (profile?.repsCompleted || 0) + next,
+        });
+        return next;
+      });
+      setHighestPower((prev) => {
+        const next = Math.max(prev, demoPower);
+        profileManager.saveActiveProfile({ highestPower: next });
+        return next;
+      });
+      setPlayerGold((prev) => {
+        const next = prev + Math.round(demoPower * 0.5);
+        profileManager.saveActiveProfile({ gold: next });
+        return next;
+      });
     },
-  }, { enabled: currentView !== 'COMBAT' });
+  }, { enabled: currentView !== 'COMBAT' && currentView !== 'TITLE' });
 
   const toggleMute = () => {
     const muted = audioManager.toggleMute();
@@ -345,11 +451,13 @@ export const GameScreen: React.FC = () => {
         CRITICAL REQUIREMENT:
         React DOM Overlay (z-index: 10) for 10-foot Fire TV UI
       */}
-      {currentView === 'COMBAT' ? (
+      {currentView === 'TITLE' ? (
+        <TitleScreen onStartGame={handleStartGameFromTitle} />
+      ) : currentView === 'COMBAT' ? (
         <BattleScreen
           engineRef={engineRef}
           isEngineReady={isEngineReady}
-          weaponId={SHOP_ITEMS.find((si) => si.slot === 'weapon' && equippedItems.has(si.id))?.id ?? 'iron_kettlebell'}
+          weaponId={SHOP_ITEMS.find((si) => si.slot === 'weapon' && equippedItems.has(si.id))?.id ?? profile?.equippedItems?.weapon ?? 'iron_kettlebell'}
           onExitBattle={() => setCurrentView('HUB')}
         />
       ) : (
@@ -363,9 +471,14 @@ export const GameScreen: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-pixel text-xs text-[#F4B41A]">SIR KETTLEBURNE</span>
+                <span className="font-pixel text-xs text-[#F4B41A]">
+                  {profile?.name || 'SIR KETTLEBURNE'}
+                </span>
                 <span className="bg-[#38B6FF]/20 text-[#38B6FF] border border-[#38B6FF] text-[9px] font-pixel px-1.5">
-                  LVL 12
+                  LVL {profile?.level || 1}
+                </span>
+                <span className="text-[9px] font-mono text-[#F4B41A] ml-1">
+                  🪙 {playerGold} GP
                 </span>
               </div>
               {/* HP & Stamina Bars */}
@@ -418,6 +531,15 @@ export const GameScreen: React.FC = () => {
                   {netState === 'CONNECTED' ? '● LINKED' : roomId || 'CONNECT'}
                 </span>
               </div>
+            </button>
+
+            {/* Title / Save & Quit button */}
+            <button
+              onClick={handleGoToTitle}
+              className="p-3 bg-[#1A1926]/90 border-4 border-[#2E2B44] hover:border-[#F4B41A] text-white shadow-pixel-box"
+              title="Save & Return to Title Screen"
+            >
+              <LogOut className="w-4 h-4 text-[#F4B41A]" />
             </button>
 
             {/* Mute toggle */}

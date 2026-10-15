@@ -739,7 +739,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
     heavyAttack: 'active_attack',
     hit: 'active_hit',
     death: 'active_end',
-    flipX: true, // authored facing left
+    flipX: false, // authored facing left
   },
   LANTERN_WISP: {
     skeleton: `${MONSTER_DIR}/lantern-wisp/soul_spine.json`,
@@ -822,6 +822,22 @@ function applyRigSkin(spine: Spine, rig: MonsterRig): void {
   }
 }
 
+/** Applies tint to Pixi Container, skeleton, and all individual Spine slots so the GPU batcher colors every part. */
+function setSpineTint(spine: Spine, tint: number): void {
+  spine.tint = tint;
+  const r = ((tint >> 16) & 0xFF) / 255;
+  const g = ((tint >> 8) & 0xFF) / 255;
+  const b = (tint & 0xFF) / 255;
+  if (spine.skeleton) {
+    spine.skeleton.color?.set(r, g, b, 1);
+    if (spine.skeleton.slots) {
+      for (const slot of spine.skeleton.slots) {
+        slot.color?.set(r, g, b, slot.color?.a ?? 1);
+      }
+    }
+  }
+}
+
 let vfxRefs = 0; // engines holding the battle VFX rigs (see vfx.ts)
 
 const MONSTER_X = 300;
@@ -897,6 +913,17 @@ function releaseMonsterRig(rig: MonsterRig): void {
  *    Uses Assets.load/unload on scene transitions to prevent WebGL Context Loss on 1GB Fire TV sticks.
  * 3. Dynamic Spine/Attachment preview swapping with proactive asset unloading.
  */
+export type MonsterInputItem =
+  | MonsterSprite
+  | {
+      spriteType: MonsterSprite;
+      tint?: number;
+      scaleMultiplier?: number;
+      skin?: string;
+      aura?: 'fire' | 'ice' | 'poison' | 'summon';
+      outlineColor?: number;
+    };
+
 export interface MonsterSlot {
   container: Container;
   shadow: Graphics;
@@ -916,6 +943,10 @@ export interface MonsterSlot {
   kickY: number;
   flashFrames: number; // hit-flash tint countdown (knight hits)
   activeMove: { cancel: () => void; length: number } | null;
+  baseTint?: number;
+  scaleMultiplier?: number;
+  customOutline?: OutlineFilter | null;
+  auraSpine?: Spine | null;
 }
 
 export class GameEngine {
@@ -955,7 +986,7 @@ export class GameEngine {
   private monsterOutline = new OutlineFilter({ color: MONSTER_OUTLINE_COLOR });
   private targetSlotIndex: number = 0;
   private targetReticle: Graphics | null = null;
-  private queuedMonsters: MonsterSprite[] = ['SLIME'];
+  private queuedMonsters: MonsterInputItem[] = ['SLIME'];
   private flashOverlay: Graphics | null = null;
 
   // Animation States
@@ -1167,6 +1198,12 @@ export class GameEngine {
     void this.loadBackground();
   }
 
+  public setCharactersVisible(visible: boolean): void {
+    if (this.gameLayer) this.gameLayer.visible = visible;
+    if (this.effectsLayer) this.effectsLayer.visible = visible;
+    if (this.uiLayer) this.uiLayer.visible = visible;
+  }
+
   public loadBackground(bgKey?: string): Promise<void> {
     return this.trackLoad(this.loadBackgroundNow(bgKey));
   }
@@ -1369,15 +1406,15 @@ export class GameEngine {
   /**
    * Sets multiple monsters (1 to 3) in formation on the battlefield.
    */
-  public setMonsters(monstersInput: (MonsterSprite | { spriteType: MonsterSprite })[]): Promise<void> {
+  public setMonsters(monstersInput: MonsterInputItem[]): Promise<void> {
     audioManager.prewarm(); // render the sound bank in the background while the rigs load
     return this.trackLoad(this.loadMonsters(monstersInput));
   }
 
-  private async loadMonsters(monstersInput: (MonsterSprite | { spriteType: MonsterSprite })[]): Promise<void> {
+  private async loadMonsters(monstersInput: MonsterInputItem[]): Promise<void> {
     const token = ++this.monsterLoadToken;
     const requestedTypes: MonsterSprite[] = monstersInput.map(t => typeof t === 'string' ? t : t.spriteType);
-    this.queuedMonsters = requestedTypes;
+    this.queuedMonsters = monstersInput;
 
     if (!this.gameLayer) return;
 
@@ -1411,17 +1448,20 @@ export class GameEngine {
     void this.loadBackground(bg);
 
     for (let i = 0; i < count; i++) {
+      const input = monstersInput[i];
+      const variant = typeof input === 'object' && input !== null ? input : null;
       const type = requestedTypes[i];
       const pos = coords[i];
+      const scaleMult = variant?.scaleMultiplier ?? 1;
 
       const slotContainer = new Container();
       slotContainer.x = pos.x;
       slotContainer.y = pos.y;
       slotContainer.zIndex = pos.zIndex;
 
-      // Drop shadow for monster
+      // Drop shadow for monster (scaled to variant size)
       const shadow = new Graphics();
-      shadow.ellipse(0, 0, 24, 5).fill({ color: 0x000000, alpha: 0.4 });
+      shadow.ellipse(0, 0, 24 * scaleMult, 5 * scaleMult).fill({ color: 0x000000, alpha: 0.4 });
       slotContainer.addChild(shadow);
 
       const rig = MONSTER_RIGS[type];
@@ -1444,6 +1484,10 @@ export class GameEngine {
         kickY: 0,
         flashFrames: 0,
         activeMove: null,
+        baseTint: variant?.tint,
+        scaleMultiplier: scaleMult,
+        customOutline: null,
+        auraSpine: null,
       };
 
       this.monsterSlots.push(slot);
@@ -1462,15 +1506,41 @@ export class GameEngine {
         return;
       }
 
-      const spine = Spine.from({ skeleton: rig.skeleton, atlas: rig.atlas, scale: rig.scale, autoUpdate: true });
+      const spineScale = rig.scale * scaleMult;
+      const spine = Spine.from({ skeleton: rig.skeleton, atlas: rig.atlas, scale: spineScale, autoUpdate: true });
       if (this.app) spine.ticker = this.app.ticker;
       if (rig.flipX !== false) {
         spine.scale.x *= -1; // face knight on the left
       }
-      applyRigSkin(spine, rig);
-      spine.filters = [this.monsterOutline];
+
+      // Variant Skin or default rig skin
+      if (variant?.skin) {
+        try {
+          spine.skeleton.setSkinByName(variant.skin);
+          spine.skeleton.setSlotsToSetupPose();
+        } catch {
+          applyRigSkin(spine, rig);
+        }
+      } else {
+        applyRigSkin(spine, rig);
+      }
+
+      // Outline filter (variant custom color or standard monster outline)
+      if (variant?.outlineColor !== undefined) {
+        const customFilter = new OutlineFilter({ color: variant.outlineColor });
+        slot.customOutline = customFilter;
+        spine.filters = [customFilter];
+      } else {
+        spine.filters = [this.monsterOutline];
+      }
+
+      // Variant Base Tint
+      if (variant?.tint !== undefined) {
+        setSpineTint(spine, variant.tint);
+      }
+
       if (rig.offY) {
-        spine.y += rig.offY;
+        spine.y += rig.offY * scaleMult;
       }
 
       for (const page of Assets.get<TextureAtlas>(rig.atlas).pages) {
@@ -1491,6 +1561,32 @@ export class GameEngine {
 
       slot.spine = spine;
       slotContainer.addChild(spine);
+
+      // Ambient Affix Aura
+      if (variant?.aura) {
+        const auraName = variant.aura;
+        const attachAura = () => {
+          if (this.isDestroyed || !slot.isAlive || slotContainer.destroyed) return;
+          const aura = this.spawnVfx(slotContainer, auraName, 0, -8 * scaleMult, {
+            loop: true,
+            size: 1.15 * scaleMult,
+            alpha: 0.65,
+          });
+          if (aura) {
+            slot.auraSpine = aura;
+            if (slotContainer.children.length > 2) {
+              slotContainer.setChildIndex(aura, 1); // between shadow (0) and spine (2)
+            }
+          }
+        };
+        if (this.vfxReady) {
+          attachAura();
+        } else {
+          void Promise.all(VFX_NAMES.map((n) => loadSpineRig(VFX_RIGS[n].skeleton, VFX_RIGS[n].atlas)))
+            .then(attachAura)
+            .catch(() => {});
+        }
+      }
     }
 
     // Retain compatibility with legacy single-monster references
@@ -1520,6 +1616,14 @@ export class GameEngine {
   private clearAllMonsters(): void {
     for (const slot of this.monsterSlots) {
       slot.activeMove?.cancel();
+      if (slot.customOutline) {
+        slot.customOutline.destroy();
+        slot.customOutline = null;
+      }
+      if (slot.auraSpine) {
+        slot.auraSpine.destroy();
+        slot.auraSpine = null;
+      }
       if (slot.spine) {
         slot.spine.destroy();
         slot.spine = null;
@@ -2181,7 +2285,7 @@ export class GameEngine {
       flashTarget: (i, color = 0xFF5555, frames = 6) => {
         const slot = targets[i] ? this.monsterSlots[targets[i].slot] : undefined;
         if (!slot?.spine || slot.spine.destroyed) return;
-        slot.spine.tint = color;
+        setSpineTint(slot.spine, color);
         slot.flashFrames = frames;
       },
       guard: (color) => {
@@ -2989,7 +3093,7 @@ export class GameEngine {
         }
         if (slot.flashFrames > 0) {
           slot.flashFrames -= delta;
-          if (slot.flashFrames <= 0 && slot.spine && !slot.spine.destroyed) slot.spine.tint = 0xFFFFFF;
+          if (slot.flashFrames <= 0 && slot.spine && !slot.spine.destroyed) setSpineTint(slot.spine, slot.baseTint ?? 0xFFFFFF);
         }
         if (slot.shakeX !== 0) {
           slot.shakeX = slot.shakeX > 0 ? Math.max(0, slot.shakeX - delta) : Math.min(0, slot.shakeX + delta);

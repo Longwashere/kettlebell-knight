@@ -19,6 +19,8 @@ import { VFX_NAMES } from '../engine/vfx';
 import { getCardArt, CARD_ART_W, CARD_ART_H } from '../components/cardArt';
 import { EXERCISE_GUIDES, getExerciseFrames, POSE_W, POSE_H } from '../components/exerciseGuide';
 
+import { profileManager } from '../../shared/ProfileManager';
+
 type StateProvider = () => unknown;
 type Action = (...args: any[]) => unknown;
 
@@ -58,6 +60,31 @@ function state(): Record<string, unknown> {
 
 // Sound bank: what played (state().audio), and `call('audioReset')` to count a single move's sounds
 registerDebug('audio', () => audioManager.debugState(), { audioReset: () => audioManager.debugState(true) });
+
+// Player profile: progression data and slot management
+registerDebug(
+  'profile',
+  () => ({
+    hasProfile: profileManager.hasSavedProfile(),
+    activeProfile: profileManager.getActiveProfile(),
+    slots: profileManager.getAllSlots(),
+  }),
+  {
+    'profile.reset': () => {
+      profileManager.clearAll();
+      return { success: true };
+    },
+    'profile.create': (name?: string, slotId?: string) => {
+      return profileManager.createProfile(slotId || 'slot_1', name || 'TEST KNIGHT');
+    },
+    'profile.load': (slotId: string) => {
+      return profileManager.loadProfile(slotId);
+    },
+    'profile.delete': (slotId: string) => {
+      return profileManager.deleteProfile(slotId);
+    },
+  }
+);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

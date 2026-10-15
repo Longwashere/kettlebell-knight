@@ -5,6 +5,7 @@
  */
 import { MONSTER_CATALOG, type EncounterTemplate, type MonsterIntent, type MonsterState } from '../types/battle';
 import { PACK_SCALING } from './combatRules';
+import { resolveMonsterVariant } from './monsterVariants';
 
 export type IntentTemplate = Omit<MonsterIntent, 'remainingSeconds'>;
 
@@ -344,28 +345,30 @@ export function rollIntent(m: Pick<MonsterState, 'id' | 'damageScale'>, pick?: n
 export function createEncounterFromTemplate(template: EncounterTemplate): MonsterState[] {
   const counts: Record<string, number> = {};
   const pack = PACK_SCALING[Math.min(3, template.monsterIds.length)] ?? PACK_SCALING[1];
-  return template.monsterIds.map((mId, slotIndex) => {
-    const cat = MONSTER_CATALOG.find(c => c.id === mId) || MONSTER_CATALOG[0];
+  return template.monsterIds.map((specOrId, slotIndex) => {
+    const variant = resolveMonsterVariant(specOrId);
+    const mId = variant.id;
     counts[mId] = (counts[mId] || 0) + 1;
     const count = counts[mId];
-    const totalOfThisType = template.monsterIds.filter(id => id === mId).length;
+    const totalOfThisType = template.monsterIds.filter(item => (typeof item === 'string' ? item : item.id) === mId).length;
     const suffix = totalOfThisType > 1 ? ` ${String.fromCharCode(64 + count)}` : '';
-    const maxHp = Math.round(cat.maxHp * pack.hp);
+    const maxHp = Math.round(variant.maxHp * pack.hp);
+    const damageScale = pack.damage * (variant.damageMultiplier ?? 1);
 
     // Openers cycle through the moveset by slot; later slots start a little later so attacks stagger
-    const opener = rollIntent({ id: cat.id, damageScale: pack.damage }, slotIndex % (MOVESETS[cat.id]?.length ?? 1));
+    const opener = rollIntent({ id: variant.id, damageScale }, slotIndex % (MOVESETS[variant.id]?.length ?? 1));
     opener.remainingSeconds += slotIndex * 2.5;
 
     return {
-      ...cat,
-      name: `${cat.name}${suffix}`,
+      ...variant,
+      name: `${variant.name}${suffix}`,
       instanceId: `${template.id}_${slotIndex}_${Date.now()}`,
       slotIndex,
       isAlive: true,
       maxHp,
       currentHp: maxHp,
       block: 0,
-      damageScale: pack.damage,
+      damageScale,
       intent: opener,
     };
   });

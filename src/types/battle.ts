@@ -159,6 +159,22 @@ export interface MonsterIntent {
   remainingSeconds: number; // current real-time countdown
 }
 
+export type MonsterAffix = 'FIRE' | 'FROST' | 'TOXIC' | 'VOID' | 'GOLDEN' | 'SHADOW' | 'STORM';
+
+export interface MonsterVariantSpec {
+  id: string; // references MONSTER_CATALOG id
+  name?: string;
+  title?: string;
+  level?: number;
+  tint?: number;
+  scaleMultiplier?: number;
+  skin?: string;
+  affix?: MonsterAffix;
+  aura?: 'fire' | 'ice' | 'poison' | 'summon';
+  outlineColor?: number;
+  hpMultiplier?: number;
+}
+
 export interface MonsterState {
   id: string;
   name: string;
@@ -173,6 +189,12 @@ export interface MonsterState {
   instanceId?: string;
   isAlive?: boolean;
   damageScale?: number; // pack scaling applied to rolled intents (see PACK_SCALING)
+  tint?: number;
+  scaleMultiplier?: number;
+  skin?: string;
+  affix?: MonsterAffix;
+  aura?: 'fire' | 'ice' | 'poison' | 'summon';
+  outlineColor?: number;
 }
 
 export type MonsterSprite =
@@ -411,10 +433,45 @@ export interface EncounterTemplate {
   id: string;
   name: string;
   description: string;
-  monsterIds: string[]; // references MONSTER_CATALOG id
+  monsterIds: (string | MonsterVariantSpec)[]; // references MONSTER_CATALOG id or a customized variant spec
 }
 
 export const ENCOUNTERS: EncounterTemplate[] = [
+  // Special Elemental & Affix Variant Encounters
+  {
+    id: 'solo_golden_slime',
+    name: 'Gilded Slime',
+    description: 'A shimmering golden slime glittering with hoard treasure!',
+    monsterIds: [{ id: 'green_slime', name: 'GILDED SLIME', title: 'TREASURE OOZE', affix: 'GOLDEN', hpMultiplier: 1.4 }],
+  },
+  {
+    id: 'frost_wolf_duo',
+    name: 'Frost & Shadow Wolves',
+    description: 'A shadow wolf hunting beside a frost-bitten glacial wolf!',
+    monsterIds: [
+      'wolf',
+      { id: 'wolf', name: 'GLACIAL WOLF', title: 'FROSTBITE PREDATOR', affix: 'FROST' },
+    ],
+  },
+  {
+    id: 'void_coven',
+    name: 'Coven of the Void',
+    description: 'An abyssal acolyte in ceremonial robes chanting with a demon monk.',
+    monsterIds: [
+      { id: 'cultist_acolyte', name: 'VOID ACOLYTE', title: 'SHADOW INQUISITOR', affix: 'VOID', skin: 'cooltist1' },
+      'demon_monk',
+    ],
+  },
+  {
+    id: 'toxic_nest',
+    name: 'Venomous Infestation',
+    description: 'A caustic toxic slime crawling alongside an armored beetle.',
+    monsterIds: [
+      { id: 'green_slime', name: 'TOXIC OOZE', title: 'CAUSTIC SLUDGE', affix: 'TOXIC' },
+      { id: 'giant_beetle', name: 'ACID BEETLE', title: 'CORROSIVE MANDIBLE', affix: 'TOXIC' },
+    ],
+  },
+
   // 1-Monster (Solo Encounters)
   { id: 'solo_slime', name: 'Dungeon Ooze', description: 'A lone acid slime blocks the path.', monsterIds: ['green_slime'] },
   { id: 'solo_boar', name: 'Razorback Charger', description: 'A furious wild boar scrapes its hooves on the dirt.', monsterIds: ['boar'] },

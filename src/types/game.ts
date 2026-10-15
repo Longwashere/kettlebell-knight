@@ -182,7 +182,7 @@ export interface EquipmentItem {
   spriteIcon?: string;
 }
 
-export type HubLocation = 'GATE' | 'BLACKSMITH' | 'ALCHEMIST' | 'SANCTUARY';
+export type HubLocation = 'GATE' | 'BLACKSMITH' | 'ALCHEMIST' | 'SANCTUARY' | 'TITLE';
 
 export interface KnightStats {
   level: number;

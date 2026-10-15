@@ -161,7 +161,7 @@ for (const [i, enc] of ENCOUNTERS.entries()) {
   const times = wins.map((r) => r.time);
   const p90 = [...times].sort((a, b) => a - b)[Math.floor(times.length * 0.9)] ?? 0;
   console.log(
-    `${enc.name.slice(0, 22).padEnd(22)}  ${enc.monsterIds.join(',').slice(0, 32).padEnd(32)} ${pct(wins.length / RUNS)}  ${median(times).toFixed(0).padStart(5)}s ${p90.toFixed(0).padStart(4)}s  ${pct(median(wins.map((r) => r.hpLeft)) / PLAYER_MAX_HP).padStart(14)}  ${median(results.map((r) => r.taken)).toFixed(0).padStart(9)}  ${median(results.map((r) => r.casts)).toFixed(0).padStart(5)}`,
+    `${enc.name.slice(0, 22).padEnd(22)}  ${enc.monsterIds.map((m) => (typeof m === 'string' ? m : m.id)).join(',').slice(0, 32).padEnd(32)} ${pct(wins.length / RUNS)}  ${median(times).toFixed(0).padStart(5)}s ${p90.toFixed(0).padStart(4)}s  ${pct(median(wins.map((r) => r.hpLeft)) / PLAYER_MAX_HP).padStart(14)}  ${median(results.map((r) => r.taken)).toFixed(0).padStart(9)}  ${median(results.map((r) => r.casts)).toFixed(0).padStart(5)}`,
   );
 }
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { HubLocation } from '../../types/game';
-import { Shield, Sparkles, FlaskConical, Church, Swords } from 'lucide-react';
+import { Shield, Sparkles, FlaskConical, Church, Swords, LogOut } from 'lucide-react';
 
 export interface HubNodeInfo {
   id: HubLocation;
@@ -44,6 +44,14 @@ export const HUB_NODES: HubNodeInfo[] = [
     icon: <Church className="w-8 h-8 text-[#00EB88]" />,
     accentColor: '#00EB88',
   },
+  {
+    id: 'TITLE',
+    title: 'TITLE SCREEN',
+    subtitle: 'SAVE & QUIT',
+    desc: 'Record thy deeds into the chronicles and return to the iron gates.',
+    icon: <LogOut className="w-8 h-8 text-[#A7A9BE]" />,
+    accentColor: '#F4B41A',
+  },
 ];
 
 interface HubMenuProps {
@@ -58,9 +66,9 @@ export const HubMenu: React.FC<HubMenuProps> = ({
   onHoverNode,
 }) => {
   return (
-    <div className="w-full max-w-4xl mx-auto">
+    <div className="w-full max-w-5xl mx-auto">
       {/* Town Title banner */}
-      <div className="text-center mb-6">
+      <div className="text-center mb-5">
         <div className="inline-block bg-[#1A1926]/90 border-2 border-[#F4B41A] px-4 py-1.5 rounded shadow-pixel-box">
           <span className="font-pixel text-[11px] text-[#F4B41A] tracking-wider">
             🏰 CITADEL OF THE BELL • HUB TOWN
@@ -68,8 +76,8 @@ export const HubMenu: React.FC<HubMenuProps> = ({
         </div>
       </div>
 
-      {/* 4 Hub Menu Nodes Grid (Fire TV 10-foot navigation) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* 5 Hub Menu Nodes Grid (Fire TV 10-foot navigation) */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         {HUB_NODES.map((node, index) => {
           const isSelected = selectedIndex === index;
 
