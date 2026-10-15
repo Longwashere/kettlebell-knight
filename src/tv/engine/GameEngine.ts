@@ -877,6 +877,16 @@ function loadSpineRig(skeleton: string, atlas: string): Promise<void> {
  */
 function unloadSpineRig(skeleton: string, atlas: string, scale: number): Promise<void> {
   return enqueueRigTask(skeleton, async () => {
+    // Evict all SkeletonData cache keys for this skeleton regardless of scale or variant scale multipliers
+    const prefix = `${skeleton}-${atlas}-`;
+    const cacheMap = (Cache as any)._cacheMap;
+    if (cacheMap instanceof Map) {
+      for (const key of [...cacheMap.keys()]) {
+        if (typeof key === 'string' && (key.startsWith(prefix) || key === `${skeleton}-${atlas}`)) {
+          Cache.remove(key);
+        }
+      }
+    }
     const skeletonDataKey = `${skeleton}-${atlas}-${scale}`;
     if (Cache.has(skeletonDataKey)) Cache.remove(skeletonDataKey);
     const atlasDir = atlas.slice(0, atlas.lastIndexOf('/') + 1);
@@ -1105,6 +1115,18 @@ export class GameEngine {
     canvas.style.display = 'block';
     canvas.style.imageRendering = 'pixelated';
 
+    canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      console.warn('[GameEngine] WebGL context lost; preventing default to allow context restoration');
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      console.info('[GameEngine] WebGL context restored; restoring assets');
+      void this.loadKnightSpine();
+      if (this.queuedMonsters.length > 0) {
+        void this.setMonsters(this.queuedMonsters, this.queuedBackground);
+      }
+    });
+
     this.containerElement.replaceChildren(canvas);
     this.fitCanvas();
     this.resizeObserver = new ResizeObserver(() => this.fitCanvas());
@@ -1238,6 +1260,9 @@ export class GameEngine {
       const darkBase = new Graphics();
       darkBase.rect(-50, -30, 526, 300).fill({ color: 0x12101E });
 
+      for (const child of this.bgLayer.children) {
+        child.destroy({ children: true });
+      }
       this.bgLayer.removeChildren();
       this.bgLayer.addChild(darkBase);
       this.bgLayer.addChild(bgSprite);
@@ -1380,12 +1405,17 @@ export class GameEngine {
     this.knightLocked = false;
     this.knightVictoryPending = false;
     this.isKillCamActive = false;
+    this.hitStopFrames = 0;
+    this.spinesFrozen = false;
     if (this.app?.ticker) this.app.ticker.speed = 1.0;
     this.targetCameraZoom = 1.0;
     this.cameraZoom = 1.0;
     this.cameraFocusX = 213;
     this.cameraFocusY = 120;
-    this.knightSpine?.state.setAnimation(0, 'IDLE', true);
+    if (this.knightSpine && !this.knightSpine.destroyed) {
+      this.knightSpine.state.timeScale = 1.0;
+      this.knightSpine.state.setAnimation(0, 'IDLE', true);
+    }
   }
 
   private createTrainingDummy(): void {
@@ -1513,61 +1543,70 @@ export class GameEngine {
         return;
       }
 
-      const spineScale = rig.scale * scaleMult;
-      const spine = Spine.from({ skeleton: rig.skeleton, atlas: rig.atlas, scale: spineScale, autoUpdate: true });
-      if (this.app) spine.ticker = this.app.ticker;
-      if (rig.flipX !== false) {
-        spine.scale.x *= -1; // face knight on the left
-      }
+      try {
+        const spineScale = rig.scale * scaleMult;
+        const spine = Spine.from({ skeleton: rig.skeleton, atlas: rig.atlas, scale: spineScale, autoUpdate: true });
+        if (this.app) spine.ticker = this.app.ticker;
+        if (rig.flipX !== false) {
+          spine.scale.x *= -1; // face knight on the left
+        }
 
-      // Variant Skin or default rig skin
-      if (variant?.skin) {
-        try {
-          spine.skeleton.setSkinByName(variant.skin);
-          spine.skeleton.setSlotsToSetupPose();
-        } catch {
+        // Variant Skin or default rig skin
+        if (variant?.skin) {
+          try {
+            spine.skeleton.setSkinByName(variant.skin);
+            spine.skeleton.setSlotsToSetupPose();
+          } catch {
+            applyRigSkin(spine, rig);
+          }
+        } else {
           applyRigSkin(spine, rig);
         }
-      } else {
-        applyRigSkin(spine, rig);
-      }
 
-      // Outline filter (variant custom color or standard monster outline)
-      if (variant?.outlineColor !== undefined) {
-        const customFilter = new OutlineFilter({ color: variant.outlineColor });
-        slot.customOutline = customFilter;
-        spine.filters = [customFilter];
-      } else {
-        spine.filters = [this.monsterOutline];
-      }
+        // Outline filter (variant custom color or standard monster outline)
+        if (variant?.outlineColor !== undefined) {
+          const customFilter = new OutlineFilter({ color: variant.outlineColor });
+          slot.customOutline = customFilter;
+          spine.filters = [customFilter];
+        } else {
+          spine.filters = [this.monsterOutline];
+        }
 
-      // Variant Base Tint
-      if (variant?.tint !== undefined) {
-        setSpineTint(spine, variant.tint);
-      }
+        // Variant Base Tint
+        if (variant?.tint !== undefined) {
+          setSpineTint(spine, variant.tint);
+        }
 
-      if (rig.offY) {
-        spine.y += rig.offY * scaleMult;
-      }
+        if (rig.offY) {
+          spine.y += rig.offY * scaleMult;
+        }
 
-      for (const page of Assets.get<TextureAtlas>(rig.atlas).pages) {
-        const source = (page.texture as SpineTexture).texture.source;
-        source.autoGenerateMipmaps = true;
-        source.style.scaleMode = 'linear';
-        source.style.mipmapFilter = 'linear';
-        source.style.update();
-      }
+        const atlasAsset = Assets.get<TextureAtlas>(rig.atlas);
+        if (atlasAsset?.pages) {
+          for (const page of atlasAsset.pages) {
+            const source = (page.texture as SpineTexture)?.texture?.source;
+            if (source) {
+              source.autoGenerateMipmaps = true;
+              source.style.scaleMode = 'linear';
+              source.style.mipmapFilter = 'linear';
+              source.style.update();
+            }
+          }
+        }
 
-      spine.state.data.defaultMix = 0.1;
-      if (rig.appear) {
-        spine.state.setAnimation(0, rig.appear, false);
-        spine.state.addAnimation(0, rig.idle, true, 0);
-      } else {
-        spine.state.setAnimation(0, rig.idle, true);
-      }
+        spine.state.data.defaultMix = 0.1;
+        if (rig.appear) {
+          spine.state.setAnimation(0, rig.appear, false);
+          spine.state.addAnimation(0, rig.idle, true, 0);
+        } else {
+          spine.state.setAnimation(0, rig.idle, true);
+        }
 
-      slot.spine = spine;
-      slotContainer.addChild(spine);
+        slot.spine = spine;
+        slotContainer.addChild(spine);
+      } catch (err) {
+        console.error(`[GameEngine] Failed to instantiate monster rig ${type}:`, err);
+      }
 
       // Ambient Affix Aura
       if (variant?.aura) {
@@ -1642,16 +1681,50 @@ export class GameEngine {
       if (slot.rig) releaseMonsterRig(slot.rig);
     }
     this.isKillCamActive = false;
+    this.hitStopFrames = 0;
+    this.spinesFrozen = false;
+    this.activeKnightMove?.cancel();
+    this.activeKnightMove = null;
+    this.knightLocked = false;
+    this.knightVictoryPending = false;
+
+    for (const eff of this.activeEffects) {
+      eff.onDestroy?.();
+      eff.container.destroy({ children: true });
+    }
+    this.activeEffects = [];
+
+    for (const p of this.activeProjectiles) {
+      p.container.destroy({ children: true });
+    }
+    this.activeProjectiles = [];
+
+    for (const p of this.particles) {
+      p.graphics.destroy();
+    }
+    this.particles = [];
+
+    for (const t of this.floatingTexts) {
+      t.container.destroy({ children: true });
+    }
+    this.floatingTexts = [];
+
+    for (const s of this.extraSpines) {
+      if (!s.destroyed) s.destroy();
+    }
+    this.extraSpines.clear();
+
     if (this.app?.ticker) this.app.ticker.speed = 1.0;
     this.monsterSlots = [];
     this.monsterSpine = null;
     this.monsterRig = null;
-    // Free the render targets the monster outline filter left pooled (~0.6 MB for a trio). The filter system
-    // still binds the last one as its input; point it at EMPTY first (Pixi warns about destroying bound textures).
-    const filterGroup = (this.app?.renderer.filter as unknown as { _globalFilterBindGroup?: BindGroup } | undefined)
-      ?._globalFilterBindGroup;
-    filterGroup?.setResource(Texture.EMPTY.source, 1);
-    filterGroup?.setResource(Texture.EMPTY.source.style, 2);
+    // Free pooled filter render targets after unbinding from global filter group
+    const filterSystem = (this.app?.renderer as any)?.filter;
+    if (filterSystem?._globalFilterBindGroup) {
+      filterSystem._globalFilterBindGroup.setResource(Texture.EMPTY.source, 1);
+      filterSystem._globalFilterBindGroup.setResource(Texture.EMPTY.source.style, 2);
+      filterSystem._globalFilterBindGroup.setResource(Texture.EMPTY.source, 3);
+    }
     TexturePool.clear(true);
   }
 

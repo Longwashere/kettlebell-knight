@@ -171,8 +171,12 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const isAwaitingVictoryRef = useRef<boolean>(false);
   const victoryFallbackTimerRef = useRef<number | null>(null);
 
-  // Initialize Battle & Sync with Engine
+  const hasInitializedRef = useRef<boolean>(false);
+
+  // Initialize Battle on mount & Sync with Engine (subsequent transitions are handled by their action functions)
   useEffect(() => {
+    if (!isEngineReady || !engineRef.current || hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
     isAwaitingVictoryRef.current = false;
     if (victoryFallbackTimerRef.current) {
       clearTimeout(victoryFallbackTimerRef.current);
@@ -180,15 +184,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     }
     const initialHand = deckManagerRef.current.dealInitialHand();
     setHand(initialHand);
-    if (engineRef.current) {
-      const curEnc = isExpeditionMode
-        ? (expeditionEncounters[expeditionStep] || expeditionEncounters[0])
-        : ENCOUNTERS[currentEncounterIndex];
-      const customBg = curEnc?.background ?? (curEnc?.map ? BATTLE_MAPS[curEnc.map] : undefined);
-      engineRef.current.setMonsters(monsters, customBg);
-    }
+    const curEnc = isExpeditionMode
+      ? (expeditionEncounters[expeditionStep] || expeditionEncounters[0])
+      : ENCOUNTERS[currentEncounterIndex];
+    const customBg = curEnc?.background ?? (curEnc?.map ? BATTLE_MAPS[curEnc.map] : undefined);
+    engineRef.current.resetKnight?.();
+    engineRef.current.setMonsters(monsters, customBg);
     audioManager.play('level_up');
-  }, [currentEncounterIndex, expeditionStep, isEngineReady, engineRef]);
+  }, [isEngineReady, engineRef]);
 
   // Leaving battle: remove monsters from the stage and free their rigs
   useEffect(() => {
@@ -334,6 +337,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         isAwaitingVictoryRef.current = true;
 
         const triggerVictoryModal = () => {
+          isAwaitingVictoryRef.current = false;
           if (battleStatusRef.current !== 'FIGHTING') return; // already displayed
           if (victoryFallbackTimerRef.current) {
             clearTimeout(victoryFallbackTimerRef.current);
@@ -448,6 +452,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
   // Advance to next encounter within current expedition
   const handleNextExpeditionEncounter = () => {
+    isAwaitingVictoryRef.current = false;
+    if (victoryFallbackTimerRef.current) {
+      clearTimeout(victoryFallbackTimerRef.current);
+      victoryFallbackTimerRef.current = null;
+    }
     const nextStep = expeditionStep + 1;
     if (nextStep < expeditionEncounters.length) {
       setExpeditionStep(nextStep);
@@ -470,6 +479,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
   // Retry failed expedition from encounter 1
   const handleRetryExpedition = () => {
+    isAwaitingVictoryRef.current = false;
+    if (victoryFallbackTimerRef.current) {
+      clearTimeout(victoryFallbackTimerRef.current);
+      victoryFallbackTimerRef.current = null;
+    }
     setExpeditionStep(0);
     const firstTemplate = expeditionEncounters[0];
     const newMonsters = createEncounterFromTemplate(firstTemplate);
@@ -492,6 +506,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
   // Advance to next Level after conquering current level
   const handleNextLevelExpedition = () => {
+    isAwaitingVictoryRef.current = false;
+    if (victoryFallbackTimerRef.current) {
+      clearTimeout(victoryFallbackTimerRef.current);
+      victoryFallbackTimerRef.current = null;
+    }
     if (currentLevel < 5) {
       const nextLvl = currentLevel + 1;
       setCurrentLevel(nextLvl);
@@ -526,17 +545,28 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   };
 
   const startEncounter = (template: EncounterTemplate, index: number) => {
+    isAwaitingVictoryRef.current = false;
+    if (victoryFallbackTimerRef.current) {
+      clearTimeout(victoryFallbackTimerRef.current);
+      victoryFallbackTimerRef.current = null;
+    }
     setCurrentEncounterIndex(index);
     const newMonsters = createEncounterFromTemplate(template);
 
     commitMonsters(newMonsters);
     setTargetedMonsterIndex(0);
     setPlayerHp(100);
+    playerHpRef.current = 100;
     setPlayerBlock(0);
+    playerBlockRef.current = 0;
     setBattleStatus('FIGHTING');
+    battleStatusRef.current = 'FIGHTING';
     engineRef.current?.resetKnight?.();
+    const customBg = template.background ?? (template.map ? BATTLE_MAPS[template.map] : undefined);
+    engineRef.current?.setMonsters(newMonsters, customBg);
     deckManagerRef.current.initDeck(weaponIdRef.current);
     setHand(deckManagerRef.current.dealInitialHand());
+    audioManager.play('level_up');
   };
 
   const toggleFlip = useCallback((cardId: string | undefined) => {
@@ -599,7 +629,6 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           });
           const template: EncounterTemplate = { id: 'debug', name: 'Debug Encounter', description: '', monsterIds };
           startEncounter(template, currentEncounterIndex);
-          engineRef.current?.setMonsters(createEncounterFromTemplate(template));
           return;
         }
         // A single monster id (e.g. 'kraken') that isn't an encounter id starts a solo fight with it
@@ -607,17 +636,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           const cat = MONSTER_CATALOG.find((c) => c.id === which || c.spriteType === which.toUpperCase())!;
           const template: EncounterTemplate = { id: 'debug', name: 'Debug Encounter', description: '', monsterIds: [cat.id] };
           startEncounter(template, currentEncounterIndex);
-          engineRef.current?.setMonsters(createEncounterFromTemplate(template));
           return;
         }
         const index = typeof which === 'number' ? which : ENCOUNTERS.findIndex((e) => e.id === which);
         if (!ENCOUNTERS[index]) throw new Error(`Unknown encounter "${which}". Known: ${ENCOUNTERS.map((e) => e.id).join(', ')}`);
         startEncounter(ENCOUNTERS[index], index);
-        if (index === currentEncounterIndex) {
-          const enc = ENCOUNTERS[index];
-          const customBg = enc?.background ?? (enc?.map ? BATTLE_MAPS[enc.map] : undefined);
-          engineRef.current?.setMonsters(createEncounterFromTemplate(ENCOUNTERS[index]), customBg);
-        }
       },
       // Plays a monster's move now, by move id or name (e.g. attack(0, 'wolf_phantom_pack'))
       attack: (slotIndex: number, move: string) => {
