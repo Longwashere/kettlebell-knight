@@ -7,6 +7,7 @@ import { HubMenu, HUB_NODES } from './HubMenu';
 import { BlacksmithShop, SHOP_ITEMS } from './BlacksmithShop';
 import { BattleScreen } from './BattleScreen';
 import { TitleScreen } from './TitleScreen';
+import { MapSelectScreen } from './MapSelectScreen';
 import { QRCodeModal } from './QRCodeModal';
 import { QRCodeSVG } from 'qrcode.react';
 import { EquipmentItem, HubLocation, RepTelemetry, ExerciseType } from '../../types/game';
@@ -16,6 +17,7 @@ import { registerDebug } from '../debug/agentBridge';
 import type { MonsterMoveId } from '../../types/battle';
 import type { VfxName } from '../engine/vfx';
 import { BATTLE_MAPS, BattleMapId } from '../engine/GameEngine';
+import { CAMPAIGN_MAPS } from '../../shared/expeditionEngine';
 import { 
   Tv, 
   Smartphone, 
@@ -27,22 +29,22 @@ import {
   Award, 
   Activity, 
   Heart, 
-  Shield,
-  Wifi,
-  LogOut
+  Shield, 
+  Wifi, 
+  LogOut 
 } from 'lucide-react';
 
-export type TVScreenView = 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'ALCHEMIST' | 'SANCTUARY' | 'TITLE';
+export type TVScreenView = 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'ALCHEMIST' | 'SANCTUARY' | 'TITLE' | 'MAP_SELECT';
 
 export const GameScreen: React.FC = () => {
   // GameEngine Reference - Strictly isolated from React re-renders!
   const engineRef = useRef<GameEngine | null>(null);
   const pixiContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // TV UI Views: 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'ALCHEMIST' | 'SANCTUARY' | 'TITLE'
+  // TV UI Views: 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'ALCHEMIST' | 'SANCTUARY' | 'TITLE' | 'MAP_SELECT'
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const urlView = searchParams?.get('view')?.toUpperCase() as TVScreenView | undefined;
-  const validViews: TVScreenView[] = ['HUB', 'BLACKSMITH', 'COMBAT', 'ALCHEMIST', 'SANCTUARY', 'TITLE'];
+  const validViews: TVScreenView[] = ['HUB', 'BLACKSMITH', 'COMBAT', 'ALCHEMIST', 'SANCTUARY', 'TITLE', 'MAP_SELECT'];
   const initialView: TVScreenView = urlView && validViews.includes(urlView)
     ? urlView
     : profileManager.hasSavedProfile()
@@ -53,6 +55,10 @@ export const GameScreen: React.FC = () => {
   // Read by the telemetry listener (registered once), so it can tell whether a battle is running
   const currentViewRef = useRef(currentView);
   currentViewRef.current = currentView;
+
+  // Selected expedition state
+  const [selectedExpeditionMap, setSelectedExpeditionMap] = useState<BattleMapId>('VERDANT_FOREST');
+  const [selectedExpeditionLevel, setSelectedExpeditionLevel] = useState<number>(1);
 
   // Navigation indices
   const [hubIndex, setHubIndex] = useState<number>(1); // Default to Blacksmith
@@ -191,6 +197,9 @@ export const GameScreen: React.FC = () => {
     if (currentView === 'TITLE') {
       engineRef.current.setCharactersVisible(false);
       void engineRef.current.loadBackground(BATTLE_MAPS.OBSIDIAN_THRONE);
+    } else if (currentView === 'MAP_SELECT') {
+      engineRef.current.setCharactersVisible(false);
+      void engineRef.current.loadBackground(BATTLE_MAPS.TOWN_NIGHT);
     } else {
       engineRef.current.setCharactersVisible(true);
       if (currentView === 'HUB') {
@@ -268,9 +277,15 @@ export const GameScreen: React.FC = () => {
           engineRef.current?.previewEquipment(SHOP_ITEMS[0].slot, SHOP_ITEMS[0].attachmentId);
         } else if (view === 'TITLE') {
           engineRef.current?.loadBackground(BATTLE_MAPS.OBSIDIAN_THRONE);
-        } else if (view === 'HUB') {
+        } else if (view === 'HUB' || view === 'MAP_SELECT') {
           engineRef.current?.loadBackground(BATTLE_MAPS.TOWN_NIGHT);
         }
+      },
+      expedition: (mapId: string, level?: number) => {
+        const id = mapId.toUpperCase() as BattleMapId;
+        setSelectedExpeditionMap(id);
+        setSelectedExpeditionLevel(level ?? 1);
+        setCurrentView('COMBAT');
       },
     },
   ), [currentView, netState, roomId, isQrModalOpen, sessionReps, highestPower, playerGold]);
@@ -369,7 +384,7 @@ export const GameScreen: React.FC = () => {
           setShopIndex(0);
           handlePreviewShopItem(SHOP_ITEMS[0]);
         } else if (selectedNode === 'GATE') {
-          setCurrentView('COMBAT');
+          setCurrentView('MAP_SELECT');
         } else if (selectedNode === 'ALCHEMIST') {
           setCurrentView('ALCHEMIST');
         } else if (selectedNode === 'SANCTUARY') {
@@ -453,12 +468,23 @@ export const GameScreen: React.FC = () => {
       */}
       {currentView === 'TITLE' ? (
         <TitleScreen onStartGame={handleStartGameFromTitle} />
+      ) : currentView === 'MAP_SELECT' ? (
+        <MapSelectScreen
+          onStartExpedition={(mapId, level) => {
+            setSelectedExpeditionMap(mapId);
+            setSelectedExpeditionLevel(level);
+            setCurrentView('COMBAT');
+          }}
+          onBackToHub={() => setCurrentView('HUB')}
+        />
       ) : currentView === 'COMBAT' ? (
         <BattleScreen
           engineRef={engineRef}
           isEngineReady={isEngineReady}
           weaponId={SHOP_ITEMS.find((si) => si.slot === 'weapon' && equippedItems.has(si.id))?.id ?? profile?.equippedItems?.weapon ?? 'iron_kettlebell'}
-          onExitBattle={() => setCurrentView('HUB')}
+          expeditionMapId={selectedExpeditionMap}
+          expeditionLevel={selectedExpeditionLevel}
+          onExitBattle={() => setCurrentView('MAP_SELECT')}
         />
       ) : (
         <div className="relative z-10 w-full h-full flex flex-col justify-between p-6 pointer-events-auto">
@@ -564,7 +590,7 @@ export const GameScreen: React.FC = () => {
                   setShopIndex(0);
                   handlePreviewShopItem(SHOP_ITEMS[0]);
                 } else if (node === 'GATE') {
-                  setCurrentView('COMBAT');
+                  setCurrentView('MAP_SELECT');
                 } else if (node === 'ALCHEMIST') {
                   setCurrentView('ALCHEMIST');
                 } else if (node === 'SANCTUARY') {

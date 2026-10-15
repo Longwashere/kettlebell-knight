@@ -429,103 +429,27 @@ export const MONSTER_CATALOG: Omit<MonsterState, 'currentHp' | 'block' | 'intent
   { id: 'throne_guardian', name: 'THRONE GUARDIAN', title: 'OBSIDIAN JUGGERNAUT', maxHp: 320, level: 14, spriteType: 'THRONE_GUARDIAN' },
 ];
 
+export type BattleMapId =
+  | 'CATHEDRAL_CRYPT'
+  | 'DARK_FOREST'
+  | 'VERDANT_FOREST'
+  | 'OBSIDIAN_THRONE'
+  | 'VOLCANIC_FORGE'
+  | 'BLOOD_CEMETERY'
+  | 'SUNKEN_CISTERN'
+  | 'BELFRY_RAMPARTS'
+  | 'ELDRITCH_ALTAR'
+  | 'CATHEDRAL_VAULT'
+  | 'TOWN_NIGHT'
+  | 'TOWN_SQUARE';
+
 export interface EncounterTemplate {
   id: string;
   name: string;
   description: string;
+  map?: BattleMapId;
+  background?: string;
   monsterIds: (string | MonsterVariantSpec)[]; // references MONSTER_CATALOG id or a customized variant spec
 }
 
-export const ENCOUNTERS: EncounterTemplate[] = [
-  // Special Elemental & Affix Variant Encounters
-  {
-    id: 'solo_golden_slime',
-    name: 'Gilded Slime',
-    description: 'A shimmering golden slime glittering with hoard treasure!',
-    monsterIds: [{ id: 'green_slime', name: 'GILDED SLIME', title: 'TREASURE OOZE', affix: 'GOLDEN', hpMultiplier: 1.4 }],
-  },
-  {
-    id: 'frost_wolf_duo',
-    name: 'Frost & Shadow Wolves',
-    description: 'A shadow wolf hunting beside a frost-bitten glacial wolf!',
-    monsterIds: [
-      'wolf',
-      { id: 'wolf', name: 'GLACIAL WOLF', title: 'FROSTBITE PREDATOR', affix: 'FROST' },
-    ],
-  },
-  {
-    id: 'void_coven',
-    name: 'Coven of the Void',
-    description: 'An abyssal acolyte in ceremonial robes chanting with a demon monk.',
-    monsterIds: [
-      { id: 'cultist_acolyte', name: 'VOID ACOLYTE', title: 'SHADOW INQUISITOR', affix: 'VOID', skin: 'cooltist1' },
-      'demon_monk',
-    ],
-  },
-  {
-    id: 'toxic_nest',
-    name: 'Venomous Infestation',
-    description: 'A caustic toxic slime crawling alongside an armored beetle.',
-    monsterIds: [
-      { id: 'green_slime', name: 'TOXIC OOZE', title: 'CAUSTIC SLUDGE', affix: 'TOXIC' },
-      { id: 'giant_beetle', name: 'ACID BEETLE', title: 'CORROSIVE MANDIBLE', affix: 'TOXIC' },
-    ],
-  },
-
-  // 1-Monster (Solo Encounters)
-  { id: 'solo_slime', name: 'Dungeon Ooze', description: 'A lone acid slime blocks the path.', monsterIds: ['green_slime'] },
-  { id: 'solo_boar', name: 'Razorback Charger', description: 'A furious wild boar scrapes its hooves on the dirt.', monsterIds: ['boar'] },
-  { id: 'solo_wolf', name: 'The Lone Predator', description: 'A solitary shadow wolf stalking in the darkness.', monsterIds: ['wolf'] },
-  { id: 'solo_treemon', name: 'Rootbound Guardian', description: 'An ancient animated wood golem emerges from the roots.', monsterIds: ['treemon'] },
-  { id: 'solo_monk', name: 'The Corrupted Priest', description: 'A demonic monk chanting forbidden curses.', monsterIds: ['demon_monk'] },
-  { id: 'solo_hellhound', name: 'The Twin-Headed Beast', description: 'A terrifying volcanic hellhound hungry for flesh.', monsterIds: ['hellhound'] },
-  { id: 'solo_bat', name: 'Cave Stalker', description: 'A giant cave bat drops silently from the cavern ceiling.', monsterIds: ['bat'] },
-  { id: 'solo_goblin', name: 'Goblin Scout', description: 'A sneaky goblin scout waving a jagged blade.', monsterIds: ['goblin'] },
-  { id: 'solo_orc', name: 'Orc Berserker', description: 'A towering greenskin warrior hungry for combat.', monsterIds: ['orc'] },
-  { id: 'solo_skeleton_warrior', name: 'Undying Sentry', description: 'A reanimated skeleton soldier guarding an ancient crypt.', monsterIds: ['skeleton_warrior'] },
-  { id: 'solo_golem', name: 'Stone Colossus', description: 'A heavy ancient stone sentinel grinding to life.', monsterIds: ['golem'] },
-  { id: 'solo_troll', name: 'Troll Warlord', description: 'A savage regenerative brute wielding an entire tree trunk.', monsterIds: ['troll'] },
-  { id: 'solo_bone_golem', name: 'Bone Monstrosity', description: 'A horrific amalgamation of fused skeletons.', monsterIds: ['bone_golem'] },
-  { id: 'solo_crypt_lord', name: 'Crypt Lich', description: 'An undying archmage wielding frost and necrotic curses.', monsterIds: ['crypt_lord'] },
-  { id: 'solo_kraken', name: 'Abyssal Terror', description: 'A leviathan from the deep cistern waters.', monsterIds: ['kraken'] },
-  { id: 'solo_magma_dragon', name: 'Scorched Wyrm', description: 'A terrifying dragon bathed in flowing lava.', monsterIds: ['magma_dragon'] },
-  { id: 'solo_dark_emperor', name: 'Sovereign of Ruin', description: 'The dark emperor clad in shadowed plate armor.', monsterIds: ['dark_emperor'] },
-  { id: 'solo_eldritch_horror', name: 'Cthulhu Incarnate', description: 'An ancient dread god that defies comprehension.', monsterIds: ['eldritch_horror'] },
-  { id: 'solo_plague_rat', name: 'Filth Carrier', description: 'A foul disease-ridden rodent with virulent fangs.', monsterIds: ['plague_rat'] },
-  { id: 'solo_lantern_wisp', name: 'Spectral Flame', description: 'A floating soul light drifting across the gravestones.', monsterIds: ['lantern_wisp'] },
-  { id: 'solo_giant_crab', name: 'Tidal Pinch', description: 'A massive armored crustacean guarding the flooded cistern.', monsterIds: ['giant_crab'] },
-  { id: 'solo_crypt_crawler', name: 'Burrowing Scuttler', description: 'A giant armored insect crawling from the catacombs.', monsterIds: ['crypt_crawler'] },
-  { id: 'solo_cinder_imp', name: 'Hellfire Pyromancer', description: 'A mischievous winged demon hurling searing sparks.', monsterIds: ['cinder_imp'] },
-  { id: 'solo_storm_crow', name: 'Rampart Harbinger', description: 'A storm-touched corvid perched on the high belfry.', monsterIds: ['storm_crow'] },
-  { id: 'solo_giant_beetle', name: 'Iron Carapace', description: 'A heavy armored beetle with razor-sharp mandibles.', monsterIds: ['giant_beetle'] },
-  { id: 'solo_thorn_stalker', name: 'Verdant Ambusher', description: 'A spiked plant beast camouflaged in the dark forest.', monsterIds: ['thorn_stalker'] },
-  { id: 'solo_bard', name: 'Rogue Bard', description: 'A wandering musician wielding blade and dissonant song.', monsterIds: ['bard'] },
-  { id: 'solo_cultist_acolyte', name: 'Forbidden Devotee', description: 'A zealot channeling shadowy eldritch power.', monsterIds: ['cultist_acolyte'] },
-  { id: 'solo_vault_hound', name: 'Ironfang Sentry', description: 'A ferocious armored war dog guarding the vault gate.', monsterIds: ['vault_hound'] },
-  { id: 'solo_ember_serpent', name: 'Pyroclastic Coil', description: 'A serpentine dragon of living magma and ash.', monsterIds: ['ember_serpent'] },
-  { id: 'solo_forest_bear', name: 'Grove Apex', description: 'A massive brown bear guarding the deep verdant woods.', monsterIds: ['forest_bear'] },
-  { id: 'solo_sewer_lurker', name: 'Abyssal Deep-Jaw', description: 'A predatory bioluminescent beast lurking in the dark waters.', monsterIds: ['sewer_lurker'] },
-  { id: 'solo_throne_guardian', name: 'Obsidian Juggernaut', description: 'An undying armored colossus standing vigil over the throne.', monsterIds: ['throne_guardian'] },
-
-  // 2-Monsters (Duo Encounters)
-  { id: 'duo_slimes', name: 'Twin Slimes', description: 'Two corrosive oozes working in tandem.', monsterIds: ['green_slime', 'green_slime'] },
-  { id: 'wolf_pack', name: 'Twin Shadow Wolves', description: 'Two cunning wolves flanking from both sides.', monsterIds: ['wolf', 'wolf'] },
-  { id: 'wild_stampede', name: 'Wild Beasts', description: 'A rampaging boar charged alongside a shadow wolf.', monsterIds: ['boar', 'wolf'] },
-  { id: 'forest_ambush', name: 'Forest Guardians', description: 'A Treemon flanked by a toxic forest slime.', monsterIds: ['treemon', 'green_slime'] },
-  { id: 'unholy_covenant', name: 'Unholy Covenant', description: 'A Demon Monk chanting behind a giant Treemon.', monsterIds: ['treemon', 'demon_monk'] },
-  { id: 'hound_pack', name: 'Hounds of Fire & Ooze', description: 'A ferocious Hellhound supported by a dungeon slime.', monsterIds: ['hellhound', 'green_slime'] },
-  { id: 'iron_tusks_fire', name: 'Tusks of Hellfire', description: 'A brutal duo: Hellhound and Razorback Boar!', monsterIds: ['hellhound', 'boar'] },
-  { id: 'crypt_duo', name: 'Grave Watchers', description: 'A Skeleton Warrior backed by a Skeleton Archer.', monsterIds: ['skeleton_warrior', 'skeleton_archer'] },
-  { id: 'orc_and_goblin', name: 'Raiding Duo', description: 'A berserk Orc backed by a shifty Goblin Scout.', monsterIds: ['orc', 'goblin'] },
-  { id: 'winged_nightmares', name: 'Sky Terrors', description: 'A Cliff Harpy and a Stone Gargoyle dive from above.', monsterIds: ['gargoyle', 'harpy'] },
-
-  // 3-Monsters (Trio Encounters)
-  { id: 'slime_swarm', name: 'Ooze Swarm', description: 'A triple swarm of hungry dungeon slimes!', monsterIds: ['green_slime', 'green_slime', 'green_slime'] },
-  { id: 'wolf_hunting_pack', name: 'Wolf Hunting Pack', description: 'Three coordinated shadow wolves hunting in the gloom.', monsterIds: ['wolf', 'wolf', 'wolf'] },
-  { id: 'beast_stampede', name: 'Woodland Stampede', description: 'Two heavy boars led by a fierce shadow wolf.', monsterIds: ['boar', 'wolf', 'boar'] },
-  { id: 'forest_trio', name: 'Sylvan Syndicate', description: 'A fortified Treemon supported by two stinging slimes.', monsterIds: ['green_slime', 'treemon', 'green_slime'] },
-  { id: 'demonic_conclave', name: 'Demonic Conclave', description: 'A Demon Monk casting from behind a Hellhound and an acid slime.', monsterIds: ['hellhound', 'demon_monk', 'green_slime'] },
-  { id: 'undead_trio', name: 'Catacomb Vanguard', description: 'Skeleton Warrior and Skeleton Archer led by a Dark Knight.', monsterIds: ['skeleton_warrior', 'dark_knight', 'skeleton_archer'] },
-  { id: 'boss_trio', name: 'The Dread Menagerie', description: 'A legendary trio: Treemon and Hellhound guard a Demon Monk!', monsterIds: ['treemon', 'demon_monk', 'hellhound'] },
-  { id: 'abyssal_trio', name: 'Abyssal Lords', description: 'Bone Golem and Crypt Lord guarding the Void Prophet!', monsterIds: ['bone_golem', 'void_prophet', 'crypt_lord'] },
-];
+export { ENCOUNTERS } from './encounters';

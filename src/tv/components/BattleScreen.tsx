@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { CombatCard, MonsterState, BattleState, MonsterIntent, MONSTER_CATALOG, ENCOUNTERS, EncounterTemplate, CARD_CATALOG } from '../../types/battle';
+import { CombatCard, MonsterState, BattleState, MonsterIntent, MONSTER_CATALOG, ENCOUNTERS, EncounterTemplate, CARD_CATALOG, BattleMapId } from '../../types/battle';
 import { MOVESETS, rollIntent, createEncounterFromTemplate } from '../../shared/monsterMovesets';
 import { resolveCard, frontTarget } from '../../shared/combat';
 import { PLAYER_MAX_HP } from '../../shared/combatRules';
@@ -8,9 +8,11 @@ import { ExerciseType, RepTelemetry } from '../../types/game';
 import { CardDeckManager } from '../../shared/CardDeckManager';
 import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { audioManager } from '../../shared/AudioManager';
-import { GameEngine } from '../engine/GameEngine';
+import { GameEngine, BATTLE_MAPS } from '../engine/GameEngine';
 import { useTVRemote } from '../hooks/useTVRemote';
 import { registerDebug } from '../debug/agentBridge';
+import { getMapConfig, getExpeditionEncounters, getNextCampaignMap } from '../../shared/expeditionEngine';
+import { profileManager } from '../../shared/ProfileManager';
 import { CombatCardView } from './CombatCardView';
 import { 
   Shield, 
@@ -32,6 +34,8 @@ interface BattleScreenProps {
   engineRef: React.RefObject<GameEngine | null>;
   isEngineReady?: boolean;
   weaponId?: string; // equipped weapon: its spells join the deck
+  expeditionMapId?: BattleMapId;
+  expeditionLevel?: number;
   onExitBattle: () => void;
   onBattleStateSync?: (state: {
     hand: CombatCard[];
@@ -45,6 +49,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   engineRef,
   isEngineReady,
   weaponId,
+  expeditionMapId,
+  expeditionLevel,
   onExitBattle,
   onBattleStateSync,
 }) => {
@@ -91,15 +97,56 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   }, [repSignature]);
   // Card showing its technique side (Enter flips the focused card); flips back on its own
   const [flippedCardId, setFlippedCardId] = useState<string | null>(null);
-  const [battleStatus, setBattleStatus] = useState<'FIGHTING' | 'VICTORY' | 'DEFEAT'>('FIGHTING');
+  const [battleStatus, setBattleStatus] = useState<'FIGHTING' | 'VICTORY' | 'DEFEAT' | 'ENCOUNTER_CLEARED' | 'EXPEDITION_VICTORY'>('FIGHTING');
   const [recentCombatLog, setRecentCombatLog] = useState<string>('Battle commenced! Perform exercises to cast cards.');
 
-  // Multi-Monster Encounters (1 to 3 monsters simultaneously)
+  // Expedition vs Standalone Encounters
+  const isExpeditionMode = Boolean(expeditionMapId);
+  const [currentMap, setCurrentMap] = useState<BattleMapId>(expeditionMapId || 'VERDANT_FOREST');
+  const [currentLevel, setCurrentLevel] = useState<number>(expeditionLevel || 1);
+  const [expeditionStep, setExpeditionStep] = useState<number>(0);
+  const [totalLevelReps, setTotalLevelReps] = useState<number>(0);
+
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const initialEncounterParam = parseInt(searchParams?.get('encounter') || '0', 10);
   const safeEncounterIndex = isNaN(initialEncounterParam) ? 0 : Math.max(0, Math.min(initialEncounterParam, ENCOUNTERS.length - 1));
+
+  const expeditionEncounters = useMemo(() => {
+    if (isExpeditionMode) {
+      const list = getExpeditionEncounters(currentMap, currentLevel);
+      if (list.length > 0) return list;
+    }
+    return [ENCOUNTERS[safeEncounterIndex]];
+  }, [isExpeditionMode, currentMap, currentLevel, safeEncounterIndex]);
+
+  // Sync state when expedition props change
+  useEffect(() => {
+    if (expeditionMapId) setCurrentMap(expeditionMapId);
+    if (expeditionLevel) setCurrentLevel(expeditionLevel);
+    if (expeditionMapId && expeditionLevel) {
+      setExpeditionStep(0);
+      const list = getExpeditionEncounters(expeditionMapId, expeditionLevel);
+      if (list.length > 0) {
+        const first = list[0];
+        const newMonsters = createEncounterFromTemplate(first);
+        commitMonsters(newMonsters);
+        setPlayerBlock(0);
+        setBattleStatus('FIGHTING');
+        battleStatusRef.current = 'FIGHTING';
+        if (engineRef.current) {
+          const customBg = first.background ?? (first.map ? BATTLE_MAPS[first.map] : undefined);
+          engineRef.current.setMonsters(newMonsters, customBg);
+        }
+      }
+    }
+  }, [expeditionMapId, expeditionLevel]);
+
   const [currentEncounterIndex, setCurrentEncounterIndex] = useState<number>(safeEncounterIndex);
   const [monsters, setMonsters] = useState<MonsterState[]>(() => {
+    if (expeditionMapId && expeditionLevel) {
+      const list = getExpeditionEncounters(expeditionMapId, expeditionLevel);
+      if (list.length > 0) return createEncounterFromTemplate(list[0]);
+    }
     return createEncounterFromTemplate(ENCOUNTERS[safeEncounterIndex]);
   });
   const [targetedMonsterIndex, setTargetedMonsterIndex] = useState<number>(0);
@@ -118,7 +165,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   playerHpRef.current = playerHp;
   const playerBlockRef = useRef<number>(playerBlock);
   playerBlockRef.current = playerBlock;
-  const battleStatusRef = useRef<'FIGHTING' | 'VICTORY' | 'DEFEAT'>(battleStatus);
+  const battleStatusRef = useRef<'FIGHTING' | 'VICTORY' | 'DEFEAT' | 'ENCOUNTER_CLEARED' | 'EXPEDITION_VICTORY'>(battleStatus);
   battleStatusRef.current = battleStatus;
   const atbFrozenRef = useRef<boolean>(false); // dev bridge: pause monster timers during captures
 
@@ -127,10 +174,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     const initialHand = deckManagerRef.current.dealInitialHand();
     setHand(initialHand);
     if (engineRef.current) {
-      engineRef.current.setMonsters(monsters);
+      const curEnc = isExpeditionMode
+        ? (expeditionEncounters[expeditionStep] || expeditionEncounters[0])
+        : ENCOUNTERS[currentEncounterIndex];
+      const customBg = curEnc?.background ?? (curEnc?.map ? BATTLE_MAPS[curEnc.map] : undefined);
+      engineRef.current.setMonsters(monsters, customBg);
     }
     audioManager.play('level_up');
-  }, [currentEncounterIndex, isEngineReady, engineRef]);
+  }, [currentEncounterIndex, expeditionStep, isEngineReady, engineRef]);
 
   // Leaving battle: remove monsters from the stage and free their rigs
   useEffect(() => {
@@ -282,11 +333,43 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       commitMonsters(res.monsters);
 
       if (res.monsters.every((m) => m.currentHp <= 0)) {
-        battleStatusRef.current = 'VICTORY';
-        setBattleStatus('VICTORY');
-        setRecentCombatLog(`Victory! All enemies in the encounter have been vanquished!`);
-        audioManager.play('victory', { delay: 0.5 });
-        window.setTimeout(() => engineRef.current?.playKnightVictory?.(), 400);
+        if (isExpeditionMode && expeditionStep < expeditionEncounters.length - 1) {
+          // Breather between encounters: +20 HP catch breath heal
+          const heal = Math.min(PLAYER_MAX_HP, playerHpRef.current + 20) - playerHpRef.current;
+          playerHpRef.current += heal;
+          setPlayerHp(playerHpRef.current);
+          battleStatusRef.current = 'ENCOUNTER_CLEARED';
+          setBattleStatus('ENCOUNTER_CLEARED');
+          setRecentCombatLog(`Encounter ${expeditionStep + 1} of ${expeditionEncounters.length} Cleared! Catch thy breath (+${heal} HP)!`);
+          audioManager.play('victory', { delay: 0.3 });
+          window.setTimeout(() => engineRef.current?.playKnightVictory?.(), 300);
+        } else if (isExpeditionMode) {
+          // Entire Level Conquered!
+          battleStatusRef.current = 'EXPEDITION_VICTORY';
+          setBattleStatus('EXPEDITION_VICTORY');
+          setRecentCombatLog(`Level ${currentLevel} Expedition Conquered! All enemies vanquished!`);
+          audioManager.play('victory', { delay: 0.5 });
+          window.setTimeout(() => engineRef.current?.playKnightVictory?.(), 400);
+
+          // Save progression
+          const mapCfg = getMapConfig(currentMap);
+          const lvlCfg = mapCfg.levels.find((l) => l.level === currentLevel) || mapCfg.levels[0];
+          const nextMap = currentLevel >= 5 ? getNextCampaignMap(currentMap) : undefined;
+          profileManager.recordLevelVictory(
+            currentMap,
+            currentLevel,
+            totalLevelReps + 1,
+            lvlCfg.goldReward,
+            lvlCfg.xpReward,
+            nextMap || undefined
+          );
+        } else {
+          battleStatusRef.current = 'VICTORY';
+          setBattleStatus('VICTORY');
+          setRecentCombatLog(`Victory! All enemies in the encounter have been vanquished!`);
+          audioManager.play('victory', { delay: 0.5 });
+          window.setTimeout(() => engineRef.current?.playKnightVictory?.(), 400);
+        }
       } else if (res.monsters[targetedIndexRef.current]?.currentHp <= 0) {
         // Target died: move to the next living foe, front row first
         const next = frontTarget(res.monsters);
@@ -317,7 +400,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     }
 
     setHand(result.hand);
-  }, [engineRef]);
+  }, [engineRef, isExpeditionMode, expeditionStep, expeditionEncounters, currentMap, currentLevel, totalLevelReps]);
 
   // Expose rep callback for NetworkManager telemetry
   useEffect(() => {
@@ -326,6 +409,79 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       delete (window as any).__onKettlebellRepCompleted;
     };
   }, [handleApplyRep]);
+
+  // Advance to next encounter within current expedition
+  const handleNextExpeditionEncounter = () => {
+    const nextStep = expeditionStep + 1;
+    if (nextStep < expeditionEncounters.length) {
+      setExpeditionStep(nextStep);
+      const nextTemplate = expeditionEncounters[nextStep];
+      const newMonsters = createEncounterFromTemplate(nextTemplate);
+      commitMonsters(newMonsters);
+      setTargetedMonsterIndex(0);
+      setPlayerBlock(0); // block resets between fights, but HP carries over!
+      setBattleStatus('FIGHTING');
+      battleStatusRef.current = 'FIGHTING';
+      engineRef.current?.resetKnight?.();
+      const customBg = nextTemplate.background ?? (nextTemplate.map ? BATTLE_MAPS[nextTemplate.map] : undefined);
+      engineRef.current?.setMonsters(newMonsters, customBg);
+      deckManagerRef.current.initDeck(weaponIdRef.current);
+      setHand(deckManagerRef.current.dealInitialHand());
+      setRecentCombatLog(`Encounter ${nextStep + 1} of ${expeditionEncounters.length} commenced!`);
+      audioManager.play('level_up');
+    }
+  };
+
+  // Retry failed expedition from encounter 1
+  const handleRetryExpedition = () => {
+    setExpeditionStep(0);
+    const firstTemplate = expeditionEncounters[0];
+    const newMonsters = createEncounterFromTemplate(firstTemplate);
+    commitMonsters(newMonsters);
+    setTargetedMonsterIndex(0);
+    setPlayerHp(PLAYER_MAX_HP);
+    playerHpRef.current = PLAYER_MAX_HP;
+    setPlayerBlock(0);
+    playerBlockRef.current = 0;
+    setBattleStatus('FIGHTING');
+    battleStatusRef.current = 'FIGHTING';
+    engineRef.current?.resetKnight?.();
+    const customBg = firstTemplate.background ?? (firstTemplate.map ? BATTLE_MAPS[firstTemplate.map] : undefined);
+    engineRef.current?.setMonsters(newMonsters, customBg);
+    deckManagerRef.current.initDeck(weaponIdRef.current);
+    setHand(deckManagerRef.current.dealInitialHand());
+    setRecentCombatLog('Expedition restarted! Ready thy bell.');
+    audioManager.play('level_up');
+  };
+
+  // Advance to next Level after conquering current level
+  const handleNextLevelExpedition = () => {
+    if (currentLevel < 5) {
+      const nextLvl = currentLevel + 1;
+      setCurrentLevel(nextLvl);
+      setExpeditionStep(0);
+      const nextList = getExpeditionEncounters(currentMap, nextLvl);
+      const firstTemplate = nextList[0];
+      const newMonsters = createEncounterFromTemplate(firstTemplate);
+      commitMonsters(newMonsters);
+      setTargetedMonsterIndex(0);
+      setPlayerHp(PLAYER_MAX_HP);
+      playerHpRef.current = PLAYER_MAX_HP;
+      setPlayerBlock(0);
+      playerBlockRef.current = 0;
+      setBattleStatus('FIGHTING');
+      battleStatusRef.current = 'FIGHTING';
+      engineRef.current?.resetKnight?.();
+      const customBg = firstTemplate.background ?? (firstTemplate.map ? BATTLE_MAPS[firstTemplate.map] : undefined);
+      engineRef.current?.setMonsters(newMonsters, customBg);
+      deckManagerRef.current.initDeck(weaponIdRef.current);
+      setHand(deckManagerRef.current.dealInitialHand());
+      setRecentCombatLog(`Level ${nextLvl} Expedition commenced!`);
+      audioManager.play('level_up');
+    } else {
+      onExitBattle();
+    }
+  };
 
   // Restart / Next Encounter (Cycles through 1 to 3 monster encounters)
   const handleNextEncounter = () => {
@@ -421,7 +577,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         const index = typeof which === 'number' ? which : ENCOUNTERS.findIndex((e) => e.id === which);
         if (!ENCOUNTERS[index]) throw new Error(`Unknown encounter "${which}". Known: ${ENCOUNTERS.map((e) => e.id).join(', ')}`);
         startEncounter(ENCOUNTERS[index], index);
-        if (index === currentEncounterIndex) engineRef.current?.setMonsters(createEncounterFromTemplate(ENCOUNTERS[index]));
+        if (index === currentEncounterIndex) {
+          const enc = ENCOUNTERS[index];
+          const customBg = enc?.background ?? (enc?.map ? BATTLE_MAPS[enc.map] : undefined);
+          engineRef.current?.setMonsters(createEncounterFromTemplate(ENCOUNTERS[index]), customBg);
+        }
       },
       // Plays a monster's move now, by move id or name (e.g. attack(0, 'wolf_phantom_pack'))
       attack: (slotIndex: number, move: string) => {
@@ -489,7 +649,19 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     },
     onSelect: () => {
       if (battleStatus !== 'FIGHTING') {
-        handleNextEncounter();
+        if (battleStatus === 'ENCOUNTER_CLEARED') {
+          handleNextExpeditionEncounter();
+        } else if (battleStatus === 'EXPEDITION_VICTORY') {
+          handleNextLevelExpedition();
+        } else if (battleStatus === 'DEFEAT') {
+          if (isExpeditionMode) {
+            handleRetryExpedition();
+          } else {
+            handleNextEncounter();
+          }
+        } else {
+          handleNextEncounter();
+        }
       } else {
         setFocusedCardIndex(actionCardIndex);
         toggleFlip(hand[actionCardIndex]?.id);
@@ -556,7 +728,25 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           <div className="flex items-center justify-between px-1">
             <span className="font-pixel text-[9px] text-[#A7A9BE] flex items-center gap-1.5">
               <Users className="w-3 h-3 text-[#FF3366]" />
-              {ENCOUNTERS[currentEncounterIndex]?.name.toUpperCase() || 'ENCOUNTER'} ({monsters.filter(m => m.currentHp > 0).length}/{monsters.length})
+              {isExpeditionMode ? (
+                <>
+                  <span className="text-[#F4B41A] font-bold">
+                    [{currentMap.replace(/_/g, ' ')} • LVL {currentLevel}]
+                  </span>
+                  <span className="text-white font-bold">
+                    BATTLE {expeditionStep + 1}/{expeditionEncounters.length}
+                  </span>
+                </>
+              ) : (
+                <>
+                  {ENCOUNTERS[currentEncounterIndex]?.map && (
+                    <span className="text-[#FF3366] font-bold">
+                      [{ENCOUNTERS[currentEncounterIndex].map!.replace(/_/g, ' ')}]
+                    </span>
+                  )}
+                  {ENCOUNTERS[currentEncounterIndex]?.name.toUpperCase() || 'ENCOUNTER'} ({monsters.filter(m => m.currentHp > 0).length}/{monsters.length})
+                </>
+              )}
             </span>
             {monsters.filter(m => m.currentHp > 0).length > 1 && (
               <span className="font-pixel text-[8px] text-[#F4B41A] flex items-center gap-1">
@@ -671,11 +861,85 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         </div>
       </div>
 
-      {/* VICTORY OR DEFEAT OVERLAY MODAL */}
+      {/* VICTORY, EXPEDITION PROGRESS, OR DEFEAT OVERLAY MODAL */}
       {battleStatus !== 'FIGHTING' && (
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-[#1A1926] border-4 border-[#F4B41A] p-8 max-w-md w-full text-center rounded shadow-pixel-box-gold">
-            {battleStatus === 'VICTORY' ? (
+            {battleStatus === 'ENCOUNTER_CLEARED' ? (
+              <>
+                <Swords className="w-14 h-14 text-[#00EB88] mx-auto mb-3 animate-bounce" />
+                <h2 className="font-pixel text-base text-[#00EB88] mb-1">
+                  ENCOUNTER {expeditionStep + 1} / {expeditionEncounters.length} CLEARED!
+                </h2>
+                <p className="text-xs text-[#A7A9BE] font-mono mb-4">
+                  Squad defeated! Catch thy breath before the next battle.
+                </p>
+                <div className="bg-[#0F0E17] border-2 border-[#00EB88] p-3 rounded text-center mb-6">
+                  <span className="text-xs font-pixel text-[#00EB88]">
+                    ❤️ +20 HEALTH RESTORED!
+                  </span>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleNextExpeditionEncounter}
+                    className="flex-1 bg-[#00EB88] hover:bg-[#55ffaa] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
+                  >
+                    NEXT BATTLE ▶
+                  </button>
+                  <button
+                    onClick={onExitBattle}
+                    className="bg-[#2E2B44] text-white font-pixel text-xs py-3 px-4 border-2 border-black shadow-pixel-box"
+                  >
+                    TOWN HUB
+                  </button>
+                </div>
+              </>
+            ) : battleStatus === 'EXPEDITION_VICTORY' ? (
+              <>
+                <Trophy className="w-16 h-16 text-[#F4B41A] mx-auto mb-3 animate-bounce" />
+                <h2 className="font-pixel text-lg text-[#F4B41A] mb-1">
+                  LEVEL {currentLevel} CONQUERED!
+                </h2>
+                <p className="text-xs text-[#A7A9BE] font-mono mb-3">
+                  All {expeditionEncounters.length} encounters in the expedition vanquished!
+                </p>
+                {currentLevel >= 5 && (
+                  <div className="bg-[#F4B41A]/10 border-2 border-[#F4B41A] p-2 rounded text-center mb-3">
+                    <span className="text-[10px] font-pixel text-[#F4B41A] flex items-center justify-center gap-1">
+                      👑 MAP CONQUERED! NEW DESTINATION UNLOCKED!
+                    </span>
+                  </div>
+                )}
+                <div className="bg-[#0F0E17] border-2 border-[#F4B41A] p-3 rounded text-center mb-6">
+                  <span className="text-[11px] font-pixel text-[#00EB88]">
+                    +{getMapConfig(currentMap).levels.find((l) => l.level === currentLevel)?.goldReward || 200} GOLD • +{getMapConfig(currentMap).levels.find((l) => l.level === currentLevel)?.xpReward || 300} XP EARNED
+                  </span>
+                </div>
+                <div className="flex gap-3">
+                  {currentLevel < 5 ? (
+                    <button
+                      onClick={handleNextLevelExpedition}
+                      className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
+                    >
+                      LEVEL {currentLevel + 1} ▶
+                    </button>
+                  ) : (
+                    <button
+                      onClick={onExitBattle}
+                      className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
+                    >
+                      WORLD MAP ▶
+                    </button>
+                  )}
+                  <button
+                    onClick={onExitBattle}
+                    className="bg-[#2E2B44] text-white font-pixel text-xs py-3 px-4 border-2 border-black shadow-pixel-box"
+                  >
+                    TOWN HUB
+                  </button>
+                </div>
+              </>
+            ) : battleStatus === 'VICTORY' ? (
               <>
                 <Trophy className="w-16 h-16 text-[#F4B41A] mx-auto mb-3 animate-bounce" />
                 <h2 className="font-pixel text-lg text-[#F4B41A] mb-2">ENCOUNTER CLEARED!</h2>
@@ -703,16 +967,18 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             ) : (
               <>
                 <Skull className="w-16 h-16 text-[#FF3366] mx-auto mb-3" />
-                <h2 className="font-pixel text-lg text-[#FF3366] mb-2">DEFEAT!</h2>
+                <h2 className="font-pixel text-lg text-[#FF3366] mb-2">EXPEDITION FAILED!</h2>
                 <p className="text-xs text-[#A7A9BE] font-mono mb-6">
-                  The monster squad overwhelmed Sir Kettleburne. Rest and recover before trying again.
+                  {isExpeditionMode
+                    ? `Sir Kettleburne fell on Encounter ${expeditionStep + 1} of ${expeditionEncounters.length}. Rest and recover before attempting the run again.`
+                    : 'The monster squad overwhelmed Sir Kettleburne. Rest and recover before trying again.'}
                 </p>
                 <div className="flex gap-3">
                   <button
-                    onClick={handleNextEncounter}
+                    onClick={isExpeditionMode ? handleRetryExpedition : handleNextEncounter}
                     className="flex-1 bg-[#FF3366] hover:bg-[#ff5588] text-white font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
                   >
-                    RETRY BATTLE
+                    RETRY EXPEDITION
                   </button>
                   <button
                     onClick={onExitBattle}

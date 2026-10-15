@@ -1390,7 +1390,7 @@ export class GameEngine {
     this.gameLayer.addChild(this.enemyDummy);
 
     this.createTargetReticle();
-    void this.setMonsters(this.queuedMonsters);
+    void this.setMonsters(this.queuedMonsters, this.queuedBackground);
   }
 
   private createTargetReticle(): void {
@@ -1403,18 +1403,18 @@ export class GameEngine {
     this.gameLayer.addChild(this.targetReticle);
   }
 
-  /**
-   * Sets multiple monsters (1 to 3) in formation on the battlefield.
-   */
-  public setMonsters(monstersInput: MonsterInputItem[]): Promise<void> {
+  public setMonsters(monstersInput: MonsterInputItem[], customBg?: string): Promise<void> {
     audioManager.prewarm(); // render the sound bank in the background while the rigs load
-    return this.trackLoad(this.loadMonsters(monstersInput));
+    return this.trackLoad(this.loadMonsters(monstersInput, customBg));
   }
 
-  private async loadMonsters(monstersInput: MonsterInputItem[]): Promise<void> {
+  private queuedBackground?: string;
+
+  private async loadMonsters(monstersInput: MonsterInputItem[], customBg?: string): Promise<void> {
     const token = ++this.monsterLoadToken;
     const requestedTypes: MonsterSprite[] = monstersInput.map(t => typeof t === 'string' ? t : t.spriteType);
     this.queuedMonsters = monstersInput;
+    this.queuedBackground = customBg;
 
     if (!this.gameLayer) return;
 
@@ -1444,7 +1444,7 @@ export class GameEngine {
     const coords = formations[count - 1];
 
     // Pick appropriate arena background
-    const bg = MONSTER_BACKGROUNDS[requestedTypes[0]] ?? BATTLE_MAPS.CATHEDRAL_CRYPT;
+    const bg = customBg ?? MONSTER_BACKGROUNDS[requestedTypes[0]] ?? BATTLE_MAPS.CATHEDRAL_CRYPT;
     void this.loadBackground(bg);
 
     for (let i = 0; i < count; i++) {

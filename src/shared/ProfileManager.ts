@@ -1,4 +1,10 @@
-// Persistent Player Profile & Progression Manager for Kettlebell Knight
+import { BattleMapId } from '../types/battle';
+
+export interface MapLevelProgress {
+  highestLevelCleared: number; // 0 = none, 1..5
+  totalClears: number;
+  bestReps: number;
+}
 
 export interface PlayerProfile {
   id: string; // 'slot_1' | 'slot_2' | 'slot_3'
@@ -23,6 +29,8 @@ export interface PlayerProfile {
   };
   unlockedItems: string[];
   unlockedEncounters: number;
+  unlockedMaps: BattleMapId[];
+  mapProgress: Record<string, MapLevelProgress>;
   createdAt: number;
   lastSavedAt: number;
   playTimeSeconds: number;
@@ -61,6 +69,10 @@ export function createDefaultProfile(slotId: string, name: string = DEFAULT_KNIG
     },
     unlockedItems: ['iron_kettlebell'],
     unlockedEncounters: 1,
+    unlockedMaps: ['VERDANT_FOREST'],
+    mapProgress: {
+      VERDANT_FOREST: { highestLevelCleared: 0, totalClears: 0, bestReps: 0 },
+    },
     createdAt: now,
     lastSavedAt: now,
     playTimeSeconds: 0,
@@ -84,7 +96,24 @@ class ProfileManager {
       if (rawSlots) {
         const parsed = JSON.parse(rawSlots);
         if (Array.isArray(parsed)) {
-          this.slots = [0, 1, 2].map((i) => parsed[i] || null);
+          this.slots = [0, 1, 2].map((i) => {
+            const slot = parsed[i];
+            if (!slot) return null;
+            // Migration fallback for existing saves: ensure VERDANT_FOREST is always unlocked
+            if (!slot.unlockedMaps || slot.unlockedMaps.length === 0) {
+              slot.unlockedMaps = ['VERDANT_FOREST'];
+            } else if (!slot.unlockedMaps.includes('VERDANT_FOREST')) {
+              slot.unlockedMaps = ['VERDANT_FOREST', ...slot.unlockedMaps];
+            }
+            if (!slot.mapProgress) {
+              slot.mapProgress = {
+                VERDANT_FOREST: { highestLevelCleared: 0, totalClears: 0, bestReps: 0 },
+              };
+            } else if (!slot.mapProgress.VERDANT_FOREST) {
+              slot.mapProgress.VERDANT_FOREST = { highestLevelCleared: 0, totalClears: 0, bestReps: 0 };
+            }
+            return slot;
+          });
         }
       }
 
@@ -193,6 +222,73 @@ class ProfileManager {
     this.persist();
     this.notify();
     return updated;
+  }
+
+  public unlockMap(mapId: BattleMapId): boolean {
+    const profile = this.getActiveProfile();
+    if (!profile) return false;
+    if (profile.unlockedMaps.includes(mapId)) return false;
+
+    const nextUnlocked = [...profile.unlockedMaps, mapId];
+    this.saveActiveProfile({ unlockedMaps: nextUnlocked });
+    return true;
+  }
+
+  public getMapProgress(mapId: BattleMapId): MapLevelProgress {
+    const profile = this.getActiveProfile();
+    return profile?.mapProgress?.[mapId] || { highestLevelCleared: 0, totalClears: 0, bestReps: 0 };
+  }
+
+  public recordLevelVictory(
+    mapId: BattleMapId,
+    level: number,
+    reps: number,
+    goldEarned: number,
+    xpEarned: number,
+    nextMapToUnlock?: BattleMapId
+  ): PlayerProfile | null {
+    const profile = this.getActiveProfile();
+    if (!profile) return null;
+
+    const curProgress = profile.mapProgress?.[mapId] || { highestLevelCleared: 0, totalClears: 0, bestReps: 0 };
+    const nextHighest = Math.max(curProgress.highestLevelCleared, level);
+    const nextClears = curProgress.totalClears + 1;
+    const nextBestReps = curProgress.bestReps ? Math.min(curProgress.bestReps, reps) : reps;
+
+    const nextMapProgress: Record<string, MapLevelProgress> = {
+      ...(profile.mapProgress || {}),
+      [mapId]: {
+        highestLevelCleared: nextHighest,
+        totalClears: nextClears,
+        bestReps: nextBestReps,
+      },
+    };
+
+    let nextUnlockedMaps = [...(profile.unlockedMaps || ['VERDANT_FOREST'])];
+    if (level >= 5 && nextMapToUnlock && !nextUnlockedMaps.includes(nextMapToUnlock)) {
+      nextUnlockedMaps.push(nextMapToUnlock);
+    }
+
+    const nextXp = profile.xp + xpEarned;
+    let nextLvl = profile.level;
+    let nextMaxXp = profile.maxXp;
+    let currentXpPool = nextXp;
+    while (currentXpPool >= nextMaxXp) {
+      currentXpPool -= nextMaxXp;
+      nextLvl += 1;
+      nextMaxXp = calculateMaxXp(nextLvl);
+    }
+
+    return this.saveActiveProfile({
+      gold: profile.gold + goldEarned,
+      xp: currentXpPool,
+      level: nextLvl,
+      maxXp: nextMaxXp,
+      mapProgress: nextMapProgress,
+      unlockedMaps: nextUnlockedMaps,
+      repsCompleted: (profile.repsCompleted || 0) + reps,
+      workoutSessions: (profile.workoutSessions || 0) + 1,
+    });
   }
 
   public deleteProfile(slotId: string): boolean {
