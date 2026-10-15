@@ -445,6 +445,374 @@ interface Scene {
 }
 
 const SCENES: Record<string, Scene> = {
+  // MONSTER ARTS: each card shows the creature's signature
+  art_echo_shriek: {
+    sky: 'arcane', horizon: 'spires', stars: 14,
+    motif: (m) => kettlebell(m, 20, 30, 7),
+    fx: (fx) => {
+      for (let k = 0; k < 4; k++) for (let a = -0.6; a <= 0.6; a += 0.02) fx.set(20 + Math.cos(a) * (16 + k * 12), 28 + Math.sin(a) * (16 + k * 12), k % 2 ? 0xF5F3FF : 0xA78BFA);
+      for (const [x, y] of [[54, 12], [66, 22], [78, 10], [70, 34], [86, 26]]) {
+        fx.poly([x, y, x - 5, y - 3, x - 3, y + 1], 0x1E1B4B);
+        fx.poly([x, y, x + 5, y - 3, x + 3, y + 1], 0x1E1B4B);
+        fx.set(x, y, 0xF87171);
+      }
+    },
+  },
+  art_dirty_trick: {
+    sky: 'earth', horizon: 'forest', stars: 4,
+    motif: (m) => {
+      m.poly([20, 46, 22, 30, 34, 30, 36, 40, 44, 42, 44, 46], 0x5C2B14); // boot
+      m.rect(20, 44, 24, 3, 0x2A1A0E);
+    },
+    fx: (fx, rng) => {
+      sparks(fx, rng, 40, 44, 14, 40, 24, [0x8B5A2B, 0xA16207, 0x5C2B14, 0xD6D3D1]);
+      fx.disc(78, 14, 6, 0xFFFBEA);
+      fx.rect(77, 9, 3, 6, INK);
+      fx.set(78, 17, INK);
+    },
+  },
+  art_rattle_back: {
+    sky: 'steel', horizon: 'spires', stars: 10,
+    motif: (m) => {
+      m.disc(48, 16, 7, 0xD97706); // helm
+      m.rect(43, 15, 10, 2, INK);
+      shield(m, 30, 34, 8, 10, 0xB45309, 0x78350F);
+      kettlebell(m, 66, 38, 6);
+      for (const [x0, y0, x1, y1] of [[40, 44, 52, 40], [54, 46, 62, 48], [44, 30, 54, 32]]) m.line(x0, y0, x1, y1, 0xE2E8F0, 2);
+    },
+    fx: (fx, rng) => sparks(fx, rng, 14, 24, 8, 50, 40, [0xFFFFFF, 0xE2E8F0]),
+  },
+  art_wisp_lure: {
+    sky: 'storm', horizon: 'forest', stars: 18,
+    glow: { x: 62, y: 22, r: 18, colors: [0x0B2A3A, 0x0E5A6A, 0x22A3C4] },
+    fx: (fx, rng) => {
+      for (let i = 0; i < 18; i++) fx.set(16 + i * 2.5, 40 - Math.sin(i * 0.4) * 10 - i, 0xA5F3FC);
+      fx.disc(62, 22, 6, 0x67E8F9);
+      fx.disc(62, 22, 3, 0xFFFFFF);
+      fx.rect(60, 20, 1, 3, INK);
+      fx.rect(64, 20, 1, 3, INK);
+      sparks(fx, rng, 8, 50, 10, 24, 20, [0xFFFFFF, 0xA5F3FC]);
+    },
+  },
+  art_banshee_step: {
+    sky: 'storm', horizon: 'spires', stars: 12,
+    motif: (m) => {
+      m.poly([40, 10, 52, 10, 58, 44, 50, 38, 46, 46, 42, 38, 34, 44], 0x7DD3FC);
+      m.rect(42, 16, 2, 3, INK);
+      m.rect(48, 16, 2, 3, INK);
+      m.poly([44, 24, 48, 24, 46, 30], INK); // wailing mouth
+    },
+    fx: (fx) => {
+      for (let k = 0; k < 3; k++) for (let y = 14; y < 44; y += 2) fx.set(24 - k * 6, y, k ? 0x38BDF8 : 0xBAE6FD);
+    },
+  },
+  art_bone_volley: {
+    sky: 'dawn', horizon: 'spires', stars: 8,
+    fx: (fx) => {
+      for (const [x, y] of [[30, 12], [48, 6], [66, 14]]) {
+        fx.line(x - 8, y - 14, x, y + 14, 0xE2E8F0, 2);
+        fx.poly([x - 2, y + 12, x + 3, y + 12, x + 2, y + 20], 0xFFFFFF);
+        fx.line(x - 10, y - 18, x - 6, y - 12, 0x94A3B8);
+      }
+      for (const x of [30, 48, 66]) fx.line(x - 6, 50, x + 6, 50, 0xF87171);
+    },
+  },
+  art_carapace_roll: {
+    sky: 'nature', horizon: 'hills', stars: 4,
+    motif: (m) => {
+      m.disc(56, 32, 14, 0x1A2E05);
+      m.ring(56, 32, 8, 0x4D7C0F, 2);
+      for (let k = 0; k < 4; k++) m.line(56, 32, 56 + Math.cos(k * 1.57 + 0.4) * 14, 32 + Math.sin(k * 1.57 + 0.4) * 14, 0x4D7C0F, 2);
+    },
+    fx: (fx, rng) => {
+      for (let i = 0; i < 4; i++) fx.line(8, 26 + i * 4, 36, 26 + i * 4, 0xD9F99D);
+      sparks(fx, rng, 10, 36, 44, 30, 6, [0xA8A29E, 0x78716C]);
+    },
+  },
+  art_undertow: {
+    sky: 'water', horizon: 'none', stars: 10,
+    motif: (m) => {
+      m.poly([96, 52, 70, 30, 56, 8, 36, 4, 22, 14, 34, 18, 44, 20, 50, 52], 0x0F766E);
+      m.poly([90, 52, 66, 32, 54, 14, 46, 22, 56, 52], 0x14B8A6);
+    },
+    fx: (fx, rng) => {
+      for (let i = 0; i < 12; i++) fx.disc(24 + i * 3, 12 - Math.sin(i * 0.3) * 6, 1.5, 0xF0FDFA);
+      sparks(fx, rng, 16, 10, 2, 50, 20, [0xF0FDFA, 0x5EEAD4]);
+    },
+  },
+  art_tombstone_heave: {
+    sky: 'shadow', horizon: 'spires', stars: 10,
+    motif: (m) => {
+      m.poly([40, 40, 40, 14, 46, 8, 58, 8, 64, 14, 64, 40], 0x57534E);
+      m.rect(51, 14, 3, 18, 0x292524);
+      m.rect(45, 19, 15, 3, 0x292524);
+    },
+    fx: (fx, rng) => {
+      for (const side of [-1, 1]) fx.line(52 + side * 14, 44, 52 + side * 24, 34, 0xA8A29E);
+      sparks(fx, rng, 16, 30, 40, 44, 10, [0x78716C, 0x5C2B14, 0x84A98C]);
+    },
+  },
+  art_troll_blood: {
+    sky: 'nature', horizon: 'forest', stars: 4,
+    motif: (m) => {
+      m.line(30, 48, 58, 14, BARK[1], 5); // knotted club
+      m.disc(60, 12, 9, BARK[2]);
+      m.disc(55, 9, 3, BARK[1]);
+      m.disc(64, 16, 3, BARK[1]);
+    },
+    fx: (fx, rng) => {
+      for (const [x, y] of [[24, 20], [76, 30], [70, 42]]) {
+        fx.rect(x - 1, y - 4, 3, 9, 0x84CC16);
+        fx.rect(x - 4, y - 1, 9, 3, 0x84CC16);
+      }
+      sparks(fx, rng, 14, 14, 10, 70, 36, [0xBEF264, 0xECFCCB]);
+    },
+  },
+  art_needle_burst: {
+    sky: 'nature', horizon: 'hills', stars: 6,
+    motif: (m) => {
+      for (const [x, h] of [[16, 24], [30, 36], [44, 28], [58, 40], [72, 30], [84, 22]]) m.poly([x - 5, 52, x, 52 - h, x + 5, 52], 0x166534);
+    },
+    fx: (fx) => {
+      for (const [x, h] of [[16, 24], [30, 36], [44, 28], [58, 40], [72, 30], [84, 22]]) fx.set(x, 52 - h, 0xFEF3C7);
+    },
+  },
+  art_pincer_crack: {
+    sky: 'water', horizon: 'none', stars: 6,
+    motif: (m) => {
+      m.poly([80, 26, 60, 10, 26, 6, 18, 14, 44, 18, 62, 26], 0xEA580C);
+      m.poly([80, 28, 60, 44, 26, 48, 18, 40, 44, 36, 62, 28], 0xC2410C);
+      m.disc(80, 27, 7, 0x9A3412);
+    },
+    fx: (fx) => {
+      fx.line(30, 22, 36, 28, 0xFFFFFF);
+      fx.line(36, 28, 32, 34, 0xFFFFFF);
+      fx.line(36, 28, 42, 30, 0xFFFFFF);
+    },
+  },
+  art_tail_sweep: {
+    sky: 'nature', horizon: 'hills', stars: 4,
+    fx: (fx) => {
+      for (let i = 0; i < 40; i++) {
+        const t = i / 40;
+        fx.disc(14 + t * 74, 40 - Math.sin(t * Math.PI) * 18, 6 * (1 - t) + 1, 0x059669);
+        if (i % 4 === 0) fx.set(14 + t * 74, 38 - Math.sin(t * Math.PI) * 18, 0xD1FAE5);
+      }
+    },
+  },
+  art_berserker_rush: {
+    sky: 'fire', horizon: 'peaks', stars: 4,
+    motif: (m) => {
+      axe(m, 24, 46, -1.1, 34);
+      axe(m, 72, 46, -2.04, 34);
+    },
+    fx: (fx, rng) => {
+      crescent(fx, 48, 26, 24, -2.8, -0.3, 4, [0, 0xDC2626, 0xFEE2E2]);
+      sparks(fx, rng, 16, 30, 6, 40, 30, [0xFEE2E2, 0xDC2626]);
+    },
+  },
+  art_moonlit_leap: {
+    sky: 'storm', horizon: 'forest', stars: 24,
+    glow: { x: 70, y: 14, r: 14, colors: [0x16253D, 0x4A6584, 0xC7D2FE] },
+    motif: (m) => {
+      m.disc(70, 14, 8, 0xE0E7FF);
+      m.poly([20, 40, 26, 30, 42, 30, 46, 36, 42, 40], 0xC7D2FE); // stag body
+      m.line(44, 32, 50, 22, 0xC7D2FE, 3);
+      m.line(48, 20, 44, 10, 0xEEF2FF);
+      m.line(50, 20, 56, 10, 0xEEF2FF);
+      for (const x of [24, 28, 38, 42]) m.line(x, 40, x, 48, 0xC7D2FE);
+    },
+    fx: (fx) => {
+      for (let i = 0; i < 10; i++) fx.set(50 + i * 3, 20 - Math.sin(i * 0.35) * 10, 0xFFFFFF);
+    },
+  },
+  art_stone_skin: {
+    sky: 'steel', horizon: 'spires', stars: 8,
+    motif: (m) => {
+      m.rect(32, 44, 32, 6, ROCK[1]); // pedestal
+      m.poly([38, 44, 36, 22, 42, 12, 54, 12, 60, 22, 58, 44], ROCK[2]);
+      m.disc(48, 10, 6, ROCK[2]);
+      m.poly([36, 22, 22, 12, 30, 26], ROCK[1]); // stone wings
+      m.poly([60, 22, 74, 12, 66, 26], ROCK[1]);
+    },
+    fx: (fx, rng) => {
+      fx.line(44, 20, 50, 30, 0x1C1917);
+      fx.line(50, 30, 46, 40, 0x1C1917);
+      sparks(fx, rng, 10, 24, 10, 48, 30, [0xFDE68A, 0xFFFFFF]);
+    },
+  },
+  art_black_riposte: {
+    sky: 'shadow', horizon: 'spires', stars: 14,
+    motif: (m) => sword(m, 30, 44, -0.5, 40, [0x1F1D2B, 0x3F3B52, 0x7C3AED, 0xEDE9FE], [0x2E1065, 0x4C1D95, 0x7C3AED, 0xC4B5FD]),
+    fx: (fx) => {
+      fx.line(70, 8, 90, 44, 0xEDE9FE, 2);
+      fx.line(71, 8, 91, 44, 0x7C3AED);
+      for (let i = 0; i < 6; i++) fx.disc(16 + i * 4, 30 + (i % 2) * 4, 2, 0x4C1D95);
+    },
+  },
+  art_life_leech: {
+    sky: 'dawn', horizon: 'none', stars: 8,
+    fx: (fx) => {
+      for (let i = 0; i <= 60; i++) {
+        const x = 14 + i * 1.15;
+        const y = 28 + Math.sin(i * 0.3) * 4;
+        fx.set(x, y, 0xBE123C);
+        fx.set(x, y + 1, 0x3F0412);
+      }
+      for (const x of [30, 52, 70]) {
+        fx.disc(x, 28 + Math.sin((x - 14) / 1.15 * 0.3) * 4, 3, 0xBE123C);
+        fx.set(x - 1, 27, 0xFFE4E6);
+      }
+      fx.ring(84, 28, 6, 0xFDA4AF, 1);
+    },
+  },
+  art_grizzly_maul: {
+    sky: 'earth', horizon: 'forest', stars: 6,
+    motif: (m) => {
+      m.disc(48, 22, 12, 0x92400E);
+      m.disc(38, 12, 4, 0x92400E);
+      m.disc(58, 12, 4, 0x92400E);
+      m.disc(48, 27, 5, 0xB45309);
+      m.rect(43, 19, 2, 2, INK);
+      m.rect(51, 19, 2, 2, INK);
+    },
+    fx: (fx) => {
+      for (let k = 0; k < 3; k++) fx.line(24 + k * 8, 30, 36 + k * 8, 50, 0xFDE68A, 2);
+      for (let k = 0; k < 3; k++) fx.line(56 + k * 8, 30, 68 + k * 8, 50, 0xFDE68A, 2);
+    },
+  },
+  art_phantom_cavalry: {
+    sky: 'storm', horizon: 'spires', stars: 20,
+    motif: (m) => {
+      m.poly([20, 34, 28, 26, 56, 26, 64, 32, 58, 38, 26, 38], 0x1E3A8A); // horse
+      m.poly([62, 28, 72, 18, 80, 20, 74, 26, 66, 32], 0x1E3A8A);
+      for (const [x, dx] of [[28, -6], [34, 4], [52, -4], [58, 6]]) m.line(x, 38, x + dx, 48, 0xBFDBFE, 2);
+      m.poly([38, 26, 46, 26, 44, 14, 40, 14], 0x1E3A8A); // rider
+      m.disc(42, 11, 3, 0x1E3A8A);
+    },
+    fx: (fx, rng) => {
+      fx.line(40, 18, 92, 16, 0xEFF6FF);
+      for (let i = 0; i < 4; i++) fx.line(2, 26 + i * 4, 16, 26 + i * 4, 0x93C5FD);
+      sparks(fx, rng, 10, 20, 44, 50, 6, [0x60A5FA, 0xBFDBFE]);
+    },
+  },
+
+  // STARTER: plain iron and stone under grey skies, nothing magical
+  starter_swing: {
+    sky: 'steel', horizon: 'hills', stars: 6,
+    motif: (m) => kettlebell(m, 56, 28, 9),
+    fx: (fx, rng) => {
+      crescent(fx, 44, 34, 20, 2.6, 4.9, 3, [0, 0xCBD5E1, 0xF8FAFC]);
+      sparks(fx, rng, 6, 60, 18, 14, 18, [0xFFFBEA, 0xCBD5E1]);
+    },
+  },
+  starter_sweep: {
+    sky: 'steel', horizon: 'hills', stars: 4,
+    motif: (m) => kettlebell(m, 20, 38, 7),
+    fx: (fx, rng) => {
+      for (let x = 26; x < 92; x++) fx.set(x, 42 - Math.sin(((x - 26) / 66) * Math.PI) * 6, x % 3 ? 0xCBD5E1 : 0xF8FAFC);
+      for (let x = 30; x < 90; x += 2) fx.set(x, 44 - Math.sin(((x - 30) / 60) * Math.PI) * 5, 0x94A3B8);
+      sparks(fx, rng, 12, 30, 40, 60, 10, [0xA8A29E, 0x78716C]);
+    },
+  },
+  starter_check: {
+    sky: 'earth', horizon: 'hills', stars: 4,
+    motif: (m) => {
+      shield(m, 40, 26, 14, 18, 0x94A3B8, 0x475569);
+      m.rect(38, 14, 4, 22, 0xA3B1C6);
+    },
+    fx: (fx, rng) => {
+      for (let i = 0; i < 4; i++) fx.line(4, 18 + i * 6, 20, 18 + i * 6, 0xCBD5E1);
+      sparkle(fx, 60, 16, 3, 0xFFFBEA);
+      sparkle(fx, 66, 24, 2, 0xFDE68A);
+      sparkle(fx, 58, 30, 2, 0xFFFBEA);
+      sparks(fx, rng, 8, 54, 10, 20, 26, [0xFFFBEA, 0xCBD5E1]);
+    },
+  },
+  starter_brace: {
+    sky: 'steel', horizon: 'spires', stars: 6,
+    motif: (m) => {
+      m.rect(10, 44, 76, 8, ROCK[1]); // the ground he plants into
+      shield(m, 48, 26, 16, 20, 0x78716C, 0x44403C);
+      m.rect(46, 12, 4, 26, 0xA8A29E);
+      m.rect(38, 20, 20, 4, 0xA8A29E);
+    },
+    fx: (fx, rng) => sparks(fx, rng, 10, 16, 40, 64, 6, [0xA8A29E, 0x78716C, 0xD6D3D1]),
+  },
+  starter_chop: {
+    // Head Crack: the bell plunging straight down onto the ground, speed lines above, dust bursting out
+    sky: 'steel', horizon: 'peaks', stars: 8,
+    motif: (m) => {
+      m.rect(6, 46, 84, 6, ROCK[1]);
+      kettlebell(m, 48, 32, 9);
+    },
+    fx: (fx, rng) => {
+      for (const [x, top, len] of [[38, 2, 16], [44, 0, 12], [52, 1, 14], [58, 4, 12]]) {
+        for (let y = top; y < top + len; y++) fx.set(x, y, y % 3 ? 0xCBD5E1 : 0xF8FAFC);
+      }
+      for (const side of [-1, 1]) {
+        for (let i = 0; i < 4; i++) fx.line(48 + side * (14 + i * 5), 46 - i, 48 + side * (18 + i * 6), 40 - i * 2, i % 2 ? 0xA8A29E : 0xD6D3D1);
+      }
+      fx.line(28, 47, 68, 47, 0x1C1917);
+      sparks(fx, rng, 14, 20, 34, 56, 12, [0xA8A29E, 0x78716C, 0xD6D3D1]);
+    },
+  },
+  starter_lob: {
+    sky: 'earth', horizon: 'hills', stars: 10,
+    motif: (m) => m.poly([66, 10, 74, 8, 79, 14, 76, 21, 68, 22, 63, 16], ROCK[2]),
+    fx: (fx) => {
+      for (let i = 0; i < 14; i++) {
+        const t = i / 14;
+        fx.set(10 + 52 * t, 44 - Math.sin(t * Math.PI * 0.85) * 34, i % 2 ? 0xA8A29E : 0xD6D3D1);
+      }
+    },
+  },
+  starter_stance: {
+    sky: 'earth', horizon: 'forest', stars: 4,
+    motif: (m) => {
+      m.rect(8, 46, 80, 6, ROCK[1]);
+      kettlebell(m, 48, 38, 8);
+      m.line(36, 18, 44, 30, BARK[1], 3); // two gripping arms
+      m.line(60, 18, 52, 30, BARK[1], 3);
+    },
+    fx: (fx, rng) => {
+      for (let i = 0; i < 5; i++) fx.set(46 + i * 2, 12 - (i % 2), 0xF8FAFC); // a breath
+      sparks(fx, rng, 6, 24, 42, 48, 6, [0xA8A29E]);
+    },
+  },
+  starter_haul: {
+    sky: 'steel', horizon: 'hills', stars: 6,
+    motif: (m) => {
+      kettlebell(m, 30, 30, 7);
+      kettlebell(m, 66, 30, 7);
+    },
+    fx: (fx, rng) => {
+      crescent(fx, 30, 30, 15, -1.2, 1.2, 2.5, [0, 0xCBD5E1, 0xF8FAFC]);
+      crescent(fx, 66, 30, 15, 1.9, 4.3, 2.5, [0, 0xCBD5E1, 0xF8FAFC]);
+      sparks(fx, rng, 8, 40, 16, 16, 28, [0xFFFBEA, 0xCBD5E1]);
+    },
+  },
+  starter_hippop: {
+    sky: 'steel', horizon: 'spires', stars: 6,
+    motif: (m) => kettlebell(m, 46, 20, 8),
+    fx: (fx, rng) => {
+      for (let i = 0; i < 4; i++) fx.line(40 + i * 4, 48, 42 + i * 4, 34, i % 2 ? 0x94A3B8 : 0xCBD5E1);
+      sparkle(fx, 56, 10, 3, 0xFFFBEA);
+      sparks(fx, rng, 8, 50, 4, 20, 16, [0xFFFBEA, 0xFDE68A]);
+    },
+  },
+  starter_wind: {
+    sky: 'steel', horizon: 'hills', stars: 12,
+    motif: (m) => kettlebell(m, 66, 22, 6),
+    fx: (fx, rng) => {
+      for (let i = 0; i < 90; i++) {
+        const a = (i / 90) * Math.PI * 1.7 + 0.4;
+        fx.set(48 + Math.cos(a) * 22, 24 + Math.sin(a) * 8, i % 3 ? 0xCBD5E1 : 0xF8FAFC);
+      }
+      sparks(fx, rng, 10, 30, 30, 36, 16, [0xF8FAFC, 0xE5E7EB, 0xBBF7D0]);
+    },
+  },
+
   // SWING
   swing_cleave: {
     sky: 'steel', horizon: 'spires', stars: 10,

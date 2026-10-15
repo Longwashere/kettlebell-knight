@@ -482,6 +482,7 @@ export const GameScreen: React.FC = () => {
           engineRef={engineRef}
           isEngineReady={isEngineReady}
           weaponId={SHOP_ITEMS.find((si) => si.slot === 'weapon' && equippedItems.has(si.id))?.id ?? profile?.equippedItems?.weapon ?? 'iron_kettlebell'}
+          cardIds={profile?.unlockedCards}
           expeditionMapId={selectedExpeditionMap}
           expeditionLevel={selectedExpeditionLevel}
           onExitBattle={() => setCurrentView('MAP_SELECT')}

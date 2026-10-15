@@ -82,6 +82,8 @@ export interface KnightMoveHost {
   weaponTip(): { x: number; y: number };
   /** Hides the weapon in his hand (e.g. while the flail head is thrown). Restored when the move ends. */
   weaponShown(shown: boolean): void;
+  /** Hides the rig's own fire trail on ATTACK1/2/4 (plain-steel moves). Restored when the move ends. */
+  slashTrail(shown: boolean): void;
   /** Shoves target `i` by `dx` px and/or launches it `lift` px up; it springs back on its own. */
   knock(i: number, dx: number, lift?: number): void;
   /** Tints target `i`'s rig for a few frames (hit flash). */

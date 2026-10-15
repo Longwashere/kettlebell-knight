@@ -1,4 +1,4 @@
-import { CombatCard, CardTemplate, CARD_CATALOG } from '../types/battle';
+import { CombatCard, CardTemplate, CARD_CATALOG, LEGACY_CARD_IDS } from '../types/battle';
 import { spellsForWeapon } from '../types/weaponSpells';
 import { ExerciseType } from '../types/game';
 
@@ -14,19 +14,27 @@ export class CardDeckManager {
   private hand: CombatCard[] = [];
   private discardPile: CombatCard[] = [];
   private idCounter: number = 0;
+  private templates: CardTemplate[] = [];
 
-  /** `weaponId` is the equipped weapon; its spells are shuffled into every deck built. */
-  constructor(private weaponId?: string) {
+  /**
+   * `weaponId` is the equipped weapon; its spells are shuffled into every deck built. `cardIds` are the
+   * player's unlocked cards (PlayerProfile.unlockedCards); omitted, the legacy full catalog.
+   */
+  constructor(private weaponId?: string, private cardIds?: readonly string[]) {
     this.initDeck();
     this.dealInitialHand();
   }
 
   /**
-   * Initializes a balanced combat deck from the catalog, plus two copies of each spell the equipped
+   * Initializes a balanced combat deck from the unlocked cards, plus two copies of each spell the equipped
    * weapon grants (src/types/weaponSpells.ts).
    */
-  public initDeck(weaponId: string | undefined = this.weaponId): void {
+  public initDeck(weaponId: string | undefined = this.weaponId, cardIds: readonly string[] | undefined = this.cardIds): void {
     this.weaponId = weaponId;
+    this.cardIds = cardIds;
+    const ids = new Set(cardIds?.length ? cardIds : LEGACY_CARD_IDS);
+    const pool = CARD_CATALOG.filter((c) => ids.has(c.templateId));
+    this.templates = pool;
     this.drawPile = [];
     this.hand = [];
     this.discardPile = [];
@@ -34,8 +42,8 @@ export class CardDeckManager {
 
     // Build draw pile with multiple copies of catalog cards
     const deckTemplates: CardTemplate[] = [
-      ...CARD_CATALOG,
-      ...CARD_CATALOG.filter(c => c.rarity === 'common'), // Extra commons
+      ...pool,
+      ...pool.filter(c => c.rarity === 'common'), // Extra commons
       ...spellsForWeapon(weaponId).flatMap((spell) => [spell, spell]),
     ];
 
@@ -96,26 +104,11 @@ export class CardDeckManager {
       candidateIndex = this.drawPile.findIndex(c => !currentExercisesInHand.has(c.exercise));
     }
 
-    // If still no candidate, generate fresh card from catalog for a missing exercise
+    // If still no candidate, mint a fresh copy of an unlocked card for an exercise missing from the hand
     if (candidateIndex === -1) {
-      const allExercises: ExerciseType[] = [
-        'SWING',
-        'SQUAT',
-        'CLEAN_AND_PRESS',
-        'SNATCH',
-        'WINDMILL',
-        'DEADLIFT',
-        'OVERHEAD_PRESS',
-        'THRUSTER',
-        'GORILLA_ROW',
-        'HALO',
-        'SINGLE_LEG_RDL',
-      ];
-      const missingExercises = allExercises.filter(ex => !currentExercisesInHand.has(ex));
-      if (missingExercises.length > 0) {
-        const targetEx = missingExercises[Math.floor(Math.random() * missingExercises.length)];
-        const template = CARD_CATALOG.find(c => c.exercise === targetEx) || CARD_CATALOG[0];
-        return this.createCardInstance(template);
+      const missing = this.templates.filter(c => !currentExercisesInHand.has(c.exercise));
+      if (missing.length > 0) {
+        return this.createCardInstance(missing[Math.floor(Math.random() * missing.length)]);
       }
       return null;
     }

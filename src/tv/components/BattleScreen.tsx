@@ -34,6 +34,7 @@ interface BattleScreenProps {
   engineRef: React.RefObject<GameEngine | null>;
   isEngineReady?: boolean;
   weaponId?: string; // equipped weapon: its spells join the deck
+  cardIds?: readonly string[]; // the knight's unlocked cards (PlayerProfile.unlockedCards); omitted = full catalog
   expeditionMapId?: BattleMapId;
   expeditionLevel?: number;
   onExitBattle: () => void;
@@ -49,15 +50,18 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   engineRef,
   isEngineReady,
   weaponId,
+  cardIds,
   expeditionMapId,
   expeditionLevel,
   onExitBattle,
   onBattleStateSync,
 }) => {
   // Deck Manager initialized
-  const deckManagerRef = useRef<CardDeckManager>(new CardDeckManager(weaponId));
+  const deckManagerRef = useRef<CardDeckManager>(new CardDeckManager(weaponId, cardIds));
   const weaponIdRef = useRef(weaponId);
   weaponIdRef.current = weaponId;
+  const cardIdsRef = useRef(cardIds);
+  cardIdsRef.current = cardIds;
 
   // Combat State
   const [playerHp, setPlayerHp] = useState<number>(PLAYER_MAX_HP);
@@ -470,7 +474,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       engineRef.current?.resetKnight?.();
       const customBg = nextTemplate.background ?? (nextTemplate.map ? BATTLE_MAPS[nextTemplate.map] : undefined);
       engineRef.current?.setMonsters(newMonsters, customBg);
-      deckManagerRef.current.initDeck(weaponIdRef.current);
+      deckManagerRef.current.initDeck(weaponIdRef.current, cardIdsRef.current);
       setHand(deckManagerRef.current.dealInitialHand());
       setRecentCombatLog(`Encounter ${nextStep + 1} of ${expeditionEncounters.length} commenced!`);
       audioManager.play('level_up');
@@ -498,7 +502,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     engineRef.current?.resetKnight?.();
     const customBg = firstTemplate.background ?? (firstTemplate.map ? BATTLE_MAPS[firstTemplate.map] : undefined);
     engineRef.current?.setMonsters(newMonsters, customBg);
-    deckManagerRef.current.initDeck(weaponIdRef.current);
+    deckManagerRef.current.initDeck(weaponIdRef.current, cardIdsRef.current);
     setHand(deckManagerRef.current.dealInitialHand());
     setRecentCombatLog('Expedition restarted! Ready thy bell.');
     audioManager.play('level_up');
@@ -529,7 +533,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       engineRef.current?.resetKnight?.();
       const customBg = firstTemplate.background ?? (firstTemplate.map ? BATTLE_MAPS[firstTemplate.map] : undefined);
       engineRef.current?.setMonsters(newMonsters, customBg);
-      deckManagerRef.current.initDeck(weaponIdRef.current);
+      deckManagerRef.current.initDeck(weaponIdRef.current, cardIdsRef.current);
       setHand(deckManagerRef.current.dealInitialHand());
       setRecentCombatLog(`Level ${nextLvl} Expedition commenced!`);
       audioManager.play('level_up');
@@ -564,7 +568,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     engineRef.current?.resetKnight?.();
     const customBg = template.background ?? (template.map ? BATTLE_MAPS[template.map] : undefined);
     engineRef.current?.setMonsters(newMonsters, customBg);
-    deckManagerRef.current.initDeck(weaponIdRef.current);
+    deckManagerRef.current.initDeck(weaponIdRef.current, cardIdsRef.current);
     setHand(deckManagerRef.current.dealInitialHand());
     audioManager.play('level_up');
   };
@@ -655,7 +659,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       freeze: (on: boolean) => { atbFrozenRef.current = on; },
       focusCard: (index: number) => setFocusedCardIndex(Math.max(0, Math.min(hand.length - 1, index))),
       // Deck contents (template ids) and the equipped weapon whose spells it carries
-      deck: () => ({ weaponId: weaponIdRef.current, cards: deckManagerRef.current.debugDeck() }),
+      deck: () => ({ weaponId: weaponIdRef.current, unlocked: cardIdsRef.current ?? 'legacy', cards: deckManagerRef.current.debugDeck() }),
       // Puts a card (CARD_CATALOG or weapon spell templateId) in the hand and focuses it, ready to cast()
       giveCard: (templateId: string) => {
         const t = [...CARD_CATALOG, ...ALL_WEAPON_SPELLS].find((c) => c.templateId === templateId);

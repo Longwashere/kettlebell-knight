@@ -2382,6 +2382,10 @@ export class GameEngine {
         const slot = spine?.skeleton.findSlot('sword');
         if (slot) slot.color.a = shown ? 1 : 0;
       },
+      slashTrail: (shown) => {
+        const slot = spine?.skeleton.findSlot('Normal_Slash');
+        if (slot) slot.color.a = shown ? 1 : 0;
+      },
       knock: (i, dx, lift = 0) => {
         const slot = targets[i] ? this.monsterSlots[targets[i].slot] : undefined;
         if (!slot || slot.isLocked) return;
@@ -2430,6 +2434,8 @@ export class GameEngine {
       if (spine && !spine.destroyed) {
         const weaponSlot = spine.skeleton.findSlot('sword');
         if (weaponSlot) weaponSlot.color.a = 1;
+        const trailSlot = spine.skeleton.findSlot('Normal_Slash');
+        if (trailSlot) trailSlot.color.a = 1;
         spine.y = 0;
         spine.scale.set(restScale.x, restScale.y);
         spine.tint = 0xFFFFFF;

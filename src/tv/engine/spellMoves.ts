@@ -244,7 +244,7 @@ function phantomBell(g: Graphics, x: number, y: number, w: number, p: Pal, alpha
 }
 
 /** Weathered tombstone rising `up` 0-1 out of the floor at (x, groundY). */
-function tombstone(g: Graphics, x: number, groundY: number, up: number, s = 1, lean = 0) {
+export function tombstone(g: Graphics, x: number, groundY: number, up: number, s = 1, lean = 0) {
   if (up <= 0.02) return;
   const w = 12 * s;
   const hgt = 22 * s * up;

@@ -1,4 +1,4 @@
-import { BattleMapId } from '../types/battle';
+import { BattleMapId, STARTER_CARD_IDS } from '../types/battle';
 
 export interface MapLevelProgress {
   highestLevelCleared: number; // 0 = none, 1..5
@@ -28,6 +28,8 @@ export interface PlayerProfile {
     helmet?: string;
   };
   unlockedItems: string[];
+  /** Battle cards in this knight's deck (CARD_CATALOG templateIds). Saves from before unlocks have none: full catalog. */
+  unlockedCards?: string[];
   unlockedEncounters: number;
   unlockedMaps: BattleMapId[];
   mapProgress: Record<string, MapLevelProgress>;
@@ -68,6 +70,7 @@ export function createDefaultProfile(slotId: string, name: string = DEFAULT_KNIG
       weapon: 'iron_kettlebell',
     },
     unlockedItems: ['iron_kettlebell'],
+    unlockedCards: [...STARTER_CARD_IDS],
     unlockedEncounters: 1,
     unlockedMaps: ['VERDANT_FOREST'],
     mapProgress: {

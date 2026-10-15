@@ -27,6 +27,8 @@ import type { ExerciseType } from '../../types/game';
 import { CARD_CATALOG } from '../../types/battle';
 import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { SPELL_MOVES } from './spellMoves';
+import { STARTER_MOVES } from './starterMoves';
+import { MONSTER_ART_MOVES } from './monsterArts';
 import {
   Timeline, lerp, easeIn, easeOut, easeInOut, arc, rand,
   INK, BONE, BLOOD, BLOOD_DARK, EMBER, GOLD, DIRT, SHADOW, FIRE,
@@ -1627,9 +1629,11 @@ function vanguardStep(h: KnightMoveHost, tl: Timeline) {
 
 // ---------------------------------------------------------------------------------------------
 
-/** One move per CARD_CATALOG templateId, plus the weapon spells (spellMoves.ts). */
+/** One move per CARD_CATALOG templateId (starter cards in starterMoves.ts), plus the weapon spells (spellMoves.ts). */
 export const KNIGHT_MOVES: Record<string, KnightMove> = {
   ...SPELL_MOVES,
+  ...STARTER_MOVES,
+  ...MONSTER_ART_MOVES,
   swing_cleave: ironCleave,
   swing_whirlwind: dragonWhirlwind,
   swing_flow: momentumFlow,
@@ -1673,7 +1677,7 @@ export function knightMoveFor(exercise: ExerciseType, skillName = '', templateId
   const name = skillName.toLowerCase();
   const byName = CARD_CATALOG.find((c) => c.name.toLowerCase() === name && KNIGHT_MOVES[c.templateId]);
   if (byName) return byName.templateId;
-  return CARD_CATALOG.find((c) => c.exercise === exercise && KNIGHT_MOVES[c.templateId])?.templateId ?? 'swing_cleave';
+  return CARD_CATALOG.find((c) => c.exercise === exercise && !c.templateId.startsWith('starter_') && KNIGHT_MOVES[c.templateId])?.templateId ?? 'swing_cleave';
 }
 
 /** Card facts for a move's context (rarity, targeting, Block...), from CARD_CATALOG. */

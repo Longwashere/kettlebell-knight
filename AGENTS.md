@@ -33,7 +33,8 @@ Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test
   choreographed monster attacks (frame timelines of Spine anims, movement, camera and VFX; damage lands on `impact()`)
   for the first six monsters and the `MONSTER_MOVES` registry; the rest of the bestiary is in `engine/moves/*.ts`
   (grouped by theme), all built on the helpers in `engine/monsterKit.ts`;
-  `engine/knightMoves.ts` does the same for knight attacks (one move per card templateId; VFX kit in `engine/fxKit.ts`,
+  `engine/knightMoves.ts` does the same for knight attacks (one move per card templateId; the plain-steel starter cards a
+  new game begins with are in `engine/starterMoves.ts`; VFX kit in `engine/fxKit.ts`,
   shared primitives in `engine/choreo.ts`, knight host + helpers in `engine/knightKit.ts`); `engine/spellMoves.ts` holds
   the weapon spells' choreography; `components/` are React
   overlays (hub, battle, blacksmith, QR pairing); `hooks/useTVRemote.ts` handles D-pad/remote keys.
@@ -89,6 +90,8 @@ Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test
 - Card resolution (targeting, Block, Shatter, Stagger) is the pure `resolveCard` in src/shared/combat.ts; monster
   movesets, pack scaling and encounter building are in src/shared/monsterMovesets.ts and combatRules.ts. The TV battle
   screen and the simulator share all of it.
+- A new game's deck is only the `starter_*` cards (`STARTER_CARD_IDS`, stored in `PlayerProfile.unlockedCards`); saves
+  without that field keep the full catalog. Check the new-player deck with `STARTER=1 WEAPON=iron_kettlebell npm run balance`.
 - After any balance change run `npm run balance` and keep: single monsters ≥95% win in ~50–90s, pairs ~90%,
   trios 85–95%, boss trios ~65–80%, for the simulated average player.
 

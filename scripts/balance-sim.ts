@@ -5,6 +5,7 @@
  *   npm run balance            # all encounters, 400 fights each
  *   npm run balance -- 1000    # more fights per encounter
  *   npm run balance -- 400 cards   # also print the card table
+ *   STARTER=1 npm run balance      # a new game's starter deck
  *
  * Tuning knobs (env vars) scale data without editing it: DMG=0.8 (monster damage), HP=1.2 (monster
  * HP), ENC=solo_wolf,boss_trio (only these encounters). Bake the result into the data afterwards.
@@ -17,7 +18,7 @@ import { CardDeckManager } from '../src/shared/CardDeckManager';
 import { resolveCard, frontTarget } from '../src/shared/combat';
 import { EXERCISE_PROFILE, cardBudget, TARGET_LABEL } from '../src/shared/cardBalance';
 import { rollIntent, createEncounterFromTemplate } from '../src/shared/monsterMovesets';
-import { CARD_CATALOG, ENCOUNTERS, type CombatCard, type MonsterState } from '../src/types/battle';
+import { CARD_CATALOG, ENCOUNTERS, STARTER_CARD_IDS, type CombatCard, type MonsterState } from '../src/types/battle';
 import { PLAYER_MAX_HP, BLOCK_DECAY_PER_SECOND, IMPACT_DELAY_SECONDS } from '../src/shared/combatRules';
 
 const RUNS = Number(process.argv[2]) || 400;
@@ -32,6 +33,7 @@ const DMG = Number(process.env.DMG ?? 1);
 const HP = Number(process.env.HP ?? 1);
 const ENC = process.env.ENC ? process.env.ENC.split(',') : null;
 const WEAPON = process.env.WEAPON; // equipped weapon id: its spell cards join the deck (src/types/weaponSpells.ts)
+const STARTER = process.env.STARTER === '1'; // a new game's deck (STARTER_CARD_IDS) instead of the full catalog
 
 const gauss = () => {
   let u = 0;
@@ -50,7 +52,7 @@ interface Result {
 }
 
 function fight(encounterIndex: number): Result {
-  const deck = new CardDeckManager(WEAPON);
+  const deck = new CardDeckManager(WEAPON, STARTER ? STARTER_CARD_IDS : undefined);
   let hand = deck.dealInitialHand();
   let monsters: MonsterState[] = createEncounterFromTemplate(ENCOUNTERS[encounterIndex]).map((m) => ({
     ...m,

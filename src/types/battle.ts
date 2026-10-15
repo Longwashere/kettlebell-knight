@@ -273,6 +273,41 @@ export type CardTemplate = Omit<CombatCard, 'id' | 'currentReps' | 'powerSum' | 
 // exercise, reps, rarity, targeting and extras, and damage/Block/heal are derived from its budget.
 // Every exercise has at least two cards so the five-unique-exercises hand always has options.
 export const CARD_CATALOG: CardTemplate[] = [
+  // STARTER: plain steel for a knight starting out. No elements, low reps so a new player casts often.
+  // A new game's deck is only these (PlayerProfile.unlockedCards); the rest of the catalog is earned.
+  designCard({ templateId: 'starter_swing', name: 'Basic Swing', exercise: 'SWING', reps: 4, rarity: 'common', target: 'SINGLE', colorHex: '#9CA3AF', icon: '🔔' }),
+  designCard({ templateId: 'starter_sweep', name: 'Sweep', exercise: 'SWING', reps: 6, rarity: 'common', target: 'ALL', colorHex: '#A8A29E', icon: '〰️' }),
+  designCard({ templateId: 'starter_check', name: 'Shoulder Check', exercise: 'LUNGE', reps: 4, rarity: 'common', target: 'SINGLE', stagger: 0.5, colorHex: '#94A3B8', icon: '💢' }),
+  designCard({ templateId: 'starter_brace', name: 'Brace', exercise: 'SQUAT', reps: 4, rarity: 'common', target: 'SINGLE', blockShare: 1, colorHex: '#78716C', icon: '🛡️' }),
+  designCard({ templateId: 'starter_chop', name: 'Head Crack', exercise: 'OVERHEAD_PRESS', reps: 5, rarity: 'common', target: 'SINGLE', colorHex: '#D6D3D1', icon: '⏬' }),
+  designCard({ templateId: 'starter_lob', name: 'Lob', exercise: 'OVERHEAD_PRESS', reps: 5, rarity: 'common', target: 'BACK', colorHex: '#A8A29E', icon: '🪨' }),
+  designCard({ templateId: 'starter_stance', name: 'Steady Stance', exercise: 'DEADLIFT', reps: 5, rarity: 'common', target: 'SINGLE', blockShare: 0.5, healShare: 0.15, colorHex: '#A3A3A3', icon: '🦶' }),
+  designCard({ templateId: 'starter_haul', name: 'Haul', exercise: 'GORILLA_ROW', reps: 5, rarity: 'common', target: 'CHAIN', hits: 2, colorHex: '#9CA3AF', icon: '✊' }),
+  designCard({ templateId: 'starter_hippop', name: 'Hip Pop', exercise: 'CLEAN', reps: 4, rarity: 'common', target: 'SINGLE', blockShare: 0.3, colorHex: '#CBD5E1', icon: '👊' }),
+  designCard({ templateId: 'starter_wind', name: 'Second Wind', exercise: 'HALO', reps: 4, rarity: 'common', target: 'SINGLE', blockShare: 0.4, healShare: 0.3, colorHex: '#E5E7EB', icon: '💨' }),
+
+  // MONSTER ARTS: techniques learned from the bestiary (choreography in src/tv/engine/monsterArts.ts).
+  designCard({ templateId: 'art_echo_shriek', name: 'Echo Shriek', exercise: 'DEADLIFT', reps: 5, rarity: 'common', target: 'ALL', stagger: 0.5, colorHex: '#A78BFA', icon: '🦇' }),
+  designCard({ templateId: 'art_dirty_trick', name: 'Dirty Trick', exercise: 'OVERHEAD_PRESS', reps: 4, rarity: 'common', target: 'SINGLE', stagger: 1, colorHex: '#A16207', icon: '🥾' }),
+  designCard({ templateId: 'art_rattle_back', name: 'Rattle Back', exercise: 'SQUAT', reps: 4, rarity: 'common', target: 'SINGLE', blockShare: 0.75, healShare: 0.25, colorHex: '#E2E8F0', icon: '💀' }),
+  designCard({ templateId: 'art_wisp_lure', name: "Will-o'-Lure", exercise: 'HALO', reps: 4, rarity: 'common', target: 'BACK', colorHex: '#67E8F9', icon: '🏮' }),
+  designCard({ templateId: 'art_banshee_step', name: 'Banshee Step', exercise: 'WINDMILL', reps: 5, rarity: 'rare', target: 'BACK', colorHex: '#7DD3FC', icon: '👻' }),
+  designCard({ templateId: 'art_bone_volley', name: 'Bone Volley', exercise: 'OVERHEAD_PRESS', reps: 5, rarity: 'rare', target: 'CHAIN', hits: 3, colorHex: '#F1F5F9', icon: '🏹' }),
+  designCard({ templateId: 'art_carapace_roll', name: 'Carapace Roll', exercise: 'SWING', reps: 5, rarity: 'rare', target: 'PIERCE', blockShare: 0.3, colorHex: '#4D7C0F', icon: '🪲' }),
+  designCard({ templateId: 'art_undertow', name: 'Undertow', exercise: 'GORILLA_ROW', reps: 5, rarity: 'rare', target: 'PIERCE', blockShare: 0.3, colorHex: '#14B8A6', icon: '🌊' }),
+  designCard({ templateId: 'art_tombstone_heave', name: 'Tombstone Heave', exercise: 'DEADLIFT', reps: 5, rarity: 'rare', target: 'BACK', colorHex: '#78716C', icon: '🪦' }),
+  designCard({ templateId: 'art_troll_blood', name: 'Troll Blood', exercise: 'SQUAT', reps: 5, rarity: 'rare', target: 'SINGLE', healShare: 0.45, colorHex: '#65A30D', icon: '🧌' }),
+  designCard({ templateId: 'art_needle_burst', name: 'Needle Burst', exercise: 'SQUAT', reps: 5, rarity: 'rare', target: 'CHAIN', hits: 4, colorHex: '#16A34A', icon: '🌵' }),
+  designCard({ templateId: 'art_pincer_crack', name: 'Pincer Crack', exercise: 'CLEAN', reps: 5, rarity: 'rare', target: 'SINGLE', shatter: true, colorHex: '#EA580C', icon: '🦀' }),
+  designCard({ templateId: 'art_tail_sweep', name: 'Tail Sweep', exercise: 'SINGLE_LEG_RDL', reps: 5, rarity: 'rare', target: 'PIERCE', colorHex: '#059669', icon: '🦎' }),
+  designCard({ templateId: 'art_berserker_rush', name: 'Berserker Rush', exercise: 'THRUSTER', reps: 5, rarity: 'epic', target: 'CHAIN', hits: 3, colorHex: '#DC2626', icon: '🪓' }),
+  designCard({ templateId: 'art_moonlit_leap', name: 'Moonlit Leap', exercise: 'LUNGE', reps: 5, rarity: 'epic', target: 'BACK', stagger: 1, colorHex: '#C7D2FE', icon: '🦌' }),
+  designCard({ templateId: 'art_stone_skin', name: 'Stone Skin', exercise: 'CLEAN_AND_PRESS', reps: 5, rarity: 'epic', target: 'SINGLE', blockShare: 0.6, colorHex: '#A8A29E', icon: '🗿' }),
+  designCard({ templateId: 'art_black_riposte', name: 'Black Riposte', exercise: 'WINDMILL', reps: 5, rarity: 'epic', target: 'SINGLE', blockShare: 0.4, stagger: 1, colorHex: '#7C3AED', icon: '🗡️' }),
+  designCard({ templateId: 'art_life_leech', name: 'Life Leech', exercise: 'GORILLA_ROW', reps: 5, rarity: 'epic', target: 'SINGLE', healShare: 0.35, colorHex: '#BE123C', icon: '🩸' }),
+  designCard({ templateId: 'art_grizzly_maul', name: 'Grizzly Maul', exercise: 'CLEAN_AND_PRESS', reps: 6, rarity: 'epic', target: 'SINGLE', stagger: 1.5, colorHex: '#92400E', icon: '🐻' }),
+  designCard({ templateId: 'art_phantom_cavalry', name: 'Phantom Cavalry', exercise: 'SNATCH', reps: 6, rarity: 'epic', target: 'ALL', stagger: 1, colorHex: '#93C5FD', icon: '🐎' }),
+
   // SWING: fast and ballistic. Bread-and-butter single hits, a whirlwind that clears groups.
   designCard({ templateId: 'swing_cleave', name: 'Iron Cleave', exercise: 'SWING', reps: 5, rarity: 'common', target: 'SINGLE', colorHex: '#F4B41A', icon: '⚔️' }),
   designCard({ templateId: 'swing_whirlwind', name: 'Dragon Whirlwind', exercise: 'SWING', reps: 8, rarity: 'rare', target: 'ALL', colorHex: '#DC2626', icon: '🌪️' }),
@@ -328,6 +363,12 @@ export const CARD_CATALOG: CardTemplate[] = [
   designCard({ templateId: 'lunge_lancer', name: "Lancer's Lunge", exercise: 'LUNGE', reps: 4, rarity: 'common', target: 'PIERCE', colorHex: '#22D3EE', icon: '🔱' }),
   designCard({ templateId: 'lunge_vanguard', name: 'Vanguard Step', exercise: 'LUNGE', reps: 5, rarity: 'rare', target: 'SINGLE', blockShare: 0.4, stagger: 1, colorHex: '#94A3B8', icon: '🛡️' }),
 ];
+
+/** The cards a new game starts with. */
+export const STARTER_CARD_IDS: readonly string[] = CARD_CATALOG.filter((c) => c.templateId.startsWith('starter_')).map((c) => c.templateId);
+
+/** Deck of a save made before card unlocks existed: the full catalog minus the starters. */
+export const LEGACY_CARD_IDS: readonly string[] = CARD_CATALOG.filter((c) => !c.templateId.startsWith('starter_')).map((c) => c.templateId);
 
 export const MONSTER_CATALOG: Omit<MonsterState, 'currentHp' | 'block' | 'intent'>[] = [
   {
