@@ -391,8 +391,8 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   GOLEM: {
     skeleton: `${MONSTER_DIR}/golem/StoneGolem.json`,
     atlas: `${MONSTER_DIR}/golem/StoneGolem.atlas`,
-    scale: 0.215,
-    height: 60,
+    scale: 0.715,
+    height: 100,
     idle: 'idle',
     attack: 'atk',
     heavyAttack: 'atk',
@@ -739,6 +739,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
     heavyAttack: 'active_attack',
     hit: 'active_hit',
     death: 'active_end',
+    flipX: true, // authored facing left
   },
   LANTERN_WISP: {
     skeleton: `${MONSTER_DIR}/lantern-wisp/soul_spine.json`,
@@ -835,7 +836,7 @@ const rigQueues = new Map<string, Promise<void>>(); // skeleton key → tail of 
  * textures are orphaned and never freed.
  */
 function enqueueRigTask(skeleton: string, task: () => Promise<void>): Promise<void> {
-  const next = (rigQueues.get(skeleton) ?? Promise.resolve()).catch(() => {}).then(task);
+  const next = (rigQueues.get(skeleton) ?? Promise.resolve()).catch(() => { }).then(task);
   rigQueues.set(skeleton, next);
   const settle = () => {
     if (rigQueues.get(skeleton) === next) rigQueues.delete(skeleton);
@@ -869,7 +870,7 @@ function unloadSpineRig(skeleton: string, atlas: string, scale: number): Promise
     try {
       await Assets.unload([skeleton, atlas]);
       await Assets.loader.unload(pageUrls);
-    } catch (e) {}
+    } catch (e) { }
   });
 }
 
@@ -1183,7 +1184,7 @@ export class GameEngine {
       if (this.currentBgKey && this.currentBgKey !== targetKey && Assets.cache.has(this.currentBgKey)) {
         try {
           await Assets.unload(this.currentBgKey);
-        } catch (e) {}
+        } catch (e) { }
       }
       this.currentBgKey = targetKey;
 
@@ -2708,8 +2709,8 @@ export class GameEngine {
    * Plays the exercise's knight attack (knightMoveFor → knightMoves.ts, or a legacy execute* method).
    */
   public onRepCompleted(
-    power: number = 80, 
-    form: number = 1.0, 
+    power: number = 80,
+    form: number = 1.0,
     exercise: ExerciseType = 'SWING',
     skillName?: string,
     displayDamage?: number, // the real damage dealt (battle); otherwise a showcase number from power/form
@@ -2739,9 +2740,9 @@ export class GameEngine {
    * Helper: Trigger dynamic camera zoom and pan towards combat focal point
    */
   public triggerCameraZoom(
-    zoom: number = 1.25, 
-    focusX: number = 255, 
-    focusY: number = 125, 
+    zoom: number = 1.25,
+    focusX: number = 255,
+    focusY: number = 125,
     holdDurationFrames: number = 16
   ): void {
     this.targetCameraZoom = zoom;
@@ -2782,9 +2783,9 @@ export class GameEngine {
    * Helper: Spawns high-detail 90s dark fantasy speed streaks radiating from clash point
    */
   private spawnSpeedStreaks(
-    x: number, 
-    y: number, 
-    length: number, 
+    x: number,
+    y: number,
+    length: number,
     colors: number[] = [0xFFFFFF, 0xF59E0B]
   ): void {
     if (!this.effectsLayer) return;
@@ -3391,7 +3392,7 @@ export class GameEngine {
     if (this.currentPreviewAssetKey) {
       try {
         await Assets.unload(this.currentPreviewAssetKey);
-      } catch (e) {}
+      } catch (e) { }
       this.currentPreviewAssetKey = null;
     }
 
@@ -3399,12 +3400,12 @@ export class GameEngine {
     if (this.currentBgKey && Assets.cache.has(this.currentBgKey)) {
       try {
         await Assets.unload(this.currentBgKey);
-      } catch (e) {}
+      } catch (e) { }
       this.currentBgKey = null;
     } else if (Assets.cache.has(BATTLE_BG_KEY)) {
       try {
         await Assets.unload(BATTLE_BG_KEY);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // Clean up active projectiles and effects
