@@ -2,8 +2,8 @@ import type { BattleMapId, EncounterTemplate } from './battle';
 
 /**
  * 11 Full Environment Encounter Stages.
- * Each stage features a pool of 10-12 distinct monsters / thematic variants
- * providing rich variety and natural atmospheric progression.
+ * Every encounter has at least 2-3 monsters minimum.
+ * Boss encounters always have 1 boss and 2 weaker minions.
  */
 export const ENCOUNTERS: EncounterTemplate[] = [
   // =========================================================================
@@ -13,24 +13,30 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   // =========================================================================
   {
     id: 'verdant_forager',
-    name: 'Field Forager',
-    description: 'A small woodland rat rummaging through berry brambles.',
+    name: 'Field Foragers',
+    description: 'Woodland foraging rats accompanied by a watchful canopy crow.',
     map: 'VERDANT_FOREST',
-    monsterIds: [{ id: 'plague_rat', name: 'FIELD FORAGER', title: 'WOODLAND PEST', tint: 0x8D6E63, scaleMultiplier: 0.85 }],
+    monsterIds: [
+      { id: 'plague_rat', name: 'FIELD FORAGER', title: 'WOODLAND PEST', tint: 0x8D6E63, scaleMultiplier: 0.85 },
+      'storm_crow',
+    ],
   },
   {
     id: 'verdant_boar',
-    name: 'Razorback Charger',
-    description: 'A wild boar scraping its razor tusks against mossy oaks.',
+    name: 'Razorback & Forager',
+    description: 'A wild boar scraping razor tusks beside a woodland forager.',
     map: 'VERDANT_FOREST',
-    monsterIds: ['boar'],
+    monsterIds: [
+      'boar',
+      { id: 'plague_rat', name: 'FIELD FORAGER', title: 'WOODLAND PEST', tint: 0x8D6E63, scaleMultiplier: 0.85 },
+    ],
   },
   {
     id: 'verdant_goblin',
-    name: 'Goblin Scout',
-    description: 'A stealthy goblin scout waving a jagged flint blade.',
+    name: 'Goblin Scouts',
+    description: 'Two stealthy goblin scouts waving jagged flint blades.',
     map: 'VERDANT_FOREST',
-    monsterIds: ['goblin'],
+    monsterIds: ['goblin', 'goblin'],
   },
   {
     id: 'verdant_timber_pack',
@@ -58,10 +64,10 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'verdant_grove_apex',
-    name: 'Grove Apex',
-    description: 'A massive brown bear asserting dominion over the glade.',
+    name: 'Grove Apex & Lookout',
+    description: 'A massive brown bear asserting dominion, guided by a canopy crow.',
     map: 'VERDANT_FOREST',
-    monsterIds: ['forest_bear'],
+    monsterIds: ['forest_bear', 'storm_crow'],
   },
   {
     id: 'verdant_sylvan_sentinels',
@@ -80,7 +86,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   {
     id: 'verdant_troll_warlord',
     name: 'Troll Warlord',
-    description: 'A towering moss troll brandishing an uprooted pine trunk.',
+    description: 'A towering moss troll brandishing an uprooted pine trunk, flanked by goblin lackeys.',
     map: 'VERDANT_FOREST',
     monsterIds: ['troll', 'goblin', 'goblin'],
   },
@@ -92,24 +98,27 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   // =========================================================================
   {
     id: 'dark_brood_weaver',
-    name: 'Brood Weaver',
-    description: 'A giant black spider descending from corrupted webs.',
+    name: 'Brood Weaver & Flier',
+    description: 'A giant black spider descending from corrupted webs beside a screeching cave bat.',
     map: 'DARK_FOREST',
-    monsterIds: ['giant_spider'],
+    monsterIds: ['giant_spider', 'bat'],
   },
   {
     id: 'dark_thorn_stalker',
-    name: 'Verdant Ambusher',
-    description: 'A predatory bramble creature camouflaged in black thorns.',
+    name: 'Briar Ambush',
+    description: 'A predatory bramble creature camouflaged in black thorns beside a toxic spore mushroom.',
     map: 'DARK_FOREST',
-    monsterIds: ['thorn_stalker'],
+    monsterIds: ['thorn_stalker', 'mushroom'],
   },
   {
     id: 'dark_rot_boar',
-    name: 'Blighted Tusker',
-    description: 'A diseased boar seeping caustic green blight fluids.',
+    name: 'Blighted Tusker & Flier',
+    description: 'A diseased boar seeping caustic green blight fluids, accompanied by a cave bat.',
     map: 'DARK_FOREST',
-    monsterIds: [{ id: 'boar', name: 'BLIGHTED TUSKER', title: 'ROT BOAR', affix: 'TOXIC' }],
+    monsterIds: [
+      { id: 'boar', name: 'BLIGHTED TUSKER', title: 'ROT BOAR', affix: 'TOXIC' },
+      'bat',
+    ],
   },
   {
     id: 'dark_night_flier',
@@ -138,7 +147,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   {
     id: 'dark_briar_cabal',
     name: 'Briar Cultist',
-    description: 'A hooded cultist sacrificing essence to ancient tree roots.',
+    description: 'A hooded cultist sacrificing essence to ancient tree roots alongside a weeping ghost.',
     map: 'DARK_FOREST',
     monsterIds: [
       { id: 'cultist_acolyte', name: 'BRIAR CULTIST', title: 'BLOODWOOD ZEALOT', skin: 'cooltist2', affix: 'VOID' },
@@ -147,15 +156,15 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'dark_nightmare_stag',
-    name: 'Nightmare Stag',
-    description: 'An ethereal horned phantom galloping across the misty bog.',
+    name: 'Nightmare Stag & Specter',
+    description: 'An ethereal horned phantom galloping across the misty bog with a forest ghost.',
     map: 'DARK_FOREST',
-    monsterIds: ['nightmare_stag'],
+    monsterIds: ['nightmare_stag', 'ghost'],
   },
   {
     id: 'dark_dire_bear',
     name: 'Rabid Dire Bear',
-    description: 'A mutated dark bear infused with unholy shadow vitality.',
+    description: 'A mutated dark bear infused with unholy shadow vitality, shadowed by a cave bat.',
     map: 'DARK_FOREST',
     monsterIds: [
       { id: 'forest_bear', name: 'DIRE BEAR', title: 'RABID APEX', affix: 'SHADOW' },
@@ -177,31 +186,31 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   // =========================================================================
   {
     id: 'crypt_cave_bat',
-    name: 'Cave Stalker',
-    description: 'A leathery bat dropping silently from the arched crypt ceiling.',
+    name: 'Cave Stalkers',
+    description: 'Two leathery bats dropping silently from the arched crypt ceiling.',
     map: 'CATHEDRAL_CRYPT',
-    monsterIds: ['bat'],
+    monsterIds: ['bat', 'bat'],
   },
   {
     id: 'crypt_filth_rat',
-    name: 'Filth Carrier',
-    description: 'A diseased rodent scuttling among ancient bones.',
+    name: 'Filth Swarm',
+    description: 'Two diseased rodents scuttling among ancient sarcophagus bones.',
     map: 'CATHEDRAL_CRYPT',
-    monsterIds: ['plague_rat'],
+    monsterIds: ['plague_rat', 'plague_rat'],
   },
   {
     id: 'crypt_scuttler',
-    name: 'Burrowing Scuttler',
-    description: 'A multi-legged armored insect erupting from cracked stone floor.',
+    name: 'Burrowing Scuttlers',
+    description: 'Two multi-legged armored insects erupting from cracked stone floor.',
     map: 'CATHEDRAL_CRYPT',
-    monsterIds: ['crypt_crawler'],
+    monsterIds: ['crypt_crawler', 'crypt_crawler'],
   },
   {
     id: 'crypt_undying_sentry',
-    name: 'Undying Sentry',
-    description: 'A reanimated skeleton guard clad in rusted mail.',
+    name: 'Undying Patrol',
+    description: 'A reanimated skeleton guard clad in rusted mail supported by a bone marksman.',
     map: 'CATHEDRAL_CRYPT',
-    monsterIds: ['skeleton_warrior'],
+    monsterIds: ['skeleton_warrior', 'skeleton_archer'],
   },
   {
     id: 'crypt_grave_marksmen',
@@ -212,8 +221,8 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'crypt_tomb_weaver',
-    name: 'Tomb Weaver',
-    description: 'A dusty pale spider spinning webs across an open sarcophagus.',
+    name: 'Tomb Weaver & Scuttler',
+    description: 'A dusty pale spider spinning webs across a sarcophagus beside a crypt crawler.',
     map: 'CATHEDRAL_CRYPT',
     monsterIds: [
       { id: 'giant_spider', name: 'TOMB WEAVER', title: 'COFFIN BROOD', tint: 0xB0BEC5, outlineColor: 0x78909C },
@@ -222,8 +231,8 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'crypt_corpse_ooze',
-    name: 'Corpse Ooze',
-    description: 'A putrid green sludge pool digesting decomposing remains.',
+    name: 'Corpse Ooze & Scavenger',
+    description: 'A putrid green sludge pool digesting remains alongside a carrion rat.',
     map: 'CATHEDRAL_CRYPT',
     monsterIds: [
       { id: 'green_slime', name: 'CORPSE OOZE', title: 'NECROTIC BILE', affix: 'TOXIC' },
@@ -239,22 +248,22 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'crypt_dread_cavalier',
-    name: 'Dread Cavalier',
-    description: 'An elite armored skeleton knight clutching an executioner blade.',
+    name: 'Dread Cavalier & Marksman',
+    description: 'An elite armored skeleton knight clutching an executioner blade, backed by an archer.',
     map: 'CATHEDRAL_CRYPT',
-    monsterIds: ['skeleton_knight'],
+    monsterIds: ['skeleton_knight', 'skeleton_archer'],
   },
   {
     id: 'crypt_bone_monstrosity',
     name: 'Bone Monstrosity',
-    description: 'A horrifying construct formed from dozens of fused skeletons.',
+    description: 'A horrifying construct formed from fused skeletons supported by a skeleton footman.',
     map: 'CATHEDRAL_CRYPT',
     monsterIds: ['bone_golem', 'skeleton_warrior'],
   },
   {
     id: 'crypt_lich_archmage',
     name: 'Crypt Lich',
-    description: 'The undying archmage weaving frost and necrotic decay.',
+    description: 'The undying archmage weaving frost and decay, flanked by skeletal guardians.',
     map: 'CATHEDRAL_CRYPT',
     monsterIds: ['crypt_lord', 'skeleton_archer', 'skeleton_warrior'],
   },
@@ -266,24 +275,27 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   // =========================================================================
   {
     id: 'cemetery_lone_predator',
-    name: 'Grave Stalker',
-    description: 'A shadow wolf lurking near newly dug burial mounds.',
+    name: 'Grave Stalkers',
+    description: 'A pair of shadow wolves lurking near newly dug burial mounds.',
     map: 'BLOOD_CEMETERY',
-    monsterIds: ['wolf'],
+    monsterIds: ['wolf', 'wolf'],
   },
   {
     id: 'cemetery_spectral_flame',
-    name: 'Spectral Flame',
-    description: 'A floating soul lantern drifting past weathered headstones.',
+    name: 'Spectral Flame & Ghost',
+    description: 'A floating soul lantern drifting past weathered headstones beside a wailing ghost.',
     map: 'BLOOD_CEMETERY',
-    monsterIds: ['lantern_wisp'],
+    monsterIds: ['lantern_wisp', 'ghost'],
   },
   {
     id: 'cemetery_blood_bat',
-    name: 'Vampiric Blood Bat',
-    description: 'A crimson bat gorged on the blood of the unburied.',
+    name: 'Vampiric Blood Bat & Wisp',
+    description: 'A crimson bat gorged on blood accompanied by a ghostly spirit lantern.',
     map: 'BLOOD_CEMETERY',
-    monsterIds: [{ id: 'bat', name: 'VAMPIRIC BLOOD BAT', title: 'CRIMSON WING', tint: 0xEF5350, outlineColor: 0xB71C1C }],
+    monsterIds: [
+      { id: 'bat', name: 'VAMPIRIC BLOOD BAT', title: 'CRIMSON WING', tint: 0xEF5350, outlineColor: 0xB71C1C },
+      'lantern_wisp',
+    ],
   },
   {
     id: 'cemetery_carrion_pack',
@@ -298,7 +310,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   {
     id: 'cemetery_haunting_specter',
     name: 'Haunting Specter',
-    description: 'A wailing ghost accompanied by an guiding spirit lantern.',
+    description: 'A wailing ghost accompanied by a guiding spirit lantern.',
     map: 'BLOOD_CEMETERY',
     monsterIds: ['ghost', 'lantern_wisp'],
   },
@@ -312,7 +324,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   {
     id: 'cemetery_grave_necromancer',
     name: 'Grave Necromancer',
-    description: 'A dark wizard performing reanimation rituals in the fog.',
+    description: 'A dark wizard performing reanimation rituals beside a raised skeleton.',
     map: 'BLOOD_CEMETERY',
     monsterIds: [
       { id: 'dark_mage', name: 'GRAVE NECROMANCER', title: 'BONE CHANGER', affix: 'VOID' },
@@ -322,21 +334,21 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   {
     id: 'cemetery_chilling_phantasm',
     name: 'Chilling Phantasm',
-    description: 'A freezing wraith chilling the graveyard fog to sub-zero.',
+    description: 'A freezing wraith chilling graveyard fog to sub-zero alongside a ghost.',
     map: 'BLOOD_CEMETERY',
     monsterIds: ['wraith', 'ghost'],
   },
   {
     id: 'cemetery_black_cavalier',
     name: 'Black Cavalier',
-    description: 'A noble skeleton knight guarding the ancestral mausoleum.',
+    description: 'A noble skeleton knight guarding the ancestral mausoleum beside a lantern wisp.',
     map: 'BLOOD_CEMETERY',
     monsterIds: ['skeleton_knight', 'lantern_wisp'],
   },
   {
     id: 'cemetery_grave_colossus',
     name: 'Grave Colossus',
-    description: 'A titanic amalgamation of graveyard dirt, stone, and bone.',
+    description: 'A titanic amalgamation of graveyard dirt, stone, and bone, escorted by bone archers.',
     map: 'BLOOD_CEMETERY',
     monsterIds: ['grave_colossus', 'skeleton_archer', 'skeleton_archer'],
   },
@@ -348,29 +360,29 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   // =========================================================================
   {
     id: 'cistern_ooze',
-    name: 'Dungeon Ooze',
-    description: 'A corrosive green slime swimming in stagnant cistern water.',
+    name: 'Dungeon Oozes',
+    description: 'Two corrosive green slimes swimming in stagnant cistern water.',
     map: 'SUNKEN_CISTERN',
-    monsterIds: ['green_slime'],
+    monsterIds: ['green_slime', 'green_slime'],
   },
   {
     id: 'cistern_sewer_rat',
-    name: 'Sewer Rat',
-    description: 'A wet, dripping rodent gnawing on rotten timber pipes.',
+    name: 'Sewer Rat & Ooze',
+    description: 'A wet, dripping rodent gnawing rotten timber pipes beside a pool of green slime.',
     map: 'SUNKEN_CISTERN',
-    monsterIds: ['plague_rat'],
+    monsterIds: ['plague_rat', 'green_slime'],
   },
   {
     id: 'cistern_tidal_crab',
-    name: 'Tidal Pinch',
-    description: 'A heavy armored crab brandishing bone-crushing claws.',
+    name: 'Tidal Pinch & Ooze',
+    description: 'A heavy armored crab with bone-crushing claws, supported by caustic slime.',
     map: 'SUNKEN_CISTERN',
-    monsterIds: ['giant_crab'],
+    monsterIds: ['giant_crab', 'green_slime'],
   },
   {
     id: 'cistern_mire_scuttler',
     name: 'Mire Scuttler',
-    description: 'An aquatic insect chittering through dark flooded gutters.',
+    description: 'An aquatic insect chittering through dark flooded gutters beside green slime.',
     map: 'SUNKEN_CISTERN',
     monsterIds: [
       { id: 'crypt_crawler', name: 'MIRE SCUTTLER', title: 'AQUATIC CHITIN', tint: 0x00838F, outlineColor: 0x006064 },
@@ -379,10 +391,10 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'cistern_lizard_skirmisher',
-    name: 'Swamp Skirmisher',
-    description: 'A swift lizardman tracker stalking submerged walkways.',
+    name: 'Swamp Skirmishers',
+    description: 'A swift lizardman tracker stalking submerged walkways alongside an armored crab.',
     map: 'SUNKEN_CISTERN',
-    monsterIds: ['lizardman'],
+    monsterIds: ['lizardman', 'giant_crab'],
   },
   {
     id: 'cistern_dredge_beetle',
@@ -396,15 +408,15 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'cistern_water_elemental',
-    name: 'Tidal Surge',
-    description: 'A roaring elemental formed from swirling cistern torrents.',
+    name: 'Tidal Surge & Slime',
+    description: 'A roaring elemental formed from swirling cistern torrents beside green ooze.',
     map: 'SUNKEN_CISTERN',
-    monsterIds: ['water_elemental'],
+    monsterIds: ['water_elemental', 'green_slime'],
   },
   {
     id: 'cistern_mud_troll',
     name: 'Mud Troll',
-    description: 'A slimy swamp troll wielding an anchor-encrusted club.',
+    description: 'A slimy swamp troll wielding an anchor-encrusted club beside green slime.',
     map: 'SUNKEN_CISTERN',
     monsterIds: [
       { id: 'troll', name: 'MUD TROLL', title: 'SWAMP BRUTE', tint: 0x558B2F, outlineColor: 0x33691E },
@@ -414,7 +426,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   {
     id: 'cistern_deep_cultist',
     name: 'Deep Cultist',
-    description: 'An aquatic acolyte praying to the leviathan of the depths.',
+    description: 'An aquatic acolyte praying to the leviathan beside an abyssal sewer lurker.',
     map: 'SUNKEN_CISTERN',
     monsterIds: [
       { id: 'cultist_acolyte', name: 'DEEP CULTIST', title: 'LEVIATHAN PRIEST', skin: 'cooltist1', affix: 'VOID' },
@@ -423,15 +435,15 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'cistern_abyssal_deepjaw',
-    name: 'Abyssal Deep-Jaw',
-    description: 'A bioluminescent angler monstrosity rising from the deep.',
+    name: 'Abyssal Deep-Jaw & Ooze',
+    description: 'A bioluminescent angler monstrosity rising from the deep beside green slime.',
     map: 'SUNKEN_CISTERN',
-    monsterIds: ['sewer_lurker'],
+    monsterIds: ['sewer_lurker', 'green_slime'],
   },
   {
     id: 'cistern_kraken_terror',
     name: 'Abyssal Terror',
-    description: 'The ancient kraken commanding waves and armored crustaceans.',
+    description: 'The ancient kraken commanding waves, escorted by an elemental and an armored crab.',
     map: 'SUNKEN_CISTERN',
     monsterIds: ['kraken', 'water_elemental', 'giant_crab'],
   },
@@ -443,17 +455,20 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   // =========================================================================
   {
     id: 'forge_cinder_imp',
-    name: 'Hellfire Pyromancer',
-    description: 'A winged demon flinging burning embers and fiery sparks.',
+    name: 'Hellfire Pyromancers',
+    description: 'Two winged demons flinging burning embers and fiery sparks.',
     map: 'VOLCANIC_FORGE',
-    monsterIds: ['cinder_imp'],
+    monsterIds: ['cinder_imp', 'cinder_imp'],
   },
   {
     id: 'forge_cinder_bat',
-    name: 'Cinder Bat',
-    description: 'A fire-imbued bat leaving smoke trails through the cavern.',
+    name: 'Cinder Bat & Imp',
+    description: 'A fire-imbued bat and cinder imp leaving smoke trails through the cavern.',
     map: 'VOLCANIC_FORGE',
-    monsterIds: [{ id: 'bat', name: 'CINDER BAT', title: 'BLAZING FLIER', affix: 'FIRE' }],
+    monsterIds: [
+      { id: 'bat', name: 'CINDER BAT', title: 'BLAZING FLIER', affix: 'FIRE' },
+      'cinder_imp',
+    ],
   },
   {
     id: 'forge_magma_sludge',
@@ -467,36 +482,42 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'forge_ember_serpent',
-    name: 'Pyroclastic Coil',
-    description: 'A serpentine dragon woven from liquid magma and pumice.',
+    name: 'Pyroclastic Coil & Imp',
+    description: 'A serpentine dragon woven from liquid magma escorted by a cinder imp.',
     map: 'VOLCANIC_FORGE',
-    monsterIds: ['ember_serpent'],
+    monsterIds: ['ember_serpent', 'cinder_imp'],
   },
   {
     id: 'forge_scoria_beetle',
-    name: 'Scoria Beetle',
-    description: 'A basalt-armored beetle grazing on searing thermal vents.',
+    name: 'Scoria Beetle & Imp',
+    description: 'A basalt-armored beetle grazing on thermal vents beside a fire imp.',
     map: 'VOLCANIC_FORGE',
-    monsterIds: [{ id: 'giant_beetle', name: 'SCORIA BEETLE', title: 'HEATPROOF CARAPACE', tint: 0xFF5722, outlineColor: 0xBF360C }],
+    monsterIds: [
+      { id: 'giant_beetle', name: 'SCORIA BEETLE', title: 'HEATPROOF CARAPACE', tint: 0xFF5722, outlineColor: 0xBF360C },
+      'cinder_imp',
+    ],
   },
   {
     id: 'forge_brimstone_boar',
-    name: 'Brimstone Boar',
-    description: 'A furious wild boar with glowing red tusks and scorched hide.',
+    name: 'Brimstone Boar & Imp',
+    description: 'A furious wild boar with glowing red tusks, accompanied by a fire imp.',
     map: 'VOLCANIC_FORGE',
-    monsterIds: [{ id: 'boar', name: 'BRIMSTONE BOAR', title: 'MOLTEN TUSK', affix: 'FIRE' }],
+    monsterIds: [
+      { id: 'boar', name: 'BRIMSTONE BOAR', title: 'MOLTEN TUSK', affix: 'FIRE' },
+      'cinder_imp',
+    ],
   },
   {
     id: 'forge_hellhound',
-    name: 'Twin-Headed Beast',
-    description: 'A terrifying two-headed hound breathing sulfurous hellfire.',
+    name: 'Twin-Headed Beast & Imp',
+    description: 'A terrifying two-headed hound breathing sulfurous hellfire beside an imp.',
     map: 'VOLCANIC_FORGE',
-    monsterIds: ['hellhound'],
+    monsterIds: ['hellhound', 'cinder_imp'],
   },
   {
     id: 'forge_ash_inquisitor',
     name: 'Ash Inquisitor',
-    description: 'A demonic monk invoking columns of volcanic hellfire.',
+    description: 'A demonic monk invoking columns of volcanic hellfire beside a cinder imp.',
     map: 'VOLCANIC_FORGE',
     monsterIds: [
       { id: 'demon_monk', name: 'ASH INQUISITOR', title: 'PYRO MONK', affix: 'FIRE' },
@@ -506,7 +527,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   {
     id: 'forge_magma_golem',
     name: 'Magma Golem',
-    description: 'A towering stone golem burning with internal molten heat.',
+    description: 'A towering stone golem burning with internal molten heat, flanked by an ember serpent.',
     map: 'VOLCANIC_FORGE',
     monsterIds: [
       { id: 'golem', name: 'MAGMA GOLEM', title: 'OBSIDIAN CORE', affix: 'FIRE' },
@@ -516,16 +537,16 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   {
     id: 'forge_inferno_titan',
     name: 'Colossus of Flame',
-    description: 'An ancient fire titan flanked by a ravenous hellhound.',
+    description: 'An ancient fire titan flanked by a ravenous hellhound and cinder imp.',
     map: 'VOLCANIC_FORGE',
-    monsterIds: ['inferno_titan', 'hellhound'],
+    monsterIds: ['inferno_titan', 'hellhound', 'cinder_imp'],
   },
   {
     id: 'forge_magma_dragon',
-    name: 'Scorched Wyrm',
-    description: 'The ancient magma dragon slumbering in the deepest caldera.',
+    name: 'Scorched Wyrm & Imps',
+    description: 'The ancient magma dragon slumbering in the deepest caldera, attended by cinder imps.',
     map: 'VOLCANIC_FORGE',
-    monsterIds: ['magma_dragon'],
+    monsterIds: ['magma_dragon', 'cinder_imp', 'cinder_imp'],
   },
 
   // =========================================================================
@@ -535,17 +556,17 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   // =========================================================================
   {
     id: 'belfry_flier',
-    name: 'Belfry Flier',
-    description: 'A cave bat swooping from beneath the bronze cathedral bells.',
+    name: 'Belfry Flier & Crow',
+    description: 'A cave bat and rampart crow swooping in tandem from beneath bronze cathedral bells.',
     map: 'BELFRY_RAMPARTS',
-    monsterIds: ['bat'],
+    monsterIds: ['bat', 'storm_crow'],
   },
   {
     id: 'belfry_harbinger',
-    name: 'Rampart Harbinger',
-    description: 'A black crow cawing omens from the highest parapet stone.',
+    name: 'Rampart Harbingers',
+    description: 'Two black crows cawing omens from the highest parapet stone.',
     map: 'BELFRY_RAMPARTS',
-    monsterIds: ['storm_crow'],
+    monsterIds: ['storm_crow', 'storm_crow'],
   },
   {
     id: 'belfry_wall_patrol',
@@ -556,17 +577,17 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'belfry_stone_gargoyle',
-    name: 'Stone Gargoyle',
-    description: 'A living stone gargoyle peeling itself off the gothic tower.',
+    name: 'Stone Gargoyle & Crow',
+    description: 'A living stone gargoyle peeling itself off the gothic tower beside a watcher crow.',
     map: 'BELFRY_RAMPARTS',
-    monsterIds: ['gargoyle'],
+    monsterIds: ['gargoyle', 'storm_crow'],
   },
   {
     id: 'belfry_cliff_harpy',
-    name: 'Cliff Harpy',
-    description: 'A vicious winged harpy diving with razor-sharp talons.',
+    name: 'Cliff Harpy & Bat',
+    description: 'A vicious winged harpy diving with razor-sharp talons beside a swooping bat.',
     map: 'BELFRY_RAMPARTS',
-    monsterIds: ['harpy'],
+    monsterIds: ['harpy', 'bat'],
   },
   {
     id: 'belfry_war_hound',
@@ -587,10 +608,13 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'belfry_duelist',
-    name: 'Rampart Duelist',
-    description: 'A rogue fencing master balancing on the stone crenellations.',
+    name: 'Rampart Duelist & Crow',
+    description: 'A rogue fencing master balancing on crenellations beside a trained crow.',
     map: 'BELFRY_RAMPARTS',
-    monsterIds: [{ id: 'bard', name: 'RAMPART DUELIST', title: 'FENCING ROGUE', skin: 'Color1_Normal' }],
+    monsterIds: [
+      { id: 'bard', name: 'RAMPART DUELIST', title: 'FENCING ROGUE', skin: 'Color1_Normal' },
+      'storm_crow',
+    ],
   },
   {
     id: 'belfry_tempest_screecher',
@@ -604,15 +628,15 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'belfry_fallen_champion',
-    name: 'Fallen Champion',
-    description: 'A disgraced dark knight holding the gatehouse against all foes.',
+    name: 'Fallen Champion & Archer',
+    description: 'A disgraced dark knight holding the gatehouse supported by a skeleton archer.',
     map: 'BELFRY_RAMPARTS',
-    monsterIds: ['dark_knight'],
+    monsterIds: ['dark_knight', 'skeleton_archer'],
   },
   {
     id: 'belfry_storm_vanguard',
     name: 'Storm Vanguard',
-    description: 'An electrified dark knight leading an aerial strike squadron.',
+    description: 'An electrified dark knight leading an aerial strike squadron of harpy and gargoyle.',
     map: 'BELFRY_RAMPARTS',
     monsterIds: [
       { id: 'dark_knight', name: 'STORM VANGUARD', title: 'THUNDER CHAMPION', affix: 'STORM' },
@@ -628,15 +652,15 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   // =========================================================================
   {
     id: 'vault_sentry_hound',
-    name: 'Ironfang Sentry',
-    description: 'An armored guard dog barking echoes through the gold vaults.',
+    name: 'Ironfang Sentries',
+    description: 'Two armored guard dogs barking echoes through the gold vaults.',
     map: 'CATHEDRAL_VAULT',
-    monsterIds: ['vault_hound'],
+    monsterIds: ['vault_hound', 'vault_hound'],
   },
   {
     id: 'vault_weaver',
     name: 'Vault Weaver',
-    description: 'A pale web spinner nesting above golden reliquary chests.',
+    description: 'A pale web spinner nesting above golden reliquary chests beside an iron hound.',
     map: 'CATHEDRAL_VAULT',
     monsterIds: [
       { id: 'giant_spider', name: 'VAULT WEAVER', title: 'RAFTER STALKER', tint: 0xCFD8DC, outlineColor: 0x90A4AE },
@@ -645,38 +669,41 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'vault_gilded_cavalier',
-    name: 'Gilded Cavalier',
-    description: 'An undying knight sworn to protect the sacred relics.',
+    name: 'Gilded Cavalier & Hound',
+    description: 'An undying knight sworn to protect relics, flanked by an iron hound.',
     map: 'CATHEDRAL_VAULT',
-    monsterIds: ['skeleton_knight'],
+    monsterIds: ['skeleton_knight', 'vault_hound'],
   },
   {
     id: 'vault_stone_colossus',
-    name: 'Stone Colossus',
-    description: 'An ancient earthen sentinel grinding to life to defend the gate.',
+    name: 'Stone Colossus & Hound',
+    description: 'An ancient earthen sentinel grinding to life beside an armored hound.',
     map: 'CATHEDRAL_VAULT',
-    monsterIds: ['golem'],
+    monsterIds: ['golem', 'vault_hound'],
   },
   {
     id: 'vault_gargoyle_watch',
     name: 'Vault Gargoyle',
-    description: 'A stone gargoyle perched atop a high gold vault pillar.',
+    description: 'A stone gargoyle perched atop a high gold vault pillar beside a skeleton knight.',
     map: 'CATHEDRAL_VAULT',
     monsterIds: ['gargoyle', 'skeleton_knight'],
   },
   {
     id: 'vault_automaton',
-    name: 'Armored Automaton',
-    description: 'A clockwork guardian forged by ancient royal smiths.',
+    name: 'Armored Automaton & Hound',
+    description: 'A clockwork guardian forged by royal smiths escorted by an iron hound.',
     map: 'CATHEDRAL_VAULT',
-    monsterIds: ['vault_guardian'],
+    monsterIds: ['vault_guardian', 'vault_hound'],
   },
   {
     id: 'vault_runic_golem',
-    name: 'Runic Golem',
-    description: 'An enchanted golem inscribed with glowing arcane protection runes.',
+    name: 'Runic Golem & Gargoyle',
+    description: 'An enchanted golem inscribed with glowing runes beside an observant gargoyle.',
     map: 'CATHEDRAL_VAULT',
-    monsterIds: [{ id: 'golem', name: 'RUNIC GOLEM', title: 'ENCHANTED SENTINEL', skin: 'ii', tint: 0x80D8FF, outlineColor: 0x0091EA }],
+    monsterIds: [
+      { id: 'golem', name: 'RUNIC GOLEM', title: 'ENCHANTED SENTINEL', skin: 'ii', tint: 0x80D8FF, outlineColor: 0x0091EA },
+      'gargoyle',
+    ],
   },
   {
     id: 'vault_templar_patrol',
@@ -688,7 +715,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   {
     id: 'vault_arcane_warden',
     name: 'Arcane Warden',
-    description: 'A powerful sorcerer maintaining the vault magic wards.',
+    description: 'A powerful sorcerer maintaining the vault magic wards beside a vault automaton.',
     map: 'CATHEDRAL_VAULT',
     monsterIds: [
       { id: 'dark_mage', name: 'ARCANE WARDEN', title: 'TREASURY ARCHMAGE', affix: 'VOID' },
@@ -697,15 +724,15 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'vault_horned_crusher',
-    name: 'Labyrinth Minotaur',
-    description: 'A furious horned beast guarding the winding vault corridors.',
+    name: 'Labyrinth Minotaur & Hound',
+    description: 'A furious horned beast guarding the winding corridors beside an iron hound.',
     map: 'CATHEDRAL_VAULT',
-    monsterIds: ['minotaur'],
+    monsterIds: ['minotaur', 'vault_hound'],
   },
   {
     id: 'vault_sovereign_trio',
     name: 'Sovereign of Ruin',
-    description: 'The dark emperor surveying his treasures alongside elite automata.',
+    description: 'The dark emperor surveying his treasures alongside elite automata and an iron hound.',
     map: 'CATHEDRAL_VAULT',
     monsterIds: ['dark_emperor', 'vault_guardian', 'vault_hound'],
   },
@@ -717,17 +744,17 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   // =========================================================================
   {
     id: 'altar_devotee',
-    name: 'Forbidden Devotee',
-    description: 'A hooded zealot chanting beside glowing purple runes.',
+    name: 'Forbidden Devotees',
+    description: 'Two hooded zealots chanting beside glowing purple runes.',
     map: 'ELDRITCH_ALTAR',
-    monsterIds: ['cultist_acolyte'],
+    monsterIds: ['cultist_acolyte', 'cultist_acolyte'],
   },
   {
     id: 'altar_corrupted_priest',
-    name: 'Corrupted Priest',
-    description: 'A demonic monk channeling abyssal edicts through the floor.',
+    name: 'Corrupted Priest & Initiate',
+    description: 'A demonic monk channeling abyssal edicts alongside a devoted acolyte.',
     map: 'ELDRITCH_ALTAR',
-    monsterIds: ['demon_monk'],
+    monsterIds: ['demon_monk', 'cultist_acolyte'],
   },
   {
     id: 'altar_tormented_souls',
@@ -738,22 +765,22 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'altar_shadow_caster',
-    name: 'Corrupted Mage',
-    description: 'A dark wizard weaving shadow projectiles through the rift.',
+    name: 'Corrupted Mage & Acolyte',
+    description: 'A dark wizard weaving shadow projectiles beside a void acolyte.',
     map: 'ELDRITCH_ALTAR',
-    monsterIds: ['dark_mage'],
+    monsterIds: ['dark_mage', 'cultist_acolyte'],
   },
   {
     id: 'altar_void_phantom',
-    name: 'Void Phantom',
-    description: 'A chilling wraith manifested from beyond the event horizon.',
+    name: 'Void Phantom & Acolyte',
+    description: 'A chilling wraith manifested from beyond the event horizon beside an acolyte.',
     map: 'ELDRITCH_ALTAR',
     monsterIds: ['wraith', 'cultist_acolyte'],
   },
   {
     id: 'altar_abyssal_fanatic',
-    name: 'Abyssal Fanatic',
-    description: 'An elite ritualist draped in ceremonially stained void silks.',
+    name: 'Abyssal Fanatic & Mage',
+    description: 'An elite ritualist draped in ceremonially stained void silks beside a shadow sorcerer.',
     map: 'ELDRITCH_ALTAR',
     monsterIds: [
       { id: 'cultist_acolyte', name: 'ABYSSAL FANATIC', title: 'RITUAL INITIATE', skin: 'cooltist2', affix: 'VOID' },
@@ -762,15 +789,15 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'altar_astral_stag',
-    name: 'Astral Stag',
-    description: 'A cosmic stag whose antlers trace constellations in the void.',
+    name: 'Astral Stag & Specter',
+    description: 'A cosmic stag whose antlers trace constellations, accompanied by a void ghost.',
     map: 'ELDRITCH_ALTAR',
-    monsterIds: ['nightmare_stag'],
+    monsterIds: ['nightmare_stag', 'ghost'],
   },
   {
     id: 'altar_void_bone_amalgam',
     name: 'Void Bone Construct',
-    description: 'A massive bone golem animated by purple cosmic energy.',
+    description: 'A massive bone golem animated by purple cosmic energy beside a chilling wraith.',
     map: 'ELDRITCH_ALTAR',
     monsterIds: [
       { id: 'bone_golem', name: 'ELDRITCH BONE AMALGAM', title: 'VILE CONSTRUCT', affix: 'VOID' },
@@ -780,7 +807,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   {
     id: 'altar_arch_prophet',
     name: 'Arch-Prophet of Void',
-    description: 'The high herald chanting forbidden eldritch prophesies.',
+    description: 'The high herald chanting forbidden eldritch prophesies beside a demon monk.',
     map: 'ELDRITCH_ALTAR',
     monsterIds: [
       { id: 'void_prophet', name: 'ARCH-PROPHET', title: 'VOICE OF THE DEEP', skin: 'elite', affix: 'VOID' },
@@ -790,16 +817,16 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   {
     id: 'altar_archbishop_ash',
     name: 'Archbishop of Ash',
-    description: 'The high inquisitor sacrificing reality on the stone altar.',
+    description: 'The high inquisitor sacrificing reality on the stone altar beside an acolyte.',
     map: 'ELDRITCH_ALTAR',
-    monsterIds: ['demon_archbishop', 'demon_monk'],
+    monsterIds: ['demon_archbishop', 'cultist_acolyte'],
   },
   {
     id: 'altar_cthulhu_incarnate',
-    name: 'Cthulhu Incarnate',
-    description: 'The dread elder god breaking through the fragile dimensional veil.',
+    name: 'Cthulhu Incarnate & Cultists',
+    description: 'The dread elder god breaking through the veil, flanked by fanatical cultist acolytes.',
     map: 'ELDRITCH_ALTAR',
-    monsterIds: ['eldritch_horror'],
+    monsterIds: ['eldritch_horror', 'cultist_acolyte', 'cultist_acolyte'],
   },
 
   // =========================================================================
@@ -809,15 +836,18 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   // =========================================================================
   {
     id: 'throne_imperial_hound',
-    name: 'Emperor Hound',
-    description: 'A ferocious war hound with blackened iron armor.',
+    name: 'Emperor Hounds',
+    description: 'Two ferocious war hounds clad in blackened iron armor.',
     map: 'OBSIDIAN_THRONE',
-    monsterIds: [{ id: 'vault_hound', name: 'EMPEROR HOUND', title: 'ROYAL WAR BEAST', tint: 0x424242, outlineColor: 0xC62828 }],
+    monsterIds: [
+      { id: 'vault_hound', name: 'EMPEROR HOUND', title: 'ROYAL WAR BEAST', tint: 0x424242, outlineColor: 0xC62828 },
+      { id: 'vault_hound', name: 'EMPEROR HOUND', title: 'ROYAL WAR BEAST', tint: 0x424242, outlineColor: 0xC62828 },
+    ],
   },
   {
     id: 'throne_obsidian_gargoyle',
     name: 'Obsidian Gargoyles',
-    description: 'Dark polished stone gargoyles guarding the throne pillars.',
+    description: 'Dark polished stone gargoyles guarding the throne pillars beside a war hound.',
     map: 'OBSIDIAN_THRONE',
     monsterIds: [
       { id: 'gargoyle', name: 'OBSIDIAN GARGOYLE', title: 'THRONE ROOST', tint: 0x263238, outlineColor: 0x37474F },
@@ -826,17 +856,23 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'throne_honor_guard',
-    name: 'Imperial Honor Guard',
-    description: 'An undying champion in royal obsidian plate armor.',
+    name: 'Imperial Honor Guard & Hound',
+    description: 'An undying champion in royal obsidian plate accompanied by an emperor hound.',
     map: 'OBSIDIAN_THRONE',
-    monsterIds: [{ id: 'skeleton_knight', name: 'IMPERIAL HONOR GUARD', title: 'UNDYING PALADIN', tint: 0x455A64, outlineColor: 0x263238 }],
+    monsterIds: [
+      { id: 'skeleton_knight', name: 'IMPERIAL HONOR GUARD', title: 'UNDYING PALADIN', tint: 0x455A64, outlineColor: 0x263238 },
+      { id: 'vault_hound', name: 'EMPEROR HOUND', title: 'ROYAL WAR BEAST', tint: 0x424242, outlineColor: 0xC62828 },
+    ],
   },
   {
     id: 'throne_black_hand',
-    name: 'Black Hand Vanguard',
-    description: 'The supreme commander of the royal throne guard.',
+    name: 'Black Hand Vanguard & Hound',
+    description: 'The supreme commander of the royal throne guard and his armored war hound.',
     map: 'OBSIDIAN_THRONE',
-    monsterIds: ['dark_knight'],
+    monsterIds: [
+      'dark_knight',
+      { id: 'vault_hound', name: 'EMPEROR HOUND', title: 'ROYAL WAR BEAST', tint: 0x424242, outlineColor: 0xC62828 },
+    ],
   },
   {
     id: 'throne_court_chancellor',
@@ -850,10 +886,13 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'throne_conqueror_colossus',
-    name: 'Conqueror Colossus',
-    description: 'A bone colossus assembled from the skeletons of defeated kings.',
+    name: 'Conqueror Colossus & Mage',
+    description: 'A bone colossus assembled from defeated kings, supported by the court sorcerer.',
     map: 'OBSIDIAN_THRONE',
-    monsterIds: [{ id: 'bone_golem', name: 'CONQUEROR COLOSSUS', title: 'FUSED MONARCHS', tint: 0x37474F, outlineColor: 0x880E4F }],
+    monsterIds: [
+      { id: 'bone_golem', name: 'CONQUEROR COLOSSUS', title: 'FUSED MONARCHS', tint: 0x37474F, outlineColor: 0x880E4F },
+      'dark_mage',
+    ],
   },
   {
     id: 'throne_royal_executioner',
@@ -865,16 +904,19 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   {
     id: 'throne_imperial_inquisitor',
     name: 'Imperial Inquisitor',
-    description: 'The demonic archbishop blessing the royal troops.',
+    description: 'The demonic archbishop blessing the royal troops with dark knight guards.',
     map: 'OBSIDIAN_THRONE',
     monsterIds: ['demon_archbishop', 'dark_knight'],
   },
   {
     id: 'throne_obsidian_juggernaut',
-    name: 'Obsidian Juggernaut',
-    description: 'An undying armored titan standing directly before the throne.',
+    name: 'Obsidian Juggernaut & Hound',
+    description: 'An undying armored titan and war hound standing directly before the throne.',
     map: 'OBSIDIAN_THRONE',
-    monsterIds: ['throne_guardian'],
+    monsterIds: [
+      'throne_guardian',
+      { id: 'vault_hound', name: 'EMPEROR HOUND', title: 'ROYAL WAR BEAST', tint: 0x424242, outlineColor: 0xC62828 },
+    ],
   },
   {
     id: 'throne_court_behemoth',
@@ -898,17 +940,17 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   // =========================================================================
   {
     id: 'town_alley_rat',
-    name: 'Alley Guttersnipe',
-    description: 'A large rat foraging through overturned tavern trash barrels.',
+    name: 'Alley Guttersnipes',
+    description: 'Two large rats foraging through overturned tavern trash barrels.',
     map: 'TOWN_SQUARE',
-    monsterIds: ['plague_rat'],
+    monsterIds: ['plague_rat', 'plague_rat'],
   },
   {
     id: 'town_burglar',
-    name: 'Town Thief',
-    description: 'A shifty goblin burglar climbing down a baker shop chimney.',
+    name: 'Town Burglar & Rat',
+    description: 'A shifty goblin burglar climbing down a chimney with a trained gutter rat.',
     map: 'TOWN_SQUARE',
-    monsterIds: ['goblin'],
+    monsterIds: ['goblin', 'plague_rat'],
   },
   {
     id: 'town_rabid_stray',
@@ -926,10 +968,10 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'town_tavern_brawler',
-    name: 'Tavern Brawler',
-    description: 'A drunken orc mercenary smashing tavern tables into splinters.',
+    name: 'Tavern Brawler & Crony',
+    description: 'A drunken orc mercenary and his goblin companion smashing tavern tables.',
     map: 'TOWN_SQUARE',
-    monsterIds: ['orc'],
+    monsterIds: ['orc', 'goblin'],
   },
   {
     id: 'town_chapel_risen',
@@ -940,15 +982,15 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'town_clock_ghost',
-    name: 'Clock Tower Specter',
-    description: 'A weeping phantom haunting the town clock tower bells.',
+    name: 'Clock Tower Specter & Bat',
+    description: 'A weeping phantom haunting the town clock tower bells beside a flitting bat.',
     map: 'TOWN_NIGHT',
-    monsterIds: ['ghost'],
+    monsterIds: ['ghost', 'bat'],
   },
   {
     id: 'town_hedge_warlock',
     name: 'Hedge Warlock',
-    description: 'A back-alley alchemist peddling forbidden curses and poisons.',
+    description: 'A back-alley alchemist peddling forbidden curses alongside a sewer rat.',
     map: 'TOWN_NIGHT',
     monsterIds: [
       { id: 'dark_mage', name: 'HEDGE WARLOCK', title: 'ALLEY ALCHEMIST', tint: 0x4A148C, outlineColor: 0x6A1B9A },
@@ -967,10 +1009,10 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   },
   {
     id: 'town_rogue_bard',
-    name: 'Rogue Bard',
-    description: 'A charismatic minstrel challenging all challengers to a musical duel.',
+    name: 'Rogue Bard & Hound',
+    description: 'A charismatic minstrel traveling with a trained attack hound.',
     map: 'TOWN_SQUARE',
-    monsterIds: ['bard'],
+    monsterIds: ['bard', 'wolf'],
   },
   {
     id: 'town_duelist_minstrel',
@@ -985,10 +1027,11 @@ export const ENCOUNTERS: EncounterTemplate[] = [
   {
     id: 'town_circus_rampage',
     name: 'Marketplace Rampage',
-    description: 'An enormous escaped circus bear smashing open fruit stalls.',
+    description: 'An enormous escaped circus bear smashing open fruit stalls, pursued by goblin handlers.',
     map: 'TOWN_SQUARE',
     monsterIds: [
       { id: 'forest_bear', name: 'ESCAPED CIRCUS BEAR', title: 'MARKET CRUSHER', scaleMultiplier: 1.15 },
+      'goblin',
       'goblin',
     ],
   },
