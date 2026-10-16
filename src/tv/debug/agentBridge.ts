@@ -529,7 +529,7 @@ const api = {
     const re = filter ? new RegExp(filter, 'i') : null;
     const animations = all.filter((a) => a.duration > 0 && (!re || re.test(a.name)));
     if (!animations.length) throw new Error(`[__kk] no knight animation matches /${filter}/; have: ${all.map((a) => a.name).join(', ')}`);
-    const crop = { x: 40, y: 10, w: 200, h: 130 }; // knight feet at canvas (130, 118)
+    const crop = { x: 30, y: 40, w: 200, h: 140 }; // knight feet at canvas (130, 168), head at y~90
     return contactSheet('knight', animations, (name, t) => call('knightPose', name, t), crop, frames);
   },
 

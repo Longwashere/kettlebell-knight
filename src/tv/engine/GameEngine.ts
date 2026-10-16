@@ -3562,6 +3562,7 @@ export class GameEngine {
   public debugPoseKnight(animation: string | null, time = 0) {
     const spine = this.knightSpine;
     if (!spine) throw new Error('Knight rig not loaded');
+    if (this.gameLayer) this.gameLayer.visible = true;
     const animations = this.debugKnightAnimations();
     if (animation === null) {
       spine.state.timeScale = 1;

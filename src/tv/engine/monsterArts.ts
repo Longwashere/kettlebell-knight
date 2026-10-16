@@ -172,29 +172,29 @@ function echoShriek(h: KnightMoveHost, tl: Timeline) {
   tl.end(CLANG + 46);
 }
 
-/** Dirty Trick: a feint skyward, the foe looks up, a boot-full of dirt in its eyes, then a bonk on the head. */
+/** Dirty Trick: a shadowy feint and teleport ambush using SKILL2RADON, striking from the dark with after-images. */
 function dirtyTrick(h: KnightMoveHost, tl: Timeline) {
   const t0 = h.target;
   const c = chest(t0);
   const top = crown(t0);
-  const spot = strikeSpot(h, t0, 50);
-  const FEINT = 10;
-  const KICK = 30;
-  const BONK = 46;
+  const spot = strikeSpot(h, t0, 48);
+  const TELE = 16;
+  const STRIKE1 = 24;
+  const STRIKE2 = 50;
+
+  // 1. Shadow vanish at home: leaves dark after-image and smoke
   tl.at(0, () => {
-    h.anim('RUN', true);
-    h.sound('step', { vol: 0.5, rate: 1.4 });
-    h.camera(1.16, between(h, t0, 0.5).x, c.y, 10);
+    h.anim('SKILL2RADON');
+    h.sound('dark', { vol: 0.6, rate: 1.4 });
+    h.sound('dash', { vol: 0.4 });
+    smoke(h, kChest(h), 10, [0x1C1917, 0x3F3F46, 0x000000]);
+    h.camera(1.18, between(h, t0, 0.6).x, c.y, TELE + 8);
   });
-  travel(h, tl, 0, FEINT, HOME, spot, easeInOut);
-  tl.at(FEINT, () => {
-    h.anim('SKILL2TULUC'); // bell raised to the sky
-    h.sound('whistle', { vol: 0.6 });
-    h.camera(1.22, between(h, t0, 0.7).x, top.y - 16, 16); // tilt up with the feint
-  });
-  tl.at(FEINT + 11, () => h.animSpeed(0));
-  // The foe looks up: a "?" pops over its head
-  drawSpan(h, tl, FEINT + 6, KICK, (g, t) => {
+  // Dark after-images flicking from home toward target
+  ghostTrail(h, tl, 0, TELE, 0x18181B, 2, 0.55);
+
+  // Foe is bewildered: a "?" appears as the knight disappears
+  drawSpan(h, tl, 4, TELE + 6, (g, t) => {
     const a = Math.min(1, t * 4);
     const x = top.x + 4;
     const y = top.y - 12 - 4 * easeOut(Math.min(1, t * 3));
@@ -202,54 +202,70 @@ function dirtyTrick(h: KnightMoveHost, tl: Timeline) {
     arcAt(g, x, y - 1, 2.5, Math.PI, Math.PI * 2.4).stroke({ width: 1.5, color: INK, alpha: a });
     g.rect(x - 0.5, y + 3, 1.5, 1.5).fill({ color: INK, alpha: a });
   });
-  tl.at(FEINT + 8, () => h.sound('ui_move', { vol: 0.5, rate: 1.6 }));
-  tl.at(KICK - 4, () => {
-    h.animSpeed(1);
-    h.anim('ATTACK5');
-    h.camera(1.36, c.x - 20, c.y - 6, 12, true);
+
+  // Knight shifts to target during the tele phase
+  tl.at(TELE - 2, () => {
+    h.offset(spot.x, spot.y);
   });
-  // The kick: a spray of dirt straight into its face
-  tl.at(KICK, () => {
-    const foot = { x: h.pos().x + 16, y: h.pos().y - 6 };
-    h.emit(foot.x, foot.y, { count: 26, colors: [0x8B5A2B, 0xA16207, 0x5C2B14, 0xD6D3D1], speed: [3, 6], angle: -0.38, spread: 0.3, gravity: 0.08, size: 3, life: [12, 20] });
-    h.sound('rock', { vol: 0.6, rate: 1.5 });
-    h.sound('hurt', { vol: 0.3, rate: 1.6 });
+
+  // Re-materialize at StopTele (f16): shadowy burst
+  tl.at(TELE, () => {
+    smoke(h, kChest(h), 8, [0x1C1917, 0x71717A, 0x000000]);
+    h.sound('portal', { rate: 1.8, vol: 0.5 });
+  });
+
+  // First dirty hit at f24 (DamToTarget #1 in rig):
+  tl.at(STRIKE1 - 2, () => {
+    h.sound('slash', { rate: 1.4, vol: 0.7 });
+  });
+  slashFx(h, tl, STRIKE1 - 2, { x: c.x - 4, y: c.y + 4, r: 24, a0: -2.0, a1: 0.4, thick: 6, p: P_DIRT, dur: 8 });
+  tl.at(STRIKE1, () => {
     h.flashTarget(0, 0xFDE68A, 6);
-    h.knock(0, 3);
+    h.shake(4);
+    h.knock(0, 4);
+    h.emit(c.x, c.y, { count: 18, colors: [0x1C1917, 0x8B5A2B, 0xA16207, 0xFDE68A], speed: [2, 5], angle: -0.2, spread: 0.5, gravity: 0.08, size: 2.5, life: [12, 22] });
+    h.sound('hurt', { vol: 0.4, rate: 1.5 });
   });
-  // Scribbled "blinded" eyes
-  drawSpan(h, tl, KICK + 4, BONK + 4, (g) => {
+
+  // Shadow after-images holding during the combo
+  ghostTrail(h, tl, STRIKE1 + 4, STRIKE2, 0x27272A, 3, 0.4);
+
+  // Blinded stars on the target
+  drawSpan(h, tl, STRIKE1 + 2, STRIKE2, (g) => {
     const x = top.x + 6;
     const y = top.y + 6;
     for (const ox of [-4, 4]) {
       g.moveTo(x + ox - 2, y - 2).lineTo(x + ox + 2, y + 2).moveTo(x + ox + 2, y - 2).lineTo(x + ox - 2, y + 2).stroke({ width: 1.5, color: INK });
     }
   });
-  tl.at(BONK - 6, () => {
-    h.anim('SKILL1');
-    swingSound(h, false);
+
+  // Second finishing strike at f50 (DamToTarget #2 in rig):
+  tl.at(STRIKE2 - 2, () => {
+    swingSound(h, true);
   });
-  hitFx(h, tl, BONK, top, P_DIRT, 14, [0xFFFBEA, 0xFDE68A, 0xA16207]);
-  tl.at(BONK, () => {
-    land(h, 0, { tint: 0xFDE68A, sfx: 'thud' });
-    h.sound('ui_select', { vol: 0.6, rate: 0.7 }); // comic bonk
-    h.knock(0, 4);
-    h.camera(1.48, top.x - 8, top.y + 6, 14, true);
+  hitFx(h, tl, STRIKE2, c, P_DIRT, 16, [0xFFFBEA, 0xFDE68A, 0xA16207]);
+  tl.at(STRIKE2, () => {
+    land(h, 0, { scale: 1.25, tint: 0xFDE68A, flash: 0xFFFBEA, burst: 'slash', burstSize: 1.2 });
+    h.camera(1.38, c.x - 14, c.y, 10, true);
+    h.knock(0, 16, 4);
   });
-  dizzy(h, tl, BONK + 2, t0, 60);
-  // A cheeky backflip home
-  tl.at(BONK + 10, () => {
+  dizzy(h, tl, STRIKE2 + 2, t0, 50);
+
+  // Backflip / shadowy retreat to HOME
+  tl.at(56, () => {
     h.anim('JUMP_BACK_START');
     h.sound('jump', { vol: 0.6, rate: 1.2 });
   });
-  travel(h, tl, BONK + 10, BONK + 28, here(h), HOME, easeInOut);
-  tl.during(BONK + 10, BONK + 28, (t) => h.lift(arc(t) * 30));
-  tl.at(BONK + 22, () => h.anim('JUMP_BACK_END'));
-  tl.at(BONK + 28, () => {
+  travel(h, tl, 56, 72, here(h), HOME, easeInOut);
+  ghostTrail(h, tl, 56, 72, 0x18181B, 2, 0.35);
+  tl.during(56, 72, (t) => h.lift(arc(t) * 24));
+  tl.at(66, () => h.anim('JUMP_BACK_END'));
+  tl.at(72, () => {
     h.lift(0);
-    h.sound('thud', { vol: 0.5 });
+    h.sound('thud', { vol: 0.4 });
+    dust(h, h.pos(), 6, 1);
   });
-  tl.end(BONK + 32);
+  tl.end(76);
 }
 
 /** Rattle Back: he falls apart into a heap of armour like a struck skeleton, then clatters back together, tougher. */
@@ -822,67 +838,103 @@ function tombstoneHeave(h: KnightMoveHost, tl: Timeline) {
   tl.end(HIT + 36);
 }
 
-/** Troll Blood: a roar, three brute squat-stomps while his wounds knit, then a charging club smash. */
+/** Troll Blood: boiling regenerative troll ichor triggers a berserk multi-strike frenzy with SKILL3RADON. */
 function trollBlood(h: KnightMoveHost, tl: Timeline) {
   const t0 = h.target;
   const c = chest(t0);
-  const POUNDS = [12, 22, 32];
-  const DASH = 40;
-  const SMASH = DASH + 12;
+  const spot = strikeSpot(h, t0, 48);
+
+  // 1. Troll Ichor surges: roar, boiling green motes, camera zoom
   tl.at(0, () => {
-    h.anim('BUFF');
-    h.sound('roar', { vol: 0.8, rate: 1.15 });
-    h.camera(1.46, h.home.x + 8, h.home.y - 34, 10, true);
+    h.anim('SKILL3RADON');
+    h.sound('roar', { vol: 0.9, rate: 1.1 });
+    h.sound('heal', { vol: 0.5, rate: 1.2 });
+    h.camera(1.42, h.home.x + 12, h.home.y - 32, 16, true);
+    h.tint(0xC5F08A);
   });
-  tintRamp(h, tl, 0, 10, 0xFFFFFF, 0xC5F08A);
-  drawSpan(h, tl, 0, 12, (g, t) => {
+  // Green regenerative ichor pulse rings around chest
+  drawSpan(h, tl, 0, 16, (g, t) => {
     const p = kChest(h);
-    for (let k = 0; k < 3; k++) rightRings(g, p.x + 6, p.y - 16, 10 + (t * 60 + k * 14) % 50, 0xBEF264, 1 - t);
+    g.circle(p.x, p.y, 10 + 28 * easeOut(t)).stroke({ width: 2.5 * (1 - t) + 1, color: 0x84CC16, alpha: 1 - t });
+    g.circle(p.x, p.y, 6 + 18 * easeOut(t)).fill({ color: 0xBEF264, alpha: 0.25 * (1 - t) });
   });
-  // Pounds: squash, stomp, a wound mark fades as green regen motes rise
-  POUNDS.forEach((at, k) => {
-    tl.at(at - 4, () => h.anim('SKILL1'));
-    crouch(h, tl, at - 4, at, 0.16);
+  tl.during(0, 16, () => {
+    if (rand(0, 1) < 0.6) {
+      h.emit(h.home.x + rand(-10, 10), h.home.y - 20 + rand(-15, 15), {
+        count: 2, colors: [0xBEF264, 0x65A30D, 0xECFCCB], speed: [0.5, 1.5], angle: -Math.PI / 2, spread: 0.6, gravity: -0.04, size: 2, life: [14, 24],
+      });
+    }
+  });
+
+  // At f16: StopTele fires in the rig, knight has surged right into the target
+  tl.at(14, () => {
+    h.offset(spot.x, spot.y);
+    h.sound('stomp', { vol: 0.8, rate: 0.95 });
+    dust(h, h.pos(), 8, 1);
+    h.camera(1.28, c.x - 16, c.y, 20);
+  });
+  ghostTrail(h, tl, 14, 28, 0x65A30D, 2, 0.4);
+
+  // Rig hits in SKILL3RADON:
+  // f28: Hit 1 (DamToTarget)
+  tl.at(26, () => swingSound(h, true));
+  slashFx(h, tl, 26, { x: c.x - 4, y: c.y - 6, r: 28, a0: -2.0, a1: 1.0, thick: 8, p: P_TROLL, dur: 9 });
+  tl.at(28, () => {
+    h.flashTarget(0, 0xECFCCB, 4);
+    h.shake(5);
+    h.sound('slash_heavy', { rate: 0.85 });
+    h.sound('heal', { vol: 0.25, rate: 1.3 });
+    h.knock(0, 4);
+    h.emit(c.x, c.y, { count: 8, colors: [0x84CC16, 0xECFCCB, 0xBEF264], speed: [1, 3], angle: -Math.PI / 2, spread: 1, gravity: -0.02, size: 2, life: [14, 22] });
+  });
+
+  // f48: Hit 2 (DamToTarget) - reverse cleave
+  tl.at(46, () => swingSound(h, false));
+  slashFx(h, tl, 46, { x: c.x - 6, y: c.y + 6, r: 26, a0: 1.2, a1: -1.6, thick: 7, p: P_TROLL, dur: 8 });
+  tl.at(48, () => {
+    h.flashTarget(0, 0xBEF264, 4);
+    h.shake(6);
+    h.sound('impact_heavy', { rate: 0.9 });
+    h.sound('heal', { vol: 0.25, rate: 1.4 });
+    h.knock(0, 6);
+  });
+
+  // f86, f98, f112, f124: The Rapid Berserk Flurry (built-in PunchFx_Skill3 in Spine rig)
+  const FLURRY = [86, 98, 112, 124];
+  FLURRY.forEach((at, idx) => {
     tl.at(at, () => {
-      h.stretch(0.9, 1.12);
-      h.shake(6);
-      h.sound('stomp', { vol: 0.9, rate: 0.9 + k * 0.1 });
-      dust(h, h.pos(), 8, -1);
-      dust(h, h.pos(), 8, 1);
-      h.emit(h.pos().x, h.pos().y - 26, { count: 8, colors: [0xBEF264, 0x65A30D, 0xECFCCB], speed: [0.4, 1.2], angle: -Math.PI / 2, spread: 0.8, gravity: -0.03, size: 2, life: [18, 28] });
-      h.sound('heal', { vol: 0.3, rate: 1.4 + k * 0.15 });
-      h.camera(1.36 + k * 0.05, h.home.x + 8, h.home.y - 30, 6, true);
-    });
-    tl.during(at, at + 4, (t) => h.stretch(lerp(0.9, 1, t), lerp(1.12, 1, t)));
-    drawSpan(h, tl, at - 6, at + 8, (g, t) => {
-      const p = h.pos();
-      const x = p.x - 4 + k * 5;
-      const y = p.y - 34 + k * 7;
-      g.moveTo(x - 3, y - 3).lineTo(x + 3, y + 3).stroke({ width: 2, color: mix(0xDC2626, 0x84CC16, t), alpha: 1 - t * 0.7 });
+      h.flashTarget(0, idx % 2 === 0 ? 0xBEF264 : 0xECFCCB, 3);
+      h.shake(3 + idx);
+      h.sound('hit', { rate: 1.1 + idx * 0.1, vol: 0.7 });
+      h.sound('heal', { vol: 0.2, rate: 1.5 + idx * 0.1 });
+      h.knock(0, 2);
+      h.emit(c.x + rand(-6, 6), c.y + rand(-6, 6), { count: 5, colors: [0xBEF264, 0x65A30D, 0xFFFFFF], speed: [1.5, 3.5], angle: -Math.PI / 2, spread: 0.8, gravity: 0.05, size: 2, life: [10, 18] });
     });
   });
-  tl.at(DASH, () => {
-    h.anim('DASH');
-    h.sound('dash');
-    h.sound('growl', { vol: 0.6 });
-    h.camera(1.14, between(h, t0, 0.6).x, c.y, 12);
+
+  // f148: Final Earth-Shattering Finisher Slam (DamToTarget)
+  tl.at(146, () => {
+    swingSound(h, true);
+    chargeFx(h, tl, 140, 148, () => h.weaponTip(), P_TROLL, 24, 8);
   });
-  travel(h, tl, DASH, SMASH - 2, HOME, strikeSpot(h, t0, 50), easeIn);
-  ghostTrail(h, tl, DASH, SMASH - 2, 0x84CC16, 2, 0.3);
-  tl.at(SMASH - 6, () => h.anim('SKILL1'));
-  hitFx(h, tl, SMASH, c, P_TROLL, 18, [0xFFFFFF, 0xECFCCB, 0x65A30D]);
-  tl.at(SMASH, () => {
-    land(h, 0, { scale: 1.15, tint: 0xD9F99D, sfx: 'wood' });
-    h.knock(0, 18, 6);
-    h.camera(1.48, c.x - 12, c.y, 12, true);
-    debris(h, { x: t0.x - 8, y: t0.y }, 8);
+  tl.at(148, () => {
+    land(h, 0, { scale: 1.35, tint: 0xD9F99D, flash: 0xECFCCB, burst: 'quake', burstSize: 1.4, sfx: 'impact_crit' });
+    h.camera(1.48, c.x - 12, c.y, 14, true);
+    h.sound('thunder', { vol: 0.7, rate: 0.9 });
+    h.knock(0, 22, 8);
+    debris(h, { x: t0.x - 6, y: t0.y }, 12);
   });
-  backstep(h, tl, SMASH + 10, SMASH + 26, 14);
-  tl.at(SMASH + 26, () => {
+
+  // Recovery & Troll regeneration guard aura
+  tl.at(154, () => {
+    h.guard(h.ctx.color); // Green healing shield
+    h.sound('heal', { vol: 0.6, rate: 1.0 });
+  });
+  backstep(h, tl, 156, 172, 16);
+  tl.at(172, () => {
     h.tint(0xFFFFFF);
-    h.guard(h.ctx.color); // the heal glow
   });
-  tl.end(SMASH + 34);
+  tl.end(176);
 }
 
 /** Needle Burst: he drives into a deep squat; bramble races along the ground and erupts in spikes under four foes. */
