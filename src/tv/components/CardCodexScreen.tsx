@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { CARD_CATALOG, STARTER_CARD_IDS, CardTemplate } from '../../types/battle';
 import {
   CARD_UNLOCK_REGISTRY,
@@ -9,22 +9,29 @@ import {
 } from '../../shared/cardUnlocks';
 import { profileManager, PlayerProfile } from '../../shared/ProfileManager';
 import { SHOP_ITEMS } from './BlacksmithShop';
+import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { CardFront } from './CombatCardView';
 import { audioManager } from '../../shared/AudioManager';
 import { useTVRemote } from '../hooks/useTVRemote';
+import { TARGET_LABEL } from '../../shared/cardBalance';
+import { EXERCISE_SKILLS } from '../../types/game';
 import {
   BookOpen,
   Lock,
-  Unlock,
-  Sparkles,
   Swords,
-  Shield,
   Activity,
   ArrowLeft,
   Flame,
-  Search,
   CheckCircle2,
-  HelpCircle,
+  ChevronLeft,
+  ChevronRight,
+  Trophy,
+  Dumbbell,
+  Compass,
+  Scroll,
+  Zap,
+  Shield,
+  Sparkles,
 } from 'lucide-react';
 
 export type CodexTab = 'ALL' | 'MONSTER_ARTS' | 'DISCIPLINES' | 'WEAPON_SPELLS' | 'KINEMATICS';
@@ -44,6 +51,7 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
   const [activeTab, setActiveTab] = useState<CodexTab>('ALL');
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [filterMode, setFilterMode] = useState<'ALL' | 'UNLOCKED' | 'LOCKED'>('ALL');
+  const carouselContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     return profileManager.subscribe((active) => setProfile(active));
@@ -83,8 +91,48 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
     return getWeaponSpellsInfo(profile);
   }, [profile]);
 
+  // Combined weapon spell items with authentic card templates
+  const weaponSpellCardItems = useMemo(() => {
+    return weaponSpellsWithMeta.map((spell) => {
+      const weaponItem = SHOP_ITEMS.find((si) => si.id === spell.weaponId);
+      const realCard = ALL_WEAPON_SPELLS.find((s) => s.templateId === spell.templateId);
+      const card: CardTemplate = realCard || {
+        templateId: spell.templateId,
+        name: spell.name,
+        exercise: 'SWING',
+        requiredReps: 5,
+        target: 'SINGLE',
+        rarity: spell.rarity as any,
+        colorHex: weaponItem?.colorHex || '#F4B41A',
+        icon: '⚔️',
+        weaponId: spell.weaponId,
+        damage: 45,
+        block: 0,
+        heal: 0,
+        type: 'ATTACK',
+        exerciseLabel: 'SIGNATURE WEAPON SPELL',
+        effectDesc: `Granted by ${spell.weaponName}. Shuffled into battle deck when equipped.`,
+      };
+
+      return {
+        card,
+        isStarter: false,
+        isUnlocked: spell.isEquipped || spell.isOwned,
+        unlockDef: undefined,
+        progress: null,
+        category: 'WEAPON_SPELL' as const,
+        spellMeta: spell,
+        weaponItem,
+      };
+    });
+  }, [weaponSpellsWithMeta]);
+
   // Filtered list based on active tab & filter mode
   const displayedCards = useMemo(() => {
+    if (activeTab === 'WEAPON_SPELLS') {
+      return weaponSpellCardItems;
+    }
+
     let list = catalogWithMeta;
 
     if (activeTab === 'MONSTER_ARTS') {
@@ -100,7 +148,7 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
     }
 
     return list;
-  }, [catalogWithMeta, activeTab, filterMode]);
+  }, [catalogWithMeta, weaponSpellCardItems, activeTab, filterMode]);
 
   // Clamp selection index when displayed list changes
   useEffect(() => {
@@ -113,52 +161,21 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
     return catalogWithMeta.filter((c) => c.isUnlocked).length;
   }, [catalogWithMeta]);
 
-  const activeCardItem = displayedCards[selectedIndex];
+  const activeItem = displayedCards[selectedIndex];
 
-  // D-Pad Navigation
-  useTVRemote({
-    onUp: () => {
-      if (activeTab === 'KINEMATICS') return;
-      if (activeTab === 'WEAPON_SPELLS') {
-        setSelectedIndex((prev) => Math.max(0, prev - 1));
-        return;
-      }
-      // 3-column grid step up
-      setSelectedIndex((prev) => Math.max(0, prev - 3));
-    },
-    onDown: () => {
-      if (activeTab === 'KINEMATICS') return;
-      if (activeTab === 'WEAPON_SPELLS') {
-        setSelectedIndex((prev) => Math.min(weaponSpellsWithMeta.length - 1, prev + 1));
-        return;
-      }
-      // 3-column grid step down
-      setSelectedIndex((prev) => Math.min(displayedCards.length - 1, prev + 3));
-    },
-    onLeft: () => {
-      if (selectedIndex > 0) {
-        setSelectedIndex((prev) => prev - 1);
-      } else {
-        // Cycle tab left
-        cycleTab(-1);
-      }
-    },
-    onRight: () => {
-      const max = activeTab === 'WEAPON_SPELLS' ? weaponSpellsWithMeta.length - 1 : displayedCards.length - 1;
-      if (selectedIndex < max) {
-        setSelectedIndex((prev) => prev + 1);
-      } else {
-        // Cycle tab right
-        cycleTab(1);
-      }
-    },
-    onSelect: () => {
+  const handlePrevCard = () => {
+    if (selectedIndex > 0) {
+      setSelectedIndex((prev) => prev - 1);
       audioManager.play('ui_select');
-    },
-    onBack: () => {
-      onBackToHub();
-    },
-  });
+    }
+  };
+
+  const handleNextCard = () => {
+    if (selectedIndex < displayedCards.length - 1) {
+      setSelectedIndex((prev) => prev + 1);
+      audioManager.play('ui_select');
+    }
+  };
 
   const cycleTab = (dir: number) => {
     const tabs: CodexTab[] = ['ALL', 'MONSTER_ARTS', 'DISCIPLINES', 'WEAPON_SPELLS', 'KINEMATICS'];
@@ -169,52 +186,135 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
     audioManager.play('ui_select');
   };
 
+  // D-Pad Remote Navigation
+  useTVRemote({
+    onLeft: () => {
+      if (activeTab === 'KINEMATICS') return;
+      handlePrevCard();
+    },
+    onRight: () => {
+      if (activeTab === 'KINEMATICS') return;
+      handleNextCard();
+    },
+    onUp: () => {
+      cycleTab(-1);
+    },
+    onDown: () => {
+      cycleTab(1);
+    },
+    onSelect: () => {
+      audioManager.play('ui_select');
+    },
+    onBack: () => {
+      onBackToHub();
+    },
+  });
+
+  // Width and spacing geometry for the top card carousel
+  const CARD_WIDTH = 142;
+  const CARD_GAP = 14;
+  const CARD_SLOT = CARD_WIDTH + CARD_GAP;
+
+  // Resolve entity image, archetype and lore for the 32-bit pedestal
+  const entityInfo = useMemo(() => {
+    if (!activeItem) return null;
+
+    if (activeItem.category === 'MONSTER_ART') {
+      const unlockDef = activeItem.unlockDef;
+      let monsterId = 'goblin';
+      if (unlockDef?.condition?.type === 'MONSTER_KILL' && unlockDef.condition.monsterIds?.length > 0) {
+        monsterId = unlockDef.condition.monsterIds[0];
+      }
+      const monsterName = unlockDef?.condition?.type === 'MONSTER_KILL'
+        ? unlockDef.condition.targetMonsterNames
+        : 'Fallen Horror';
+      return {
+        url: `/assets/codex/monsters/${monsterId}.png`,
+        name: monsterName.toUpperCase(),
+        tag: 'PATRON HORROR',
+        type: 'MONSTER' as const,
+        desc: 'Fallen entity whose primal martial fury was carved into this arcane grimoire art.',
+      };
+    }
+
+    if (activeItem.category === 'WEAPON_SPELL') {
+      const weaponId = (activeItem.card as any).weaponId || (activeItem as any).spellMeta?.weaponId;
+      const weaponName = (activeItem as any).spellMeta?.weaponName || 'Relic Weapon';
+      return {
+        url: `/assets/codex/weapons/art_${weaponId}.png`,
+        fallbackUrl: `/assets/codex/weapons/kettlebell_iron.png`,
+        name: weaponName.toUpperCase(),
+        tag: 'FORGED RELIC',
+        type: 'WEAPON' as const,
+        desc: 'Ancient citadel armory armament imbued with signature physical spellcraft.',
+      };
+    }
+
+    // Martial Discipline or Starter Card -> 32-bit Painterly Adventurer/Knight
+    return {
+      url: '/assets/codex/adventurer.png',
+      name: 'CITADEL CHAMPION',
+      tag: activeItem.isStarter ? 'STARTER DISCIPLINE' : 'MARTIAL MASTERY',
+      type: 'KNIGHT' as const,
+      desc: 'Knight of the Bell executing high-velocity kinematic force through forged iron.',
+    };
+  }, [activeItem]);
+
   return (
-    <div className="bg-[#1A1926]/95 border-4 border-[#00EB88] p-5 max-w-5xl w-full rounded shadow-pixel-box-gold backdrop-blur-md text-left flex flex-col h-[90vh]">
-      {/* Top Header */}
-      <div className="flex items-center justify-between border-b-2 border-[#2E2B44] pb-3 mb-3">
+    <div className="bg-[#100F17]/95 border-4 border-[#2D2A42] p-4 max-w-6xl w-full rounded shadow-pixel-box-gold backdrop-blur-lg text-left flex flex-col h-[94vh] select-none">
+      {/* 32-Bit Dark Fantasy Header Bar */}
+      <header className="flex items-center justify-between border-b-2 border-[#2D2A42] pb-2 mb-2">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded bg-[#00EB88] text-[#0F0E17] flex items-center justify-center font-bold text-xl font-pixel shadow-pixel-box">
-            <BookOpen className="w-6 h-6" />
+          <div className="w-9 h-9 rounded bg-[#F4B41A] text-[#0F0E17] flex items-center justify-center font-bold text-lg font-pixel shadow-pixel-box border border-black">
+            <BookOpen className="w-5 h-5 text-[#0F0E17]" />
           </div>
           <div>
-            <h1 className="text-sm font-pixel text-[#00EB88] tracking-wider flex items-center gap-2">
-              <span>GRIMOIRE OF THE BELL</span>
-              <span className="text-[10px] text-[#A7A9BE] font-mono">• CODEX OF CARDS & LORE</span>
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xs font-pixel text-[#F4B41A] tracking-wider uppercase">
+                GRIMOIRE OF THE BELL
+              </h1>
+              <span className="text-[9px] font-pixel px-1.5 py-0.2 bg-[#00EB88]/15 border border-[#00EB88] text-[#00EB88]">
+                CODEX VAULT
+              </span>
+            </div>
             <p className="text-[10px] text-[#A7A9BE] font-mono">
-              Master physical kettlebell techniques and extract secret arts from vanquished monsters.
+              Extract secret arts from fallen horrors • Forge martial mastery through physical iron
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="bg-[#0F0E17] border border-[#2E2B44] px-3 py-1 rounded text-right">
-            <span className="text-[9px] font-mono text-[#A7A9BE] block">CATALOG PROGRESS</span>
-            <span className="font-pixel text-xs text-[#F4B41A]">
-              ⚔️ {totalUnlockedCount} / {CARD_CATALOG.length} CARDS
-            </span>
+        <div className="flex items-center gap-3">
+          {/* Progress Badge */}
+          <div className="bg-[#0A0910] border border-[#F4B41A]/50 px-3 py-1 rounded flex items-center gap-2 shadow-pixel-box">
+            <Trophy className="w-3.5 h-3.5 text-[#F4B41A]" />
+            <div className="text-right">
+              <span className="text-[8px] font-mono text-[#A7A9BE] block">CATALOG MASTERED</span>
+              <span className="font-pixel text-[11px] text-[#F4B41A]">
+                {totalUnlockedCount} / {CARD_CATALOG.length} CARDS
+              </span>
+            </div>
           </div>
 
+          {/* Hub Back Button */}
           <button
             onClick={onBackToHub}
-            className="bg-[#2E2B44] hover:bg-[#3E3A5A] text-white font-pixel text-[10px] py-2 px-3 border border-black shadow-pixel-box flex items-center gap-1"
+            className="bg-[#2D2A42] hover:bg-[#3E3A5A] text-white font-pixel text-[10px] py-2 px-3 border-2 border-black shadow-pixel-box flex items-center gap-1.5 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>[BACK] HUB</span>
+            <span>[BACK] CITADEL HUB</span>
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* Tabs Row */}
-      <div className="flex items-center justify-between mb-3 border-b border-[#2E2B44] pb-2">
-        <div className="flex gap-2">
+      {/* Tabs & Filter Bar */}
+      <nav aria-label="Codex Categories" className="flex items-center justify-between mb-2.5 border-b border-[#2D2A42]/80 pb-1.5">
+        <div className="flex gap-1.5">
           {[
-            { id: 'ALL' as CodexTab, label: 'ALL CARDS' },
-            { id: 'MONSTER_ARTS' as CodexTab, label: 'MONSTER ARTS' },
-            { id: 'DISCIPLINES' as CodexTab, label: 'DISCIPLINES' },
-            { id: 'WEAPON_SPELLS' as CodexTab, label: 'WEAPON SPELLS' },
-            { id: 'KINEMATICS' as CodexTab, label: 'KINEMATICS & TELEMETRY' },
+            { id: 'ALL' as CodexTab, label: 'ALL CARDS', icon: <BookOpen className="w-3 h-3" /> },
+            { id: 'MONSTER_ARTS' as CodexTab, label: 'MONSTER ARTS', icon: <Flame className="w-3 h-3" /> },
+            { id: 'DISCIPLINES' as CodexTab, label: 'DISCIPLINES', icon: <Dumbbell className="w-3 h-3" /> },
+            { id: 'WEAPON_SPELLS' as CodexTab, label: 'WEAPON SPELLS', icon: <Swords className="w-3 h-3" /> },
+            { id: 'KINEMATICS' as CodexTab, label: 'TELEMETRY', icon: <Activity className="w-3 h-3" /> },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -223,19 +323,20 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
                 setSelectedIndex(0);
                 audioManager.play('ui_select');
               }}
-              className={`font-pixel text-[10px] px-3 py-1.5 border transition-all ${
+              className={`font-pixel text-[9px] px-2.5 py-1.5 border flex items-center gap-1.5 transition-all ${
                 activeTab === tab.id
-                  ? 'border-[#00EB88] bg-[#00EB88]/20 text-[#00EB88] shadow-pixel-box'
-                  : 'border-[#2E2B44] text-[#A7A9BE] hover:text-white bg-[#0F0E17]'
+                  ? 'border-[#F4B41A] bg-[#F4B41A]/15 text-[#F4B41A] shadow-pixel-box'
+                  : 'border-[#2D2A42] text-[#A7A9BE] hover:text-white bg-[#0A0910]'
               }`}
             >
-              {tab.label}
+              {tab.icon}
+              <span>{tab.label}</span>
             </button>
           ))}
         </div>
 
         {activeTab !== 'KINEMATICS' && activeTab !== 'WEAPON_SPELLS' && (
-          <div className="flex items-center gap-1.5 text-[9px] font-mono text-[#A7A9BE]">
+          <div className="flex items-center gap-1 text-[9px] font-mono text-[#A7A9BE]">
             <span>FILTER:</span>
             {(['ALL', 'UNLOCKED', 'LOCKED'] as const).map((mode) => (
               <button
@@ -247,8 +348,8 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
                 }}
                 className={`px-2 py-0.5 border ${
                   filterMode === mode
-                    ? 'border-[#F4B41A] text-[#F4B41A] bg-[#F4B41A]/10'
-                    : 'border-[#2E2B44] text-[#A7A9BE]'
+                    ? 'border-[#00EB88] text-[#00EB88] bg-[#00EB88]/15 font-bold'
+                    : 'border-[#2D2A42] text-[#A7A9BE] hover:text-white'
                 }`}
               >
                 {mode}
@@ -256,13 +357,13 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
             ))}
           </div>
         )}
-      </div>
+      </nav>
 
       {/* Main Content Area */}
       {activeTab === 'KINEMATICS' ? (
         /* Kinematics Telemetry View */
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-          <div className="bg-[#0F0E17] border-2 border-[#00EB88] p-4 rounded text-left">
+        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+          <div className="bg-[#0A0910] border-2 border-[#00EB88] p-4 rounded text-left">
             <h3 className="font-pixel text-xs text-[#00EB88] mb-1 flex items-center gap-2">
               <Activity className="w-4 h-4" />
               <span>KINEMATIC TRACKING TELEMETRY ENGINE</span>
@@ -272,21 +373,21 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
             </p>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono text-xs">
-              <div className="bg-[#1A1926] p-3 border border-[#2E2B44] rounded">
+              <div className="bg-[#171622] p-3 border border-[#2D2A42] rounded">
                 <div className="text-[10px] text-[#A7A9BE]">TOTAL WORKOUT REPS</div>
                 <div className="text-lg text-white font-pixel mt-1">{sessionReps}</div>
               </div>
-              <div className="bg-[#1A1926] p-3 border border-[#2E2B44] rounded">
+              <div className="bg-[#171622] p-3 border border-[#2D2A42] rounded">
                 <div className="text-[10px] text-[#A7A9BE]">PEAK DRIVE POWER</div>
                 <div className="text-lg text-[#38B6FF] font-pixel mt-1">{highestPower}</div>
               </div>
-              <div className="bg-[#1A1926] p-3 border border-[#2E2B44] rounded">
+              <div className="bg-[#171622] p-3 border border-[#2D2A42] rounded">
                 <div className="text-[10px] text-[#A7A9BE]">SHIELD DAMAGE BLOCKED</div>
                 <div className="text-lg text-[#00EB88] font-pixel mt-1">
                   {profile?.unlockStats?.totalBlockedDamage || 0} HP
                 </div>
               </div>
-              <div className="bg-[#1A1926] p-3 border border-[#2E2B44] rounded">
+              <div className="bg-[#171622] p-3 border border-[#2D2A42] rounded">
                 <div className="text-[10px] text-[#A7A9BE]">TOTAL MONSTER KILLS</div>
                 <div className="text-lg text-[#FF3366] font-pixel mt-1">
                   {Object.values(profile?.unlockStats?.monsterKills || {}).reduce((a, b) => a + b, 0)}
@@ -295,11 +396,11 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
             </div>
           </div>
 
-          <div className="bg-[#0F0E17] border-2 border-[#2E2B44] p-4 rounded">
+          <div className="bg-[#0A0910] border-2 border-[#2D2A42] p-4 rounded">
             <h4 className="font-pixel text-xs text-[#F4B41A] mb-3">LIFETIME EXERCISE REP BREAKDOWN</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {Object.entries(profile?.unlockStats?.exerciseReps || {}).map(([ex, count]) => (
-                <div key={ex} className="flex items-center justify-between p-2 bg-[#1A1926] border border-[#2E2B44]">
+                <div key={ex} className="flex items-center justify-between p-2 bg-[#171622] border border-[#2D2A42]">
                   <span className="font-pixel text-[10px] text-white">{ex.replace(/_/g, ' ')}</span>
                   <span className="font-mono text-xs text-[#38B6FF] font-bold">{count} REPS</span>
                 </div>
@@ -312,292 +413,421 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
             </div>
           </div>
         </div>
-      ) : activeTab === 'WEAPON_SPELLS' ? (
-        /* Weapon Spells Tab */
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 overflow-hidden">
-          {/* Left: Weapon Spells List */}
-          <div className="overflow-y-auto pr-2 space-y-2 max-h-[60vh]">
-            {weaponSpellsWithMeta.map((spell, idx) => {
-              const isSelected = selectedIndex === idx;
-              const template = CARD_CATALOG.find((c) => c.templateId === spell.templateId) ||
-                Object.values(CARD_UNLOCK_REGISTRY).find((c) => c.cardId === spell.templateId);
-
-              return (
-                <div
-                  key={spell.templateId}
-                  onClick={() => setSelectedIndex(idx)}
-                  className={`p-3 rounded border-2 transition-all cursor-pointer flex items-center justify-between ${
-                    isSelected
-                      ? 'border-[#F4B41A] bg-[#242138] shadow-pixel-box-gold'
-                      : 'border-[#2E2B44] bg-[#0F0E17] hover:border-[#38B6FF]'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-pixel text-xs text-white">{spell.name}</span>
-                      <span className="text-[9px] font-pixel px-1.5 py-0.5 border border-[#38B6FF] text-[#38B6FF] uppercase">
-                        {spell.rarity}
-                      </span>
-                    </div>
-                    <div className="text-[10px] font-mono text-[#A7A9BE] mt-1">
-                      Granted by: <span className="text-[#F4B41A]">{spell.weaponName}</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    {spell.isEquipped ? (
-                      <span className="text-[9px] font-pixel text-[#00EB88] bg-[#00EB88]/20 border border-[#00EB88] px-2 py-0.5">
-                        ⚔️ IN DECK
-                      </span>
-                    ) : spell.isOwned ? (
-                      <span className="text-[9px] font-pixel text-[#38B6FF] bg-[#38B6FF]/20 border border-[#38B6FF] px-2 py-0.5">
-                        IN ARMORY
-                      </span>
-                    ) : (
-                      <span className="text-[9px] font-pixel text-[#A7A9BE] bg-[#2E2B44] px-2 py-0.5">
-                        FORGE AT BLACKSMITH
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Right: Weapon Spell Details */}
-          <div className="bg-[#0F0E17] border-2 border-[#2E2B44] p-4 rounded flex flex-col justify-between overflow-y-auto max-h-[60vh]">
-            {weaponSpellsWithMeta[selectedIndex] ? (
-              <div>
-                <div className="flex items-center justify-between mb-3 border-b border-[#2E2B44] pb-2">
-                  <div>
-                    <span className="text-[9px] font-pixel text-[#F4B41A] uppercase tracking-wider block">
-                      SIGNATURE WEAPON SPELL
-                    </span>
-                    <h3 className="font-pixel text-base text-white">
-                      {weaponSpellsWithMeta[selectedIndex].name}
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-pixel px-2 py-1 bg-[#38B6FF]/20 border border-[#38B6FF] text-[#38B6FF]">
-                    {weaponSpellsWithMeta[selectedIndex].rarity.toUpperCase()}
-                  </span>
-                </div>
-
-                <div className="bg-[#1A1926] p-3 border border-[#2E2B44] rounded mb-4">
-                  <div className="text-[10px] font-pixel text-[#F4B41A] mb-1">SIGNATURE WEAPON:</div>
-                  <div className="font-pixel text-sm text-white">
-                    {weaponSpellsWithMeta[selectedIndex].weaponName}
-                  </div>
-                  <p className="text-[10px] font-mono text-[#A7A9BE] mt-2">
-                    Weapon spells are automatically unlocked and shuffled into your battle deck (two copies) whenever
-                    this signature weapon is equipped.
-                  </p>
-                </div>
-
-                <div className="bg-[#1A1926] p-3 border border-[#2E2B44] rounded">
-                  <div className="text-[10px] font-pixel text-[#00EB88] mb-1">EQUIPMENT STATUS:</div>
-                  {weaponSpellsWithMeta[selectedIndex].isEquipped ? (
-                    <div className="text-xs font-mono text-[#00EB88] flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Currently equipped! Two copies are active in your combat hand draw pile.</span>
-                    </div>
-                  ) : weaponSpellsWithMeta[selectedIndex].isOwned ? (
-                    <div className="text-xs font-mono text-[#38B6FF]">
-                      Owned in armory! Equip this weapon at the Blacksmith to activate this spell in battle.
-                    </div>
-                  ) : (
-                    <div className="text-xs font-mono text-[#A7A9BE]">
-                      Locked. Visit the Blacksmith Forge in the Citadel Hub to purchase and equip this weapon.
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="text-xs font-mono text-[#A7A9BE] text-center my-auto">
-                Select a weapon spell from the list.
-              </div>
-            )}
-          </div>
-        </div>
       ) : (
-        /* Regular Card Catalog Grid & Inspector */
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-4 overflow-hidden">
-          {/* Left Grid: Cards (7 cols) */}
-          <div className="md:col-span-7 overflow-y-auto pr-2 max-h-[60vh]">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+        /* Top Carousel + Bottom Codex Panels */
+        <div className="flex-1 flex flex-col justify-between overflow-hidden gap-2.5">
+          {/* ============================================================== */}
+          {/* TOP SECTION: 32-BIT CARD CAROUSEL (SWIPEABLE LEFT / RIGHT)      */}
+          {/* ============================================================== */}
+          <section
+            aria-label="Card Carousel"
+            className="relative w-full h-[216px] bg-[#07060B] border-2 border-[#2D2A42] rounded overflow-hidden flex items-center justify-center p-1.5 shadow-inner"
+          >
+            {/* Ambient Background Dither & Dais Arc */}
+            <div className="absolute inset-0 opacity-20 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#F4B41A]/25 via-transparent to-black" />
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-48 h-3 bg-[#F4B41A]/10 rounded-full blur-sm pointer-events-none" />
+
+            {/* Top Right Carousel Index Tracker */}
+            <div className="absolute top-1.5 right-2.5 z-30 bg-[#0A0910]/90 px-2 py-0.5 rounded border border-[#2D2A42] text-[8.5px] font-mono text-[#A7A9BE] flex items-center gap-1.5 shadow-pixel-box">
+              <span>CARD {selectedIndex + 1} OF {displayedCards.length}</span>
+              <span className="text-[#F4B41A] font-pixel">• [◀ / ▶] SWIPE</span>
+            </div>
+
+            {/* Left / Right Carousel Navigation Arrows */}
+            <button
+              onClick={handlePrevCard}
+              disabled={selectedIndex === 0}
+              className={`absolute left-2 z-30 w-7 h-11 bg-[#171622]/90 border-2 border-[#F4B41A] text-[#F4B41A] flex items-center justify-center rounded shadow-pixel-box transition-all ${
+                selectedIndex === 0 ? 'opacity-20 cursor-not-allowed' : 'hover:bg-[#F4B41A] hover:text-[#0F0E17]'
+              }`}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={handleNextCard}
+              disabled={selectedIndex >= displayedCards.length - 1}
+              className={`absolute right-2 z-30 w-7 h-11 bg-[#171622]/90 border-2 border-[#F4B41A] text-[#F4B41A] flex items-center justify-center rounded shadow-pixel-box transition-all ${
+                selectedIndex >= displayedCards.length - 1 ? 'opacity-20 cursor-not-allowed' : 'hover:bg-[#F4B41A] hover:text-[#0F0E17]'
+              }`}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            {/* Carousel Track Strip */}
+            <div
+              ref={carouselContainerRef}
+              className="relative w-full h-full flex items-center transition-transform duration-300 ease-out"
+              style={{
+                transform: `translateX(calc(50% - ${(selectedIndex * CARD_SLOT + CARD_WIDTH / 2)}px))`,
+              }}
+            >
               {displayedCards.map((item, index) => {
                 const isSelected = selectedIndex === index;
+                const distance = Math.abs(index - selectedIndex);
+                const isNear = distance <= 3; // render nearby cards
+
+                if (!isNear) {
+                  return (
+                    <div
+                      key={item.card.templateId}
+                      className="shrink-0"
+                      style={{ width: `${CARD_WIDTH}px`, marginRight: `${CARD_GAP}px` }}
+                    />
+                  );
+                }
+
+                const scaleClass = isSelected
+                  ? 'scale-100 -translate-y-0.5 z-20 shadow-pixel-box-gold ring-2 ring-[#F4B41A]'
+                  : distance === 1
+                  ? 'scale-90 z-10 opacity-65 hover:opacity-90'
+                  : 'scale-80 z-0 opacity-35';
 
                 return (
                   <div
                     key={item.card.templateId}
-                    onClick={() => setSelectedIndex(index)}
-                    className={`p-2.5 rounded border-2 transition-all cursor-pointer flex flex-col justify-between h-32 relative ${
-                      isSelected
-                        ? 'border-[#F4B41A] bg-[#242138] shadow-pixel-box-gold scale-102 z-10'
-                        : item.isUnlocked
-                        ? 'border-[#2E2B44] bg-[#0F0E17] hover:border-[#38B6FF]'
-                        : 'border-[#2E2B44]/60 bg-[#0F0E17]/60 opacity-80 hover:border-[#F4B41A]/50'
-                    }`}
+                    onClick={() => {
+                      setSelectedIndex(index);
+                      audioManager.play('ui_select');
+                    }}
+                    className={`shrink-0 relative transition-all duration-300 cursor-pointer ${scaleClass}`}
+                    style={{
+                      width: `${CARD_WIDTH}px`,
+                      height: '202px',
+                      marginRight: `${CARD_GAP}px`,
+                    }}
                   >
-                    {/* Header */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] font-pixel text-[#F4B41A]">
-                          {item.card.icon} {item.card.requiredReps}R
-                        </span>
-                        {item.isUnlocked ? (
-                          <Unlock className="w-3.5 h-3.5 text-[#00EB88]" />
-                        ) : (
-                          <Lock className="w-3.5 h-3.5 text-[#FF3366]" />
-                        )}
-                      </div>
-
+                    {/* Properly Scaled CardFront Container to eliminate text cutoffs */}
+                    <div className="relative w-full h-full overflow-visible">
                       <div
-                        className={`font-pixel text-[11px] leading-tight line-clamp-2 ${
-                          item.isUnlocked ? 'text-white' : 'text-[#A7A9BE]'
-                        }`}
+                        style={{
+                          width: '228px',
+                          height: '330px',
+                          transform: 'scale(0.612)',
+                          transformOrigin: 'top left',
+                          pointerEvents: 'none',
+                        }}
                       >
-                        {item.card.name}
+                        <CardFront card={item.card} />
                       </div>
 
-                      <div className="text-[9px] font-mono text-[#A7A9BE] mt-0.5">
-                        {item.card.exerciseLabel}
-                      </div>
-                    </div>
-
-                    {/* Bottom status / progress */}
-                    <div>
-                      {item.isStarter ? (
-                        <span className="text-[8px] font-pixel text-[#38B6FF] bg-[#38B6FF]/10 border border-[#38B6FF]/40 px-1 py-0.5">
-                          STARTER
-                        </span>
-                      ) : item.isUnlocked ? (
-                        <span className="text-[8px] font-pixel text-[#00EB88] bg-[#00EB88]/10 border border-[#00EB88]/40 px-1 py-0.5">
-                          UNLOCKED
-                        </span>
-                      ) : item.progress ? (
-                        <div>
-                          <div className="flex justify-between text-[8px] font-mono text-[#A7A9BE] mb-0.5">
-                            <span>{item.progress.progressText}</span>
-                            <span>{item.progress.percent}%</span>
+                      {/* Locked Chained Shroud Overlay */}
+                      {!item.isUnlocked && (
+                        <div className="absolute inset-0 bg-black/85 rounded-lg flex flex-col items-center justify-center p-1.5 text-center border-2 border-[#FF3366]/50 z-30 backdrop-blur-[1px]">
+                          <div className="w-7 h-7 rounded-full bg-[#171622] border-2 border-[#FF3366] flex items-center justify-center text-[#FF3366] mb-1 shadow-pixel-box animate-pulse">
+                            <Lock className="w-3.5 h-3.5" />
                           </div>
-                          <div className="w-full h-1.5 bg-[#2E2B44] overflow-hidden">
-                            <div
-                              className="h-full bg-[#F4B41A]"
-                              style={{ width: `${item.progress.percent}%` }}
-                            />
-                          </div>
+                          <span className="text-[7.5px] font-pixel text-[#FF3366] tracking-wider uppercase mb-0.5">
+                            TRIAL LOCKED
+                          </span>
+                          {item.progress && (
+                            <div className="w-full bg-[#0A0910] border border-[#2D2A42] px-1 py-0.5 rounded mt-0.5">
+                              <div className="text-[7.5px] font-mono text-[#F4B41A] font-bold">
+                                {item.progress.progressText}
+                              </div>
+                              <div className="w-full h-1 bg-[#2D2A42] overflow-hidden mt-0.5 rounded">
+                                <div
+                                  className="h-full bg-gradient-to-r from-[#F4B41A] to-[#ffda66]"
+                                  style={{ width: `${item.progress.percent}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <span className="text-[8px] font-pixel text-[#FF3366]">LOCKED</span>
+                      )}
+
+                      {/* Unlocked / Mastered Crown Stamp */}
+                      {item.isUnlocked && isSelected && (
+                        <div className="absolute -top-2 -right-2 bg-[#00EB88] text-[#0F0E17] text-[7.5px] font-pixel px-1.5 py-0.5 rounded border border-black shadow-pixel-box z-30">
+                          MASTERED
+                        </div>
                       )}
                     </div>
                   </div>
                 );
               })}
             </div>
+          </section>
 
-            {displayedCards.length === 0 && (
-              <div className="text-center py-12 text-[#A7A9BE] font-mono text-xs">
-                No cards matching the selected filters.
-              </div>
-            )}
-          </div>
+          {/* ============================================================== */}
+          {/* BOTTOM SECTION: 32-BIT PEDESTAL DAIS + CODEX DOSSIER PANEL     */}
+          {/* ============================================================== */}
+          {activeItem && (
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-3 min-h-0 overflow-y-auto">
+              {/* ============================================================ */}
+              {/* LEFT SIDE PANEL: 32-BIT CHIAROSCURO ENTITY PEDESTAL (4 COLS)  */}
+              {/* ============================================================ */}
+              <div className="md:col-span-4 bg-[#0A0910] border-2 border-[#2D2A42] p-3 rounded flex flex-col justify-between relative overflow-hidden shadow-pixel-box">
+                {/* Chiaroscuro Atmospheric Spotlight Beam */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-44 bg-gradient-to-b from-[#F4B41A]/20 via-[#38B6FF]/10 to-transparent pointer-events-none blur-sm" />
 
-          {/* Right Inspector: Card Details & Unlock Lore (5 cols) */}
-          <div className="md:col-span-5 bg-[#0F0E17] border-2 border-[#2E2B44] p-3.5 rounded flex flex-col justify-between overflow-y-auto max-h-[60vh]">
-            {activeCardItem ? (
-              <div className="space-y-3">
-                {/* Header */}
-                <div className="flex items-center justify-between border-b border-[#2E2B44] pb-2">
-                  <div>
-                    <span className="text-[9px] font-pixel px-1.5 py-0.5 border border-[#38B6FF] text-[#38B6FF] uppercase">
-                      {activeCardItem.category.replace('_', ' ')}
-                    </span>
-                    <h3 className="font-pixel text-sm text-white mt-1">
-                      {activeCardItem.card.name}
-                    </h3>
-                  </div>
+                {/* Pedestal Header Tag */}
+                <div className="relative z-10 flex items-center justify-between border-b border-[#2D2A42] pb-1.5 mb-1.5">
+                  <span className="text-[8px] font-pixel px-1.5 py-0.5 border border-[#38B6FF] text-[#38B6FF] bg-[#38B6FF]/10 uppercase">
+                    {entityInfo?.tag || 'ORIGIN ENTITY'}
+                  </span>
+                  <span className="text-[9px] font-mono text-[#A7A9BE]">
+                    {activeItem.card.rarity.toUpperCase()}
+                  </span>
+                </div>
 
-                  <div>
-                    {activeCardItem.isUnlocked ? (
-                      <span className="text-[9px] font-pixel text-[#00EB88] bg-[#00EB88]/10 border border-[#00EB88] px-2 py-0.5 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>MASTERED</span>
-                      </span>
+                {/* Chiaroscuro Stage & Character / Monster Sprite */}
+                <div className="relative z-10 flex-1 flex flex-col items-center justify-center py-1">
+                  <div className="relative w-full h-[155px] flex items-center justify-center">
+                    {/* Shadow / dais circle */}
+                    <div className="absolute bottom-1 w-28 h-6 bg-black/60 rounded-full border border-[#2D2A42] blur-[1px]" />
+                    <div className="absolute bottom-2 w-20 h-3 bg-[#F4B41A]/20 rounded-full blur-xs" />
+
+                    {/* The 32-Bit Entity Sprite */}
+                    {entityInfo?.type === 'KNIGHT' ? (
+                      <img
+                        src={entityInfo.url}
+                        alt="Citadel Adventurer"
+                        className="h-[148px] w-auto object-contain relative z-10 filter drop-shadow-[0_8px_12px_rgba(0,0,0,0.85)] pixelated"
+                        style={{ imageRendering: 'pixelated' }}
+                      />
+                    ) : entityInfo?.type === 'MONSTER' ? (
+                      <div className="relative z-10 flex flex-col items-center">
+                        <img
+                          src={entityInfo.url}
+                          alt={entityInfo.name}
+                          className="max-h-[120px] max-w-[130px] object-contain filter drop-shadow-[0_6px_10px_rgba(0,0,0,0.9)] pixelated animate-float"
+                          style={{ imageRendering: 'pixelated' }}
+                          onError={(e) => {
+                            // Fallback to Adventurer if monster image fails to load
+                            (e.target as HTMLImageElement).src = '/assets/codex/adventurer.png';
+                          }}
+                        />
+                      </div>
                     ) : (
-                      <span className="text-[9px] font-pixel text-[#FF3366] bg-[#FF3366]/10 border border-[#FF3366] px-2 py-0.5 flex items-center gap-1">
-                        <Lock className="w-3 h-3" />
-                        <span>LOCKED</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Card Face Preview */}
-                <div className="flex justify-center my-2">
-                  <div className="relative w-[148px] h-[236px] shrink-0">
-                    <CardFront card={activeCardItem.card} />
-                  </div>
-                </div>
-
-                {/* Unlock Requirements & Progress (if locked) */}
-                {!activeCardItem.isUnlocked && activeCardItem.unlockDef && (
-                  <div className="bg-[#1A1926] border-2 border-[#F4B41A] p-2.5 rounded">
-                    <div className="text-[10px] font-pixel text-[#F4B41A] mb-1 flex items-center justify-between">
-                      <span>TRIAL REQUIREMENT:</span>
-                      {activeCardItem.unlockDef.dropRateText && (
-                        <span className="text-[#38B6FF] text-[9px]">{activeCardItem.unlockDef.dropRateText}</span>
-                      )}
-                    </div>
-                    <div className="text-xs font-mono text-white mb-2">
-                      {activeCardItem.unlockDef.requirementText}
-                    </div>
-
-                    {activeCardItem.progress && (
-                      <div>
-                        <div className="flex justify-between text-[10px] font-mono text-[#A7A9BE] mb-1">
-                          <span>Progress: {activeCardItem.progress.progressText}</span>
-                          <span className="text-[#F4B41A] font-bold">{activeCardItem.progress.percent}%</span>
-                        </div>
-                        <div className="w-full h-2 bg-[#0F0E17] border border-[#2E2B44] overflow-hidden">
-                          <div
-                            className="h-full bg-[#F4B41A]"
-                            style={{ width: `${activeCardItem.progress.percent}%` }}
-                          />
-                        </div>
+                      /* Weapon Relic Display */
+                      <div className="relative z-10 flex flex-col items-center">
+                        <img
+                          src={entityInfo?.url}
+                          alt={entityInfo?.name}
+                          className="h-[80px] w-auto object-contain filter drop-shadow-[0_0_12px_rgba(244,180,26,0.6)] pixelated animate-pulse"
+                          style={{ imageRendering: 'pixelated' }}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = '/assets/codex/weapons/kettlebell_iron.png';
+                          }}
+                        />
                       </div>
                     )}
                   </div>
-                )}
 
-                {/* Thematic Lore Box */}
-                {activeCardItem.unlockDef && (
-                  <div className="bg-[#1A1926] border border-[#2E2B44] p-2.5 rounded text-[11px] font-mono text-[#E5E7EB] italic leading-relaxed">
-                    "{activeCardItem.unlockDef.lore}"
+                  {/* Entity Nameplate & Sub-Title */}
+                  <div className="text-center mt-1 z-10 w-full">
+                    <div className="font-pixel text-[11px] text-[#F4B41A] tracking-wider truncate">
+                      {entityInfo?.name}
+                    </div>
+                    <div className="text-[8.5px] font-mono text-[#A7A9BE] italic mt-0.5 line-clamp-2 px-1">
+                      {entityInfo?.desc}
+                    </div>
                   </div>
-                )}
+                </div>
 
-                {activeCardItem.isStarter && (
-                  <div className="bg-[#1A1926] border border-[#38B6FF] p-2.5 rounded text-[11px] font-mono text-[#38B6FF]">
-                    Basic starter card. Forged from plain steel, granted to every knight at the start of their journey.
+                {/* Footer Entity Metas */}
+                <div className="relative z-10 pt-1.5 border-t border-[#2D2A42] flex justify-between text-[8px] font-mono text-[#A7A9BE]">
+                  <span>ELEMENT: {EXERCISE_SKILLS[activeItem.card.exercise]?.rpgElement || 'PHYSICAL'}</span>
+                  <span className="text-[#38B6FF]">FORM: {activeItem.card.exercise.replace(/_/g, ' ')}</span>
+                </div>
+              </div>
+
+              {/* ============================================================ */}
+              {/* RIGHT SIDE PANEL: THE GRIMOIRE CODEX & UNLOCK DOSSIER (8 COLS) */}
+              {/* ============================================================ */}
+              <div className="md:col-span-8 bg-[#0A0910] border-2 border-[#2D2A42] p-3 rounded flex flex-col justify-between shadow-pixel-box overflow-y-auto">
+                <div>
+                  {/* Title & Category Header */}
+                  <div className="flex items-center justify-between border-b border-[#2D2A42] pb-1.5 mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8.5px] font-pixel px-1.5 py-0.5 border border-[#38B6FF] text-[#38B6FF] bg-[#38B6FF]/10 uppercase">
+                        {activeItem.category.replace('_', ' ')}
+                      </span>
+                      <h2 className="font-pixel text-xs text-white">
+                        {activeItem.card.name}
+                      </h2>
+                    </div>
+
+                    <div>
+                      {activeItem.isUnlocked ? (
+                        <span className="text-[8.5px] font-pixel text-[#00EB88] bg-[#00EB88]/15 border border-[#00EB88] px-2 py-0.5 flex items-center gap-1 shadow-pixel-box">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>UNLOCKED IN DECK</span>
+                        </span>
+                      ) : (
+                        <span className="text-[8.5px] font-pixel text-[#FF3366] bg-[#FF3366]/15 border border-[#FF3366] px-2 py-0.5 flex items-center gap-1 shadow-pixel-box">
+                          <Lock className="w-3 h-3" />
+                          <span>LOCKED</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
-                )}
+
+                  {/* HOW TO UNLOCK / TRIAL REQUIREMENT SECTION */}
+                  {!activeItem.isUnlocked && activeItem.unlockDef && (
+                    <div className="bg-[#171622] border-2 border-[#F4B41A] p-2 rounded mb-1.5 shadow-pixel-box">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-[9.5px] font-pixel text-[#F4B41A] flex items-center gap-1">
+                          <Compass className="w-3 h-3" />
+                          <span>TRIAL REQUIREMENT TO UNLOCK:</span>
+                        </span>
+                        {activeItem.unlockDef.dropRateText && (
+                          <span className="text-[8px] font-pixel px-1.5 py-0.2 bg-[#38B6FF]/20 border border-[#38B6FF] text-[#38B6FF] rounded">
+                            {activeItem.unlockDef.dropRateText}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="text-[11px] font-mono text-white mb-1.5 font-bold">
+                        {activeItem.unlockDef.requirementText}
+                      </div>
+
+                      {activeItem.progress && (
+                        <div>
+                          <div className="flex justify-between text-[9px] font-mono text-[#A7A9BE] mb-0.5">
+                            <span>Trial Progress: {activeItem.progress.progressText}</span>
+                            <span className="text-[#F4B41A] font-bold">{activeItem.progress.percent}%</span>
+                          </div>
+                          <div className="w-full h-2 bg-[#0A0910] border border-[#2D2A42] overflow-hidden rounded">
+                            <div
+                              className="h-full bg-gradient-to-r from-[#F4B41A] to-[#ffda66] transition-all duration-300"
+                              style={{ width: `${activeItem.progress.percent}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* WEAPON SPELL HOW TO UNLOCK */}
+                  {activeItem.category === 'WEAPON_SPELL' && (activeItem as any).spellMeta && (
+                    <div className="bg-[#171622] border-2 border-[#38B6FF] p-2 rounded mb-1.5 shadow-pixel-box">
+                      <div className="text-[9.5px] font-pixel text-[#38B6FF] mb-0.5 flex items-center gap-1.5">
+                        <Swords className="w-3 h-3" />
+                        <span>SIGNATURE WEAPON SPELL:</span>
+                      </div>
+                      <div className="text-[11px] font-mono text-white font-bold mb-0.5">
+                        Granted by {(activeItem as any).spellMeta.weaponName}
+                      </div>
+                      <p className="text-[9.5px] font-mono text-[#A7A9BE] leading-relaxed">
+                        Weapon spells are automatically unlocked and shuffled into your battle deck (two copies) whenever this signature weapon is equipped.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* UNLOCKED STARTER BADGE */}
+                  {activeItem.isStarter && (
+                    <div className="bg-[#171622] border border-[#00EB88] p-1.5 rounded mb-1.5 text-[9.5px] font-mono text-[#00EB88] flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3 h-3 shrink-0" />
+                      <span>Ancestral starter technique. Imbued in every knight of the Citadel from the first day of training.</span>
+                    </div>
+                  )}
+
+                  {/* THEMATIC DARK FANTASY LORE */}
+                  {activeItem.unlockDef && (
+                    <div className="bg-[#12111B] border border-[#2D2A42] p-2 rounded mb-1.5">
+                      <div className="text-[8.5px] font-pixel text-[#F4B41A] mb-0.5 flex items-center gap-1">
+                        <Scroll className="w-3 h-3" />
+                        <span>CHRONICLES & ORIGIN LORE:</span>
+                      </div>
+                      <p className="text-[10px] font-mono text-[#E5E7EB] italic leading-relaxed">
+                        "{activeItem.unlockDef.lore}"
+                      </p>
+                    </div>
+                  )}
+
+                  {/* COMBAT STATS & KINEMATICS DUAL GRID */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1">
+                    {/* Combat Power Sub-Panel */}
+                    <div className="bg-[#171622] p-2 border border-[#2D2A42] rounded">
+                      <div className="flex items-center justify-between border-b border-[#2D2A42] pb-1 mb-1">
+                        <span className="font-pixel text-[9px] text-[#FF3366] flex items-center gap-1">
+                          <Zap className="w-3 h-3" />
+                          <span>COMBAT PROFILE</span>
+                        </span>
+                        <span className="font-pixel text-[8px] text-[#F4B41A]">
+                          {activeItem.card.requiredReps} REPS
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 text-[8.5px] font-mono">
+                        <div>
+                          <span className="text-[#A7A9BE] block text-[7.5px]">DAMAGE</span>
+                          <span className="font-pixel text-[#FF3366] text-[9.5px]">
+                            {activeItem.card.damage ? `⚔️ ${activeItem.card.damage}` : '0 DMG'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[#A7A9BE] block text-[7.5px]">SHIELD BLOCK</span>
+                          <span className="font-pixel text-[#38B6FF] text-[9.5px]">
+                            {activeItem.card.block ? `🛡️ +${activeItem.card.block}` : '0 BLK'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[#A7A9BE] block text-[7.5px]">FORMATION</span>
+                          <span className="text-white font-pixel text-[8.5px]">
+                            {TARGET_LABEL[activeItem.card.target]}
+                            {activeItem.card.hits ? ` ×${activeItem.card.hits}` : ''}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[#A7A9BE] block text-[7.5px]">AFFLICTION</span>
+                          <span className="text-[#F4B41A] font-pixel text-[8.5px]">
+                            {activeItem.card.shatter ? 'SHATTER ' : ''}
+                            {activeItem.card.stagger ? `STAGGER ` : ''}
+                            {activeItem.card.heal ? `HEAL ` : ''}
+                            {!activeItem.card.shatter && !activeItem.card.stagger && !activeItem.card.heal ? 'NONE' : ''}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Biomechanics Sub-Panel */}
+                    <div className="bg-[#171622] p-2 border border-[#2D2A42] rounded flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between border-b border-[#2D2A42] pb-1 mb-1">
+                          <span className="font-pixel text-[9px] text-[#38B6FF] flex items-center gap-1">
+                            <Dumbbell className="w-3 h-3" />
+                            <span>KINEMATIC FORM</span>
+                          </span>
+                          <span className="font-mono text-[8px] text-[#00EB88]">
+                            {activeItem.card.exerciseLabel}
+                          </span>
+                        </div>
+                        {EXERCISE_SKILLS[activeItem.card.exercise] && (
+                          <p className="text-[8.5px] font-mono text-[#A7A9BE] leading-relaxed line-clamp-3">
+                            {EXERCISE_SKILLS[activeItem.card.exercise].description}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-[7.5px] font-mono text-[#38B6FF] mt-1 pt-0.5 border-t border-[#2D2A42]/60 flex justify-between">
+                        <span>CUE: {EXERCISE_SKILLS[activeItem.card.exercise]?.targetMetric || 'Kettlebell Reps'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-[8.5px] font-mono text-[#A7A9BE] mt-1.5 pt-1 border-t border-[#2D2A42]/80 flex justify-between">
+                  <span>Template: {activeItem.card.templateId}</span>
+                  <span className="text-[#F4B41A]">RARITY: {activeItem.card.rarity.toUpperCase()}</span>
+                </div>
               </div>
-            ) : (
-              <div className="text-xs font-mono text-[#A7A9BE] text-center my-auto">
-                Select a card to view its codex entry.
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Footer Navigation Bar */}
-      <div className="mt-3 pt-2 border-t border-[#2E2B44] flex items-center justify-between text-[9px] font-pixel text-[#38B6FF]">
-        <span>[D-PAD ARROWS] BROWSE CARDS • [SELECT] INSPECT</span>
-        <span>[ESC / BACK] RETURN TO CITADEL HUB</span>
-      </div>
+      {/* 32-Bit Dark Fantasy Footer Control Legend */}
+      <footer className="mt-2 pt-1.5 border-t border-[#2D2A42] flex items-center justify-between text-[9px] font-pixel text-[#38B6FF]">
+        <div className="flex items-center gap-3">
+          <span>[◀ / ▶] SWIPE CARDS</span>
+          <span>•</span>
+          <span>[▲ / ▼] SWITCH CATEGORIES</span>
+        </div>
+        <div className="text-[#F4B41A]">
+          <span>[ESC / BACK] RETURN TO CITADEL HUB</span>
+        </div>
+      </footer>
     </div>
   );
 };
