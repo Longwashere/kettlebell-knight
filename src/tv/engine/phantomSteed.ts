@@ -7,8 +7,8 @@
  * Frames are 1 texel = 1 stage pixel (the stage is 426×240), so they sit crisply beside the rigs. They're
  * built per cast (~100 KB of VRAM) and destroyed with `destroySteed()` when the move ends.
  */
-import { Texture } from 'pixi.js';
-import { Layer, shadeAndOutline, mix } from '../components/cardArt';
+import type { Texture } from 'pixi.js';
+import { Layer, shadeAndOutline, ellipse, limb, lerp, flame as fire, haunt, toTexture } from './pixelKit';
 
 export const STEED_W = 100;
 export const STEED_H = 64;
@@ -29,38 +29,11 @@ const WOOD = [0x3B2414, 0x6B4423, 0x9A6B3C];
 
 type L = Layer;
 
-function ellipse(m: L, cx: number, cy: number, rx: number, ry: number, c: number) {
-  for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) {
-    for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
-      if (((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1) m.set(x, y, c);
-    }
-  }
-}
 
-/** A tapered limb segment from a to b, width w0 → w1. */
-function limb(m: L, ax: number, ay: number, bx: number, by: number, w0: number, w1: number, c: number) {
-  const n = Math.max(2, Math.ceil(Math.hypot(bx - ax, by - ay)));
-  for (let i = 0; i <= n; i++) {
-    const t = i / n;
-    m.disc(ax + (bx - ax) * t, ay + (by - ay) * t, (w0 + (w1 - w0) * t) / 2, c);
-  }
-}
 
-/** Ghost-fire tongue from (x, y) streaming toward angle `a`, `len` long; `seed` flickers it per frame. */
-function flame(fx: L, x: number, y: number, a: number, len: number, w: number, seed: number) {
-  const n = Math.ceil(len);
-  for (let i = 0; i <= n; i++) {
-    const t = i / n;
-    const wob = Math.sin(t * 7 + seed * 1.9) * t * 2.2;
-    const px = x + Math.cos(a) * len * t - Math.sin(a) * wob;
-    const py = y + Math.sin(a) * len * t + Math.cos(a) * wob;
-    const r = w * (1 - t) * (0.85 + 0.25 * Math.sin(seed * 2.3 + i));
-    fx.disc(px, py, r + 0.6, GHOST[1]);
-    if (r > 1.1) fx.disc(px, py, r * 0.6, GHOST[2]);
-    if (r > 2) fx.disc(px, py, r * 0.3, GHOST[3]);
-  }
-  fx.set(x, y, GHOST[4]);
-}
+/** Ghost-fire tongue from (x, y) streaming toward angle `a`; `seed` flickers it per frame. */
+const flame = (fx: L, x: number, y: number, a: number, len: number, w: number, seed: number) =>
+  fire(fx, x, y, a, len, w, seed, [GHOST[1], GHOST[2], GHOST[3], GHOST[4]]);
 
 /** One leg: upper from the joint at angle a1 (radians from straight down, + = forward), lower at a2. */
 function leg(m: L, x: number, y: number, a1: number, a2: number, back: boolean) {
@@ -79,8 +52,6 @@ function leg(m: L, x: number, y: number, a1: number, a2: number, back: boolean) 
   m.rect(hx - 2, hy - 1, 5, 3, back ? BONE[0] : BONE[1]);
   return { x: hx, y: hy };
 }
-
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /** Rotary gallop: each leg's swing phase; front pair leads, hind pair follows half a stride later. */
 function gait(t: number, offset: number, front: boolean) {
@@ -186,39 +157,13 @@ function paintFrame(k: number, n: number): Layer {
   return body;
 }
 
-/** Ghostly rim: every opaque pixel nudged toward pale blue so the whole steed reads spectral. */
-function haunt(m: Layer) {
-  for (let i = 0; i < m.px.length; i++) {
-    const c = m.px[i];
-    if (c) m.px[i] = 0xFF000000 | mix(c & 0xFFFFFF, 0x93C5FD, 0.12);
-  }
-}
 
-function toTexture(m: Layer): Texture {
-  const canvas = document.createElement('canvas');
-  canvas.width = m.w;
-  canvas.height = m.h;
-  const ctx = canvas.getContext('2d')!;
-  const img = ctx.createImageData(m.w, m.h);
-  for (let i = 0; i < m.px.length; i++) {
-    const c = m.px[i];
-    if (!c) continue;
-    img.data[i * 4] = (c >> 16) & 255;
-    img.data[i * 4 + 1] = (c >> 8) & 255;
-    img.data[i * 4 + 2] = c & 255;
-    img.data[i * 4 + 3] = 255;
-  }
-  ctx.putImageData(img, 0, 0);
-  const tex = Texture.from(canvas);
-  tex.source.scaleMode = 'nearest';
-  return tex;
-}
 
 /** Builds the gallop cycle (6 frames). Call destroySteed() on the result when the move ends. */
 export function buildSteed(frames = 6): Texture[] {
   return Array.from({ length: frames }, (_, k) => {
     const m = paintFrame(k, frames);
-    haunt(m);
+    haunt(m, 0x93C5FD, 0.12);
     return toTexture(m);
   });
 }

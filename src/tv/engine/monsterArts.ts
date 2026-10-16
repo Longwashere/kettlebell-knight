@@ -12,10 +12,10 @@
  */
 import { Sprite, type Container, type Graphics, type Texture } from 'pixi.js';
 import { buildSteed, destroySteed, STEED_W, STEED_H, STEED_GROUND, STEED_CX, STEED_TIP } from './phantomSteed';
-import { Timeline, lerp, easeIn, easeOut, easeInOut, arc, rand, INK, BONE, DIRT } from './choreo';
-import { pal, crescent, starburst, spike, orb, pillar, kettlebell } from './fxKit';
-import { dart, flier, clawRake } from './monsterKit';
-import { tombstone } from './spellMoves';
+import { moveSprites } from './pixelKit';
+import * as AS from './artSprites';
+import { Timeline, lerp, easeIn, easeOut, easeInOut, arc, rand, INK, DIRT } from './choreo';
+import { pal, crescent, starburst, orb, pillar, kettlebell } from './fxKit';
 import { crown, between, crouch, release, dizzy } from './starterMoves';
 import * as K from './knightKit';
 import type { KnightMove, KnightMoveHost } from './knightKit';
@@ -41,13 +41,18 @@ const P_MOON = pal(0xC7D2FE, 0xFFFFFF, 0x1E1B4B);
 const P_GRANITE = pal(0xA8A29E, 0xFAFAF9, 0x292524);
 const P_SHADE = pal(0x7C3AED, 0xEDE9FE, 0x0B0218);
 const P_BLOOD = pal(0xBE123C, 0xFFE4E6, 0x3F0412);
-const P_BEAR = pal(0x92400E, 0xFDE68A, 0x1C0A02);
+const P_SPIRIT = pal(0xF59E0B, 0xFFF7D6, 0x2E1203);
 const P_PHANTOM = pal(0x93C5FD, 0xEFF6FF, 0x0B1E3F);
 
 const STONE = [0x57534E, 0x78716C, 0xA8A29E, 0x44403C];
 
 // ---------------------------------------------------------------------------------------------
 // Shared beats
+
+/** Index of the value in `list` nearest to `v`. */
+const nearest = (list: readonly number[], v: number) => list.reduce((best, x, i) => (Math.abs(x - v) < Math.abs(list[best] - v) ? i : best), 0);
+/** 8-step rotation frame for angle `a`. */
+const rot8 = (a: number) => ((Math.round((a / (Math.PI * 2)) * 8) % 8) + 8) % 8;
 
 /** A point fixed the first time it's read. */
 const fix = (fn: () => P) => K.once(fn);
@@ -101,13 +106,6 @@ const poof = (h: KnightMoveHost, at: P, colors: number[], n = 14) => {
   h.emit(at.x, at.y - 22, { count: n, colors, speed: [0.6, 2], angle: -Math.PI / 2, spread: Math.PI, gravity: -0.03, size: 4, life: [14, 26] });
 };
 
-/** Rotates (px, py) about (cx, cy). */
-const rot = (px: number, py: number, cx: number, cy: number, a: number): [number, number] => {
-  const c = Math.cos(a);
-  const s = Math.sin(a);
-  return [cx + (px - cx) * c - (py - cy) * s, cy + (px - cx) * s + (py - cy) * c];
-};
-
 // =============================================================================================
 // COMMON
 
@@ -145,15 +143,19 @@ function echoShriek(h: KnightMoveHost, tl: Timeline) {
   });
   tl.every(CLANG, CLANG + 24, 2, () => h.shake(2));
   // A colony of bats bursts out of the sound
-  const bats = Array.from({ length: 9 }, (_, i) => ({ dy: rand(-46, 18), speed: rand(5, 8), wob: rand(0, 6), delay: i * 2, s: rand(4, 6) }));
-  drawSpan(h, tl, CLANG + 2, CLANG + 44, (g, _t, f) => {
+  const px = moveSprites(h, () => ({ bat: AS.bats() }));
+  const colony = Array.from({ length: 9 }, (_, i) => ({ dy: rand(-46, 18), speed: rand(5, 8), wob: rand(0, 4), delay: i * 2, sprite: null as Sprite | null }));
+  tl.during(CLANG + 2, CLANG + 44, (_t, f) => {
     const s = src();
-    for (const b of bats) {
+    for (const b of colony) {
       const k = f - b.delay;
       if (k < 0) continue;
+      b.sprite ??= px.sprite('bat', 0);
       const x = s.x + k * b.speed;
       const y = s.y + b.dy * Math.min(1, k / 12) + Math.sin(k * 0.5 + b.wob) * 3;
-      if (x < 440) flier(g, x, y, b.s, k * 0.9, 0x1E1B4B, 0xF87171, 1);
+      b.sprite.position.set(Math.round(x), Math.round(y));
+      b.sprite.visible = x < 440;
+      px.show(b.sprite, 'bat', k / 2 + b.wob);
     }
   });
   tl.at(CLANG + 4, () => h.sound('flap', { vol: 0.7 }));
@@ -266,27 +268,7 @@ function rattleBack(h: KnightMoveHost, tl: Timeline) {
     { kind: 'bone', bx: -8, by: -6, fx: -34, spin: 7 },
     { kind: 'bone', bx: 8, by: -6, fx: 2, spin: -7 },
   ];
-  const piece = (g: Graphics, kind: string, x: number, y: number, r: number) => {
-    if (kind === 'helm') {
-      g.circle(x, y, 7).fill({ color: 0xD97706 }).stroke({ width: 1.5, color: INK });
-      g.rect(x - 5, y - 1, 10, 2).fill({ color: INK });
-      g.poly([x - 4, y - 6, x + 6, y - 12, x + 2, y - 4]).fill({ color: 0xDC2626 }).stroke({ width: 1, color: INK });
-    } else if (kind === 'shield') {
-      const pts: number[] = [];
-      for (const [dx, dy] of [[-8, -9], [8, -9], [8, 2], [0, 10], [-8, 2]]) pts.push(...rot(x + dx, y + dy, x, y, r));
-      g.poly(pts).fill({ color: 0xB45309 }).stroke({ width: 1.5, color: INK });
-    } else if (kind === 'bell') {
-      kettlebell(g, x, y, 5, r, 0xFBBF24);
-    } else if (kind === 'plate') {
-      const pts: number[] = [];
-      for (const [dx, dy] of [[-7, -3], [7, -3], [6, 3], [-6, 3]]) pts.push(...rot(x + dx, y + dy, x, y, r));
-      g.poly(pts).fill({ color: 0xD97706 }).stroke({ width: 1, color: INK });
-    } else {
-      const [x0, y0] = rot(x - 6, y, x, y, r);
-      const [x1, y1] = rot(x + 6, y, x, y, r);
-      g.moveTo(x0, y0).lineTo(x1, y1).stroke({ width: 4, color: INK }).moveTo(x0, y0).lineTo(x1, y1).stroke({ width: 2, color: BONE });
-    }
-  };
+
   tl.at(0, () => {
     h.anim('DEFENSE');
     h.camera(1.42, h.home.x + 8, h.home.y - 26, FALL + 6);
@@ -303,7 +285,10 @@ function rattleBack(h: KnightMoveHost, tl: Timeline) {
   });
   [10, 13, 15, 18].forEach((f, k) => tl.at(f, () => h.sound('impact_metal', { vol: 0.35, rate: 1.2 + k * 0.15 })));
   // Collapse: pieces tumble to the floor, bounce once, lie still, twitch… then fly back
-  drawSpan(h, tl, FALL, WHOLE, (g, _t, f) => {
+  const px = moveSprites(h, () => ({ piece: AS.rattlePieces() }));
+  const kinds: readonly string[] = AS.RATTLE_PIECES;
+  const shown: Sprite[] = [];
+  tl.during(FALL, WHOLE, (t, f) => {
     const b = base();
     pieces.forEach((pc, k) => {
       const rest = { x: b.x + pc.bx, y: b.y + pc.by };
@@ -325,7 +310,11 @@ function rattleBack(h: KnightMoveHost, tl: Timeline) {
         y = lerp(floor.y, rest.y, e) - arc(t) * 18;
         r = pc.spin * (1 - e) + t * Math.PI * 2;
       }
-      piece(g, pc.kind, x, y, r);
+      const frame = kinds.indexOf(pc.kind) * 8 + rot8(r);
+      shown[k] ??= px.sprite('piece', frame);
+      shown[k].position.set(Math.round(x), Math.round(y));
+      shown[k].visible = t < 1;
+      px.show(shown[k], 'piece', frame);
     });
   });
   tl.at(REFORM - 4, () => {
@@ -348,19 +337,6 @@ function rattleBack(h: KnightMoveHost, tl: Timeline) {
   tl.end(WHOLE + 16);
 }
 
-/** A little lantern spirit: glow, flickering flame crown, two curious eyes. */
-function wisp(g: Graphics, x: number, y: number, r: number, f: number, look = 1, blink = false, alpha = 1) {
-  g.circle(x, y, r * 2.2).fill({ color: 0x67E8F9, alpha: 0.12 * alpha });
-  g.circle(x, y, r * 1.5).fill({ color: 0x67E8F9, alpha: 0.25 * alpha });
-  for (let k = 0; k < 3; k++) {
-    const sway = Math.sin(f * 0.4 + k) * r * 0.4;
-    g.poly([x - r * 0.7 + k * r * 0.5, y - r * 0.3, x + sway + (k - 1) * r * 0.4, y - r * (1.8 + 0.4 * Math.sin(f * 0.6 + k * 2)), x - r * 0.1 + k * r * 0.5, y - r * 0.3])
-      .fill({ color: k === 1 ? 0xFFFFFF : 0xA5F3FC, alpha: 0.9 * alpha });
-  }
-  orb(g, x, y, r, P_WISP, alpha);
-  if (blink) g.rect(x - r * 0.5 + look, y - 0.5, r, 1).fill({ color: INK, alpha });
-  else for (const ox of [-r * 0.35, r * 0.35]) g.rect(x + ox + look - 1, y - 1.5, 2, 3).fill({ color: INK, alpha });
-}
 
 /** Will-o'-Lure: a wisp peels off the halo, drifts curiously over the front line and pops in the back foe's face. */
 function wispLure(h: KnightMoveHost, tl: Timeline) {
@@ -370,6 +346,8 @@ function wispLure(h: KnightMoveHost, tl: Timeline) {
   const ARRIVE = HALO + 44;
   const POP = ARRIVE + 14;
   const head = (): P => ({ x: h.pos().x + 2, y: h.pos().y - 52 });
+  const px = moveSprites(h, () => ({ wisp: AS.wisps() }));
+  let spirit: Sprite | null = null;
   let wx = 0;
   let wy = 0;
   tl.at(0, () => {
@@ -385,7 +363,13 @@ function wispLure(h: KnightMoveHost, tl: Timeline) {
     g.ellipse(p.x, p.y, 15, 5).stroke({ width: 1.5, color: 0x67E8F9, alpha: 0.5 * t });
     crescent(g, p.x, p.y, 15, a - 1.6, a, 2.5, P_WISP, 0.7);
     kettlebell(g, p.x + Math.cos(a) * 15, p.y + Math.sin(a) * 5, 4, a, 0x67E8F9);
-    if (t > 0.5) wisp(g, p.x, p.y - 14, 3 + 3 * (t - 0.5) * 2, f, 1, false, (t - 0.5) * 2);
+    if (t > 0.5) {
+      g.circle(p.x, p.y - 14, 10).fill({ color: 0x67E8F9, alpha: 0.2 * (t - 0.5) * 2 });
+      spirit ??= px.sprite('wisp', 0, { ax: 12, ay: 17 });
+      spirit.position.set(Math.round(p.x), Math.round(p.y - 14));
+      spirit.alpha = (t - 0.5) * 2;
+      px.show(spirit, 'wisp', f / 4);
+    }
   });
   tl.every(0, HALO, 9, (i) => h.sound('whoosh', { vol: 0.35, rate: 1.1 + i * 0.12 }));
   tl.at(HALO, () => {
@@ -402,9 +386,17 @@ function wispLure(h: KnightMoveHost, tl: Timeline) {
     wy = lerp(s0.y, e0.y, easeInOut(k)) - arc(k) * 26 + Math.sin(f * 0.35) * 3;
     const look = f > 14 && f < 22 ? -1 : 1;
     const blink = f > POP - HALO - 10 && f < POP - HALO - 6;
-    const swell = f > ARRIVE - HALO ? 1 + 0.5 * ((f - (ARRIVE - HALO)) / (POP - ARRIVE)) : 1;
-    wisp(g, wx, wy, 6 * swell, f, look, blink);
+    const swell = f > ARRIVE - HALO ? (f - (ARRIVE - HALO)) / (POP - ARRIVE) : 0;
+    g.circle(wx, wy, 14 + 10 * swell).fill({ color: 0x67E8F9, alpha: 0.12 + 0.12 * swell });
+    g.circle(wx, wy, 9 + 5 * swell).fill({ color: 0x67E8F9, alpha: 0.2 });
+    if (spirit) {
+      spirit.position.set(Math.round(wx), Math.round(wy));
+      spirit.alpha = 1;
+      spirit.scale.set(look, 1); // peeks back by turning round
+      px.show(spirit, 'wisp', (blink ? 4 : 0) + (Math.floor(f / 4) % 4));
+    }
   });
+  tl.at(POP, () => spirit && (spirit.visible = false));
   tl.every(HALO, POP, 3, () => h.emit(wx, wy + 4, { count: 1, colors: [0xA5F3FC, 0xFFFFFF], speed: [0.1, 0.4], angle: Math.PI / 2, spread: 1, gravity: 0.01, size: 2, life: [14, 22] }));
   tl.at(HALO + 6, () => h.sound('whistle', { vol: 0.3, rate: 1.8 }));
   follow(h, tl, HALO + 4, ARRIVE, 1.2, () => ({ x: wx, y: wy + 10 }), 6);
@@ -512,9 +504,15 @@ function boneVolley(h: KnightMoveHost, tl: Timeline) {
   });
   // Three shards shoot off the top of the frame
   const up = fix(() => ({ ...tip() }));
-  drawSpan(h, tl, RAISE, RAISE + 10, (g, t) => {
+  const px = moveSprites(h, () => ({ arrow: AS.boneArrows() }));
+  const launched: Sprite[] = [];
+  tl.during(RAISE, RAISE + 10, (t) => {
     const p = up();
-    for (let k = 0; k < 3; k++) dart(g, p.x + (k - 1) * 8 * t, p.y - t * 120, -Math.PI / 2 + (k - 1) * 0.12, 22, 0xE2E8F0, BONE, 3);
+    for (let k = 0; k < 3; k++) {
+      launched[k] ??= px.sprite('arrow', 1);
+      launched[k].position.set(Math.round(p.x + (k - 1) * 8 * t), Math.round(p.y - t * 120));
+      launched[k].visible = t < 1;
+    }
   });
   hits.slice(0, 3).forEach((t, k) => {
     const at = FIRST + k * STEP;
@@ -524,11 +522,13 @@ function boneVolley(h: KnightMoveHost, tl: Timeline) {
     drawSpan(h, tl, at - 12, at, (g, f) => {
       g.ellipse(gx, t.y, 10 * (1 - f) + 4, 3 * (1 - f) + 1).stroke({ width: 1.5, color: 0xF87171, alpha: 0.4 + 0.6 * f });
     }, 'ground');
+    let arrow: Sprite | null = null;
     drawSpan(h, tl, at - 6, at, (g, f) => {
       const x = tgt.x - 30 * (1 - f);
       const y = tgt.y - 120 * (1 - easeIn(f));
       g.moveTo(x - 9, y - 40).lineTo(x, y).stroke({ width: 3, color: 0xFFFFFF, alpha: 0.35 }); // speed streak
-      dart(g, x, y, 1.32, 26, 0xE2E8F0, BONE, 3.5);
+      arrow ??= px.sprite('arrow', 0);
+      arrow.position.set(Math.round(x), Math.round(y));
     });
     tl.at(at - 4, () => h.sound('arrow', { vol: 0.6, rate: 1 + k * 0.1 }));
     tl.at(at, () => {
@@ -539,8 +539,10 @@ function boneVolley(h: KnightMoveHost, tl: Timeline) {
     });
     // The arrow stays stuck in the floor, quivering, then crumbles
     drawSpan(h, tl, at, at + 30, (g, f, fr) => {
-      const q = Math.sin(fr * 1.4) * 0.12 * (1 - f);
-      dart(g, gx - 3, t.y - 10, 1.32 + q, 26, 0xE2E8F0, BONE, 3.5);
+      if (arrow) {
+        arrow.position.set(Math.round(gx - 3 + (fr < 12 && fr % 2 ? 1 : 0)), Math.round(t.y - 12)); // quivers
+        arrow.alpha = f > 0.7 ? 1 - (f - 0.7) / 0.3 : 1;
+      }
       if (f > 0.7) g.rect(gx - 4, t.y - 2, 4, 2).fill({ color: 0xE2E8F0, alpha: 1 - f });
     }, 'ground');
   });
@@ -556,20 +558,6 @@ function boneVolley(h: KnightMoveHost, tl: Timeline) {
   tl.end(END + 20);
 }
 
-/** Armoured beetle shell (the knight curled inside), its plates turning as it rolls. */
-function beetleShell(g: Graphics, x: number, y: number, r: number, spin: number, alpha = 1) {
-  g.ellipse(x, y + r * 0.85, r * 1.05, r * 0.25).fill({ color: 0x000000, alpha: 0.3 * alpha });
-  g.circle(x, y, r).fill({ color: 0x1A2E05, alpha }).stroke({ width: 2, color: INK, alpha });
-  for (let k = 0; k < 4; k++) {
-    const a = spin + (k * Math.PI) / 2;
-    g.moveTo(x + Math.cos(a) * r * 0.2, y + Math.sin(a) * r * 0.2).lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r).stroke({ width: 1.5, color: 0x4D7C0F, alpha });
-  }
-  g.circle(x, y, r * 0.55).stroke({ width: 1.5, color: 0x4D7C0F, alpha });
-  arcAt(g, x, y, r * 0.8, -2.6, -1.4).stroke({ width: 2, color: 0xD9F99D, alpha: 0.8 * alpha }); // sheen
-  const hx = x + Math.cos(spin) * r;
-  const hy = y + Math.sin(spin) * r;
-  g.poly([hx, hy, x + Math.cos(spin + 0.35) * r * 1.35, y + Math.sin(spin + 0.35) * r * 1.35, x + Math.cos(spin + 0.2) * r, y + Math.sin(spin + 0.2) * r]).fill({ color: 0xD9F99D, alpha }).stroke({ width: 1, color: INK, alpha });
-}
 
 /** Carapace Roll: he curls into a beetle shell, revs in place and bowls through the line, then hops home and unfurls. */
 function carapaceRoll(h: KnightMoveHost, tl: Timeline) {
@@ -578,7 +566,7 @@ function carapaceRoll(h: KnightMoveHost, tl: Timeline) {
   const CURL = 10;
   const ROLL = 22;
   const END = 40;
-  const R = 13;
+  const R = 12;
   let sx = 0;
   let spin = 0;
   let lift = 0;
@@ -595,7 +583,10 @@ function carapaceRoll(h: KnightMoveHost, tl: Timeline) {
     h.sound('spin', { vol: 0.8, rate: 0.8 });
   });
   // Shell closes, revs in place (dust spitting out behind), then launches
-  drawSpan(h, tl, CURL - 4, END + 22, (g, _t, f) => {
+  const px = moveSprites(h, () => ({ shell: AS.beetleShells() }));
+  let shell: Sprite | null = null;
+  const echoes: Sprite[] = [];
+  tl.during(CURL - 4, END + 22, (_t, f) => {
     const fr = f + CURL - 4;
     const close = Math.min(1, f / 4);
     if (fr < ROLL) {
@@ -616,8 +607,21 @@ function carapaceRoll(h: KnightMoveHost, tl: Timeline) {
     const y = h.home.y - R - lift;
     trail.unshift({ x: sx, y });
     trail.length = Math.min(trail.length, 6);
-    if (fr >= ROLL && fr < END) trail.forEach((p, i) => i && beetleShell(g, p.x, p.y, R, spin - i * 0.9, 0.35 - i * 0.05));
-    if (fr < END + 18) beetleShell(g, sx, y, R * close, spin);
+    for (let i = 1; i < 6; i++) {
+      echoes[i] ??= px.sprite('shell', 0, { add: true, tint: 0x84CC16 });
+      const p = trail[i];
+      echoes[i].visible = !!p && fr >= ROLL && fr < END;
+      if (p) {
+        echoes[i].position.set(Math.round(p.x), Math.round(p.y));
+        echoes[i].alpha = 0.4 - i * 0.06;
+        px.show(echoes[i], 'shell', rot8(spin - i * 0.9));
+      }
+    }
+    shell ??= px.sprite('shell', 0);
+    shell.position.set(Math.round(sx), Math.round(y));
+    shell.scale.set(close < 1 ? 0.5 + close * 0.5 : 1);
+    shell.visible = fr < END + 18;
+    px.show(shell, 'shell', rot8(spin));
   });
   tl.every(CURL, ROLL, 2, () => h.emit(h.home.x - 10, h.home.y - 2, { count: 3, colors: [0x78716C, 0xA8A29E, 0x5C2B14], speed: [1.5, 3], angle: Math.PI + 0.3, spread: 0.3, gravity: 0.1, size: 2, life: [10, 18] }));
   tl.at(ROLL, () => {
@@ -658,31 +662,6 @@ function carapaceRoll(h: KnightMoveHost, tl: Timeline) {
   tl.end(END + 32);
 }
 
-/** Curling breaker standing `hgt` tall, its lip at x curling toward -x, the back slope `w` long. */
-function waveCrest(g: Graphics, x: number, gy: number, hgt: number, w: number, f: number, alpha = 1) {
-  if (hgt < 2) return;
-  const H = hgt;
-  const shape = (k: number) =>
-    g.moveTo(x + w * k, gy)
-      .quadraticCurveTo(x + w * 0.35 * k, gy - H * 0.25, x + 4, gy - H) // back face up to the crest
-      .quadraticCurveTo(x - H * 0.55, gy - H * 1.15, x - H * 0.75, gy - H * 0.6) // the lip pitching far forward
-      .quadraticCurveTo(x - H * 0.45, gy - H * 0.82, x - H * 0.15, gy - H * 0.55) // curling back under
-      .quadraticCurveTo(x - H * 0.05, gy - H * 0.2, x - H * 0.35, gy) // the face down to the floor
-      .closePath();
-  shape(1).fill({ color: 0x0F766E, alpha: 0.9 * alpha }).stroke({ width: 2, color: 0x042F2E, alpha });
-  // Lighter water in the face and a dark barrel under the lip
-  g.moveTo(x + w * 0.5, gy).quadraticCurveTo(x + w * 0.15, gy - H * 0.35, x, gy - H * 0.85).quadraticCurveTo(x - H * 0.05, gy - H * 0.4, x - H * 0.25, gy).closePath()
-    .fill({ color: 0x14B8A6, alpha: 0.65 * alpha });
-  g.ellipse(x - H * 0.35, gy - H * 0.6, H * 0.16, H * 0.1).fill({ color: 0x042F2E, alpha: 0.75 * alpha }); // the barrel
-  // Foam along the lip and spray off the crest
-  for (let k = 0; k < 9; k++) {
-    const t = k / 8;
-    const fx = lerp(x + 6, x - H * 0.75, t);
-    const fy = lerp(gy - H * 1.02, gy - H * 0.6, t * t) - Math.sin(t * Math.PI) * H * 0.06 + Math.sin(f * 0.5 + k) * 1.2;
-    g.circle(fx, fy, 2.5 - t).fill({ color: 0xF0FDFA, alpha });
-  }
-  for (let k = 0; k < 5; k++) g.rect(x - 4 + k * 5 + Math.sin(f * 0.7 + k) * 2, gy - H - 4 - ((f * 1.5 + k * 7) % 10), 2, 2).fill({ color: 0xF0FDFA, alpha: 0.8 * alpha });
-}
 
 /** Undertow: a heaving row; a wave rears up behind the line and slams the back foe into the front one. */
 function undertow(h: KnightMoveHost, tl: Timeline) {
@@ -709,17 +688,26 @@ function undertow(h: KnightMoveHost, tl: Timeline) {
     h.camera(1.02, (h.home.x + back.x) / 2 + 30, h.home.y - 44, CRASH - RISE + 10); // wide: the wave rears into frame
   });
   tl.during(RISE, RISE + 8, (t) => h.stretch(lerp(1.08, 1, t), lerp(0.94, 1, t)));
-  drawSpan(h, tl, RISE, CRASH + 14, (g, _t, f) => {
+  const px = moveSprites(h, () => ({ wave: AS.waves() }));
+  let wave: Sprite | null = null;
+  tl.during(RISE, CRASH + 14, (t, f) => {
     const fr = f + RISE;
+    wave ??= px.sprite('wave', 0, { ax: AS.WAVE_LIP.x, ay: AS.WAVE_LIP.y });
+    let H: number;
     if (fr < CRASH - 6) {
       const k = (fr - RISE) / (CRASH - 6 - RISE);
-      wx = back.x + 30 + 4 * Math.sin(fr * 0.3);
-      waveCrest(g, wx, gy, 70 * easeOut(k), 50, fr);
+      wx = back.x + 18 + 4 * Math.sin(fr * 0.3);
+      H = 72 * easeOut(k);
+      wave.alpha = 1;
     } else {
       const k = Math.min(1, (fr - (CRASH - 6)) / 16);
-      wx = lerp(back.x + 30, front.x - 20, easeIn(k));
-      waveCrest(g, wx, gy, 70 * (1 - k * 0.8), 50, fr, 1 - k * 0.6);
+      wx = lerp(back.x + 18, front.x - 20, easeIn(k));
+      H = 72 * (1 - k * 0.8);
+      wave.alpha = 1 - k * 0.6;
     }
+    wave.position.set(Math.round(wx), gy);
+    wave.visible = H > 8 && t < 1;
+    px.show(wave, 'wave', nearest(AS.WAVE_HEIGHTS, H));
   });
   tl.every(RISE, CRASH + 10, 2, () => h.emit(wx, gy - 30, { count: 2, colors: [0xF0FDFA, 0x5EEAD4], speed: [0.5, 2], angle: -Math.PI / 2 - 0.4, spread: 0.8, gravity: 0.12, size: 2, life: [12, 20] }));
   // The crash: back foe first, slammed into the front one
@@ -745,18 +733,6 @@ function undertow(h: KnightMoveHost, tl: Timeline) {
   tl.end(CRASH + 26);
 }
 
-/** A grave slab (rounded top, carved cross) centred on (x, y), rotated `r`. */
-function slab(g: Graphics, x: number, y: number, s: number, r: number) {
-  const P0 = [[-6, 10], [-6, -6], [-3, -10], [3, -10], [6, -6], [6, 10]];
-  const pts: number[] = [];
-  for (const [dx, dy] of P0) pts.push(...rot(x + dx * s, y + dy * s, x, y, r));
-  g.poly(pts).fill({ color: 0x57534E }).stroke({ width: 2, color: INK });
-  const [a0, a1] = rot(x, y - 6 * s, x, y, r);
-  const [b0, b1] = rot(x, y + 3 * s, x, y, r);
-  const [c0, c1] = rot(x - 3 * s, y - 3 * s, x, y, r);
-  const [d0, d1] = rot(x + 3 * s, y - 3 * s, x, y, r);
-  g.moveTo(a0, a1).lineTo(b0, b1).moveTo(c0, c1).lineTo(d0, d1).stroke({ width: 1.5, color: 0x292524 });
-}
 
 /** Tombstone Heave: he deadlifts a gravestone out of the earth and hurls it end over end at the back row. */
 function tombstoneHeave(h: KnightMoveHost, tl: Timeline) {
@@ -776,7 +752,14 @@ function tombstoneHeave(h: KnightMoveHost, tl: Timeline) {
   });
   crackFx(h, tl, 2, { x: graveX() - 20, y: h.home.y + 1 }, { x: graveX() + 20, y: h.home.y - 1 }, P_STONE, 6, 40);
   // The stone grinds up out of the ground while he strains
-  drawSpan(h, tl, RISE, LOCK, (g, t) => tombstone(g, graveX(), h.home.y, easeOut(t), 1.1, 0), 'fx');
+  const px = moveSprites(h, () => ({ stone: AS.tombstones() }));
+  let stone: Sprite | null = null;
+  const RISE_FRAMES = AS.STONE_RISE;
+  tl.during(RISE, LOCK, (t) => {
+    stone ??= px.sprite('stone', 0, { ax: 20, ay: 43 });
+    stone.position.set(Math.round(graveX()), h.home.y + 1);
+    px.show(stone, 'stone', Math.min(RISE_FRAMES - 1, Math.floor(easeOut(t) * RISE_FRAMES)));
+  });
   tl.every(RISE, LOCK, 3, (i) => {
     h.shake(2);
     h.offset(i % 2 ? -0.8 : 0.8, 0);
@@ -795,15 +778,23 @@ function tombstoneHeave(h: KnightMoveHost, tl: Timeline) {
     h.camera(1.06, (h.home.x + t0.x) / 2, h.home.y - 50, THROW - LOCK + 6);
   });
   tl.during(LOCK, LOCK + 8, (t) => h.stretch(lerp(0.88, 1, t), lerp(1.14, 1, t)));
-  drawSpan(h, tl, LOCK, THROW, (g, t) => slab(g, lerp(graveX(), h.pos().x + 4, easeOut(Math.min(1, t * 2))), lerp(h.home.y - 12, h.pos().y - 70, easeOut(Math.min(1, t * 2))), 1.6, -0.2 * t));
+  // Hoisted overhead (the spinning set's frames start after the rising ones)
+  tl.during(LOCK, THROW, (t) => {
+    if (!stone) return;
+    stone.anchor.set(0.5, 23 / 46);
+    stone.position.set(Math.round(lerp(graveX(), h.pos().x + 4, easeOut(Math.min(1, t * 2)))), Math.round(lerp(h.home.y - 16, h.pos().y - 70, easeOut(Math.min(1, t * 2)))));
+    px.show(stone, 'stone', RISE_FRAMES + (t > 0.6 ? 7 : 0));
+  });
   tl.at(THROW - 6, () => h.anim('ATTACK3'));
   tl.at(THROW, () => {
     h.sound('whoosh_heavy', { vol: 0.9, rate: 0.7 });
     h.camera(1.0, (h.home.x + c.x) / 2 + 20, h.home.y - 70, FLIGHT);
   });
-  projectile(h, tl, THROW, FLIGHT, () => ({ x: h.pos().x + 4, y: h.pos().y - 70 }), () => ({ x: c.x - 4, y: c.y }), 46, (g, x, y) => {
-    spinR -= 0.42;
-    slab(g, x, y, 1.6, spinR);
+  projectile(h, tl, THROW, FLIGHT, () => ({ x: h.pos().x + 4, y: h.pos().y - 70 }), () => ({ x: c.x - 4, y: c.y }), 46, (_g, x, y) => {
+    spinR += 0.42;
+    if (!stone) return;
+    stone.position.set(Math.round(x), Math.round(y));
+    px.show(stone, 'stone', RISE_FRAMES + rot8(spinR));
   }, () => {}, (x, y) => {
     if (Math.random() < 0.5) h.emit(x, y, { count: 1, colors: [0x84A98C, 0x94A3B8], speed: [0.1, 0.3], angle: Math.PI, spread: 0.6, gravity: -0.01, size: 3, life: [12, 20] });
   });
@@ -819,7 +810,15 @@ function tombstoneHeave(h: KnightMoveHost, tl: Timeline) {
     h.emit(c.x, c.y, { count: 22, colors: STONE, speed: [2, 5], angle: -Math.PI / 2, spread: 1.5, gravity: 0.25, size: 3, life: [16, 28] });
   });
   // The slab lands upright beside the foe like a fresh grave, then sinks
-  drawSpan(h, tl, HIT, HIT + 34, (g, t) => tombstone(g, t0.x + 18, t0.y, 1 - easeIn(Math.max(0, (t - 0.6) / 0.4)), 1.1, -0.15), 'fx');
+  // It lands upright beside the foe like a fresh grave, then sinks back into the earth
+  tl.during(HIT, HIT + 34, (t) => {
+    if (!stone) return;
+    stone.anchor.set(0.5, 43 / 46);
+    stone.position.set(Math.round(t0.x + 18), t0.y + 1);
+    const up = 1 - easeIn(Math.max(0, (t - 0.6) / 0.4));
+    px.show(stone, 'stone', Math.max(0, Math.ceil(up * RISE_FRAMES) - 1));
+    stone.visible = up > 0.05;
+  });
   tl.end(HIT + 36);
 }
 
@@ -892,6 +891,7 @@ function needleBurst(h: KnightMoveHost, tl: Timeline) {
   const PLANT = 10;
   const FIRST = PLANT + 14;
   const STEP = 6;
+  const px = moveSprites(h, () => ({ bramble: AS.brambles() }));
   tl.at(0, () => {
     h.anim('SKILL1');
     h.camera(1.36, h.home.x + 10, h.home.y - 22, PLANT);
@@ -923,11 +923,13 @@ function needleBurst(h: KnightMoveHost, tl: Timeline) {
   hits.slice(0, 4).forEach((t, k) => {
     const at = FIRST + k * STEP;
     const gx = t.x + (k % 2 ? 8 : -10);
-    drawSpan(h, tl, at - 2, at + 22, (g, f) => {
+    let bush: Sprite | null = null;
+    tl.during(at - 2, at + 22, (f) => {
       const up = f < 0.15 ? easeOut(f / 0.15) : f > 0.7 ? 1 - (f - 0.7) / 0.3 : 1;
-      for (let s = -2; s <= 2; s++) {
-        spike(g, gx + s * 7, t.y + 2, (48 - Math.abs(s) * 10) * up, 7, 0x166534, 0x052E16, 0xFEF3C7);
-      }
+      bush ??= px.sprite('bramble', 0, { ax: 24, ay: 54 });
+      bush.position.set(Math.round(gx), t.y + 2);
+      bush.visible = up > 0.05;
+      px.show(bush, 'bramble', Math.min(5, Math.floor(up * 6)));
     });
     tl.at(at, () => {
       if (k < h.targets.length) land(h, k, { scale: 0.8, tint: 0xBBF7D0, sfx: 'stab' });
@@ -945,30 +947,6 @@ function needleBurst(h: KnightMoveHost, tl: Timeline) {
   tl.end(END + 24);
 }
 
-/** A giant crab claw hinged at (x, y), jaws reaching `len` to the left; `open` 0 shut → 1 wide. */
-function pincer(g: Graphics, x: number, y: number, len: number, open: number, alpha = 1) {
-  const jaw = (side: 1 | -1, color: number) => {
-    const outer: number[] = [];
-    const inner: number[] = [];
-    for (let i = 0; i <= 12; i++) {
-      const t = i / 12;
-      const bow = Math.sin(t * Math.PI * 0.85) * len * (0.18 + 0.4 * open);
-      const hook = t > 0.8 ? (t - 0.8) * len * 0.9 : 0; // the tip hooks inward
-      const cx = x - len * t;
-      const cy = y + side * (bow - hook);
-      const w = len * 0.2 * (1 - t * 0.85);
-      outer.push(cx, cy + side * w);
-      const tooth = i % 2 && t > 0.15 && t < 0.85 ? len * 0.06 : 0;
-      inner.unshift(cx, cy - side * (w * 0.2 + tooth));
-    }
-    g.poly([...outer, ...inner]).fill({ color, alpha }).stroke({ width: 2, color: INK, alpha });
-    g.moveTo(x - len * 0.15, y + side * len * 0.2).lineTo(x - len * 0.55, y + side * len * 0.32 * (0.5 + open)).stroke({ width: 1.5, color: 0xFFEDD5, alpha: 0.6 * alpha });
-  };
-  jaw(-1, 0xEA580C);
-  jaw(1, 0xC2410C);
-  g.circle(x, y, len * 0.22).fill({ color: 0x9A3412, alpha }).stroke({ width: 2, color: INK, alpha });
-  g.rect(x - 1, y - len * 0.1, 3, 3).fill({ color: 0xFFEDD5, alpha });
-}
 
 /** Pincer Crack: a snapping clean conjures a giant crab claw that clamps the foe, squeezes, and cracks its armour. */
 function pincerCrack(h: KnightMoveHost, tl: Timeline) {
@@ -989,12 +967,18 @@ function pincerCrack(h: KnightMoveHost, tl: Timeline) {
   tl.at(SNAP - 2, () => swingSound(h, true));
   slashFx(h, tl, SNAP - 1, { x: c.x - 4, y: c.y + 2, r: 24, a0: 1.6, a1: -1.6, thick: 6, p: P_CRAB, dur: 8 });
   // The claw: swings open around the foe, then clamps shut
-  drawSpan(h, tl, SNAP, CRACK + 6, (g, _t, f) => {
+  const px = moveSprites(h, () => ({ claw: AS.crabClaws() }));
+  let pinch: Sprite | null = null;
+  tl.during(SNAP, CRACK + 6, (t, f) => {
     const fr = f + SNAP;
-    const grow = easeOut(Math.min(1, f / 6));
-    const open = fr < CLAMP ? lerp(0.2, 1, easeOut((fr - SNAP) / (CLAMP - SNAP - 2))) : fr < CRACK ? 0.12 + Math.abs(Math.sin(fr * 1.3)) * 0.06 : 0.6;
+    // Swings in wide open, snaps shut on the clamp, grinds while squeezing, springs open as the shell cracks
+    const open = fr < CLAMP - 2 ? 1 : fr < CLAMP ? 0.7 : fr < CRACK ? (fr % 4 < 2 ? 0.42 : 0.18) : 1;
     const p = claw();
-    pincer(g, p.x + (fr >= CRACK ? 8 : 0), p.y, 58 * grow, Math.min(1, open), fr >= CRACK ? 1 - (fr - CRACK) / 6 : 1);
+    pinch ??= px.sprite('claw', 0, { ax: 66, ay: 32 });
+    pinch.position.set(Math.round(p.x + (fr >= CRACK ? 8 : 0) + (fr < SNAP + 6 ? (SNAP + 6 - fr) * 4 : 0)), Math.round(p.y));
+    pinch.alpha = fr >= CRACK ? Math.max(0, 1 - (fr - CRACK) / 6) : Math.min(1, f / 4);
+    pinch.visible = t < 1;
+    px.show(pinch, 'claw', nearest(AS.CLAW_OPEN, open));
   });
   tl.at(SNAP + 2, () => h.sound('chitter', { vol: 0.7, rate: 0.8 }));
   tl.at(CLAMP, () => {
@@ -1029,22 +1013,6 @@ function pincerCrack(h: KnightMoveHost, tl: Timeline) {
   tl.end(CRACK + 28);
 }
 
-/** A tapered scaled tail from (x0, y0) sweeping through angle `a` with length `len`. */
-function lizardTail(g: Graphics, x0: number, y0: number, a: number, len: number, curl: number, alpha = 1) {
-  const pts: P[] = [];
-  for (let i = 0; i <= 10; i++) {
-    const t = i / 10;
-    const ang = a + curl * t * t;
-    const prev = pts[i - 1] ?? { x: x0, y: y0 };
-    pts.push(i === 0 ? { x: x0, y: y0 } : { x: prev.x + Math.cos(ang) * len / 10, y: prev.y + Math.sin(ang) * len / 10 });
-  }
-  for (const [extra, color] of [[3, INK], [0, 0x059669]] as const) {
-    for (let i = 1; i <= 10; i++) {
-      g.moveTo(pts[i - 1].x, pts[i - 1].y).lineTo(pts[i].x, pts[i].y).stroke({ width: (15 * (1 - i / 11) + 2) + extra, color, alpha, cap: 'round' });
-    }
-  }
-  for (let i = 1; i < 9; i += 2) g.circle(pts[i].x, pts[i].y - 1, 1.5).fill({ color: 0xD1FAE5, alpha });
-}
 
 /** Tail Sweep: balanced on one leg he spins, a lizard's tail lashing out low through the front foe into the one behind. */
 function tailSweep(h: KnightMoveHost, tl: Timeline) {
@@ -1072,12 +1040,16 @@ function tailSweep(h: KnightMoveHost, tl: Timeline) {
   });
   // The tail sweeps from behind him round and across the line, low to the ground
   const reach = Math.max(...foes.map((t) => t.x)) + 20;
-  drawSpan(h, tl, SPIN + 2, SWEEP + 12, (g, _t, f) => {
+  const px = moveSprites(h, () => ({ tail: AS.lizardTails(Math.max(80, reach - (h.home.x + strikeSpot(h, t0, 62).x) + 4)) }));
+  let tail: Sprite | null = null;
+  tl.during(SPIN + 2, SWEEP + 12, (t, f) => {
     const p = h.pos();
-    const k = Math.min(1, f / (SWEEP - SPIN));
-    const fadeA = f > SWEEP - SPIN + 2 ? 1 - (f - (SWEEP - SPIN + 2)) / 8 : 1;
-    const len = lerp(20, reach - p.x, easeOut(k));
-    lizardTail(g, p.x - 2, p.y - 14, lerp(Math.PI * 1.05, 0.08, easeOut(k)), len, 0.3 * (1 - k), fadeA);
+    const k = Math.min(1, f / (SWEEP - SPIN - 2));
+    tail ??= px.sprite('tail', 0, { ax: AS.TAIL_ROOT.x, ay: AS.TAIL_ROOT.y });
+    tail.position.set(Math.round(p.x - 2), Math.round(p.y - 14));
+    tail.alpha = f > SWEEP - SPIN + 2 ? Math.max(0, 1 - (f - (SWEEP - SPIN + 2)) / 8) : 1;
+    tail.visible = t < 1;
+    px.show(tail, 'tail', nearest(AS.TAIL_STEPS, easeOut(k)));
   });
   tl.at(SWEEP - 3, () => {
     h.sound('lash', { vol: 1 });
@@ -1164,49 +1136,6 @@ function berserkerRush(h: KnightMoveHost, tl: Timeline) {
   tl.end(at + 28);
 }
 
-/** Spectral stag (faces right), `rear` 0 standing → 1 rearing up on its hind legs. */
-function stag(g: Graphics, x: number, gy: number, s: number, rear: number, f: number, alpha = 1) {
-  const hip = { x: x - 10 * s, y: gy - 18 * s };
-  const R = (px: number, py: number) => rot(px, py, hip.x, hip.y, -rear * 0.7);
-  const body = [[-14, -18], [-4, -24], [12, -24], [18, -18], [14, -12], [-12, -12]].map(([dx, dy]) => R(x + dx * s, gy + dy * s));
-  const fill = { color: 0xC7D2FE, alpha: 0.35 * alpha };
-  const edge = { width: 1.5, color: 0xEEF2FF, alpha: 0.9 * alpha };
-  // Legs: hind legs planted, forelegs lift as it rears
-  for (const [lx, phase] of [[-11, 0], [-7, 1]] as const) {
-    const [ax, ay] = R(x + lx * s, gy - 14 * s);
-    g.moveTo(ax, ay).lineTo(x + (lx - 1) * s, gy - 6 * s).lineTo(x + lx * s + phase, gy).stroke(edge);
-  }
-  for (const [lx, phase] of [[10, 0], [14, 1]] as const) {
-    const [ax, ay] = R(x + lx * s, gy - 14 * s);
-    const kick = rear * (6 + phase * 3) * s;
-    g.moveTo(ax, ay).lineTo(ax + 2 * s, ay + 7 * s - kick * 0.4).lineTo(ax + (1 + rear * 4) * s, ay + 13 * s - kick).stroke(edge);
-  }
-  g.poly(body.flat()).fill(fill).stroke(edge);
-  // Neck, head, antlers
-  const [nx, ny] = R(x + 14 * s, gy - 22 * s);
-  const [hx, hy] = R(x + 20 * s, gy - 34 * s);
-  g.moveTo(nx, ny).lineTo(hx, hy).stroke({ width: 5 * s, color: 0xC7D2FE, alpha: 0.4 * alpha });
-  g.ellipse(hx + 3 * s, hy, 5 * s, 3 * s).fill(fill).stroke(edge);
-  g.rect(hx + 3 * s, hy - 1, 2, 2).fill({ color: 0xFFFFFF, alpha });
-  for (const side of [-1, 1]) {
-    const bx = hx - 1 * s;
-    const by = hy - 3 * s;
-    const tx = bx + side * 4 * s - 4 * s;
-    const ty = by - 14 * s;
-    g.moveTo(bx, by).lineTo(tx, ty).stroke(edge);
-    for (let k = 1; k <= 3; k++) {
-      const t = k / 4;
-      const px = lerp(bx, tx, t);
-      const py = lerp(by, ty, t);
-      g.moveTo(px, py).lineTo(px + (side * 3 + 3) * s * (1 - t * 0.4), py - 4 * s).stroke(edge);
-    }
-  }
-  // Glimmering motes clinging to it
-  for (let k = 0; k < 6; k++) {
-    const a = f * 0.1 + k;
-    g.rect(x + Math.cos(a) * 16 * s - 1, gy - 20 * s + Math.sin(a * 1.3) * 10 * s - 1, 2, 2).fill({ color: 0xFFFFFF, alpha: 0.6 * alpha });
-  }
-}
 
 /** Moonlit Leap: night falls, a ghostly stag rears behind him; he springs off its antlers over the line onto the back foe. */
 function moonlitLeap(h: KnightMoveHost, tl: Timeline) {
@@ -1230,13 +1159,26 @@ function moonlitLeap(h: KnightMoveHost, tl: Timeline) {
     g.poly([stagX() - 10, 0, stagX() + 16, 0, stagX() + 30, h.home.y, stagX() - 22, h.home.y]).fill({ color: 0xC7D2FE, alpha: 0.18 * a });
   }, 'back');
   // The stag rises behind him, rears, flings him
-  drawSpan(h, tl, 4, VAULT + 14, (g, _t, f) => {
+  const px = moveSprites(h, () => ({ stag: AS.stags() }));
+  let deer: Sprite | null = null;
+  let glow: Sprite | null = null;
+  tl.during(4, VAULT + 14, (t, f) => {
     const fr = f + 4;
     const appear = Math.min(1, f / 10);
     const rear = fr < VAULT - 6 ? 0 : fr < VAULT + 2 ? easeOut((fr - (VAULT - 6)) / 8) : 1;
-    const out = fr > VAULT + 4 ? 1 - (fr - VAULT - 4) / 10 : 1;
-    stag(g, stagX(), h.home.y, 1.5, rear, fr, appear * out);
-  }, 'back');
+    const out = fr > VAULT + 4 ? Math.max(0, 1 - (fr - VAULT - 4) / 10) : 1;
+    const frame = rear > 0 ? 2 + Math.min(2, Math.floor(rear * 3)) : Math.floor(fr / 10) % 2;
+    glow ??= px.sprite('stag', 0, { layer: 'back', ax: 30, ay: 90, add: true, tint: 0x818CF8 });
+    deer ??= px.sprite('stag', 0, { layer: 'back', ax: 30, ay: 90 });
+    for (const sp of [glow, deer]) {
+      sp.position.set(Math.round(stagX() - 18), h.home.y);
+      sp.visible = t < 1;
+      px.show(sp, 'stag', frame);
+    }
+    deer.alpha = 0.88 * appear * out;
+    glow.alpha = (0.35 + 0.15 * Math.sin(fr * 0.4)) * appear * out;
+    glow.scale.set(1.04);
+  });
   tl.at(6, () => h.sound('roar', { vol: 0.5, rate: 1.6 })); // a bellow
   tl.at(STEP, () => {
     h.anim('DASH');
@@ -1293,62 +1235,108 @@ function moonlitLeap(h: KnightMoveHost, tl: Timeline) {
   tl.end(LAND + 40);
 }
 
-/** Stone Skin: he turns to a gargoyle statue (sparks ping off it), then bursts out of the stone shoulder-first. */
+/**
+ * Stone Skin: granite crust climbs up him (pixel statue, artSprites.stoneShells) until he's a horned gargoyle
+ * on a pedestal; blows glance off it in sparks while cracks spread and light leaks through, then he bursts out
+ * in a spray of tumbling rubble and drives shoulder-first into the foe.
+ */
 function stoneSkin(h: KnightMoveHost, tl: Timeline) {
   const t0 = h.target;
   const c = chest(t0);
-  const SET = 16;
-  const BURST = 44;
+  const SET = 18;
+  const BURST = 50;
   const BASH = BURST + 10;
+  const px = moveSprites(h, () => ({ shell: AS.stoneShells(), rock: AS.rubble() }));
+  let statue: Sprite | null = null;
+  let stage = 0; // 0 sealed, 1-3 cracking
   tl.at(0, () => {
     h.anim('DEFENSE');
-    h.camera(1.44, h.home.x + 8, h.home.y - 30, BURST);
+    h.camera(1.44, h.home.x + 8, h.home.y - 30, SET + 6);
     h.sound('rock', { vol: 0.6, rate: 0.6 });
   });
   tintRamp(h, tl, 0, SET, 0xFFFFFF, 0x8F8A85);
-  // Stone creeps up from his feet: a blotchy granite shell over his silhouette, cracks running through it
-  const blotches = Array.from({ length: 22 }, () => ({ dx: rand(-13, 15), dy: rand(2, 58), r: rand(4, 8), c: STONE[Math.floor(rand(0, 3.99))] }));
-  drawSpan(h, tl, 0, BURST, (g, _t, f) => {
+  // The crust climbs from the pedestal to the horns
+  tl.during(0, BURST, (t, f) => {
     const p = h.pos();
-    const up = Math.min(1, f / SET);
-    const top = 60 * up;
-    g.ellipse(p.x, p.y, 18, 5).fill({ color: 0x44403C, alpha: 0.7 * up }); // pedestal
-    for (const b of blotches) {
-      if (b.dy > top) continue;
-      g.circle(p.x + b.dx, p.y - b.dy, b.r).fill({ color: b.c, alpha: 0.85 });
-    }
-    for (const [x0, y0, x1, y1] of [[-6, 10, 4, 24], [4, 24, -2, 36], [8, 30, 12, 44], [-8, 40, 2, 52]]) {
-      if (y1 > top) continue;
-      g.moveTo(p.x + x0, p.y - y0).lineTo(p.x + x1, p.y - y1).stroke({ width: 1, color: 0x1C1917, alpha: 0.9 });
-    }
-    if (up < 1) g.moveTo(p.x - 14, p.y - top).lineTo(p.x + 16, p.y - top).stroke({ width: 2, color: 0xE7E5E4, alpha: 0.8 }); // the creeping edge
+    statue ??= px.sprite('shell', 0, { ax: AS.SHELL_FEET.x, ay: AS.SHELL_FEET.y });
+    const shake = stage === 3 && f % 2 ? 1 : 0;
+    statue.position.set(Math.round(p.x) + shake, Math.round(p.y) + 1);
+    statue.visible = t < 1;
+    px.show(statue, 'shell', f < SET ? Math.min(AS.SHELL_GROW - 1, Math.floor((f / SET) * AS.SHELL_GROW)) : stage ? AS.SHELL_GROW - 1 + stage : AS.SHELL_GROW - 1);
   });
-  tl.every(2, SET, 4, (i) => h.sound('crack', { vol: 0.3, rate: 0.7 + i * 0.1 }));
+  tl.every(2, SET, 3, (i) => {
+    h.sound('crack', { vol: 0.3, rate: 0.7 + i * 0.08 });
+    debris(h, { x: h.pos().x + rand(-14, 16), y: h.pos().y - 2 }, 2, STONE, 0.4);
+  });
   tl.at(SET, () => {
-    h.animSpeed(0); // frozen statue
-    h.sound('stomp', { vol: 0.6, rate: 0.7 });
-    h.shake(3);
+    h.alpha(0); // fully encased: only the statue shows
+    h.animSpeed(0);
+    h.sound('stomp', { vol: 0.7, rate: 0.7 });
+    h.shake(4);
+    dust(h, h.pos(), 8, -1);
+    dust(h, h.pos(), 8, 1);
   });
-  // Statue beat: things glance off the stone with sparks and clinks; the camera creeps in
+  // Statue beat: blows glance off in sparks, the camera creeps in, and each one opens the cracks wider
   tl.every(SET + 4, BURST - 4, 5, (i) => {
     const p = h.pos();
-    h.sparks(p.x + rand(-10, 14), p.y - rand(10, 50), 5, [0xFFFFFF, 0xFDE68A, 0xA8A29E]);
+    h.sparks(p.x + rand(-6, 20), p.y - rand(14, 56), 6, [0xFFFFFF, 0xFDE68A, 0xA8A29E]);
     h.sound('block', { vol: 0.35, rate: 1.4 + (i % 3) * 0.15 });
   });
-  tl.at(SET + 10, () => h.camera(1.56, h.home.x + 6, h.home.y - 30, BURST - SET));
-  // Burst: the crust explodes off him
+  tl.at(SET + 10, () => h.camera(1.6, h.home.x + 6, h.home.y - 34, BURST - SET));
+  [BURST - 20, BURST - 12, BURST - 5].forEach((at, k) => tl.at(at, () => {
+    stage = k + 1;
+    h.sound('crack', { vol: 0.6 + k * 0.15, rate: 1 - k * 0.1 });
+    h.shake(2 + k * 2);
+    debris(h, { x: h.pos().x + rand(-8, 12), y: h.pos().y - rand(20, 50) }, 3 + k * 2, STONE, 0.5);
+    if (k === 2) h.flash(0.15, 0xFDE68A);
+  }));
+  tl.every(BURST - 5, BURST, 1, () => h.emit(h.pos().x + rand(-10, 14), h.pos().y - rand(10, 56), { count: 1, colors: [0xFFFBEA, 0xFDE68A], speed: [0.5, 1.5], angle: rand(0, Math.PI * 2), spread: 0.3, gravity: 0, size: 2, life: [8, 14] }));
+  // Burst: the shell explodes into tumbling rubble
   tl.at(BURST, () => {
+    h.alpha(1);
     h.animSpeed(1);
     h.tint(0xFFFFFF);
     h.anim('DASH');
-    h.flash(0.4, 0xFFFFFF);
-    h.shake(9);
+    h.flash(0.45, 0xFFFFFF);
+    h.shake(10);
+    h.hitStop(4);
     h.sound('explosion', { vol: 0.4, rate: 1.4 });
-    h.sound('rock', { vol: 0.9 });
+    h.sound('rock', { vol: 1 });
     const p = h.pos();
-    h.emit(p.x, p.y - 26, { count: 30, colors: STONE, speed: [2, 5.5], angle: -Math.PI / 2, spread: Math.PI, gravity: 0.25, size: 3, life: [16, 30] });
+    h.emit(p.x, p.y - 30, { count: 24, colors: STONE, speed: [2, 5], angle: -Math.PI / 2, spread: Math.PI, gravity: 0.25, size: 2, life: [16, 28] });
     h.camera(1.18, between(h, t0, 0.6).x, c.y, 10, true);
   });
+  const chunks = Array.from({ length: 12 }, (_, i) => {
+    const a = -Math.PI / 2 + (i / 11 - 0.5) * 2.6;
+    const v = rand(2.2, 4.2);
+    return { set: i % 3, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1, spin: rand(-0.5, 0.5), sprite: null as Sprite | null, x: 0, y: 0, r: rand(0, 6), oy: rand(16, 58) };
+  });
+  const groundY = h.home.y;
+  tl.during(BURST, BURST + 38, (t, f) => {
+    for (const ch of chunks) {
+      if (!ch.sprite) {
+        ch.sprite = px.sprite('rock', ch.set * 8);
+        ch.x = h.home.x + rand(-10, 14);
+        ch.y = groundY - ch.oy;
+      }
+      ch.vy += 0.28;
+      ch.x += ch.vx;
+      ch.y += ch.vy;
+      ch.r += ch.spin;
+      if (ch.y > groundY - 3) {
+        ch.y = groundY - 3;
+        ch.vy *= -0.35;
+        ch.vx *= 0.6;
+        ch.spin *= 0.5;
+      }
+      ch.sprite.position.set(Math.round(ch.x), Math.round(ch.y));
+      ch.sprite.alpha = f > 24 ? Math.max(0, 1 - (f - 24) / 14) : 1;
+      ch.sprite.visible = t < 1;
+      px.show(ch.sprite, 'rock', ch.set * 8 + rot8(ch.r));
+    }
+  });
+  tl.at(BURST + 6, () => h.sound('rock', { vol: 0.4, rate: 1.4 })); // rubble clatter
+  tl.at(BURST + 12, () => h.sound('rock', { vol: 0.3, rate: 1.7 }));
   travel(h, tl, BURST, BASH, HOME, strikeSpot(h, t0, 48), easeIn);
   ghostTrail(h, tl, BURST, BASH, 0xA8A29E, 1, 0.4);
   hitFx(h, tl, BASH, { x: c.x - 10, y: c.y }, P_GRANITE, 20, [0xFFFFFF, 0xE7E5E4, 0xA8A29E]);
@@ -1542,92 +1530,189 @@ function lifeLeech(h: KnightMoveHost, tl: Timeline) {
   tl.end(YANK + 28);
 }
 
-/** Spectral bear standing up behind the knight: `rise` 0-1 grows it from the ground, `swipe` 0-1 brings the arms down. */
-function spectralBear(g: Graphics, x: number, gy: number, s: number, rise: number, swipe: number, alpha = 1) {
-  if (rise <= 0.02) return;
-  const hgt = 80 * s * rise;
-  const top = gy - hgt;
-  const fill = { color: 0x92400E, alpha: 0.35 * alpha };
-  const edge = { width: 2, color: 0xFDE68A, alpha: 0.85 * alpha };
-  g.ellipse(x, gy - hgt * 0.42, 22 * s, hgt * 0.42).fill(fill).stroke(edge);
-  g.circle(x + 4 * s, top + 12 * s, 13 * s).fill(fill).stroke(edge);
-  for (const ex of [-7, 13]) g.circle(x + ex * s, top + 1 * s, 4.5 * s).fill(fill).stroke(edge);
-  g.ellipse(x + 13 * s, top + 16 * s, 6 * s, 4 * s).fill(fill).stroke(edge);
-  for (const ex of [0, 8]) g.rect(x + ex * s, top + 8 * s, 2, 2).fill({ color: 0xFDE68A, alpha });
-  // Arms: raised high, then raking down and forward
-  for (const side of [-1, 1]) {
-    const sx = x + side * 14 * s;
-    const sy = gy - hgt * 0.68;
-    const a = lerp(-Math.PI / 2 - side * 0.5, 0.35, easeIn(swipe));
-    const ex = sx + Math.cos(a) * 30 * s;
-    const ey = sy + Math.sin(a) * 30 * s;
-    g.moveTo(sx, sy).lineTo(ex, ey).stroke({ width: 9 * s, color: 0x92400E, alpha: 0.4 * alpha });
-    g.moveTo(sx, sy).lineTo(ex, ey).stroke(edge);
-    for (let k = -1; k <= 1; k++) {
-      const ca = a + k * 0.3;
-      g.moveTo(ex, ey).lineTo(ex + Math.cos(ca + 0.6) * 8 * s, ey + Math.sin(ca + 0.6) * 8 * s).stroke({ width: 1.5, color: 0xFFFBEA, alpha });
-    }
-  }
-}
 
-/** Grizzly Maul: he rears up as a great spirit bear rises behind him, both crash down, claws raking the foe. */
+/**
+ * Grizzly Maul: a bear-spirit-infused strike. A golden spirit bear (pixel sprite + pulsing additive halo,
+ * artSprites.spiritBear) flares up around the knight as he crouches; they charge across the field as one, the
+ * bear sliding along on all fours around him in a streak of afterimages; they leap together, the bear rearing
+ * and roaring, and slam down as one: his chop and its maul land on the same frame in a golden crater.
+ */
 function grizzlyMaul(h: KnightMoveHost, tl: Timeline) {
   const t0 = h.target;
   const c = chest(t0);
-  const REAR = 12;
-  const MAUL = 36;
-  const spot = strikeSpot(h, t0, 54);
-  const bearX = () => h.pos().x - 18;
+  const DASH = 10;
+  const LEAP = 24;
+  const IMPACT = 38;
+  const GONE = IMPACT + 26;
+  const LIFT = 30;
+  const spot = strikeSpot(h, t0, 58);
+  const P = AS.BEAR_POSES;
+  const GOLD = [0xFDE68A, 0xFBBF24, 0xFFFFFF, 0xF59E0B];
+  const px = moveSprites(h, () => {
+    const sb = AS.spiritBear();
+    return { bear: sb.bear, halo: sb.halo, rake: AS.clawRakes() };
+  });
+  let bear: Sprite | null = null;
+  let halo: Sprite | null = null;
+  const echoes: Sprite[] = [];
+  const trail: { x: number; y: number; pose: number }[] = [];
+  let pose: number = P.walk1;
+  let reach = 0; // extra forward lunge of the bear on the maul
+  let lift = 0;
+  // The bear wraps the knight: on all fours it leads with its head out ahead of him; reared up it towers behind
+  let lead = -28;
+  const bearAt = (): P => ({ x: Math.round(h.pos().x + lead + reach), y: Math.round(h.home.y - lift * 0.8) });
+
+  // Anticipation: he drops into a crouch and the spirit flares up around him
   tl.at(0, () => {
-    h.anim('RUN', true);
-    h.sound('growl', { vol: 0.7 });
-    h.camera(1.16, between(h, t0, 0.55).x, c.y, 12);
+    h.anim('JUMP_FRONT_START');
+    h.sound('growl', { vol: 1, rate: 0.6 });
+    h.sound('charge', { vol: 0.6, rate: 1.3 });
+    h.camera(1.32, h.home.x + 20, h.home.y - 30, DASH + 2);
   });
-  travel(h, tl, 0, REAR, HOME, spot, easeIn);
-  tl.every(0, REAR, 4, () => dust(h, h.pos(), 3, -1));
-  tl.at(REAR, () => {
-    h.anim('SKILL2TULUC');
-    h.stretch(0.86, 1.2);
-    h.sound('roar', { vol: 1, rate: 0.8 });
-    h.camera(1.02, (h.home.x + t0.x) / 2 + 20, h.home.y - 56, MAUL - REAR); // wide and up: the bear towers over the foe
+  crouch(h, tl, 0, DASH, 0.16);
+  tintRamp(h, tl, 0, DASH, 0xFFFFFF, 0xFFE7A0);
+  dimSpan(h, tl, 0, GONE, 0.45, 0x07040F, 8);
+  tl.every(0, DASH, 1, () => {
+    const p = h.pos();
+    const a = rand(0, Math.PI * 2);
+    h.emit(p.x + Math.cos(a) * 40, p.y - 24 + Math.sin(a) * 26, { count: 1, colors: GOLD, speed: [1.8, 2.8], angle: a + Math.PI, spread: 0.2, gravity: 0, size: 2, life: [12, 16] });
   });
-  tl.during(REAR, REAR + 10, (t) => h.stretch(lerp(0.86, 1, t), lerp(1.2, 1, t)));
-  dimSpan(h, tl, REAR, MAUL + 16, 0.3, 0x1C0A02, 8);
-  drawSpan(h, tl, REAR, MAUL + 18, (g, _t, f) => {
-    const fr = f + REAR;
-    const rise = easeOut(Math.min(1, f / 12));
-    const swipe = fr < MAUL - 6 ? 0 : Math.min(1, (fr - (MAUL - 6)) / 6);
-    const out = fr > MAUL + 6 ? 1 - (fr - MAUL - 6) / 12 : 1;
-    spectralBear(g, bearX(), h.home.y, 1.15, rise, swipe, out);
-  }, 'back');
-  drawSpan(h, tl, REAR + 2, REAR + 18, (g, t) => {
-    const p = { x: bearX() + 10, y: h.home.y - 82 };
-    for (let k = 0; k < 3; k++) rightRings(g, p.x, p.y, 10 + ((t * 80 + k * 20) % 60), 0xFDE68A, 1 - t);
+
+  // The charge: one fast slide across the field, the bear bounding along around him
+  tl.at(DASH, () => {
+    h.stretch(1, 1);
+    h.anim('DASH');
+    h.sound('dash', { vol: 1 });
+    h.sound('roar', { vol: 0.5, rate: 1.1 });
+    h.flash(0.2, 0xFFF7D6);
   });
-  tl.at(REAR + 4, () => h.shake(5));
-  tl.at(MAUL - 6, () => {
-    h.anim('SKILL1');
+  travel(h, tl, DASH, LEAP, HOME, spot, easeIn);
+  ghostTrail(h, tl, DASH, LEAP, 0xF59E0B, 1, 0.45);
+  tl.every(DASH, LEAP, 3, (i) => {
+    pose = i % 2 ? P.walk2 : P.walk1;
+    h.sound('thud', { vol: 0.5, rate: 0.8 + i * 0.05 });
+    const b = bearAt();
+    dust(h, { x: b.x + 10, y: b.y }, 4, -1);
+    dust(h, { x: b.x + 70, y: b.y }, 3, -1);
+  });
+  tl.every(DASH, LEAP, 2, () => {
+    const p = h.pos();
+    h.streaks(p.x - 30, p.y - 26, 46, [0xFDE68A, 0xFFF7D6]);
+  });
+  follow(h, tl, DASH, LEAP, 1.14, () => ({ x: h.pos().x + 34, y: h.home.y - 40 }), 3);
+
+  // The leap: both spring up, the bear rearing and roaring, paws thrown back
+  tl.at(LEAP, () => {
+    h.anim('JUMP_FRONT_UP');
+    h.sound('jump', { vol: 0.9 });
+    h.sound('roar', { vol: 1.1, rate: 0.6 });
+    pose = P.rise;
+    dust(h, h.pos(), 10, -1);
+    dust(h, h.pos(), 10, 1);
+    h.camera(1, h.pos().x + 20, h.home.y - 64, IMPACT - LEAP); // wide: the bear fills the sky
+  });
+  tl.during(LEAP, LEAP + 6, (t) => (lead = lerp(-28, -48, easeOut(t))));
+  tl.at(LEAP + 3, () => (pose = P.roar));
+  tl.at(LEAP + 7, () => (pose = P.wind));
+  travel(h, tl, LEAP, IMPACT, () => spot, { x: spot.x + 10, y: spot.y }, easeOut);
+  tl.during(LEAP, IMPACT - 5, (t) => h.lift((lift = easeOut(t) * LIFT)));
+  drawSpan(h, tl, LEAP + 2, LEAP + 12, (g, t) => {
+    const b = bearAt();
+    for (let k = 0; k < 3; k++) rightRings(g, b.x + 34, b.y - 94, 8 + ((t * 90 + k * 18) % 50), 0xFDE68A, 1 - t);
+  });
+
+  // The slam: he chops down as the bear mauls, both crashing to earth on the same frame
+  tl.at(IMPACT - 7, () => {
+    h.anim('SKILL1'); // chop lands at f6
     swingSound(h, true);
+    h.sound('whoosh_heavy', { vol: 1, rate: 0.6 });
   });
-  drawSpan(h, tl, MAUL, MAUL + 10, (g, t) => {
-    const a = 1 - t;
-    clawRake(g, c.x - 6, c.y - 2, 1, 30, 0xFDE68A);
-    clawRake(g, c.x + 2, c.y + 2, -1, 26, 0xF59E0B);
-    g.circle(c.x, c.y, 2).fill({ color: 0xFFFFFF, alpha: a });
+  tl.at(IMPACT - 4, () => (pose = P.swipe));
+  tl.during(IMPACT - 5, IMPACT, (t) => h.lift((lift = LIFT * (1 - easeIn(t)))));
+  tl.during(IMPACT - 4, IMPACT, (t) => (reach = 16 * easeOut(t)));
+  tl.every(IMPACT - 5, IMPACT, 1, () => h.ghost(0xFBBF24, 0.5, 8));
+
+  const rakes: Sprite[] = [];
+  tl.during(IMPACT, IMPACT + 12, (t, f) => {
+    for (const [k, flip, dx] of [[0, 1, -4], [1, -1, 8]] as const) {
+      const start = k * 2;
+      if (f < start) continue;
+      rakes[k] ??= px.sprite('rake', 0);
+      rakes[k].position.set(Math.round(c.x + dx), Math.round(c.y - 2));
+      rakes[k].scale.set(flip, 1);
+      rakes[k].visible = t < 1;
+      px.show(rakes[k], 'rake', Math.min(4, Math.floor((f - start) / 2)));
+    }
   });
-  hitFx(h, tl, MAUL, c, P_BEAR, 24, [0xFFFFFF, 0xFDE68A, 0x92400E]);
-  tl.at(MAUL, () => {
-    land(h, 0, { scale: 1.4, tint: 0xFDE68A, sfx: 'claw' });
-    h.knock(0, 14, 0);
-    h.camera(1.58, c.x - 10, c.y + 4, 14, true);
-    dust(h, { x: t0.x, y: t0.y }, 12, -1);
-    dust(h, { x: t0.x, y: t0.y }, 12, 1);
-    debris(h, { x: t0.x - 6, y: t0.y }, 10);
+  hitFx(h, tl, IMPACT, c, P_SPIRIT, 28, [0xFFFFFF, 0xFFF7D6, 0xF59E0B]);
+  tl.at(IMPACT, () => {
+    pose = P.maul;
+    lift = 0;
+    h.lift(0);
+    h.tint(0xFFFFFF);
+    h.stretch(1.25, 0.8);
+    land(h, 0, { scale: 1.7, tint: 0xFDE68A, flash: 0xFFF7D6, sfx: 'claw', spark: 0xF59E0B, burst: 'crater', burstSize: 1.3 });
+    h.hitStop(12);
+    h.shake(16);
+    h.sound('quake', { vol: 1, rate: 0.8 });
+    h.sound('roar', { vol: 0.7, rate: 0.75 });
+    h.knock(0, 24, 10);
+    h.camera(1.6, c.x - 14, c.y + 6, 16, true);
+    for (const dir of [-1, 1]) dust(h, { x: t0.x - 10, y: t0.y }, 16, dir);
+    debris(h, { x: t0.x - 10, y: t0.y }, 16, DIRT, 1.4);
+    h.emit(c.x, c.y, { count: 24, colors: GOLD, speed: [1.5, 4], angle: 0, spread: Math.PI, gravity: 0.05, size: 2, life: [14, 26] });
   });
-  crackFx(h, tl, MAUL, { x: t0.x - 40, y: t0.y + 1 }, { x: t0.x + 30, y: t0.y }, pal(0x57534E, 0xA8A29E, 0x1C1917), 6, 40);
-  dizzy(h, tl, MAUL + 4, t0, 90);
-  backstep(h, tl, MAUL + 14, MAUL + 30, 14);
-  tl.end(MAUL + 32);
+  tl.during(IMPACT, IMPACT + 8, (t) => h.stretch(lerp(1.25, 1, t), lerp(0.8, 1, t)));
+  ringFx(h, tl, IMPACT, () => ({ x: t0.x - 8, y: t0.y }), 8, 120, 0xFBBF24, 22, 4);
+  ringFx(h, tl, IMPACT + 3, () => ({ x: t0.x - 8, y: t0.y }), 6, 70, 0xFFF7D6, 16, 2);
+  crackFx(h, tl, IMPACT, { x: t0.x - 60, y: t0.y + 1 }, { x: t0.x + 40, y: t0.y }, P_SPIRIT, 6, 44);
+  tl.at(IMPACT + 3, () => h.sound('claw', { vol: 0.7, rate: 0.85 }));
+  dizzy(h, tl, IMPACT + 4, t0, 90);
+
+  // Bear and knight, rendered as one: the bear follows his position every frame
+  tl.during(0, GONE, (t, f) => {
+    const feet = { ax: AS.BEAR_FEET.x, ay: AS.BEAR_FEET.y, layer: 'back' as const };
+    halo ??= px.sprite('halo', P.walk1, { ...feet, add: true, tint: 0xB45309 });
+    for (let k = 0; k < 5; k++) echoes[k] ??= px.sprite('bear', P.walk1, { ...feet, add: true, tint: 0xF59E0B });
+    bear ??= px.sprite('bear', P.walk1, feet);
+    const form = easeOut(Math.min(1, f / 8));
+    const fadeOut = f > IMPACT + 8 ? Math.max(0, 1 - (f - IMPACT - 8) / 16) : 1;
+    const life = form * fadeOut;
+    const { x, y } = bearAt();
+    bear.position.set(x, y);
+    bear.alpha = 0.97 * life;
+    bear.visible = t < 1;
+    px.show(bear, 'bear', pose);
+    const flare = f < DASH + 4 ? 0.3 : f >= IMPACT && f < IMPACT + 10 ? 0.45 : 0;
+    halo.position.set(x, y);
+    halo.alpha = (0.3 + 0.1 * Math.sin(f * 0.3) + flare) * life;
+    halo.visible = t < 1;
+    px.show(halo, 'halo', pose);
+    trail.unshift({ x, y, pose });
+    trail.length = Math.min(trail.length, 11);
+    echoes.forEach((e, k) => {
+      const past = trail[(k + 1) * 2];
+      const moved = past && (past.pose !== pose || Math.abs(past.x - x) > 2 || Math.abs(past.y - y) > 2);
+      e.visible = !!moved && t < 1;
+      if (!past) return;
+      e.position.set(past.x, past.y);
+      e.alpha = (0.45 - k * 0.08) * life;
+      px.show(e, 'bear', past.pose);
+    });
+  });
+  tl.every(4, IMPACT, 2, () => {
+    const b = bearAt();
+    h.emit(b.x + rand(10, 80), b.y - rand(10, 50), { count: 1, colors: GOLD, speed: [0.3, 0.9], angle: Math.PI + 0.3, spread: 0.5, gravity: -0.02, size: 2, life: [12, 22] });
+  });
+  // The spirit bursts into light past the foe
+  tl.every(IMPACT + 8, GONE, 2, () => {
+    const b = bearAt();
+    h.emit(b.x + rand(0, 70), b.y - rand(10, 90), { count: 3, colors: GOLD, speed: [0.6, 1.8], angle: -0.4, spread: 0.6, gravity: -0.03, size: 2, life: [16, 26] });
+  });
+  tl.during(IMPACT + 8, IMPACT + 16, (t) => (reach = 16 * (1 - t)));
+  backstep(h, tl, IMPACT + 16, IMPACT + 32, 14);
+  tl.end(GONE + 6);
 }
 
 /**
@@ -1665,7 +1750,6 @@ function phantomCavalry(h: KnightMoveHost, tl: Timeline) {
     h.anim('SKILL2TULUC');
     h.camera(1.36, h.home.x + 8, h.home.y - 30, SIGNAL);
     h.sound('charge', { vol: 0.6 });
-    textures = buildSteed();
   });
   tl.at(11, () => h.animSpeed(0));
   chargeFx(h, tl, 0, SIGNAL, () => h.weaponTip(), P_PHANTOM, 34, 12);
@@ -1705,6 +1789,9 @@ function phantomCavalry(h: KnightMoveHost, tl: Timeline) {
   // The steed: one sprite for the rider, three additive afterimages trailing it
   tl.at(EMERGE, () => {
     rig = h.container('fx');
+    textures = buildSteed();
+    const owned = textures;
+    rig.once('destroyed', () => destroySteed(owned)); // move end or interruption
     for (let k = 0; k < 3; k++) {
       const gs = new Sprite(textures[0]);
       gs.anchor.set(anchor.x, anchor.y);
@@ -1724,7 +1811,7 @@ function phantomCavalry(h: KnightMoveHost, tl: Timeline) {
   });
   // Rearing out of the portal: fades in, rotated back on its hind legs, front hooves pawing
   tl.during(EMERGE, SLAM, (t, f) => {
-    if (!steed) return;
+    if (!steed || steed.destroyed) return;
     const rear = t < 0.7 ? easeOut(t / 0.7) : 1 - easeIn((t - 0.7) / 0.3);
     steed.alpha = Math.min(1, t * 3);
     steed.rotation = -0.55 * rear;
@@ -1745,7 +1832,7 @@ function phantomCavalry(h: KnightMoveHost, tl: Timeline) {
 
   // The charge
   tl.during(RIDE, END, (_t, f) => {
-    if (!steed) return;
+    if (!steed || steed.destroyed) return;
     const fr = f + RIDE;
     const x = horseX(fr);
     steed.position.set(x, gy);
@@ -1814,13 +1901,6 @@ function phantomCavalry(h: KnightMoveHost, tl: Timeline) {
     h.animSpeed(1);
     h.idle();
     h.camera(1.06, h.home.x + 80, gy - 30, 14);
-  });
-  tl.at(END - 1, () => {
-    rig?.destroy({ children: true });
-    rig = null;
-    steed = null;
-    destroySteed(textures);
-    textures = [];
   });
   tl.end(END);
 }
