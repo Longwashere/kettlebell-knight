@@ -261,9 +261,9 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
   }, [activeItem]);
 
   return (
-    <div className="bg-[#100F17]/95 border-4 border-[#2D2A42] p-4 max-w-6xl w-full rounded shadow-pixel-box-gold backdrop-blur-lg text-left flex flex-col h-[94vh] select-none">
+    <div className="bg-[#100F17]/95 border-4 border-[#2D2A42] p-3 max-w-6xl w-full rounded shadow-pixel-box-gold backdrop-blur-lg text-left flex flex-col h-[calc(100vh-80px)] max-h-[820px] select-none justify-between">
       {/* 32-Bit Dark Fantasy Header Bar */}
-      <header className="flex items-center justify-between border-b-2 border-[#2D2A42] pb-2 mb-2">
+      <header className="flex items-center justify-between border-b-2 border-[#2D2A42] pb-1.5 mb-1.5 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded bg-[#F4B41A] text-[#0F0E17] flex items-center justify-center font-bold text-lg font-pixel shadow-pixel-box border border-black">
             <BookOpen className="w-5 h-5 text-[#0F0E17]" />
@@ -417,115 +417,180 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
         /* Top Carousel + Bottom Codex Panels */
         <div className="flex-1 flex flex-col justify-between overflow-hidden gap-2.5">
           {/* ============================================================== */}
-          {/* TOP SECTION: 32-BIT CARD CAROUSEL (SWIPEABLE LEFT / RIGHT)      */}
+          {/* TOP SECTION: FULL-WIDTH 3D OVERLAPPING STACKED CARD CAROUSEL    */}
           {/* ============================================================== */}
           <section
             aria-label="Card Carousel"
-            className="relative w-full h-[216px] bg-[#07060B] border-2 border-[#2D2A42] rounded overflow-hidden flex items-center justify-center p-1.5 shadow-inner"
+            className="relative w-full h-[360px] bg-[#08070D] border-2 border-[#2D2A42] rounded-lg overflow-hidden flex items-center justify-center shadow-2xl"
           >
-            {/* Ambient Background Dither & Dais Arc */}
-            <div className="absolute inset-0 opacity-20 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#F4B41A]/25 via-transparent to-black" />
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-48 h-3 bg-[#F4B41A]/10 rounded-full blur-sm pointer-events-none" />
+            {/* Dynamic Ambient Background Glow matched to focused card */}
+            <div
+              className="absolute inset-0 pointer-events-none transition-all duration-500 ease-out opacity-30"
+              style={{
+                background: `radial-gradient(circle 260px at 50% 48%, ${
+                  activeItem?.card?.colorHex || '#F4B41A'
+                } 0%, rgba(13,11,20,0) 75%)`,
+              }}
+            />
 
-            {/* Top Right Carousel Index Tracker */}
-            <div className="absolute top-1.5 right-2.5 z-30 bg-[#0A0910]/90 px-2 py-0.5 rounded border border-[#2D2A42] text-[8.5px] font-mono text-[#A7A9BE] flex items-center gap-1.5 shadow-pixel-box">
+            {/* Subtle Arcane Dais Platform & Atmospheric Lighting */}
+            <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black via-black/40 to-transparent pointer-events-none" />
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-[460px] h-7 bg-[#F4B41A]/10 rounded-full blur-md pointer-events-none" />
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[340px] h-1.5 bg-gradient-to-r from-transparent via-[#F4B41A]/40 to-transparent pointer-events-none" />
+
+            {/* Top Right Carousel Index Tracker Pill */}
+            <div className="absolute top-2.5 right-3.5 z-40 bg-[#0A0910]/95 px-3 py-1 rounded-full border border-[#F4B41A]/40 text-[9px] font-mono text-[#A7A9BE] flex items-center gap-2 shadow-pixel-box">
+              <Sparkles className="w-3 h-3 text-[#F4B41A] animate-pulse" />
               <span>CARD {selectedIndex + 1} OF {displayedCards.length}</span>
               <span className="text-[#F4B41A] font-pixel">• [◀ / ▶] SWIPE</span>
             </div>
 
-            {/* Left / Right Carousel Navigation Arrows */}
+            {/* Left / Right Carousel Navigation Chevrons */}
             <button
               onClick={handlePrevCard}
               disabled={selectedIndex === 0}
-              className={`absolute left-2 z-30 w-7 h-11 bg-[#171622]/90 border-2 border-[#F4B41A] text-[#F4B41A] flex items-center justify-center rounded shadow-pixel-box transition-all ${
-                selectedIndex === 0 ? 'opacity-20 cursor-not-allowed' : 'hover:bg-[#F4B41A] hover:text-[#0F0E17]'
+              aria-label="Previous Card"
+              className={`absolute left-3.5 z-40 w-10 h-14 bg-[#14121E]/90 border-2 border-[#F4B41A] text-[#F4B41A] flex items-center justify-center rounded-lg shadow-pixel-box transition-all ${
+                selectedIndex === 0
+                  ? 'opacity-20 cursor-not-allowed'
+                  : 'hover:bg-[#F4B41A] hover:text-[#0F0E17] active:scale-95'
               }`}
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-6 h-6" />
             </button>
 
             <button
               onClick={handleNextCard}
               disabled={selectedIndex >= displayedCards.length - 1}
-              className={`absolute right-2 z-30 w-7 h-11 bg-[#171622]/90 border-2 border-[#F4B41A] text-[#F4B41A] flex items-center justify-center rounded shadow-pixel-box transition-all ${
-                selectedIndex >= displayedCards.length - 1 ? 'opacity-20 cursor-not-allowed' : 'hover:bg-[#F4B41A] hover:text-[#0F0E17]'
+              aria-label="Next Card"
+              className={`absolute right-3.5 z-40 w-10 h-14 bg-[#14121E]/90 border-2 border-[#F4B41A] text-[#F4B41A] flex items-center justify-center rounded-lg shadow-pixel-box transition-all ${
+                selectedIndex >= displayedCards.length - 1
+                  ? 'opacity-20 cursor-not-allowed'
+                  : 'hover:bg-[#F4B41A] hover:text-[#0F0E17] active:scale-95'
               }`}
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-6 h-6" />
             </button>
 
-            {/* Carousel Track Strip */}
+            {/* Overlapping 3D Card Stack Container */}
             <div
               ref={carouselContainerRef}
-              className="relative w-full h-full flex items-center transition-transform duration-300 ease-out"
-              style={{
-                transform: `translateX(calc(50% - ${(selectedIndex * CARD_SLOT + CARD_WIDTH / 2)}px))`,
-              }}
+              className="relative w-[228px] h-[330px] flex items-center justify-center"
             >
               {displayedCards.map((item, index) => {
-                const isSelected = selectedIndex === index;
-                const distance = Math.abs(index - selectedIndex);
-                const isNear = distance <= 3; // render nearby cards
+                const offset = index - selectedIndex;
+                if (Math.abs(offset) > 2) return null; // Render 5 stacked cards (-2, -1, 0, 1, 2)
 
-                if (!isNear) {
-                  return (
-                    <div
-                      key={item.card.templateId}
-                      className="shrink-0"
-                      style={{ width: `${CARD_WIDTH}px`, marginRight: `${CARD_GAP}px` }}
-                    />
-                  );
+                // Overlapping stack geometry
+                let xOffset = 0;
+                let yOffset = 0;
+                let scale = 1.0;
+                let rotation = 0;
+                let zIndex = 30;
+                let opacity = 1.0;
+                let filter = 'none';
+
+                if (offset === 0) {
+                  // Focused Center Card: Elevated, centered, full size, glowing shadow
+                  xOffset = 0;
+                  yOffset = 0;
+                  scale = 1.02;
+                  rotation = 0;
+                  zIndex = 30;
+                  opacity = 1.0;
+                  filter = 'drop-shadow(0 14px 26px rgba(0,0,0,0.85))';
+                } else if (offset === -1) {
+                  // Immediate Left Card: Tucked behind left edge of center card
+                  xOffset = -162;
+                  yOffset = 10;
+                  scale = 0.92;
+                  rotation = -3.5;
+                  zIndex = 20;
+                  opacity = 0.82;
+                  filter = 'brightness(0.68) drop-shadow(0 10px 20px rgba(0,0,0,0.75))';
+                } else if (offset === 1) {
+                  // Immediate Right Card: Tucked behind right edge of center card
+                  xOffset = 162;
+                  yOffset = 10;
+                  scale = 0.92;
+                  rotation = 3.5;
+                  zIndex = 20;
+                  opacity = 0.82;
+                  filter = 'brightness(0.68) drop-shadow(0 10px 20px rgba(0,0,0,0.75))';
+                } else if (offset === -2) {
+                  // Outer Left Card: Tucked further behind left
+                  xOffset = -295;
+                  yOffset = 22;
+                  scale = 0.82;
+                  rotation = -7;
+                  zIndex = 10;
+                  opacity = 0.45;
+                  filter = 'brightness(0.45) drop-shadow(0 6px 14px rgba(0,0,0,0.65))';
+                } else if (offset === 2) {
+                  // Outer Right Card: Tucked further behind right
+                  xOffset = 295;
+                  yOffset = 22;
+                  scale = 0.82;
+                  rotation = 7;
+                  zIndex = 10;
+                  opacity = 0.45;
+                  filter = 'brightness(0.45) drop-shadow(0 6px 14px rgba(0,0,0,0.65))';
                 }
-
-                const scaleClass = isSelected
-                  ? 'scale-100 -translate-y-0.5 z-20 shadow-pixel-box-gold ring-2 ring-[#F4B41A]'
-                  : distance === 1
-                  ? 'scale-90 z-10 opacity-65 hover:opacity-90'
-                  : 'scale-80 z-0 opacity-35';
 
                 return (
                   <div
                     key={item.card.templateId}
                     onClick={() => {
-                      setSelectedIndex(index);
-                      audioManager.play('ui_select');
+                      if (offset !== 0) {
+                        setSelectedIndex(index);
+                        audioManager.play('ui_select');
+                      }
                     }}
-                    className={`shrink-0 relative transition-all duration-300 cursor-pointer ${scaleClass}`}
+                    className="absolute top-0 left-0 w-[228px] h-[330px] cursor-pointer"
                     style={{
-                      width: `${CARD_WIDTH}px`,
-                      height: '202px',
-                      marginRight: `${CARD_GAP}px`,
+                      transform: `translateX(${xOffset}px) translateY(${yOffset}px) scale(${scale}) rotate(${rotation}deg)`,
+                      zIndex,
+                      opacity,
+                      filter,
+                      transition:
+                        'transform 340ms cubic-bezier(0.2, 0.9, 0.3, 1.15), opacity 340ms ease-out, filter 340ms ease-out',
                     }}
                   >
-                    {/* Properly Scaled CardFront Container to eliminate text cutoffs */}
-                    <div className="relative w-full h-full overflow-visible">
-                      <div
-                        style={{
-                          width: '228px',
-                          height: '330px',
-                          transform: 'scale(0.612)',
-                          transformOrigin: 'top left',
-                          pointerEvents: 'none',
-                        }}
-                      >
-                        <CardFront card={item.card} />
+                    {/* Floating Star / Sparkle Emblem for center card (matching reference photo) */}
+                    {offset === 0 && (
+                      <div className="absolute top-2 left-2 z-40 flex items-center justify-center pointer-events-none">
+                        <div className="w-7 h-7 rounded-full bg-white/95 shadow-[0_0_12px_rgba(255,255,255,0.9)] flex items-center justify-center border border-white">
+                          <Sparkles className="w-4 h-4 text-[#F4B41A]" />
+                        </div>
                       </div>
+                    )}
+
+                    {/* Mastered / Unlocked Ribbon */}
+                    {item.isUnlocked && offset === 0 && (
+                      <div className="absolute top-2 right-2 bg-[#00EB88] text-[#0F0E17] text-[8px] font-pixel px-2 py-0.5 rounded border border-black shadow-pixel-box z-40">
+                        MASTERED
+                      </div>
+                    )}
+
+                    {/* Full Battle-Width Card Front (228px x 330px) */}
+                    <div className="relative w-full h-full">
+                      <CardFront card={item.card} />
 
                       {/* Locked Chained Shroud Overlay */}
                       {!item.isUnlocked && (
-                        <div className="absolute inset-0 bg-black/85 rounded-lg flex flex-col items-center justify-center p-1.5 text-center border-2 border-[#FF3366]/50 z-30 backdrop-blur-[1px]">
-                          <div className="w-7 h-7 rounded-full bg-[#171622] border-2 border-[#FF3366] flex items-center justify-center text-[#FF3366] mb-1 shadow-pixel-box animate-pulse">
-                            <Lock className="w-3.5 h-3.5" />
+                        <div className="absolute inset-0 bg-black/85 rounded-xl flex flex-col items-center justify-center p-3 text-center border-2 border-[#FF3366]/60 z-30 backdrop-blur-[1px]">
+                          <div className="w-10 h-10 rounded-full bg-[#171622] border-2 border-[#FF3366] flex items-center justify-center text-[#FF3366] mb-2 shadow-pixel-box animate-pulse">
+                            <Lock className="w-5 h-5" />
                           </div>
-                          <span className="text-[7.5px] font-pixel text-[#FF3366] tracking-wider uppercase mb-0.5">
+                          <span className="text-[10px] font-pixel text-[#FF3366] tracking-wider uppercase mb-1">
                             TRIAL LOCKED
                           </span>
                           {item.progress && (
-                            <div className="w-full bg-[#0A0910] border border-[#2D2A42] px-1 py-0.5 rounded mt-0.5">
-                              <div className="text-[7.5px] font-mono text-[#F4B41A] font-bold">
+                            <div className="w-[180px] bg-[#0A0910] border border-[#2D2A42] p-2 rounded mt-2">
+                              <div className="text-[9px] font-mono text-[#F4B41A] font-bold">
                                 {item.progress.progressText}
                               </div>
-                              <div className="w-full h-1 bg-[#2D2A42] overflow-hidden mt-0.5 rounded">
+                              <div className="w-full h-2 bg-[#2D2A42] overflow-hidden mt-1 rounded">
                                 <div
                                   className="h-full bg-gradient-to-r from-[#F4B41A] to-[#ffda66]"
                                   style={{ width: `${item.progress.percent}%` }}
@@ -533,13 +598,6 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
                               </div>
                             </div>
                           )}
-                        </div>
-                      )}
-
-                      {/* Unlocked / Mastered Crown Stamp */}
-                      {item.isUnlocked && isSelected && (
-                        <div className="absolute -top-2 -right-2 bg-[#00EB88] text-[#0F0E17] text-[7.5px] font-pixel px-1.5 py-0.5 rounded border border-black shadow-pixel-box z-30">
-                          MASTERED
                         </div>
                       )}
                     </div>
