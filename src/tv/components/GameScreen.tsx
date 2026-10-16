@@ -8,13 +8,14 @@ import { BlacksmithShop, SHOP_ITEMS } from './BlacksmithShop';
 import { BattleScreen } from './BattleScreen';
 import { TitleScreen } from './TitleScreen';
 import { MapSelectScreen } from './MapSelectScreen';
+import { CardCodexScreen } from './CardCodexScreen';
 import { QRCodeModal } from './QRCodeModal';
 import { QRCodeSVG } from 'qrcode.react';
 import { EquipmentItem, HubLocation, RepTelemetry, ExerciseType } from '../../types/game';
 import { profileManager, PlayerProfile } from '../../shared/ProfileManager';
 import { audioManager } from '../../shared/AudioManager';
 import { registerDebug } from '../debug/agentBridge';
-import type { MonsterMoveId } from '../../types/battle';
+import { type MonsterMoveId, CARD_CATALOG, STARTER_CARD_IDS } from '../../types/battle';
 import type { VfxName } from '../engine/vfx';
 import { BATTLE_MAPS, BattleMapId } from '../engine/GameEngine';
 import { CAMPAIGN_MAPS } from '../../shared/expeditionEngine';
@@ -286,6 +287,34 @@ export const GameScreen: React.FC = () => {
         setSelectedExpeditionMap(id);
         setSelectedExpeditionLevel(level ?? 1);
         setCurrentView('COMBAT');
+      },
+      unlockCard: (templateId: string) => profileManager.unlockCard(templateId),
+      unlockAllCards: () => {
+        const ids = CARD_CATALOG.map((c) => c.templateId);
+        profileManager.saveActiveProfile({ unlockedCards: ids });
+        return ids.length;
+      },
+      resetCards: () => {
+        profileManager.saveActiveProfile({
+          unlockedCards: [...STARTER_CARD_IDS],
+          unlockStats: {
+            monsterKills: {},
+            exerciseReps: {},
+            mapExerciseReps: {},
+            perfectFormReps: {},
+            highPowerReps: {},
+            peakPower: {},
+            totalBlockedDamage: 0,
+          },
+        });
+        return STARTER_CARD_IDS.length;
+      },
+      getCardUnlocks: () => {
+        const p = profileManager.getActiveProfile();
+        return {
+          unlocked: p?.unlockedCards || [],
+          stats: p?.unlockStats,
+        };
       },
     },
   ), [currentView, netState, roomId, isQrModalOpen, sessionReps, highestPower, playerGold]);
@@ -636,24 +665,11 @@ export const GameScreen: React.FC = () => {
           )}
 
           {currentView === 'SANCTUARY' && (
-            <div className="bg-[#1A1926]/95 border-4 border-[#00EB88] p-6 max-w-lg w-full text-center rounded shadow-pixel-box backdrop-blur-md">
-              <h2 className="text-sm font-pixel text-[#00EB88] mb-2">SANCTUARY OF POWER</h2>
-              <p className="text-xs text-[#A7A9BE] font-mono mb-4">
-                Kinematic telemetry records: All swings verified via Frontal Y-Axis Delta tracking.
-              </p>
-              <div className="bg-[#0F0E17] border-2 border-[#2E2B44] p-4 text-left font-mono text-xs space-y-1 mb-4 text-[#A7A9BE]">
-                <div>• Total Reps Completed: <span className="text-white font-bold">{sessionReps}</span></div>
-                <div>• Peak Power Recorded: <span className="text-[#38B6FF] font-bold">{highestPower}</span></div>
-                <div>• Kinematic State Engine: <span className="text-[#00EB88] font-bold">ACTIVE (60 FPS)</span></div>
-                <div>• WebRTC RTCDataChannel: <span className="text-[#F4B41A] font-bold">RELIABLE</span></div>
-              </div>
-              <button
-                onClick={() => setCurrentView('HUB')}
-                className="bg-[#00EB88] text-[#0F0E17] font-pixel text-[10px] py-2 px-6 border-2 border-black shadow-pixel-box"
-              >
-                [BACK / ESC] RETURN TO HUB
-              </button>
-            </div>
+            <CardCodexScreen
+              onBackToHub={() => setCurrentView('HUB')}
+              sessionReps={sessionReps}
+              highestPower={highestPower}
+            />
           )}
         </main>
 

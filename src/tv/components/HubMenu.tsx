@@ -39,8 +39,8 @@ export const HUB_NODES: HubNodeInfo[] = [
   {
     id: 'SANCTUARY',
     title: 'SANCTUARY',
-    subtitle: 'HALL OF HEROES',
-    desc: 'View workout kinematics telemetry logs and legendary achievements.',
+    subtitle: 'CODEX & GRIMOIRE',
+    desc: 'Browse unlocked combat cards, monster drop requirements, and kinematics telemetry.',
     icon: <Church className="w-8 h-8 text-[#00EB88]" />,
     accentColor: '#00EB88',
   },

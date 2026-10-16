@@ -13,6 +13,8 @@ import { useTVRemote } from '../hooks/useTVRemote';
 import { registerDebug } from '../debug/agentBridge';
 import { getMapConfig, getExpeditionEncounters, getNextCampaignMap } from '../../shared/expeditionEngine';
 import { profileManager } from '../../shared/ProfileManager';
+import { CardUnlockCelebration } from './CardUnlockCelebration';
+import type { CardUnlockDef } from '../../shared/cardUnlocks';
 import { CombatCardView } from './CombatCardView';
 import { 
   Shield, 
@@ -103,6 +105,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const [flippedCardId, setFlippedCardId] = useState<string | null>(null);
   const [battleStatus, setBattleStatus] = useState<'FIGHTING' | 'VICTORY' | 'DEFEAT' | 'ENCOUNTER_CLEARED' | 'EXPEDITION_VICTORY'>('FIGHTING');
   const [recentCombatLog, setRecentCombatLog] = useState<string>('Battle commenced! Perform exercises to cast cards.');
+  const [pendingCardUnlocks, setPendingCardUnlocks] = useState<CardUnlockDef[]>([]);
 
   // Expedition vs Standalone Encounters
   const isExpeditionMode = Boolean(expeditionMapId);
@@ -312,6 +315,12 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const handleApplyRep = useCallback((exercise: ExerciseType, power: number = 80, form: number = 1.0) => {
     if (battleStatusRef.current !== 'FIGHTING' || isAwaitingVictoryRef.current) return;
 
+    // Record rep progression toward card unlocks
+    const repUnlocks = profileManager.recordRepStats(exercise, power, form, currentMap);
+    if (repUnlocks.length > 0) {
+      setPendingCardUnlocks((prev) => [...prev, ...repUnlocks]);
+    }
+
     const result = deckManagerRef.current.recordRep(exercise, power, form);
 
     if (result.activated && result.card) {
@@ -333,6 +342,17 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       const primary = res.hits[0];
       const fatalHit = res.hits.slice().reverse().find((h) => h.killed) || primary;
       const isVictory = res.monsters.every((m) => m.currentHp <= 0);
+
+      // Check for monster kills toward card unlocks and rare drops
+      const killedMonsterIds = res.hits
+        .filter((h) => h.killed && before[h.index])
+        .map((h) => before[h.index].id);
+      if (killedMonsterIds.length > 0) {
+        const killUnlocks = profileManager.recordMonsterKills(killedMonsterIds, currentMap);
+        if (killUnlocks.length > 0) {
+          setPendingCardUnlocks((prev) => [...prev, ...killUnlocks]);
+        }
+      }
 
       // Define victory completion callback (invoked by engine when kill cam finishes)
       let onFinishVictory: (() => void) | undefined = undefined;
@@ -376,6 +396,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
               lvlCfg.xpReward,
               nextMap || undefined
             );
+            const clearUnlocks = profileManager.recordMapClearStats(currentMap, currentLevel);
+            if (clearUnlocks.length > 0) {
+              setPendingCardUnlocks((prev) => [...prev, ...clearUnlocks]);
+            }
           } else {
             battleStatusRef.current = 'VICTORY';
             setBattleStatus('VICTORY');
@@ -424,6 +448,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         playerBlockRef.current += res.block;
         setPlayerBlock(playerBlockRef.current);
         engine?.playerShieldPulse?.();
+        const blockUnlocks = profileManager.recordBlockedDamage(res.block);
+        if (blockUnlocks.length > 0) {
+          setPendingCardUnlocks((prev) => [...prev, ...blockUnlocks]);
+        }
       }
       if (res.heal > 0) {
         const healed = Math.min(PLAYER_MAX_HP, playerHpRef.current + res.heal) - playerHpRef.current;
@@ -741,7 +769,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         }
       }
     },
-  });
+  }, { enabled: pendingCardUnlocks.length === 0 });
 
   return (
     <div className="absolute inset-0 z-20 flex flex-col justify-between p-6 pointer-events-auto select-none">
@@ -1054,6 +1082,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             )}
           </div>
         </div>
+      )}
+
+      {/* Card Unlock Celebration Modal (queued unlocks) */}
+      {pendingCardUnlocks.length > 0 && (
+        <CardUnlockCelebration
+          unlockedCards={pendingCardUnlocks}
+          onDismiss={() => setPendingCardUnlocks([])}
+        />
       )}
 
       {/* BOTTOM SLAY THE SPIRE 5-CARD HAND */}

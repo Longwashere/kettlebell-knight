@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { CardRarity, CombatCard } from '../../types/battle';
+import type { CardRarity, CombatCard, CardTemplate } from '../../types/battle';
 import { getCardArt } from './cardArt';
 import { EXERCISE_GUIDES, getExerciseFrames, getExerciseStrip } from './exerciseGuide';
 import { TARGET_LABEL } from '../../shared/cardBalance';
@@ -128,11 +128,12 @@ const TechniqueSide: React.FC<{ card: CombatCard; active: boolean }> = ({ card, 
  * rep pips and heraldic DMG / BLOCK plaques. Cards fan out in the hand; the focused one lifts.
  */
 /** Card face (front side). Also used, clipped into shards, by the cast animation. */
-const CardFront: React.FC<{ card: CombatCard; newPip?: number }> = ({ card, newPip = -1 }) => {
+export const CardFront: React.FC<{ card: CombatCard | CardTemplate; newPip?: number }> = ({ card, newPip = -1 }) => {
   const art = useMemo(() => getCardArt(card.templateId), [card.templateId]);
   const rarity = RARITY[card.rarity];
   const guide = EXERCISE_GUIDES[card.exercise];
   const strip = useMemo(() => getExerciseStrip(card.exercise, parseInt(card.colorHex.slice(1), 16)), [card.exercise, card.colorHex]);
+  const reps = 'currentReps' in card && typeof card.currentReps === 'number' ? card.currentReps : 0;
   // The figure and its step label loop with the same stepped CSS animation, so they stay in sync
   const loopStyle = {
     '--strip': `url(${strip})`,
@@ -187,16 +188,16 @@ const CardFront: React.FC<{ card: CombatCard; newPip?: number }> = ({ card, newP
               ))}
             </div>
           </div>
-          <div className="kk-card__pips" aria-label={`${card.currentReps} of ${card.requiredReps} reps`}>
+          <div className="kk-card__pips" aria-label={`${reps} of ${card.requiredReps} reps`}>
             {Array.from({ length: card.requiredReps }, (_, i) => (
               <i
                 key={i}
-                className={`kk-pip ${i < card.currentReps ? 'kk-pip--on' : ''} ${i === newPip ? 'kk-pip--new' : ''}`}
+                className={`kk-pip ${i < reps ? 'kk-pip--on' : ''} ${i === newPip ? 'kk-pip--new' : ''}`}
               />
             ))}
           </div>
           <div className="kk-card__count">
-            {card.currentReps}/{card.requiredReps} REPS
+            {reps}/{card.requiredReps} REPS
           </div>
         </div>
       </div>

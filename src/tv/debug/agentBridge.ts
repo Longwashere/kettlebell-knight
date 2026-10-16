@@ -11,7 +11,7 @@
 import type { RepTelemetry, ExerciseType } from '../../types/game';
 import { networkManager } from '../../shared/NetworkManager';
 import { audioManager } from '../../shared/AudioManager';
-import { CARD_CATALOG, MONSTER_CATALOG } from '../../types/battle';
+import { CARD_CATALOG, MONSTER_CATALOG, STARTER_CARD_IDS } from '../../types/battle';
 import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { MOVESETS } from '../../shared/monsterMovesets';
 import type { MoveTraceReport } from '../engine/moveTrace';
@@ -596,6 +596,39 @@ const api = {
   textures: () => call('textures'),
   /** PNG data URL of the Pixi canvas at native 426×240 (no React overlay). */
   snapshot: () => call('snapshot') as Promise<string>,
+
+  /** Unlocks a specific card templateId in the active player profile. */
+  unlockCard: (templateId: string) => profileManager.unlockCard(templateId),
+  /** Unlocks all cards in the master catalog. */
+  unlockAllCards: () => {
+    const ids = CARD_CATALOG.map((c) => c.templateId);
+    profileManager.saveActiveProfile({ unlockedCards: ids });
+    return ids.length;
+  },
+  /** Resets player profile cards back to only starter cards. */
+  resetCards: () => {
+    profileManager.saveActiveProfile({
+      unlockedCards: [...STARTER_CARD_IDS],
+      unlockStats: {
+        monsterKills: {},
+        exerciseReps: {},
+        mapExerciseReps: {},
+        perfectFormReps: {},
+        highPowerReps: {},
+        peakPower: {},
+        totalBlockedDamage: 0,
+      },
+    });
+    return STARTER_CARD_IDS.length;
+  },
+  /** Returns current unlocked cards and unlock progress stats. */
+  getCardUnlocks: () => {
+    const p = profileManager.getActiveProfile();
+    return {
+      unlocked: p?.unlockedCards || [],
+      stats: p?.unlockStats,
+    };
+  },
 };
 
 export type KKDebugApi = typeof api;

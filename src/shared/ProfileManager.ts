@@ -1,9 +1,21 @@
 import { BattleMapId, STARTER_CARD_IDS } from '../types/battle';
+import { ExerciseType } from '../types/game';
+import { evaluateCardUnlocks, CardUnlockDef } from './cardUnlocks';
 
 export interface MapLevelProgress {
   highestLevelCleared: number; // 0 = none, 1..5
   totalClears: number;
   bestReps: number;
+}
+
+export interface CardUnlockStats {
+  monsterKills: Record<string, number>;
+  exerciseReps: Record<string, number>;
+  mapExerciseReps: Record<string, Record<string, number>>; // mapId -> exercise -> count
+  perfectFormReps: Record<string, number>;
+  highPowerReps: Record<string, number>;
+  peakPower: Record<string, number>;
+  totalBlockedDamage: number;
 }
 
 export interface PlayerProfile {
@@ -28,8 +40,10 @@ export interface PlayerProfile {
     helmet?: string;
   };
   unlockedItems: string[];
-  /** Battle cards in this knight's deck (CARD_CATALOG templateIds). Saves from before unlocks have none: full catalog. */
+  /** Battle cards in this knight's deck (CARD_CATALOG templateIds). Starts with STARTER_CARD_IDS. */
   unlockedCards?: string[];
+  /** Progression stats toward thematic card unlocks (monster kills, exercise reps, etc.). */
+  unlockStats?: CardUnlockStats;
   unlockedEncounters: number;
   unlockedMaps: BattleMapId[];
   mapProgress: Record<string, MapLevelProgress>;
@@ -71,6 +85,15 @@ export function createDefaultProfile(slotId: string, name: string = DEFAULT_KNIG
     },
     unlockedItems: ['iron_kettlebell'],
     unlockedCards: [...STARTER_CARD_IDS],
+    unlockStats: {
+      monsterKills: {},
+      exerciseReps: {},
+      mapExerciseReps: {},
+      perfectFormReps: {},
+      highPowerReps: {},
+      peakPower: {},
+      totalBlockedDamage: 0,
+    },
     unlockedEncounters: 1,
     unlockedMaps: ['VERDANT_FOREST'],
     mapProgress: {
@@ -114,6 +137,20 @@ class ProfileManager {
               };
             } else if (!slot.mapProgress.VERDANT_FOREST) {
               slot.mapProgress.VERDANT_FOREST = { highestLevelCleared: 0, totalClears: 0, bestReps: 0 };
+            }
+            if (!slot.unlockedCards || slot.unlockedCards.length === 0) {
+              slot.unlockedCards = [...STARTER_CARD_IDS];
+            }
+            if (!slot.unlockStats) {
+              slot.unlockStats = {
+                monsterKills: {},
+                exerciseReps: {},
+                mapExerciseReps: {},
+                perfectFormReps: {},
+                highPowerReps: {},
+                peakPower: {},
+                totalBlockedDamage: 0,
+              };
             }
             return slot;
           });
@@ -292,6 +329,173 @@ class ProfileManager {
       repsCompleted: (profile.repsCompleted || 0) + reps,
       workoutSessions: (profile.workoutSessions || 0) + 1,
     });
+  }
+
+  /** Records rep telemetry toward card unlock progress, returning any newly unlocked cards. */
+  public recordRepStats(
+    exercise: ExerciseType,
+    power: number,
+    form: number,
+    mapId?: BattleMapId
+  ): CardUnlockDef[] {
+    const profile = this.getActiveProfile();
+    if (!profile) return [];
+
+    const stats: CardUnlockStats = {
+      monsterKills: { ...(profile.unlockStats?.monsterKills || {}) },
+      exerciseReps: { ...(profile.unlockStats?.exerciseReps || {}) },
+      mapExerciseReps: { ...(profile.unlockStats?.mapExerciseReps || {}) },
+      perfectFormReps: { ...(profile.unlockStats?.perfectFormReps || {}) },
+      highPowerReps: { ...(profile.unlockStats?.highPowerReps || {}) },
+      peakPower: { ...(profile.unlockStats?.peakPower || {}) },
+      totalBlockedDamage: profile.unlockStats?.totalBlockedDamage || 0,
+    };
+
+    // Update exercise reps
+    stats.exerciseReps[exercise] = (stats.exerciseReps[exercise] || 0) + 1;
+
+    // Update map exercise reps
+    if (mapId) {
+      if (!stats.mapExerciseReps[mapId]) stats.mapExerciseReps[mapId] = {};
+      stats.mapExerciseReps[mapId][exercise] = (stats.mapExerciseReps[mapId][exercise] || 0) + 1;
+    }
+
+    // Update form and power milestones
+    if (form >= 0.85) {
+      stats.perfectFormReps[exercise] = (stats.perfectFormReps[exercise] || 0) + 1;
+    }
+    if (power >= 80) {
+      stats.highPowerReps[exercise] = (stats.highPowerReps[exercise] || 0) + 1;
+    }
+    stats.peakPower[exercise] = Math.max(stats.peakPower[exercise] || 0, power);
+
+    const tempProfile: PlayerProfile = {
+      ...profile,
+      unlockStats: stats,
+    };
+
+    const { newlyUnlocked, updatedUnlockedCards } = evaluateCardUnlocks(tempProfile, {
+      completedExercise: exercise,
+      repPower: power,
+      repForm: form,
+      currentMapId: mapId,
+    });
+
+    this.saveActiveProfile({
+      unlockStats: stats,
+      unlockedCards: updatedUnlockedCards,
+      highestPower: Math.max(profile.highestPower || 0, power),
+    });
+
+    return newlyUnlocked;
+  }
+
+  /** Records monster kills toward card unlock progress & drops, returning newly unlocked cards. */
+  public recordMonsterKills(monsterIds: string[], mapId?: BattleMapId): CardUnlockDef[] {
+    const profile = this.getActiveProfile();
+    if (!profile || monsterIds.length === 0) return [];
+
+    const stats: CardUnlockStats = {
+      monsterKills: { ...(profile.unlockStats?.monsterKills || {}) },
+      exerciseReps: { ...(profile.unlockStats?.exerciseReps || {}) },
+      mapExerciseReps: { ...(profile.unlockStats?.mapExerciseReps || {}) },
+      perfectFormReps: { ...(profile.unlockStats?.perfectFormReps || {}) },
+      highPowerReps: { ...(profile.unlockStats?.highPowerReps || {}) },
+      peakPower: { ...(profile.unlockStats?.peakPower || {}) },
+      totalBlockedDamage: profile.unlockStats?.totalBlockedDamage || 0,
+    };
+
+    for (const id of monsterIds) {
+      const key = id.toLowerCase();
+      stats.monsterKills[key] = (stats.monsterKills[key] || 0) + 1;
+    }
+
+    const tempProfile: PlayerProfile = {
+      ...profile,
+      unlockStats: stats,
+    };
+
+    const { newlyUnlocked, updatedUnlockedCards } = evaluateCardUnlocks(tempProfile, {
+      slainMonsterIds: monsterIds,
+      currentMapId: mapId,
+    });
+
+    this.saveActiveProfile({
+      unlockStats: stats,
+      unlockedCards: updatedUnlockedCards,
+    });
+
+    return newlyUnlocked;
+  }
+
+  /** Records damage blocked toward defensive card unlocks. */
+  public recordBlockedDamage(amount: number): CardUnlockDef[] {
+    const profile = this.getActiveProfile();
+    if (!profile || amount <= 0) return [];
+
+    const stats: CardUnlockStats = {
+      monsterKills: { ...(profile.unlockStats?.monsterKills || {}) },
+      exerciseReps: { ...(profile.unlockStats?.exerciseReps || {}) },
+      mapExerciseReps: { ...(profile.unlockStats?.mapExerciseReps || {}) },
+      perfectFormReps: { ...(profile.unlockStats?.perfectFormReps || {}) },
+      highPowerReps: { ...(profile.unlockStats?.highPowerReps || {}) },
+      peakPower: { ...(profile.unlockStats?.peakPower || {}) },
+      totalBlockedDamage: (profile.unlockStats?.totalBlockedDamage || 0) + amount,
+    };
+
+    const tempProfile: PlayerProfile = {
+      ...profile,
+      unlockStats: stats,
+    };
+
+    const { newlyUnlocked, updatedUnlockedCards } = evaluateCardUnlocks(tempProfile);
+
+    this.saveActiveProfile({
+      unlockStats: stats,
+      unlockedCards: updatedUnlockedCards,
+    });
+
+    return newlyUnlocked;
+  }
+
+  /** Evaluates map-clear card unlocks after completing an expedition level. */
+  public recordMapClearStats(mapId: BattleMapId, level: number): CardUnlockDef[] {
+    const profile = this.getActiveProfile();
+    if (!profile) return [];
+
+    const { newlyUnlocked, updatedUnlockedCards } = evaluateCardUnlocks(profile, {
+      currentMapId: mapId,
+      currentLevel: level,
+    });
+
+    if (newlyUnlocked.length > 0) {
+      this.saveActiveProfile({
+        unlockedCards: updatedUnlockedCards,
+      });
+    }
+
+    return newlyUnlocked;
+  }
+
+  /** Manually unlocks a card by templateId. Returns true if newly unlocked. */
+  public unlockCard(cardId: string): boolean {
+    const profile = this.getActiveProfile();
+    if (!profile) return false;
+
+    const current = new Set(profile.unlockedCards || STARTER_CARD_IDS);
+    if (current.has(cardId)) return false;
+
+    current.add(cardId);
+    this.saveActiveProfile({
+      unlockedCards: Array.from(current),
+    });
+    return true;
+  }
+
+  /** Checks if a card is currently unlocked. */
+  public isCardUnlocked(cardId: string): boolean {
+    const profile = this.getActiveProfile();
+    return (profile?.unlockedCards || STARTER_CARD_IDS).includes(cardId);
   }
 
   public deleteProfile(slotId: string): boolean {
