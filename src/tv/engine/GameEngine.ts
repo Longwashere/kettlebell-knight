@@ -479,6 +479,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
     heavyAttack: 'action_1',
     hit: 'idle',
     death: 'idle',
+    flipX: false, // authored facing left
   },
   NIGHTMARE_STAG: {
     skeleton: `${MONSTER_DIR}/nightmare-stag/AnimalAnim5.json`,
@@ -667,6 +668,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
     death: 'pose_death',
     defend: 'pose_defend',
     skin: 'normal',
+    flipX: false, // authored facing left
   },
   GIANT_CRAB: {
     skeleton: `${MONSTER_DIR}/giant-crab/giant_claw_crab.json`,
