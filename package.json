@@ -11,7 +11,8 @@
     "rigs": "node scripts/rigs.mjs",
     "vfx:shrink": "node scripts/shrink-vfx.mjs",
     "balance": "esbuild scripts/balance-sim.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/balance-sim.mjs && node node_modules/.cache/balance-sim.mjs",
-    "sfx": "esbuild scripts/sfx-render.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/sfx-render.mjs && node node_modules/.cache/sfx-render.mjs"
+    "sfx": "esbuild scripts/sfx-render.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/sfx-render.mjs && node node_modules/.cache/sfx-render.mjs",
+    "music": "python3 scripts/craft_dark_fantasy_powwow.py"
   },
   "dependencies": {
     "@esotericsoftware/spine-pixi-v8": "~4.2.66",

@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Kettlebell Knight — Dark Fantasy Electric Pow Wow Soundtrack</title>
+  <style>
+    :root {
+      --bg: #090812;
+      --panel: #161426;
+      --border: #383058;
+      --accent: #ff3366;
+      --gold: #ffbe0b;
+      --cyan: #00f5d4;
+      --text: #f7f6fc;
+      --subtext: #9d96be;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container { max-width: 900px; width: 100%; }
+    header {
+      text-align: center;
+      margin-bottom: 24px;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 16px;
+    }
+    h1 {
+      font-size: 28px;
+      color: var(--gold);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      text-shadow: 0 0 16px rgba(255, 190, 11, 0.45);
+    }
+    .badge {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      font-size: 11px;
+      font-weight: bold;
+      padding: 3px 9px;
+      border-radius: 4px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-right: 6px;
+    }
+    .tempo-pill {
+      display: inline-block;
+      background: #1f1b33;
+      border: 1px solid var(--border);
+      color: var(--cyan);
+      font-size: 12px;
+      padding: 3px 12px;
+      border-radius: 12px;
+      font-weight: 700;
+    }
+    .player-card {
+      background: var(--panel);
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+    }
+    .main-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    button.btn-play {
+      background: linear-gradient(135deg, #ff3366, #ff5e36);
+      color: #fff;
+      border: none;
+      padding: 14px 32px;
+      font-size: 17px;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.15s ease;
+      box-shadow: 0 4px 20px rgba(255, 51, 102, 0.45);
+    }
+    button.btn-play:hover {
+      background: linear-gradient(135deg, #ff4d7a, #ff724e);
+      transform: translateY(-2px);
+    }
+    .time-display {
+      font-size: 20px;
+      font-family: monospace;
+      color: var(--cyan);
+      font-weight: bold;
+    }
+    .loop-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--subtext);
+    }
+    canvas#visualizer {
+      width: 100%;
+      height: 100px;
+      background: #06050c;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      display: block;
+      margin-bottom: 22px;
+    }
+    .stems-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--subtext);
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .stem-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 16px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    .stem-label {
+      width: 250px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .stem-desc {
+      font-size: 11px;
+      color: var(--subtext);
+      display: block;
+      margin-top: 3px;
+    }
+    .stem-slider {
+      flex: 1;
+      accent-color: var(--accent);
+    }
+    .btn-stem {
+      background: #27223d;
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 12px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-stem:hover { background: #352e54; }
+    .workout-banner {
+      background: linear-gradient(135deg, #241433, #13172e);
+      border: 1px solid #4a3862;
+      border-radius: 10px;
+      padding: 18px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #dfd8f5;
+    }
+    .workout-banner strong { color: var(--gold); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Blood & Iron — Dark Fantasy Electric Pow Wow</h1>
+      <div style="margin-top:6px;">
+        <span class="badge">Electric Pow Wow</span>
+        <span class="badge" style="background:#7928ca;">Dark Fantasy RPG</span>
+        <span class="tempo-pill">133 BPM Workout Cadence</span>
+      </div>
+    </header>
+
+    <div class="player-card">
+      <div class="main-controls">
+        <button id="playBtn" class="btn-play">▶ Play Full Track</button>
+        <div class="time-display" id="timeDisplay">0:00 / 1:41</div>
+        <label class="loop-toggle">
+          <input type="checkbox" id="loopCheck" checked> Seamless Loop (Endless Workout)
+        </label>
+      </div>
+
+      <canvas id="visualizer" width="840" height="100"></canvas>
+
+      <audio id="audioMaster" src="electric_pow_wow_battle.mp3" preload="auto"></audio>
+
+      <div class="stems-title">
+        <span>Sound Layer & Stem Control</span>
+        <span style="font-size:11px; text-transform:none;">Solo any instrument:</span>
+      </div>
+
+      <div class="stem-row">
+        <div class="stem-label">
+          Pow Wow Vocal Chants
+          <span class="stem-desc">Authentic Northern call-and-response vocal harmonies</span>
+        </div>
+        <audio id="audioStem1" src="stems/01_powwow_vocals.wav" preload="auto"></audio>
+        <input type="range" class="stem-slider" id="vol1" min="0" max="1" step="0.05" value="1">
+        <button class="btn-stem" onclick="playSolo('audioStem1')">Solo</button>
+      </div>
+
+      <div class="stem-row">
+        <div class="stem-label">
+          Acoustic Pow Wow Grand Drum
+          <span class="stem-desc">Bison-hide drum circle pulse & thunderous honor beats</span>
+        </div>
+        <audio id="audioStem2" src="stems/02_powwow_acoustic_drums.wav" preload="auto"></audio>
+        <input type="range" class="stem-slider" id="vol2" min="0" max="1" step="0.05" value="1">
+        <button class="btn-stem" onclick="playSolo('audioStem2')">Solo</button>
+      </div>
+
+      <div class="stem-row">
+        <div class="stem-label">
+          Electronic Powwow-Step 808
+          <span class="stem-desc">133 BPM syncopated kicks, claps & rolling shakers</span>
+        </div>
+        <audio id="audioStem3" src="stems/03_electronic_beat_808.wav" preload="auto"></audio>
+        <input type="range" class="stem-slider" id="vol3" min="0" max="1" step="0.05" value="1">
+        <button class="btn-stem" onclick="playSolo('audioStem3')">Solo</button>
+      </div>
+
+      <div class="stem-row">
+        <div class="stem-label">
+          Dark Fantasy Orchestral
+          <span class="stem-desc">Gothic cathedral bells, brass warhorns & cellos</span>
+        </div>
+        <audio id="audioStem4" src="stems/04_dark_fantasy_orchestral.wav" preload="auto"></audio>
+        <input type="range" class="stem-slider" id="vol4" min="0" max="1" step="0.05" value="1">
+        <button class="btn-stem" onclick="playSolo('audioStem4')">Solo</button>
+      </div>
+    </div>
+
+    <div class="workout-banner">
+      <strong>⚡ Dark Fantasy Workout Battle Arrangement:</strong><br>
+      • <strong>Intro (Bars 0-8, 0:00-0:14):</strong> Low abyssal drone, tolling gothic cathedral bell & lone northern vocal invocation in the dungeon.<br>
+      • <strong>Drop 1 "Blood on the Stone" (Bars 8-24, 0:14-0:43):</strong> Massive sub drop boom! Full 133 BPM syncopated club bounce, soaring vocal group harmonies, answering brass warhorn stabs.<br>
+      • <strong>Honor Beat Breakdown (Bars 24-32, 0:43-0:58):</strong> 4 colossal acoustic grand drum honor beats shake the room, timed for max kettlebell snaps.<br>
+      • <strong>Drop 2 "Knight's Awakening" (Bars 32-48, 0:58-1:27):</strong> Peak workout intensity! High vocal lead, chugging dark fantasy string ostinato, clashing iron bells and heavy 808 glides.<br>
+      • <strong>Outro & Loop (Bars 48-56, 1:27-1:41):</strong> Tapers back to the cathedral bell and dungeon pulse, looping seamlessly for endless reps.
+    </div>
+  </div>
+
+  <script>
+    const playBtn = document.getElementById('playBtn');
+    const audioMaster = document.getElementById('audioMaster');
+    const loopCheck = document.getElementById('loopCheck');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const canvas = document.getElementById('visualizer');
+    const ctx = canvas.getContext('2d');
+
+    let audioCtx = null;
+    let analyser = null;
+    let source = null;
+    let isPlaying = false;
+
+    function initAudio() {
+      if (audioCtx) return;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 128;
+      source = audioCtx.createMediaElementSource(audioMaster);
+      source.connect(analyser);
+      analyser.connect(audioCtx.destination);
+    }
+
+    playBtn.addEventListener('click', () => {
+      initAudio();
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+
+      if (!isPlaying) {
+        audioMaster.play();
+        isPlaying = true;
+        playBtn.textContent = '⏸ Pause Soundtrack';
+      } else {
+        audioMaster.pause();
+        isPlaying = false;
+        playBtn.textContent = '▶ Play Full Track';
+      }
+    });
+
+    loopCheck.addEventListener('change', (e) => {
+      audioMaster.loop = e.target.checked;
+    });
+
+    audioMaster.addEventListener('timeupdate', () => {
+      const cur = Math.floor(audioMaster.currentTime);
+      const total = Math.floor(audioMaster.duration || 101);
+      const curM = Math.floor(cur / 60);
+      const curS = (cur % 60).toString().padStart(2, '0');
+      const totM = Math.floor(total / 60);
+      const totS = (total % 60).toString().padStart(2, '0');
+      timeDisplay.textContent = curM + ':' + curS + ' / ' + totM + ':' + totS;
+    });
+
+    audioMaster.addEventListener('ended', () => {
+      if (!audioMaster.loop) {
+        isPlaying = false;
+        playBtn.textContent = '▶ Play Full Track';
+      }
+    });
+
+    // Retro Neon Audio Visualizer
+    function draw() {
+      requestAnimationFrame(draw);
+      ctx.fillStyle = '#06050c';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      if (!analyser || !isPlaying) {
+        ctx.fillStyle = '#2d2745';
+        ctx.font = '13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Press Play to Start Music & Visualizer', canvas.width / 2, canvas.height / 2 + 5);
+        return;
+      }
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      analyser.getByteFrequencyData(dataArray);
+
+      const barWidth = (canvas.width / bufferLength) * 1.6;
+      let x = 0;
+
+      for (let i = 0; i < bufferLength; i++) {
+        const barHeight = (dataArray[i] / 255) * (canvas.height - 12);
+        const hue = 330 + (i / bufferLength) * 100;
+        ctx.fillStyle = 'hsl(' + hue + ', 95%, 58%)';
+        const steppedHeight = Math.floor(barHeight / 4) * 4;
+        ctx.fillRect(x, canvas.height - steppedHeight, barWidth - 2, steppedHeight);
+        x += barWidth;
+      }
+    }
+    draw();
+
+    function playSolo(id) {
+      const target = document.getElementById(id);
+      audioMaster.pause();
+      isPlaying = false;
+      playBtn.textContent = '▶ Play Full Track';
+
+      document.querySelectorAll('audio').forEach(a => {
+        if (a !== target) a.pause();
+      });
+
+      if (target.paused) {
+        target.currentTime = audioMaster.currentTime % (target.duration || 101);
+        target.play();
+      } else {
+        target.pause();
+      }
+    }
+  </script>
+</body>
+</html>

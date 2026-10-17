@@ -69,14 +69,70 @@ class AudioManager {
     return AudioManager.instance;
   }
 
+  private bgmAudio: HTMLAudioElement | null = null;
+  private bgmVolume = 0.65;
+
   public toggleMute(): boolean {
     this.isMuted = !this.isMuted;
-    if (this.isMuted) for (const v of this.voices) this.stop(v);
+    if (this.isMuted) {
+      for (const v of this.voices) this.stop(v);
+      if (this.bgmAudio) this.bgmAudio.volume = 0;
+    } else {
+      if (this.bgmAudio) this.bgmAudio.volume = this.bgmVolume;
+    }
     return this.isMuted;
   }
 
   public getMuted(): boolean {
     return this.isMuted;
+  }
+
+  /** Plays background music on loop using an HTML5 audio element (keeps memory overhead minimal on Fire TV). */
+  public playBgm(url = '/assets/music/battle_electric_pow_wow.mp3', volume = 0.65): void {
+    if (typeof Audio === 'undefined') return;
+    this.bgmVolume = volume;
+    try {
+      if (!this.bgmAudio) {
+        this.bgmAudio = new Audio();
+        this.bgmAudio.loop = true;
+      }
+      if (this.bgmAudio.src !== url && !this.bgmAudio.src.endsWith(url)) {
+        this.bgmAudio.src = url;
+      }
+      this.bgmAudio.volume = this.isMuted ? 0 : this.bgmVolume;
+      const playPromise = this.bgmAudio.play();
+      if (playPromise) {
+        playPromise.catch((e) => {
+          // Autoplay policy or user gesture required
+          console.warn('[audio] BGM autoplay blocked until user interaction:', e);
+        });
+      }
+    } catch (e) {
+      console.warn('[audio] failed to play BGM:', e);
+    }
+  }
+
+  public stopBgm(): void {
+    if (!this.bgmAudio) return;
+    this.bgmAudio.pause();
+    this.bgmAudio.currentTime = 0;
+  }
+
+  public pauseBgm(): void {
+    this.bgmAudio?.pause();
+  }
+
+  public resumeBgm(): void {
+    if (!this.bgmAudio) return;
+    if (!this.isMuted) this.bgmAudio.volume = this.bgmVolume;
+    this.bgmAudio.play().catch(() => {});
+  }
+
+  public setBgmVolume(volume: number): void {
+    this.bgmVolume = Math.max(0, Math.min(1, volume));
+    if (this.bgmAudio && !this.isMuted) {
+      this.bgmAudio.volume = this.bgmVolume;
+    }
   }
 
   private buffer(id: SoundId): AudioBuffer | null {

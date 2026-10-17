@@ -277,6 +277,18 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     });
   }, [hand, monsters, targetedMonsterIndex, playerHp, playerBlock, onBattleStateSync]);
 
+  // Background Music: Invigorating Electric Pow Wow soundtrack during combat
+  useEffect(() => {
+    if (battleStatus === 'FIGHTING') {
+      audioManager.playBgm('/assets/music/battle_electric_pow_wow.mp3', 0.65);
+    } else if (battleStatus === 'VICTORY' || battleStatus === 'EXPEDITION_VICTORY' || battleStatus === 'DEFEAT') {
+      audioManager.stopBgm();
+    }
+    return () => {
+      audioManager.stopBgm();
+    };
+  }, [battleStatus]);
+
   // Real-Time Multi-Monster Attack ATB Timer Loop
   useEffect(() => {
     if (battleStatus !== 'FIGHTING') return;
