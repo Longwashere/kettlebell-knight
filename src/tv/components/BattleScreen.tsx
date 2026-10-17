@@ -951,32 +951,35 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       {/* TOP COMBAT HUD: PLAYER (LEFT) VS MONSTER (RIGHT) */}
       <div className="flex items-start justify-between w-full">
         {/* PLAYER STATUS (LEFT) */}
-        <div className="bg-[#1A1926]/95 border-4 border-[#38B6FF] p-4 rounded shadow-pixel-box backdrop-blur-md max-w-sm w-full">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center space-x-2">
-              <span className="font-pixel text-xs text-[#F4B41A]">{profileManager.getActiveProfile()?.name ?? 'SIR KETTLEBURNE'}</span>
-              <span className="text-[9px] bg-[#38B6FF]/20 text-[#38B6FF] font-pixel px-1.5 border border-[#38B6FF]">
-                LVL {knightLevel}
-              </span>
+        <div className="kk-hud-card kk-hud-card--player p-3 max-w-sm w-full">
+          {/* Header row: Gem (Level) + Engraved Banner (Name & Block) */}
+          <div className="flex items-center gap-2 mb-2">
+            <div className="kk-hud-gem" title={`Knight Level ${knightLevel}`}>
+              <span>{knightLevel}</span>
             </div>
-            {playerBlock > 0 && (
-              <div className="flex items-center space-x-1 bg-[#38B6FF] text-[#0F0E17] px-2 py-0.5 rounded font-pixel text-[10px] shadow-pixel-box animate-pulse">
-                <Shield className="w-3.5 h-3.5" />
-                <span>{playerBlock} BLOCK</span>
-              </div>
-            )}
+            <div className="kk-hud-banner">
+              <span className="font-pixel text-[10px] text-[#F4B41A] truncate tracking-wide">
+                {profileManager.getActiveProfile()?.name ?? 'SIR KETTLEBURNE'}
+              </span>
+              {playerBlock > 0 && (
+                <div className="flex items-center space-x-1 bg-[#38B6FF] text-[#0F0E17] px-1.5 py-0.5 rounded font-pixel text-[8px] font-bold shadow-sm animate-pulse flex-shrink-0">
+                  <Shield className="w-2.5 h-2.5" />
+                  <span>{playerBlock}</span>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* HP Bar */}
+          {/* HP Bar Vial */}
           <div className="space-y-1">
-            <div className="flex justify-between text-[10px] font-mono text-[#A7A9BE]">
-              <span>HEALTH</span>
-              <span className="font-bold text-white">{playerHp} / {playerMaxHp}</span>
+            <div className="flex justify-between text-[9px] font-mono text-[#A7A9BE] px-0.5">
+              <span className="font-pixel text-[8px] text-[#38B6FF] tracking-wider">HEALTH</span>
+              <span className="font-bold text-white text-[10px]">{playerHp} / {playerMaxHp}</span>
             </div>
-            <div className="w-full h-4 bg-[#0F0E17] border-2 border-[#2E2B44] overflow-hidden p-0.5">
+            <div className="kk-hud-vial h-3.5">
               <div
-                className="h-full bg-gradient-to-r from-[#FF3366] to-[#00EB88] transition-all duration-300"
-                style={{ width: `${(playerHp / playerMaxHp) * 100}%` }}
+                className="kk-hud-vial__bar kk-hud-vial__bar--player"
+                style={{ width: `${Math.max(0, Math.min(100, (playerHp / playerMaxHp) * 100))}%` }}
               />
             </div>
             <KnightStatLine loadout={loadoutRef.current} runXp={runXp} fightGold={fightGold} />
@@ -984,8 +987,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         </div>
 
         {/* COMBAT LOG BANNER (CENTER) */}
-        <div className="hidden lg:block bg-[#0F0E17]/90 border-2 border-[#2E2B44] px-4 py-2 rounded shadow-pixel-box max-w-md text-center">
-          <span className="font-pixel text-[9px] text-[#A7A9BE] block mb-0.5">BATTLE DISPATCH</span>
+        <div className="hidden lg:block kk-hud-dispatch px-4 py-2 max-w-md text-center">
+          <span className="font-pixel text-[8px] text-[#A7A9BE] block mb-0.5 tracking-wider">✦ BATTLE DISPATCH ✦</span>
           <p className="font-mono text-xs text-[#F4B41A] truncate">{recentCombatLog}</p>
         </div>
 
@@ -1027,106 +1030,118 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             const isTargeted = idx === targetedMonsterIndex;
             const isDead = m.currentHp <= 0;
 
+            const cardClass = isDead
+              ? 'kk-hud-card--dead'
+              : isTargeted
+              ? 'kk-hud-card--targeted'
+              : 'kk-hud-card--monster';
+
+            const intentCritical = m.intent.remainingSeconds < 1.2;
+            const intentProgress = Math.max(0, Math.min(100, (1 - m.intent.remainingSeconds / m.intent.durationSeconds) * 100));
+
             return (
               <div
                 key={m.instanceId || idx}
                 onClick={() => !isDead && setTargetedMonsterIndex(idx)}
-                className={`bg-[#1A1926]/95 border-2 rounded p-2.5 shadow-pixel-box backdrop-blur-md transition-all duration-150 cursor-pointer ${
-                  isDead
-                    ? 'opacity-35 grayscale border-[#2E2B44]'
-                    : isTargeted
-                    ? 'border-[#F4B41A] ring-2 ring-[#F4B41A]/60 scale-102 bg-[#252238]/95'
-                    : 'border-[#FF3366]/60 hover:border-[#FF3366]'
+                className={`kk-hud-card ${cardClass} p-2.5 transition-all duration-150 cursor-pointer ${
+                  isTargeted ? 'scale-102 z-10' : 'hover:scale-[1.01]'
                 }`}
               >
-                {/* Name, Target Badge, & Block */}
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-1.5">
-                    {isTargeted && !isDead && (
-                      <span className="bg-[#F4B41A] text-[#0F0E17] font-pixel text-[7px] px-1 py-0.2 rounded font-bold animate-pulse">
-                        TARGET 🎯
-                      </span>
-                    )}
-                    <span className={`font-pixel text-[10px] ${isTargeted ? 'text-[#F4B41A]' : 'text-[#FF3366]'}`}>
-                      {m.name}
-                    </span>
-                    <span className="font-pixel text-[7px] text-[#A7A9BE]">
-                      LVL {m.level}
-                    </span>
-                    {m.element && !isDead && (
-                      <span
-                        className="font-pixel text-[7px] px-1 py-0.2 rounded border font-bold"
-                        style={{ borderColor: ELEMENT_INFO[m.element].color, color: ELEMENT_INFO[m.element].color, backgroundColor: 'rgba(0,0,0,0.5)' }}
-                        title={`${ELEMENT_INFO[m.element].label} monster`}
-                      >
-                        {ELEMENT_INFO[m.element].icon} {ELEMENT_INFO[m.element].label}
-                      </span>
-                    )}
-                    {m.affix && !isDead && (
-                      <span
-                        className="font-pixel text-[7px] px-1 py-0.2 rounded border uppercase font-bold"
-                        style={{
-                          borderColor: m.outlineColor ? `#${m.outlineColor.toString(16).padStart(6, '0')}` : '#F4B41A',
-                          color: m.outlineColor ? `#${m.outlineColor.toString(16).padStart(6, '0')}` : '#F4B41A',
-                          backgroundColor: 'rgba(0,0,0,0.5)',
-                        }}
-                      >
-                        {m.affix}
-                      </span>
-                    )}
+                {/* Name, Target Badge, Gem, & Block */}
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className="kk-hud-gem" title={`Level ${m.level}`}>
+                    <span>{m.level}</span>
                   </div>
 
-                  {m.block > 0 && !isDead && (
-                    <div className="flex items-center space-x-1 bg-[#FF3366] text-white px-1.5 py-0.2 rounded font-pixel text-[8px] shadow-pixel-box">
-                      <Shield className="w-2.5 h-2.5" />
-                      <span>{m.block}</span>
+                  <div className="kk-hud-banner">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {isTargeted && !isDead && (
+                        <span className="bg-[#F4B41A] text-[#0F0E17] font-pixel text-[7px] px-1 py-0.2 rounded font-bold animate-pulse flex-shrink-0">
+                          TARGET
+                        </span>
+                      )}
+                      <span className={`font-pixel text-[9px] truncate ${isTargeted ? 'text-[#F4B41A]' : 'text-white'}`}>
+                        {m.name}
+                      </span>
+                      {m.element && !isDead && (
+                        <span
+                          className="font-pixel text-[7px] px-1 py-0.2 rounded border font-bold flex-shrink-0"
+                          style={{ borderColor: ELEMENT_INFO[m.element].color, color: ELEMENT_INFO[m.element].color, backgroundColor: 'rgba(0,0,0,0.5)' }}
+                          title={`${ELEMENT_INFO[m.element].label} monster`}
+                        >
+                          {ELEMENT_INFO[m.element].icon} {ELEMENT_INFO[m.element].label}
+                        </span>
+                      )}
+                      {m.affix && !isDead && (
+                        <span
+                          className="font-pixel text-[7px] px-1 py-0.2 rounded border uppercase font-bold flex-shrink-0"
+                          style={{
+                            borderColor: m.outlineColor ? `#${m.outlineColor.toString(16).padStart(6, '0')}` : '#F4B41A',
+                            color: m.outlineColor ? `#${m.outlineColor.toString(16).padStart(6, '0')}` : '#F4B41A',
+                            backgroundColor: 'rgba(0,0,0,0.5)',
+                          }}
+                        >
+                          {m.affix}
+                        </span>
+                      )}
                     </div>
-                  )}
 
-                  {isDead && (
-                    <span className="font-pixel text-[8px] text-[#A7A9BE] flex items-center gap-1">
-                      <Skull className="w-3 h-3 text-[#A7A9BE]" /> SLAIN
-                    </span>
-                  )}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {m.block > 0 && !isDead && (
+                        <div className="flex items-center space-x-1 bg-[#38B6FF] text-[#0F0E17] px-1.5 py-0.2 rounded font-pixel text-[8px] font-bold shadow-sm">
+                          <Shield className="w-2.5 h-2.5" />
+                          <span>{m.block}</span>
+                        </div>
+                      )}
+
+                      {isDead && (
+                        <span className="font-pixel text-[8px] text-[#A7A9BE] flex items-center gap-1">
+                          <Skull className="w-2.5 h-2.5 text-[#A7A9BE]" /> SLAIN
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                {/* HP Bar */}
+                {/* HP Bar Vial */}
                 {!isDead && (
                   <div className="space-y-0.5 mb-1.5">
-                    <div className="flex justify-between text-[8px] font-mono text-[#A7A9BE]">
-                      <span>HP</span>
+                    <div className="flex justify-between text-[8px] font-mono text-[#A7A9BE] px-0.5">
+                      <span className="font-pixel text-[7px] text-[#FF3366] tracking-wider">HP</span>
                       <span className="font-bold text-white">{m.currentHp} / {m.maxHp}</span>
                     </div>
-                    <div className="w-full h-2.5 bg-[#0F0E17] border border-[#2E2B44] overflow-hidden p-0.2">
+                    <div className="kk-hud-vial h-2.5">
                       <div
-                        className="h-full bg-gradient-to-r from-[#DC2626] to-[#FF3366] transition-all duration-200"
-                        style={{ width: `${(m.currentHp / m.maxHp) * 100}%` }}
+                        className="kk-hud-vial__bar kk-hud-vial__bar--monster"
+                        style={{ width: `${Math.max(0, Math.min(100, (m.currentHp / m.maxHp) * 100))}%` }}
                       />
                     </div>
                   </div>
                 )}
 
-                {/* Intent & Countdown Bar */}
+                {/* Intent Plaque & Countdown Bar */}
                 {!isDead && (
-                  <div className="bg-[#0F0E17] border border-[#2E2B44] p-1.5 rounded">
-                    <div className="flex items-center justify-between text-[8px] font-pixel text-[#FF3366] mb-0.5">
-                      <span className="flex items-center gap-1 truncate max-w-[170px]">
-                        <AlertTriangle className="w-2.5 h-2.5 text-[#FF3366] flex-shrink-0" />
-                        {m.intent.name}
+                  <div className="kk-hud-intent">
+                    <div className="flex items-center justify-between text-[8px] font-pixel text-[#E6E4EE] mb-1">
+                      <span className="flex items-center gap-1.5 truncate max-w-[170px]">
+                        {m.intent.type === 'DEFEND' ? (
+                          <Shield className="w-2.5 h-2.5 text-[#38B6FF] flex-shrink-0" />
+                        ) : m.intent.type === 'BUFF' ? (
+                          <span className="text-[#F4B41A] text-[9px] flex-shrink-0">✦</span>
+                        ) : (
+                          <span className="text-[#FF3366] text-[9px] flex-shrink-0">⚔</span>
+                        )}
+                        <span className="truncate">{m.intent.name}</span>
                       </span>
                       <span className="font-bold text-[#F4B41A] flex-shrink-0">
                         {m.intent.type === 'DEFEND' ? `+${m.intent.block ?? 25} SHIELD` : `${m.intent.damage} DMG`}
                       </span>
                     </div>
 
-                    <div className="w-full h-1.5 bg-[#2E2B44] rounded overflow-hidden">
+                    <div className="kk-hud-intent__charge">
                       <div
-                        className={`h-full transition-all duration-75 ${
-                          m.intent.remainingSeconds < 1.2 ? 'bg-[#FF3366] animate-pulse' : 'bg-[#F4B41A]'
-                        }`}
-                        style={{
-                          width: `${Math.max(0, (1 - m.intent.remainingSeconds / m.intent.durationSeconds) * 100)}%`,
-                        }}
+                        className={`kk-hud-intent__bar ${intentCritical ? 'kk-hud-intent__bar--critical' : ''}`}
+                        style={{ width: `${intentProgress}%` }}
                       />
                     </div>
                   </div>
@@ -1337,16 +1352,17 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 };
 
 /** STR / SPD (rep cut and dodge) / Attack under the knight's HP bar, the run's experience and the fight's gold purse. */
+/** STR / SPD (rep cut and dodge) / Attack under the knight's HP bar, the run's experience and the fight's gold purse. */
 const KnightStatLine: React.FC<{ loadout: Loadout; runXp: number; fightGold: number }> = ({ loadout, runXp, fightGold }) => {
   const profile = profileManager.getActiveProfile();
   const xpPct = profile ? Math.min(100, (profile.xp / Math.max(1, profile.maxXp)) * 100) : 0;
   const w = loadout.weapon;
   return (
-    <div className="pt-1 space-y-1">
-      <div className="w-full h-1.5 bg-[#0F0E17] border border-[#2E2B44] overflow-hidden" title="Experience to next level">
-        <div className="h-full bg-[#C084FC] transition-all duration-300" style={{ width: `${xpPct}%` }} />
+    <div className="pt-1.5 space-y-1">
+      <div className="kk-hud-vial h-1.5" title={`Experience to next level: ${Math.round(xpPct)}%`}>
+        <div className="kk-hud-vial__bar bg-gradient-to-r from-[#9333EA] to-[#C084FC]" style={{ width: `${xpPct}%` }} />
       </div>
-      <div className="flex items-center justify-between font-pixel text-[7px] text-[#A7A9BE]">
+      <div className="flex items-center justify-between font-pixel text-[7px] text-[#A7A9BE] px-0.5">
         <span style={{ color: STAT_INFO.str.color }}>ATK {loadout.attack}</span>
         {w.element && (
           <span style={{ color: ELEMENT_INFO[w.element].color }}>
@@ -1354,10 +1370,10 @@ const KnightStatLine: React.FC<{ loadout: Loadout; runXp: number; fightGold: num
           </span>
         )}
         <span style={{ color: STAT_INFO.spd.color }}>
-          SPD {loadout.stats.spd} (−{Math.round(loadout.repCut * 100)}% REPS, {Math.round(loadout.dodge * 100)}% DODGE)
+          SPD {loadout.stats.spd} (−{Math.round(loadout.repCut * 100)}% REPS)
         </span>
         {runXp > 0 && <span className="text-[#C084FC]">+{runXp} XP</span>}
-        <span className="text-[#F4B41A]" title="Gold from this fight's reps: kept only if you win">🪙 {fightGold} AT STAKE</span>
+        <span className="text-[#F4B41A]" title="Gold from this fight's reps: kept only if you win">🪙 {fightGold}</span>
       </div>
     </div>
   );

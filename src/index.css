@@ -1161,3 +1161,193 @@ canvas,
     radial-gradient(ellipse at 50% 55%, transparent 25%, rgba(5, 4, 8, 0.78) 85%),
     linear-gradient(180deg, rgba(5, 4, 8, 0.35), rgba(5, 4, 8, 0.55));
 }
+
+/* =============================================================================
+   HUD Cards: Player & Monster health frames styled after the TCG spell cards
+   ============================================================================= */
+.kk-hud-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 2px solid #000;
+  border-radius: 8px;
+  background:
+    radial-gradient(circle, var(--rim) 0 1.5px, #000 1.6px 2.4px, transparent 2.5px) 2px 2px / 9px 9px no-repeat,
+    radial-gradient(circle, var(--rim) 0 1.5px, #000 1.6px 2.4px, transparent 2.5px) calc(100% - 2px) 2px / 9px 9px no-repeat,
+    radial-gradient(circle, var(--rim) 0 1.5px, #000 1.6px 2.4px, transparent 2.5px) 2px calc(100% - 2px) / 9px 9px no-repeat,
+    radial-gradient(circle, var(--rim) 0 1.5px, #000 1.6px 2.4px, transparent 2.5px) calc(100% - 2px) calc(100% - 2px) / 9px 9px no-repeat,
+    linear-gradient(180deg, rgba(var(--accent-rgb, 56, 182, 255), 0.16), transparent 35%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.02) 0 2px, transparent 2px 5px),
+    linear-gradient(165deg, #2b273b 0%, #171522 45%, #0e0c14 100%);
+  box-shadow:
+    inset 0 0 0 2px var(--rim),
+    inset 0 0 0 3px #0a0910,
+    inset 0 0 0 4px var(--rim-dark),
+    inset 2px 2px 0 4px rgba(255, 255, 255, 0.06),
+    4px 5px 0 rgba(0, 0, 0, 0.65);
+}
+
+.kk-hud-card--player {
+  --rim: #38B6FF;
+  --rim-dark: #103352;
+  --accent: #38B6FF;
+  --accent-rgb: 56, 182, 255;
+}
+
+.kk-hud-card--monster {
+  --rim: #6B5B95;
+  --rim-dark: #2B1E4A;
+  --accent: #FF3366;
+  --accent-rgb: 255, 51, 102;
+}
+
+.kk-hud-card--targeted {
+  --rim: #F4B41A;
+  --rim-dark: #78350F;
+  --accent: #F4B41A;
+  --accent-rgb: 244, 180, 26;
+  box-shadow:
+    inset 0 0 0 2px #F4B41A,
+    inset 0 0 0 3px #0a0910,
+    inset 0 0 0 4px #78350F,
+    inset 2px 2px 0 4px rgba(255, 255, 255, 0.1),
+    0 0 16px rgba(244, 180, 26, 0.45),
+    4px 6px 0 rgba(0, 0, 0, 0.7);
+}
+
+.kk-hud-card--dead {
+  opacity: 0.38;
+  filter: grayscale(1);
+  --rim: #3E3B4E;
+  --rim-dark: #1E1C27;
+  --accent: #5E5A73;
+  --accent-rgb: 94, 90, 115;
+}
+
+/* Faceted gem socket (for level badge) */
+.kk-hud-gem {
+  width: 26px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  background: #000;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  flex: none;
+}
+.kk-hud-gem span {
+  width: 22px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.85) 0 1.5px, transparent 2px),
+    radial-gradient(circle at 40% 35%, var(--accent) 0%, rgba(var(--accent-rgb), 0.55) 55%, #0a0910 120%);
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+  color: #fff;
+  text-shadow: 1px 1px 0 #000;
+}
+
+/* Engraved name banner */
+.kk-hud-banner {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 3px 8px;
+  background: linear-gradient(180deg, #2b273d, #161421 55%, #0d0b13);
+  border: 1px solid var(--rim);
+  border-radius: 4px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 0 4px rgba(0, 0, 0, 0.6);
+}
+
+/* Alchemical Life Vial / Health Gauge */
+.kk-hud-vial {
+  position: relative;
+  width: 100%;
+  background: #08070d;
+  border: 1px solid #000;
+  box-shadow:
+    inset 0 0 0 1px var(--rim-dark),
+    inset 0 2px 4px rgba(0, 0, 0, 0.9),
+    0 1px 0 rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  overflow: hidden;
+  padding: 1px;
+}
+.kk-hud-vial__bar {
+  height: 100%;
+  position: relative;
+  border-radius: 2px;
+  transition: width 250ms ease-out;
+}
+.kk-hud-vial__bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 45%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.05) 90%, transparent 100%);
+  border-radius: 2px 2px 0 0;
+}
+
+/* Player health liquid */
+.kk-hud-vial__bar--player {
+  background: linear-gradient(90deg, #FF3366 0%, #F59E0B 35%, #00EB88 100%);
+}
+
+/* Monster health liquid */
+.kk-hud-vial__bar--monster {
+  background: linear-gradient(90deg, #991B1B 0%, #DC2626 45%, #FF3366 100%);
+}
+
+/* Monster Intent plaque (styled like the spell card action box) */
+.kk-hud-intent {
+  background: linear-gradient(180deg, #1b1828, #100e19 60%, #0a0910);
+  border: 1px solid var(--rim-dark);
+  border-radius: 4px;
+  padding: 4px 6px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 0 4px rgba(0, 0, 0, 0.6);
+}
+
+.kk-hud-intent__charge {
+  height: 5px;
+  background: #08070d;
+  border: 1px solid #000;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.8);
+  border-radius: 2px;
+  overflow: hidden;
+  padding: 0.5px;
+}
+.kk-hud-intent__bar {
+  height: 100%;
+  border-radius: 1px;
+  background: linear-gradient(90deg, #CA8A04, #F4B41A);
+  transition: width 80ms linear;
+}
+.kk-hud-intent__bar--critical {
+  background: linear-gradient(90deg, #DC2626, #FF3366);
+  animation: kkPulse 0.4s ease-in-out infinite;
+}
+
+/* Combat dispatch / center log banner */
+.kk-hud-dispatch {
+  background:
+    radial-gradient(circle, #8A8698 0 1px, #000 1.2px 1.8px, transparent 2px) 2px 2px / 6px 6px no-repeat,
+    radial-gradient(circle, #8A8698 0 1px, #000 1.2px 1.8px, transparent 2px) calc(100% - 2px) 2px / 6px 6px no-repeat,
+    radial-gradient(circle, #8A8698 0 1px, #000 1.2px 1.8px, transparent 2px) 2px calc(100% - 2px) / 6px 6px no-repeat,
+    radial-gradient(circle, #8A8698 0 1px, #000 1.2px 1.8px, transparent 2px) calc(100% - 2px) calc(100% - 2px) / 6px 6px no-repeat,
+    linear-gradient(180deg, #2b273b, #171522 55%, #0e0c14);
+  border: 2px solid #000;
+  box-shadow:
+    inset 0 0 0 1px #8A8698,
+    inset 0 0 0 2px #0a0910,
+    inset 0 0 0 3px #2E2B3A,
+    3px 4px 0 rgba(0, 0, 0, 0.6);
+  border-radius: 6px;
+}
+

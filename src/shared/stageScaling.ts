@@ -43,7 +43,7 @@ function encounterNorm(encounters: EncounterTemplate[]): { hp: number; dps: numb
   let hp = 0;
   let dps = 0;
   for (const e of encounters) {
-    for (const m of createEncounterFromTemplate(e)) {
+    for (const m of createEncounterFromTemplate(e, undefined, e.map)) {
       const moves = MOVESETS[m.id] ?? MOVESETS.green_slime;
       const dmg = moves.reduce((sum, t) => sum + t.damage, 0);
       const secs = moves.reduce((sum, t) => sum + t.durationSeconds, 0);
@@ -102,7 +102,7 @@ export function stageScaling(map: BattleMapId | undefined, level = 1): StageScal
 
 /** A stage's monsters, scaled. */
 export function createStageEncounter(template: EncounterTemplate, level = 1, map: BattleMapId | undefined = template.map): ReturnType<typeof createEncounterFromTemplate> {
-  return createEncounterFromTemplate(template, stageScaling(map, level));
+  return createEncounterFromTemplate(template, stageScaling(map, level), map);
 }
 
 /** Experience for clearing an expedition level, on top of the kills. */

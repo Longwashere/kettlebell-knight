@@ -242,8 +242,8 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   BAT: {
     skeleton: `${MONSTER_DIR}/bat/CaveBat.json`,
     atlas: `${MONSTER_DIR}/bat/CaveBat.atlas`,
-    scale: 0.038,
-    height: 40,
+    scale: 0.0494,
+    height: 52,
     idle: 'idle',
     attack: 'attack',
     heavyAttack: 'attack',
@@ -348,19 +348,21 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   GHOST: {
     skeleton: `${MONSTER_DIR}/ghost/ghost.json`,
     atlas: `${MONSTER_DIR}/ghost/ghost.atlas`,
-    scale: 0.455,
-    height: 45,
+    scale: 0.091,
+    height: 42,
     idle: 'idle',
     attack: 'attack_middle',
     heavyAttack: 'attack_end',
     hit: 'get_hit',
     death: 'get_hit',
+    flipX: false, // authored facing left
+    offY: -16, // float above ground
   },
   GIANT_SPIDER: {
     skeleton: `${MONSTER_DIR}/giant-spider/spider_anim_85.json`,
     atlas: `${MONSTER_DIR}/giant-spider/spider_anim_85.atlas`,
-    scale: 0.791,
-    height: 45,
+    scale: 0.316,
+    height: 22,
     idle: 'spider_anim_85_idle',
     attack: 'spider_anim_85_idle',
     heavyAttack: 'spider_anim_85_idle',
@@ -370,8 +372,8 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   GOBLIN: {
     skeleton: `${MONSTER_DIR}/goblin/goblin.json`,
     atlas: `${MONSTER_DIR}/goblin/goblin.atlas`,
-    scale: 0.039,
-    height: 50,
+    scale: 0.0312,
+    height: 40,
     idle: 'Idle',
     attack: 'Attack',
     heavyAttack: 'Attack',
@@ -472,7 +474,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   MUSHROOM: {
     skeleton: `${MONSTER_DIR}/mushroom-creature/M_Mushroom.json`,
     atlas: `${MONSTER_DIR}/mushroom-creature/M_Mushroom.atlas`,
-    scale: 0.256,
+    scale: 0.102,
     height: 42,
     idle: 'idle',
     attack: 'action_1',
@@ -495,8 +497,8 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   ORC: {
     skeleton: `${MONSTER_DIR}/orc/orc_warrior.json`,
     atlas: `${MONSTER_DIR}/orc/orc_warrior.atlas`,
-    scale: 0.048,
-    height: 60,
+    scale: 0.072,
+    height: 90,
     idle: 'Idle',
     attack: 'Attack',
     heavyAttack: 'Attack',
