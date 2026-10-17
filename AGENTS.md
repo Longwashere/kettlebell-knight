@@ -62,7 +62,8 @@ Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test
 - **Unload textures when you're done with them** (`Assets.unload`) on scene changes and equipment previews,
   to avoid WebGL context loss.
 - **Remote input:** every interactive TV UI must be reachable with the D-pad. Key codes: 13 Enter, 37–40 arrows,
-  4 Fire OS Back, 27 Vega OS Back/Escape, 179 or Space = demo-mode swing. Don't depend on mouse/hover.
+  4 Fire OS Back, 27 Vega OS Back/Escape, 179 or Space = demo-mode swing (battle only, not the town hub).
+  Don't depend on mouse/hover.
 
 ## Phone constraints
 

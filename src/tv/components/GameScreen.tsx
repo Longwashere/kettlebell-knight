@@ -11,13 +11,13 @@ import { MapSelectScreen } from './MapSelectScreen';
 import { CardCodexScreen } from './CardCodexScreen';
 import { QRCodeModal } from './QRCodeModal';
 import { QRCodeSVG } from 'qrcode.react';
-import { EquipmentItem, HubLocation, RepTelemetry, ExerciseType } from '../../types/game';
+import { EquipmentItem, HubLocation, RepTelemetry } from '../../types/game';
 import { profileManager, PlayerProfile } from '../../shared/ProfileManager';
 import { audioManager } from '../../shared/AudioManager';
 import { registerDebug } from '../debug/agentBridge';
-import { type MonsterMoveId, CARD_CATALOG, STARTER_CARD_IDS } from '../../types/battle';
+import { type MonsterMoveId, CARD_CATALOG, STARTER_CARD_IDS, type BattleMapId } from '../../types/battle';
 import type { VfxName } from '../engine/vfx';
-import { BATTLE_MAPS, BattleMapId } from '../engine/GameEngine';
+import { BATTLE_MAPS } from '../engine/GameEngine';
 import { CAMPAIGN_MAPS } from '../../shared/expeditionEngine';
 import { STAT_INFO, weaponLevelReq } from '../../shared/progression';
 import { 
@@ -194,12 +194,16 @@ export const GameScreen: React.FC = () => {
       void engineRef.current.loadBackground(BATTLE_MAPS.OBSIDIAN_THRONE);
     } else if (currentView === 'MAP_SELECT') {
       engineRef.current.setCharactersVisible(false);
-      void engineRef.current.loadBackground(BATTLE_MAPS.TOWN_NIGHT);
+      void engineRef.current.loadBackground(BATTLE_MAPS.GUILD_HALL);
+    } else if (currentView === 'HUB' || currentView === 'ALCHEMIST' || currentView === 'SANCTUARY') {
+      // Town menus are pure menus: just the town backdrop, no knight or monster on stage
+      engineRef.current.setCharactersVisible(false);
+      void engineRef.current.loadBackground(BATTLE_MAPS.GUILD_HALL);
+    } else if (currentView === 'BLACKSMITH') {
+      engineRef.current.setCharactersVisible(true);
+      void engineRef.current.loadBackground(BATTLE_MAPS.GUILD_HALL);
     } else {
       engineRef.current.setCharactersVisible(true);
-      if (currentView === 'HUB') {
-        void engineRef.current.loadBackground(BATTLE_MAPS.TOWN_NIGHT);
-      }
     }
   }, [currentView, isEngineReady]);
 
@@ -210,7 +214,7 @@ export const GameScreen: React.FC = () => {
     setEquippedItems(new Set(Object.values(loadedProfile.equippedItems).filter(Boolean) as string[]));
     setCurrentView('HUB');
     if (engineRef.current) {
-      void engineRef.current.loadBackground(BATTLE_MAPS.TOWN_NIGHT);
+      void engineRef.current.loadBackground(BATTLE_MAPS.GUILD_HALL);
     }
   }, []);
 
@@ -270,10 +274,11 @@ export const GameScreen: React.FC = () => {
         if (view === 'BLACKSMITH') {
           setShopIndex(0);
           engineRef.current?.previewEquipment(SHOP_ITEMS[0].slot, SHOP_ITEMS[0].attachmentId);
+          engineRef.current?.loadBackground(BATTLE_MAPS.GUILD_HALL);
         } else if (view === 'TITLE') {
           engineRef.current?.loadBackground(BATTLE_MAPS.OBSIDIAN_THRONE);
         } else if (view === 'HUB' || view === 'MAP_SELECT') {
-          engineRef.current?.loadBackground(BATTLE_MAPS.TOWN_NIGHT);
+          engineRef.current?.loadBackground(BATTLE_MAPS.GUILD_HALL);
         }
       },
       expedition: (mapId: string, level?: number) => {
@@ -358,7 +363,7 @@ export const GameScreen: React.FC = () => {
    * 4. CRITICAL REQUIREMENT:
    * "Fire TV D-Pad Input: The React overlay must use a custom hook useTVRemote() to handle
    * global spatial navigation using keycodes: 13 (Enter/Select), 37-40 (Arrows), 4 (Fire OS Back),
-   * and 27 (Vega OS Back / Escape). Include keyCode: 179 (Play/Pause) or Spacebar as a headless Demo Mode swing trigger."
+   * and 27 (Vega OS Back / Escape)."
    */
   useTVRemote({
     onUp: () => {
@@ -436,43 +441,6 @@ export const GameScreen: React.FC = () => {
         setCurrentView('HUB');
       }
     },
-    // Headless Demo Swing Trigger: KeyCode 179 (Play/Pause) or Spacebar
-    onDemoSwing: () => {
-      const demoPower = 85 + Math.floor(Math.random() * 30);
-      const demoForm = Number((0.95 + Math.random() * 0.05).toFixed(2));
-      const demoExercises: ExerciseType[] = [
-        'SWING', 'SQUAT', 'CLEAN_AND_PRESS', 'SNATCH', 'WINDMILL',
-        'DEADLIFT', 'OVERHEAD_PRESS', 'THRUSTER', 'GORILLA_ROW',
-        'HALO', 'SINGLE_LEG_RDL', 'CLEAN', 'LUNGE'
-      ];
-      const chosen = demoExercises[Math.floor(Math.random() * demoExercises.length)];
-
-      if (engineRef.current) {
-        engineRef.current.onRepCompleted(demoPower, demoForm, chosen);
-      }
-
-      if ((window as any).__onKettlebellRepCompleted) {
-        (window as any).__onKettlebellRepCompleted(chosen, demoPower, demoForm);
-      }
-
-      setSessionReps((prev) => {
-        const next = prev + 1;
-        profileManager.saveActiveProfile({
-          repsCompleted: (profile?.repsCompleted || 0) + next,
-        });
-        return next;
-      });
-      setHighestPower((prev) => {
-        const next = Math.max(prev, demoPower);
-        profileManager.saveActiveProfile({ highestPower: next });
-        return next;
-      });
-      setPlayerGold((prev) => {
-        const next = prev + Math.round(demoPower * 0.5);
-        profileManager.saveActiveProfile({ gold: next });
-        return next;
-      });
-    },
   }, { enabled: currentView !== 'COMBAT' && currentView !== 'TITLE' });
 
   const toggleMute = () => {
@@ -519,6 +487,7 @@ export const GameScreen: React.FC = () => {
         />
       ) : (
         <div className="relative z-10 w-full h-full flex flex-col justify-between p-6 pointer-events-auto">
+          {currentView === 'HUB' && <div className="kk-hub-vignette absolute inset-0 -z-10 pointer-events-none" />}
           {/* Top TV HUD Header */}
           <header className="flex items-center justify-between">
           {/* RPG Knight Profile & Health/XP */}
@@ -680,9 +649,18 @@ export const GameScreen: React.FC = () => {
         {netState !== 'CONNECTED' && roomId && currentView === 'HUB' && (
           <aside
             aria-label="Scan QR Code to Pair Mobile Companion"
-            className="absolute bottom-20 right-8 z-40 bg-[#1A1926]/95 border-4 border-[#38B6FF] p-3.5 rounded shadow-pixel-box text-center backdrop-blur-md max-w-[210px] animate-in fade-in"
+            className="absolute bottom-[76px] right-8 z-40 bg-[#1A1926]/95 border-4 border-[#38B6FF] p-2 rounded shadow-pixel-box flex items-center gap-3 animate-in fade-in"
           >
-            <div className="flex items-center justify-between gap-1 mb-2 pb-1.5 border-b border-[#2E2B44]">
+            {/* High-Contrast QR Code for scanning from across the room */}
+            <div className="p-1.5 bg-white border-2 border-black rounded">
+              <QRCodeSVG
+                value={`${window.location.origin}/phone?room=${roomId}`}
+                size={84}
+                level="M"
+              />
+            </div>
+
+            <div className="flex flex-col items-start gap-1.5 pr-1">
               <span className="font-pixel text-[8px] text-[#38B6FF] flex items-center gap-1">
                 <Smartphone className="w-3 h-3 text-[#38B6FF]" />
                 PAIR PHONE
@@ -690,22 +668,12 @@ export const GameScreen: React.FC = () => {
               <span className="font-pixel text-[7px] text-[#F4B41A] animate-pulse flex items-center gap-0.5">
                 <Wifi className="w-2.5 h-2.5" /> WAITING
               </span>
-            </div>
-
-            {/* High-Contrast QR Code for scanning from across the room */}
-            <div className="inline-block p-2 bg-white border-2 border-black rounded shadow-pixel-box mb-2">
-              <QRCodeSVG
-                value={`${window.location.origin}/phone?room=${roomId}`}
-                size={130}
-                level="M"
-              />
-            </div>
-
-            <div className="font-pixel text-[8px] text-[#A7A9BE] leading-tight mb-1">
-              SCAN WITH PHONE CAMERA
-            </div>
-            <div className="bg-[#0F0E17] border border-[#F4B41A] py-0.5 px-2 font-mono text-[11px] text-[#F4B41A] font-bold tracking-widest">
-              {roomId}
+              <span className="font-pixel text-[7px] text-[#A7A9BE] leading-tight">
+                SCAN WITH<br />PHONE CAMERA
+              </span>
+              <span className="bg-[#0F0E17] border border-[#F4B41A] py-0.5 px-2 font-mono text-[11px] text-[#F4B41A] font-bold tracking-widest">
+                {roomId}
+              </span>
             </div>
           </aside>
         )}
@@ -727,13 +695,6 @@ export const GameScreen: React.FC = () => {
             </span>
           </div>
 
-          {/* Headless Demo Mode Hint */}
-          <div className="flex items-center space-x-2 text-[#F4B41A] font-pixel text-[9px]">
-            <span className="bg-[#F4B41A] text-[#0F0E17] px-2 py-0.5 border border-black animate-pulse font-bold">
-              SPACEBAR / PLAY-PAUSE
-            </span>
-            <span>DEMO SWING TRIGGER</span>
-          </div>
         </footer>
       </div>
       )}

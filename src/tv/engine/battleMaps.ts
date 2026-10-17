@@ -12,4 +12,5 @@ export const BATTLE_MAPS = {
   CATHEDRAL_VAULT: '/assets/backgrounds/cathedral_vault.webp',
   TOWN_NIGHT: '/assets/backgrounds/town_night.webp',
   TOWN_SQUARE: '/assets/backgrounds/town_square.webp',
+  GUILD_HALL: '/assets/backgrounds/guild_hall.webp',
 } as const;
