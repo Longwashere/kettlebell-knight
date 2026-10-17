@@ -18,6 +18,7 @@ import { getMapConfig, getExpeditionEncounters, getNextCampaignMap } from '../..
 import { profileManager, loadoutFor, type LevelUpEvent, type MasteryLevelUp } from '../../shared/ProfileManager';
 import { SHOP_ITEMS } from '../../shared/shopItems';
 import { CardUnlockCelebration } from './CardUnlockCelebration';
+import { MasteryCelebration } from './MasteryCelebration';
 import type { CardUnlockDef } from '../../shared/cardUnlocks';
 import { CombatCardView } from './CombatCardView';
 import { 
@@ -123,20 +124,31 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const [flippedCardId, setFlippedCardId] = useState<string | null>(null);
   const [battleStatus, setBattleStatus] = useState<'FIGHTING' | 'VICTORY' | 'DEFEAT' | 'ENCOUNTER_CLEARED' | 'EXPEDITION_VICTORY'>('FIGHTING');
   const [recentCombatLog, setRecentCombatLog] = useState<string>('Battle commenced! Perform exercises to cast cards.');
-  // Cards unlocked during the fight; shown one by one after the reward screen, before its action runs
+  // Cards unlocked during the fight, then spells and weapons that levelled up; shown one by one after the
+  // reward screen, before its action runs
   const [pendingCardUnlocks, setPendingCardUnlocks] = useState<CardUnlockDef[]>([]);
-  const [showingUnlocks, setShowingUnlocks] = useState(false);
+  const [pendingMastery, setPendingMastery] = useState<MasteryLevelUp[]>([]);
+  const [rewardStep, setRewardStep] = useState<'unlocks' | 'mastery' | null>(null);
+  const showingUnlocks = rewardStep !== null;
+  // Spells and weapons that levelled up (several levels of one count once, like their celebration pages)
+  const masteryCount = new Set(pendingMastery.map((u) => `${u.kind}:${u.id}`)).size;
   const afterUnlocksRef = useRef<(() => void) | null>(null);
   const continueReward = (action: () => void) => {
-    if (pendingCardUnlocks.length === 0) return action();
+    if (pendingCardUnlocks.length === 0 && pendingMastery.length === 0) return action();
     afterUnlocksRef.current = action;
-    setShowingUnlocks(true);
+    setRewardStep(pendingCardUnlocks.length > 0 ? 'unlocks' : 'mastery');
   };
   const finishUnlocks = () => {
+    if (rewardStep === 'unlocks' && pendingMastery.length > 0) {
+      setPendingCardUnlocks([]);
+      setRewardStep('mastery');
+      return;
+    }
     const action = afterUnlocksRef.current;
     afterUnlocksRef.current = null;
-    setShowingUnlocks(false);
+    setRewardStep(null);
     setPendingCardUnlocks([]);
+    setPendingMastery([]);
     action?.();
   };
 
@@ -337,6 +349,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const announceMastery = useCallback((ups: MasteryLevelUp[]) => {
     if (ups.length === 0) return;
     refreshLoadout();
+    setPendingMastery((prev) => [...prev, ...ups]);
     const names = ups.map((u) => {
       const name = u.kind === 'weapon'
         ? SHOP_ITEMS.find((i) => i.id === u.id)?.name ?? u.id
@@ -797,6 +810,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         : null,
       frozen: atbFrozenRef.current,
       flippedCard: flippedCardId,
+      rewardStep,
+      pendingMastery,
       log: recentCombatLog,
     }),
     {
@@ -853,6 +868,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         toggleFlip(hand[actionCardIndex]?.id);
       },
       target: (index: number) => setTargetedMonsterIndex(index),
+      // Queues spell/weapon level-ups as if cast this fight (shown after the card unlocks), e.g.
+      // mastery([{ kind: 'card', id: 'starter_swing', level: 2 }, { kind: 'weapon', id: 'iron_bell', level: 3 }])
+      mastery: (ups: MasteryLevelUp[]) => announceMastery(ups),
     },
   ));
 
@@ -1120,6 +1138,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                 ✦ {pendingCardUnlocks.length} NEW CARD{pendingCardUnlocks.length > 1 ? 'S' : ''} UNLOCKED ✦
               </div>
             )}
+            {masteryCount > 0 && (
+              <div className="mb-3 text-[10px] font-pixel text-[#00EB88] animate-pulse">
+                ✦ {masteryCount} MASTERY LEVEL UP{masteryCount > 1 ? 'S' : ''} ✦
+              </div>
+            )}
             {battleStatus === 'ENCOUNTER_CLEARED' ? (
               <>
                 <Swords className="w-14 h-14 text-[#00EB88] mx-auto mb-3 animate-bounce" />
@@ -1267,8 +1290,12 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       )}
 
       {/* Reward step two: the cards unlocked this fight, one by one */}
-      {showingUnlocks && pendingCardUnlocks.length > 0 && (
+      {rewardStep === 'unlocks' && pendingCardUnlocks.length > 0 && (
         <CardUnlockCelebration unlockedCards={pendingCardUnlocks} onDismiss={finishUnlocks} />
+      )}
+      {/* Reward step three: spells and weapons that levelled up this fight */}
+      {rewardStep === 'mastery' && pendingMastery.length > 0 && (
+        <MasteryCelebration levelUps={pendingMastery} loadout={loadoutRef.current} onDismiss={finishUnlocks} />
       )}
 
       {/* BOTTOM SLAY THE SPIRE 5-CARD HAND */}
