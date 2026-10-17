@@ -7,6 +7,8 @@ import {
   LevelExpeditionConfig,
 } from '../../shared/expeditionEngine';
 import { profileManager, PlayerProfile } from '../../shared/ProfileManager';
+import { getExpeditionEncounters, recommendedLevel } from '../../shared/expeditionEngine';
+import { expeditionClearXp } from '../../shared/stageScaling';
 import { audioManager } from '../../shared/AudioManager';
 import { useTVRemote } from '../hooks/useTVRemote';
 import {
@@ -320,8 +322,9 @@ export const MapSelectScreen: React.FC<MapSelectScreenProps> = ({
                         +{lvlConfig.goldReward} GOLD
                       </span>
                       <span className="text-[9px] font-pixel text-[#38B6FF] block">
-                        +{lvlConfig.xpReward} XP
+                        +{expeditionClearXp(getExpeditionEncounters(currentMapId, lvlNum), currentMapId, lvlNum)} XP CLEAR
                       </span>
+                      <RecommendedLevel rec={recommendedLevel(currentMapId, lvlNum)} knight={profile?.level ?? 1} />
                     </div>
 
                     {isSelected && isUnlocked && (
@@ -365,5 +368,15 @@ export const MapSelectScreen: React.FC<MapSelectScreenProps> = ({
         <span>[BACK / ESC] RETURN TO CITADEL</span>
       </div>
     </div>
+  );
+};
+
+/** The stage's recommended knight level, coloured by how the knight measures up to it. */
+const RecommendedLevel: React.FC<{ rec: number; knight: number }> = ({ rec, knight }) => {
+  const color = knight >= rec + 2 ? '#00EB88' : knight >= rec - 1 ? '#F4B41A' : '#FF3366';
+  return (
+    <span className="text-[8px] font-pixel block" style={{ color }} title="Knight level this stage is balanced for">
+      REC LV {rec}
+    </span>
   );
 };

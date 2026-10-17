@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { CombatCard, MonsterState, BattleState, MonsterIntent, MONSTER_CATALOG, ENCOUNTERS, EncounterTemplate, CARD_CATALOG, BattleMapId } from '../../types/battle';
-import { MOVESETS, rollIntent, createEncounterFromTemplate } from '../../shared/monsterMovesets';
+import { MOVESETS, rollIntent } from '../../shared/monsterMovesets';
 import { resolveCard, frontTarget } from '../../shared/combat';
-import { PLAYER_MAX_HP } from '../../shared/combatRules';
+import { createStageEncounter, expeditionClearXp } from '../../shared/stageScaling';
+import { repGold } from '../../shared/combatRules';
+import { STAT_INFO, type Loadout } from '../../shared/progression';
+import { ELEMENT_INFO } from '../../shared/elements';
 import type { ImpactResult } from '../engine/monsterMoves';
 import { ExerciseType, RepTelemetry } from '../../types/game';
 import { CardDeckManager } from '../../shared/CardDeckManager';
@@ -12,7 +15,8 @@ import { GameEngine, BATTLE_MAPS } from '../engine/GameEngine';
 import { useTVRemote } from '../hooks/useTVRemote';
 import { registerDebug } from '../debug/agentBridge';
 import { getMapConfig, getExpeditionEncounters, getNextCampaignMap } from '../../shared/expeditionEngine';
-import { profileManager } from '../../shared/ProfileManager';
+import { profileManager, loadoutFor, type LevelUpEvent, type MasteryLevelUp } from '../../shared/ProfileManager';
+import { SHOP_ITEMS } from '../../shared/shopItems';
 import { CardUnlockCelebration } from './CardUnlockCelebration';
 import type { CardUnlockDef } from '../../shared/cardUnlocks';
 import { CombatCardView } from './CombatCardView';
@@ -58,16 +62,30 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   onExitBattle,
   onBattleStateSync,
 }) => {
+  // The knight's stats, weapon and spell levels: every card's numbers come from it. Rebuilt when the
+  // knight levels up (kills grant experience mid-fight) or a card/weapon levels from use.
+  const loadoutRef = useRef<Loadout>(loadoutFor(profileManager.getActiveProfile(), weaponId));
   // Deck Manager initialized
-  const deckManagerRef = useRef<CardDeckManager>(new CardDeckManager(weaponId, cardIds));
+  const deckManagerRef = useRef<CardDeckManager>(new CardDeckManager(weaponId, cardIds, loadoutRef.current));
   const weaponIdRef = useRef(weaponId);
   weaponIdRef.current = weaponId;
   const cardIdsRef = useRef(cardIds);
   cardIdsRef.current = cardIds;
 
   // Combat State
-  const [playerHp, setPlayerHp] = useState<number>(PLAYER_MAX_HP);
-  const playerMaxHp = PLAYER_MAX_HP;
+  const [playerMaxHp, setPlayerMaxHp] = useState<number>(loadoutRef.current.maxHp);
+  const [playerHp, setPlayerHp] = useState<number>(loadoutRef.current.maxHp);
+  const [knightLevel, setKnightLevel] = useState<number>(() => profileManager.getActiveProfile()?.level ?? 1);
+  // Experience earned this run (kills count whether the run is won or lost) and the last breather heal
+  const [runXp, setRunXp] = useState<number>(0);
+  const [runLevelUps, setRunLevelUps] = useState<LevelUpEvent[]>([]);
+  const [breatherHeal, setBreatherHeal] = useState<number>(0);
+  // Gold: reps fill the current fight's purse; winning the fight banks it, losing forfeits it
+  const fightGoldRef = useRef<number>(0);
+  const [fightGold, setFightGold] = useState<number>(0);
+  const [lastBankedGold, setLastBankedGold] = useState<number>(0);
+  const [runGold, setRunGold] = useState<number>(0);
+  const [forfeitedGold, setForfeitedGold] = useState<number>(0);
   const [playerBlock, setPlayerBlock] = useState<number>(0);
   const [hand, setHand] = useState<CombatCard[]>([]);
   // Highlighted card. The game is played hands-free, so by default the highlight follows progress:
@@ -105,7 +123,22 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const [flippedCardId, setFlippedCardId] = useState<string | null>(null);
   const [battleStatus, setBattleStatus] = useState<'FIGHTING' | 'VICTORY' | 'DEFEAT' | 'ENCOUNTER_CLEARED' | 'EXPEDITION_VICTORY'>('FIGHTING');
   const [recentCombatLog, setRecentCombatLog] = useState<string>('Battle commenced! Perform exercises to cast cards.');
+  // Cards unlocked during the fight; shown one by one after the reward screen, before its action runs
   const [pendingCardUnlocks, setPendingCardUnlocks] = useState<CardUnlockDef[]>([]);
+  const [showingUnlocks, setShowingUnlocks] = useState(false);
+  const afterUnlocksRef = useRef<(() => void) | null>(null);
+  const continueReward = (action: () => void) => {
+    if (pendingCardUnlocks.length === 0) return action();
+    afterUnlocksRef.current = action;
+    setShowingUnlocks(true);
+  };
+  const finishUnlocks = () => {
+    const action = afterUnlocksRef.current;
+    afterUnlocksRef.current = null;
+    setShowingUnlocks(false);
+    setPendingCardUnlocks([]);
+    action?.();
+  };
 
   // Expedition vs Standalone Encounters
   const isExpeditionMode = Boolean(expeditionMapId);
@@ -135,9 +168,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       const list = getExpeditionEncounters(expeditionMapId, expeditionLevel);
       if (list.length > 0) {
         const first = list[0];
-        const newMonsters = createEncounterFromTemplate(first);
+        const newMonsters = createStageEncounter(first, expeditionLevel, expeditionMapId);
         commitMonsters(newMonsters);
         setPlayerBlock(0);
+        setRunXp(0);
+        setRunLevelUps([]);
+        setRunGold(0);
+        fightGoldRef.current = 0;
+        setFightGold(0);
         setBattleStatus('FIGHTING');
         battleStatusRef.current = 'FIGHTING';
         if (engineRef.current) {
@@ -152,9 +190,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const [monsters, setMonsters] = useState<MonsterState[]>(() => {
     if (expeditionMapId && expeditionLevel) {
       const list = getExpeditionEncounters(expeditionMapId, expeditionLevel);
-      if (list.length > 0) return createEncounterFromTemplate(list[0]);
+      if (list.length > 0) return createStageEncounter(list[0], expeditionLevel, expeditionMapId);
     }
-    return createEncounterFromTemplate(ENCOUNTERS[safeEncounterIndex]);
+    return createStageEncounter(ENCOUNTERS[safeEncounterIndex]);
   });
   const [targetedMonsterIndex, setTargetedMonsterIndex] = useState<number>(0);
 
@@ -259,6 +297,83 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     return () => clearInterval(interval);
   }, [battleStatus]);
 
+  /** Rebuilds the loadout from the saved knight and gives every card (in hand too) its new numbers. */
+  const refreshLoadout = useCallback(() => {
+    const prevMax = loadoutRef.current.maxHp;
+    const next = loadoutFor(profileManager.getActiveProfile(), weaponIdRef.current);
+    loadoutRef.current = next;
+    deckManagerRef.current.setLoadout(next);
+    setHand(deckManagerRef.current.getHand());
+    setPlayerMaxHp(next.maxHp);
+    if (next.maxHp > prevMax) {
+      // More max HP heals by the same amount
+      playerHpRef.current = Math.min(next.maxHp, playerHpRef.current + next.maxHp - prevMax);
+      setPlayerHp(playerHpRef.current);
+    }
+    setKnightLevel(profileManager.getActiveProfile()?.level ?? 1);
+  }, []);
+
+  /** Experience for kills (win or lose) and the level-ups it buys, announced on the battlefield. */
+  const grantXp = useCallback((xp: number) => {
+    if (xp <= 0) return;
+    const ups = profileManager.awardXp(xp);
+    setRunXp((prev) => prev + xp);
+    const engine = engineRef.current;
+    engine?.spawnKnightText(`+${xp} XP`, 0xC084FC);
+    if (ups.length === 0) return;
+    setRunLevelUps((prev) => [...prev, ...ups]);
+    refreshLoadout();
+    const last = ups[ups.length - 1];
+    const gains = ups.map((u) => `+${u.gain} ${STAT_INFO[u.stat].label}`).join(', ');
+    setRecentCombatLog(`LEVEL UP! Sir Kettleburne reached level ${last.level} (${gains})`);
+    audioManager.play('level_up', { delay: 0.3 });
+    setTimeout(() => {
+      engineRef.current?.spawnKnightText(`LEVEL ${last.level}!`, 0xF4B41A);
+      ups.forEach((u, i) => setTimeout(() => engineRef.current?.spawnKnightText(`+${u.gain} ${STAT_INFO[u.stat].label}`, parseInt(STAT_INFO[u.stat].color.slice(1), 16)), 450 * (i + 1)));
+    }, 500);
+  }, [engineRef, refreshLoadout]);
+
+  /** Spell and weapon levels gained from casting. */
+  const announceMastery = useCallback((ups: MasteryLevelUp[]) => {
+    if (ups.length === 0) return;
+    refreshLoadout();
+    const names = ups.map((u) => {
+      const name = u.kind === 'weapon'
+        ? SHOP_ITEMS.find((i) => i.id === u.id)?.name ?? u.id
+        : [...CARD_CATALOG, ...ALL_WEAPON_SPELLS].find((c) => c.templateId === u.id)?.name ?? u.id;
+      return `${name} Lv ${u.level}`;
+    });
+    setRecentCombatLog(`Mastery! ${names.join(' • ')}`);
+    setTimeout(() => engineRef.current?.spawnKnightText(names[0].toUpperCase(), 0x00EB88), 900);
+  }, [engineRef, refreshLoadout]);
+
+  /** Fresh run: full HP from the current loadout, run experience cleared. */
+  /** Empties the fight's purse; `bank` adds it to the knight's gold (the fight was won). */
+  const settleFightGold = (bank: boolean) => {
+    const gold = fightGoldRef.current;
+    fightGoldRef.current = 0;
+    setFightGold(0);
+    setLastBankedGold(bank ? gold : 0);
+    setForfeitedGold(bank ? 0 : gold);
+    if (!bank) return gold;
+    const profile = profileManager.getActiveProfile();
+    if (profile && gold > 0) profileManager.saveActiveProfile({ gold: profile.gold + gold });
+    setRunGold((prev) => prev + gold);
+    return gold;
+  };
+
+  const resetRun = () => {
+    playerHpRef.current = loadoutRef.current.maxHp;
+    setPlayerHp(loadoutRef.current.maxHp);
+    setPlayerBlock(0);
+    playerBlockRef.current = 0;
+    setRunXp(0);
+    setRunLevelUps([]);
+    setRunGold(0);
+    fightGoldRef.current = 0;
+    setFightGold(0);
+  };
+
   // Monster Attack Execution: the engine plays the move's choreography and calls back on the
   // impact frame, where damage/block lands. A monster killed mid-wind-up never lands its move.
   const executeMonsterAttack = useCallback((m: MonsterState) => {
@@ -275,6 +390,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         return { label: `+${block} BLOCK`, color: 0x38B6FF, at: 'monster' };
       }
 
+      if (Math.random() < loadoutRef.current.dodge) {
+        setRecentCombatLog(`Sir Kettleburne dodged ${m.name}'s ${intent.name}!`);
+        return { label: 'DODGE', color: 0x38B6FF, hit: false };
+      }
+
       const rawDamage = intent.damage;
       const currentBlock = playerBlockRef.current;
       const absorbed = Math.min(currentBlock, rawDamage);
@@ -288,6 +408,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
       if (nextHp <= 0) {
         battleStatusRef.current = 'DEFEAT';
+        settleFightGold(false);
         setBattleStatus('DEFEAT');
         setRecentCombatLog(`Sir Kettleburne was felled by ${intent.name}!`);
         engineRef.current?.playKnightDefeat?.();
@@ -317,6 +438,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
     // Record rep progression toward card unlocks
     const repUnlocks = profileManager.recordRepStats(exercise, power, form, currentMap);
+    fightGoldRef.current += repGold(power);
+    setFightGold(fightGoldRef.current);
     if (repUnlocks.length > 0) {
       setPendingCardUnlocks((prev) => [...prev, ...repUnlocks]);
     }
@@ -353,6 +476,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           setPendingCardUnlocks((prev) => [...prev, ...killUnlocks]);
         }
       }
+      // Casting levels the card and the equipped weapon; kills pay experience, won or lost
+      const mastery = profileManager.recordCast(card.templateId, weaponIdRef.current);
+      const killXp = res.hits.filter((h) => h.killed).reduce((sum, h) => sum + (before[h.index]?.xp ?? 0), 0);
 
       // Define victory completion callback (invoked by engine when kill cam finishes)
       let onFinishVictory: (() => void) | undefined = undefined;
@@ -363,16 +489,19 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         const triggerVictoryModal = () => {
           isAwaitingVictoryRef.current = false;
           if (battleStatusRef.current !== 'FIGHTING') return; // already displayed
+          settleFightGold(true);
           if (victoryFallbackTimerRef.current) {
             clearTimeout(victoryFallbackTimerRef.current);
             victoryFallbackTimerRef.current = null;
           }
 
           if (isExpeditionMode && expeditionStep < expeditionEncounters.length - 1) {
-            // Breather between encounters: +20 HP catch breath heal
-            const heal = Math.min(PLAYER_MAX_HP, playerHpRef.current + 20) - playerHpRef.current;
+            // Breather between encounters: a fifth of max HP back
+            const maxHp = loadoutRef.current.maxHp;
+            const heal = Math.min(maxHp, playerHpRef.current + Math.round(maxHp * 0.2)) - playerHpRef.current;
             playerHpRef.current += heal;
             setPlayerHp(playerHpRef.current);
+            setBreatherHeal(heal);
             battleStatusRef.current = 'ENCOUNTER_CLEARED';
             setBattleStatus('ENCOUNTER_CLEARED');
             setRecentCombatLog(`Encounter ${expeditionStep + 1} of ${expeditionEncounters.length} Cleared! Catch thy breath (+${heal} HP)!`);
@@ -388,14 +517,16 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             const mapCfg = getMapConfig(currentMap);
             const lvlCfg = mapCfg.levels.find((l) => l.level === currentLevel) || mapCfg.levels[0];
             const nextMap = currentLevel >= 5 ? getNextCampaignMap(currentMap) : undefined;
+            const clearXp = expeditionClearXp(expeditionEncounters, currentMap, currentLevel);
             profileManager.recordLevelVictory(
               currentMap,
               currentLevel,
               totalLevelReps + 1,
               lvlCfg.goldReward,
-              lvlCfg.xpReward,
+              0,
               nextMap || undefined
             );
+            grantXp(clearXp);
             const clearUnlocks = profileManager.recordMapClearStats(currentMap, currentLevel);
             if (clearUnlocks.length > 0) {
               setPendingCardUnlocks((prev) => [...prev, ...clearUnlocks]);
@@ -425,8 +556,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       // lands each hit on its impact frame; damage labels and deaths show then.
       if (engine) {
         const showHit = (hit: (typeof res.hits)[number]) => {
-          const tags = [hit.blocked ? `(${hit.blocked} blocked)` : '', card.shatter ? 'SHATTER' : '', hit.staggered ? `STAGGER +${hit.staggered}s` : ''].filter(Boolean).join(' ');
-          engine.spawnMonsterText(hit.index, `-${hit.damage}`, hit.damage > 0 ? 0xFF3366 : 0x38B6FF, 12);
+          const tags = [hit.effect === 'strong' ? 'WEAK!' : hit.effect === 'resisted' ? 'RESIST' : '', hit.blocked ? `(${hit.blocked} blocked)` : '', card.shatter ? 'SHATTER' : '', hit.staggered ? `STAGGER +${hit.staggered}s` : ''].filter(Boolean).join(' ');
+          const color = hit.damage <= 0 ? 0x38B6FF : hit.effect === 'strong' ? 0xF4B41A : hit.effect === 'resisted' ? 0xA7A9BE : 0xFF3366;
+          engine.spawnMonsterText(hit.index, `-${hit.damage}`, color, hit.effect === 'strong' ? 14 : 12);
           if (tags) engine.spawnMonsterText(hit.index, tags, 0xF4B41A, 7, 14);
           if (hit.killed) engine.playMonsterDeath(hit.index);
         };
@@ -454,7 +586,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         }
       }
       if (res.heal > 0) {
-        const healed = Math.min(PLAYER_MAX_HP, playerHpRef.current + res.heal) - playerHpRef.current;
+        const healed = Math.min(loadoutRef.current.maxHp, playerHpRef.current + res.heal) - playerHpRef.current;
         playerHpRef.current += healed;
         setPlayerHp(playerHpRef.current);
         if (healed > 0) engine?.spawnKnightText(`+${healed} HP`, 0x00EB88);
@@ -467,12 +599,16 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           [dealt ? `${dealt} DMG${res.hits.length > 1 ? ` across ${res.hits.length} hits` : ''}` : '', kills ? `${kills} slain` : '',
             res.block ? `+${res.block} Block` : '', res.heal ? `+${res.heal} HP` : ''].filter(Boolean).join(' • '),
       );
+      // After the cast's own log line, so level-up and mastery news isn't overwritten by it
+      grantXp(killXp);
+      announceMastery(mastery);
     } else {
       audioManager.play('hike', { vol: 0.7 }); // rep counted toward a card
     }
 
-    setHand(result.hand);
-  }, [engineRef, isExpeditionMode, expeditionStep, expeditionEncounters, currentMap, currentLevel, totalLevelReps]);
+    // The deck's own hand: a level-up during this rep may have rebound the cards
+    setHand(deckManagerRef.current.getHand());
+  }, [engineRef, isExpeditionMode, expeditionStep, expeditionEncounters, currentMap, currentLevel, totalLevelReps, grantXp, announceMastery]);
 
   // Expose rep callback for NetworkManager telemetry
   useEffect(() => {
@@ -493,7 +629,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     if (nextStep < expeditionEncounters.length) {
       setExpeditionStep(nextStep);
       const nextTemplate = expeditionEncounters[nextStep];
-      const newMonsters = createEncounterFromTemplate(nextTemplate);
+      const newMonsters = createStageEncounter(nextTemplate, currentLevel, currentMap);
       commitMonsters(newMonsters);
       setTargetedMonsterIndex(0);
       setPlayerBlock(0); // block resets between fights, but HP carries over!
@@ -518,11 +654,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     }
     setExpeditionStep(0);
     const firstTemplate = expeditionEncounters[0];
-    const newMonsters = createEncounterFromTemplate(firstTemplate);
+    const newMonsters = createStageEncounter(firstTemplate, currentLevel, currentMap);
     commitMonsters(newMonsters);
     setTargetedMonsterIndex(0);
-    setPlayerHp(PLAYER_MAX_HP);
-    playerHpRef.current = PLAYER_MAX_HP;
+    resetRun();
     setPlayerBlock(0);
     playerBlockRef.current = 0;
     setBattleStatus('FIGHTING');
@@ -549,11 +684,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       setExpeditionStep(0);
       const nextList = getExpeditionEncounters(currentMap, nextLvl);
       const firstTemplate = nextList[0];
-      const newMonsters = createEncounterFromTemplate(firstTemplate);
+      const newMonsters = createStageEncounter(firstTemplate, nextLvl, currentMap);
       commitMonsters(newMonsters);
       setTargetedMonsterIndex(0);
-      setPlayerHp(PLAYER_MAX_HP);
-      playerHpRef.current = PLAYER_MAX_HP;
+      resetRun();
       setPlayerBlock(0);
       playerBlockRef.current = 0;
       setBattleStatus('FIGHTING');
@@ -583,12 +717,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       victoryFallbackTimerRef.current = null;
     }
     setCurrentEncounterIndex(index);
-    const newMonsters = createEncounterFromTemplate(template);
+    const newMonsters = createStageEncounter(template);
 
     commitMonsters(newMonsters);
     setTargetedMonsterIndex(0);
-    setPlayerHp(100);
-    playerHpRef.current = 100;
+    resetRun();
     setPlayerBlock(0);
     playerBlockRef.current = 0;
     setBattleStatus('FIGHTING');
@@ -624,7 +757,19 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     () => ({
       status: battleStatus,
       playerHp,
+      playerMaxHp,
       playerBlock,
+      knight: {
+        level: knightLevel,
+        stats: loadoutRef.current.stats,
+        attack: loadoutRef.current.attack,
+        weapon: loadoutRef.current.weapon,
+        repCut: loadoutRef.current.repCut,
+        dodge: loadoutRef.current.dodge,
+        runXp,
+        fightGold,
+        runGold,
+      },
       encounter: { index: currentEncounterIndex, id: ENCOUNTERS[currentEncounterIndex]?.id },
       target: targetedMonsterIndex,
       monsters: monsters.map((m) => ({
@@ -635,10 +780,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         hp: m.currentHp,
         maxHp: m.maxHp,
         block: m.block,
+        element: m.element,
+        xp: m.xp,
+        level: m.level,
         alive: m.isAlive,
         intent: { name: m.intent.name, type: m.intent.type, remaining: Number(m.intent.remainingSeconds.toFixed(2)) },
       })),
-      hand: hand.map((c) => ({ name: c.name, exercise: c.exercise, currentReps: c.currentReps, requiredReps: c.requiredReps })),
+      hand: hand.map((c) => ({ name: c.name, exercise: c.exercise, currentReps: c.currentReps, requiredReps: c.requiredReps,
+        baseReps: c.baseReps, damage: c.damage, element: c.element, infusion: c.infusion, level: c.level, dmgPct: c.dmgPct })),
       highlightedCard: focusedCardIndex,
       manualFocus,
       // Card that remote actions (Enter / Space / __kk.rep()) target
@@ -741,17 +890,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     onSelect: () => {
       if (battleStatus !== 'FIGHTING') {
         if (battleStatus === 'ENCOUNTER_CLEARED') {
-          handleNextExpeditionEncounter();
+          continueReward(handleNextExpeditionEncounter);
         } else if (battleStatus === 'EXPEDITION_VICTORY') {
-          handleNextLevelExpedition();
+          continueReward(currentLevel < 5 ? handleNextLevelExpedition : onExitBattle);
         } else if (battleStatus === 'DEFEAT') {
-          if (isExpeditionMode) {
-            handleRetryExpedition();
-          } else {
-            handleNextEncounter();
-          }
+          continueReward(isExpeditionMode ? handleRetryExpedition : handleNextEncounter);
         } else {
-          handleNextEncounter();
+          continueReward(handleNextEncounter);
         }
       } else {
         setFocusedCardIndex(actionCardIndex);
@@ -759,7 +904,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       }
     },
     onBack: () => {
-      onExitBattle();
+      if (battleStatus !== 'FIGHTING') continueReward(onExitBattle);
+      else onExitBattle();
     },
     onDemoSwing: () => {
       if (hand.length > 0) {
@@ -769,7 +915,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         }
       }
     },
-  }, { enabled: pendingCardUnlocks.length === 0 });
+  }, { enabled: !showingUnlocks });
 
   return (
     <div className="absolute inset-0 z-20 flex flex-col justify-between p-6 pointer-events-auto select-none">
@@ -779,9 +925,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         <div className="bg-[#1A1926]/95 border-4 border-[#38B6FF] p-4 rounded shadow-pixel-box backdrop-blur-md max-w-sm w-full">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center space-x-2">
-              <span className="font-pixel text-xs text-[#F4B41A]">SIR KETTLEBURNE</span>
+              <span className="font-pixel text-xs text-[#F4B41A]">{profileManager.getActiveProfile()?.name ?? 'SIR KETTLEBURNE'}</span>
               <span className="text-[9px] bg-[#38B6FF]/20 text-[#38B6FF] font-pixel px-1.5 border border-[#38B6FF]">
-                LVL 12
+                LVL {knightLevel}
               </span>
             </div>
             {playerBlock > 0 && (
@@ -804,6 +950,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                 style={{ width: `${(playerHp / playerMaxHp) * 100}%` }}
               />
             </div>
+            <KnightStatLine loadout={loadoutRef.current} runXp={runXp} fightGold={fightGold} />
           </div>
         </div>
 
@@ -877,6 +1024,15 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                     <span className="font-pixel text-[7px] text-[#A7A9BE]">
                       LVL {m.level}
                     </span>
+                    {m.element && !isDead && (
+                      <span
+                        className="font-pixel text-[7px] px-1 py-0.2 rounded border font-bold"
+                        style={{ borderColor: ELEMENT_INFO[m.element].color, color: ELEMENT_INFO[m.element].color, backgroundColor: 'rgba(0,0,0,0.5)' }}
+                        title={`${ELEMENT_INFO[m.element].label} monster`}
+                      >
+                        {ELEMENT_INFO[m.element].icon} {ELEMENT_INFO[m.element].label}
+                      </span>
+                    )}
                     {m.affix && !isDead && (
                       <span
                         className="font-pixel text-[7px] px-1 py-0.2 rounded border uppercase font-bold"
@@ -956,6 +1112,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       {battleStatus !== 'FIGHTING' && (
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-[#1A1926] border-4 border-[#F4B41A] p-8 max-w-md w-full text-center rounded shadow-pixel-box-gold">
+            {pendingCardUnlocks.length > 0 && (
+              <div className="mb-3 text-[10px] font-pixel text-[#F4B41A] animate-pulse">
+                ✦ {pendingCardUnlocks.length} NEW CARD{pendingCardUnlocks.length > 1 ? 'S' : ''} UNLOCKED ✦
+              </div>
+            )}
             {battleStatus === 'ENCOUNTER_CLEARED' ? (
               <>
                 <Swords className="w-14 h-14 text-[#00EB88] mx-auto mb-3 animate-bounce" />
@@ -966,19 +1127,23 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                   Squad defeated! Catch thy breath before the next battle.
                 </p>
                 <div className="bg-[#0F0E17] border-2 border-[#00EB88] p-3 rounded text-center mb-6">
-                  <span className="text-xs font-pixel text-[#00EB88]">
-                    ❤️ +20 HEALTH RESTORED!
-                  </span>
+                  {breatherHeal > 0 && (
+                    <span className="block text-xs font-pixel text-[#00EB88]">
+                      ❤️ +{breatherHeal} HEALTH RESTORED!
+                    </span>
+                  )}
+                  <span className="block text-[11px] font-pixel text-[#F4B41A] mt-1">🪙 +{lastBankedGold} GOLD BANKED</span>
+                  <RunXpLine xp={runXp} levelUps={runLevelUps} />
                 </div>
                 <div className="flex gap-3">
                   <button
-                    onClick={handleNextExpeditionEncounter}
+                    onClick={() => continueReward(handleNextExpeditionEncounter)}
                     className="flex-1 bg-[#00EB88] hover:bg-[#55ffaa] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
                   >
                     NEXT BATTLE ▶
                   </button>
                   <button
-                    onClick={onExitBattle}
+                    onClick={() => continueReward(onExitBattle)}
                     className="bg-[#2E2B44] text-white font-pixel text-xs py-3 px-4 border-2 border-black shadow-pixel-box"
                   >
                     TOWN HUB
@@ -1003,27 +1168,31 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                 )}
                 <div className="bg-[#0F0E17] border-2 border-[#F4B41A] p-3 rounded text-center mb-6">
                   <span className="text-[11px] font-pixel text-[#00EB88]">
-                    +{getMapConfig(currentMap).levels.find((l) => l.level === currentLevel)?.goldReward || 200} GOLD • +{getMapConfig(currentMap).levels.find((l) => l.level === currentLevel)?.xpReward || 300} XP EARNED
+                    🪙 +{(getMapConfig(currentMap).levels.find((l) => l.level === currentLevel)?.goldReward || 200) + runGold} GOLD
                   </span>
+                  <span className="block text-[8px] font-pixel text-[#A7A9BE] mt-1">
+                    {getMapConfig(currentMap).levels.find((l) => l.level === currentLevel)?.goldReward || 200} CLEAR REWARD • {runGold} FROM REPS
+                  </span>
+                  <RunXpLine xp={runXp} levelUps={runLevelUps} />
                 </div>
                 <div className="flex gap-3">
                   {currentLevel < 5 ? (
                     <button
-                      onClick={handleNextLevelExpedition}
+                      onClick={() => continueReward(handleNextLevelExpedition)}
                       className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
                     >
                       LEVEL {currentLevel + 1} ▶
                     </button>
                   ) : (
                     <button
-                      onClick={onExitBattle}
+                      onClick={() => continueReward(onExitBattle)}
                       className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
                     >
                       WORLD MAP ▶
                     </button>
                   )}
                   <button
-                    onClick={onExitBattle}
+                    onClick={() => continueReward(onExitBattle)}
                     className="bg-[#2E2B44] text-white font-pixel text-xs py-3 px-4 border-2 border-black shadow-pixel-box"
                   >
                     TOWN HUB
@@ -1038,17 +1207,18 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                   All monsters in the squad were vanquished by your relentless physical output.
                 </p>
                 <div className="bg-[#0F0E17] border-2 border-[#F4B41A] p-3 rounded text-center mb-6">
-                  <span className="text-[10px] font-pixel text-[#00EB88]">+{monsters.length * 90} GOLD • +{monsters.length * 250} XP EARNED</span>
+                  <span className="block text-[11px] font-pixel text-[#F4B41A]">🪙 +{lastBankedGold} GOLD BANKED</span>
+                  <RunXpLine xp={runXp} levelUps={runLevelUps} />
                 </div>
                 <div className="flex gap-3">
                   <button
-                    onClick={handleNextEncounter}
+                    onClick={() => continueReward(handleNextEncounter)}
                     className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
                   >
                     NEXT BATTLE ▶
                   </button>
                   <button
-                    onClick={onExitBattle}
+                    onClick={() => continueReward(onExitBattle)}
                     className="bg-[#2E2B44] text-white font-pixel text-xs py-3 px-4 border-2 border-black shadow-pixel-box"
                   >
                     TOWN HUB
@@ -1064,15 +1234,24 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                     ? `Sir Kettleburne fell on Encounter ${expeditionStep + 1} of ${expeditionEncounters.length}. Rest and recover before attempting the run again.`
                     : 'The monster squad overwhelmed Sir Kettleburne. Rest and recover before trying again.'}
                 </p>
+                <div className="bg-[#0F0E17] border-2 border-[#C084FC] p-3 rounded text-center mb-6 -mt-3">
+                  <RunXpLine xp={runXp} levelUps={runLevelUps} />
+                  {forfeitedGold > 0 && (
+                    <span className="block text-[10px] font-pixel text-[#FF3366] mt-1">🪙 {forfeitedGold} GOLD FORFEITED</span>
+                  )}
+                  <span className="block text-[9px] font-mono text-[#A7A9BE] mt-1">
+                    Every monster slain still counts. Level up, train thy spells, or swing harder.
+                  </span>
+                </div>
                 <div className="flex gap-3">
                   <button
-                    onClick={isExpeditionMode ? handleRetryExpedition : handleNextEncounter}
+                    onClick={() => continueReward(isExpeditionMode ? handleRetryExpedition : handleNextEncounter)}
                     className="flex-1 bg-[#FF3366] hover:bg-[#ff5588] text-white font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
                   >
                     RETRY EXPEDITION
                   </button>
                   <button
-                    onClick={onExitBattle}
+                    onClick={() => continueReward(onExitBattle)}
                     className="bg-[#2E2B44] text-white font-pixel text-xs py-3 px-4 border-2 border-black shadow-pixel-box"
                   >
                     TOWN HUB
@@ -1084,12 +1263,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         </div>
       )}
 
-      {/* Card Unlock Celebration Modal (queued unlocks) */}
-      {pendingCardUnlocks.length > 0 && (
-        <CardUnlockCelebration
-          unlockedCards={pendingCardUnlocks}
-          onDismiss={() => setPendingCardUnlocks([])}
-        />
+      {/* Reward step two: the cards unlocked this fight, one by one */}
+      {showingUnlocks && pendingCardUnlocks.length > 0 && (
+        <CardUnlockCelebration unlockedCards={pendingCardUnlocks} onDismiss={finishUnlocks} />
       )}
 
       {/* BOTTOM SLAY THE SPIRE 5-CARD HAND */}
@@ -1121,3 +1297,42 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     </div>
   );
 };
+
+/** STR / SPD (rep cut and dodge) / Attack under the knight's HP bar, the run's experience and the fight's gold purse. */
+const KnightStatLine: React.FC<{ loadout: Loadout; runXp: number; fightGold: number }> = ({ loadout, runXp, fightGold }) => {
+  const profile = profileManager.getActiveProfile();
+  const xpPct = profile ? Math.min(100, (profile.xp / Math.max(1, profile.maxXp)) * 100) : 0;
+  const w = loadout.weapon;
+  return (
+    <div className="pt-1 space-y-1">
+      <div className="w-full h-1.5 bg-[#0F0E17] border border-[#2E2B44] overflow-hidden" title="Experience to next level">
+        <div className="h-full bg-[#C084FC] transition-all duration-300" style={{ width: `${xpPct}%` }} />
+      </div>
+      <div className="flex items-center justify-between font-pixel text-[7px] text-[#A7A9BE]">
+        <span style={{ color: STAT_INFO.str.color }}>ATK {loadout.attack}</span>
+        {w.element && (
+          <span style={{ color: ELEMENT_INFO[w.element].color }}>
+            {ELEMENT_INFO[w.element].icon} +{w.elemDmg}
+          </span>
+        )}
+        <span style={{ color: STAT_INFO.spd.color }}>
+          SPD {loadout.stats.spd} (−{Math.round(loadout.repCut * 100)}% REPS, {Math.round(loadout.dodge * 100)}% DODGE)
+        </span>
+        {runXp > 0 && <span className="text-[#C084FC]">+{runXp} XP</span>}
+        <span className="text-[#F4B41A]" title="Gold from this fight's reps: kept only if you win">🪙 {fightGold} AT STAKE</span>
+      </div>
+    </div>
+  );
+};
+
+/** Experience earned this run and the level-ups it bought. */
+const RunXpLine: React.FC<{ xp: number; levelUps: LevelUpEvent[] }> = ({ xp, levelUps }) => (
+  <span className="block text-[11px] font-pixel text-[#C084FC] mt-1">
+    +{xp} XP
+    {levelUps.length > 0 && (
+      <span className="block text-[9px] text-[#F4B41A] mt-1">
+        LEVEL {levelUps[levelUps.length - 1].level}! {levelUps.map((u) => `+${u.gain} ${STAT_INFO[u.stat].label}`).join(' • ')}
+      </span>
+    )}
+  </span>
+);

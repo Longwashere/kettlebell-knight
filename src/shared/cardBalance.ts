@@ -13,10 +13,18 @@
  *
  * The budget is then spent on effects, each with a price per point (BALANCE.cost). Hitting several
  * enemies costs more per point of damage than hitting one, so AOE cards deal less to each enemy.
+ *
+ * The points are priced for REFERENCE_KNIGHT (a new knight). A card stores them as scaling: damage as a
+ * multiple of Attack (dmgPct, 2 = 200%), Block and heal as shares of max HP. src/shared/progression.ts
+ * applies a knight's real stats, card level and weapon to those.
  * Run scripts/balance-sim.ts after changing anything here.
  */
 import type { CardRarity, CardTarget, CardTemplate, CardType } from '../types/battle';
 import type { ExerciseType } from '../types/game';
+import { ELEMENT_INFO, type Element } from './elements';
+
+/** The knight the budget is priced for: level 1 (STR 20) with the Cast Iron Bell (+10 Attack). */
+export const REFERENCE_KNIGHT = { attack: 30, maxHp: 100 };
 
 export const EXERCISE_PROFILE: Record<ExerciseType, { label: string; repSeconds: number; intensity: number }> = {
   SNATCH: { label: 'KETTLEBELL SNATCHES', repSeconds: 2.2, intensity: 1.3 },
@@ -65,6 +73,7 @@ export interface CardSpec {
   /** Shares of the budget spent on Block / healing; the rest becomes damage. */
   blockShare?: number;
   healShare?: number;
+  element?: Element;
   colorHex: string;
   icon: string;
 }
@@ -88,7 +97,8 @@ export function designCard(spec: CardSpec): CardTemplate {
   if (spec.shatter) damageCost *= BALANCE.shatterCost;
   // CHAIN damage is per hit
   const totalDamage = damageBudget / damageCost;
-  const damage = Math.max(0, Math.round(spec.target === 'CHAIN' ? totalDamage / (spec.hits ?? 3) : totalDamage));
+  const rawDamage = Math.max(0, spec.target === 'CHAIN' ? totalDamage / (spec.hits ?? 3) : totalDamage);
+  const damage = Math.round(rawDamage);
 
   const type: CardType = damage === 0 || block + heal > damage * 0.9 ? 'DEFENSE' : 'ATTACK';
   const template: CardTemplate = {
@@ -109,6 +119,11 @@ export function designCard(spec: CardSpec): CardTemplate {
     rarity: spec.rarity,
     colorHex: spec.colorHex,
     icon: spec.icon,
+    element: spec.element,
+    dmgPct: Math.round((rawDamage / REFERENCE_KNIGHT.attack) * 100) / 100,
+    blockPct: Math.round((block / REFERENCE_KNIGHT.maxHp) * 100) / 100,
+    healPct: Math.round((heal / REFERENCE_KNIGHT.maxHp) * 100) / 100,
+    baseReps: spec.reps,
   };
   template.effectDesc = describeCard(template);
   return template;
@@ -124,26 +139,30 @@ export const TARGET_LABEL: Record<CardTarget, string> = {
 };
 
 /** Rules text generated from the numbers, so it can never disagree with them. */
-export function describeCard(c: Pick<CardTemplate, 'damage' | 'block' | 'heal' | 'target' | 'hits' | 'shatter' | 'stagger'>): string {
+export function describeCard(
+  c: Pick<CardTemplate, 'damage' | 'block' | 'heal' | 'target' | 'hits' | 'shatter' | 'stagger' | 'element' | 'infusion'>,
+): string {
   const parts: string[] = [];
   if (c.damage > 0) {
+    const el = c.element ? ` ${ELEMENT_INFO[c.element].label}` : '';
     switch (c.target) {
       case 'SINGLE':
-        parts.push(`Deal ${c.damage} to the target.`);
+        parts.push(`Deal ${c.damage}${el} to the target.`);
         break;
       case 'BACK':
-        parts.push(`Deal ${c.damage} to the rearmost foe.`);
+        parts.push(`Deal ${c.damage}${el} to the rearmost foe.`);
         break;
       case 'PIERCE':
-        parts.push(`Deal ${c.damage} to the target, ${Math.round(c.damage * BALANCE.pierceFalloff)} to the foe behind.`);
+        parts.push(`Deal ${c.damage}${el} to the target, ${Math.round(c.damage * BALANCE.pierceFalloff)} to the foe behind.`);
         break;
       case 'CHAIN':
-        parts.push(`${c.hits ?? 3} hits of ${c.damage} on random foes.`);
+        parts.push(`${c.hits ?? 3} hits of ${c.damage}${el} on random foes.`);
         break;
       case 'ALL':
-        parts.push(`Deal ${c.damage} to ALL foes.`);
+        parts.push(`Deal ${c.damage}${el} to ALL foes.`);
         break;
     }
+    if (c.infusion && c.infusion.damage > 0) parts.push(`+${c.infusion.damage} ${ELEMENT_INFO[c.infusion.element].label} per hit.`);
   }
   if (c.shatter) parts.push('Ignores Block.');
   if (c.stagger) parts.push(`Stagger ${c.stagger}s.`);

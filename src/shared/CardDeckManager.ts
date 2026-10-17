@@ -1,6 +1,7 @@
 import { CombatCard, CardTemplate, CARD_CATALOG, LEGACY_CARD_IDS } from '../types/battle';
 import { spellsForWeapon } from '../types/weaponSpells';
 import { ExerciseType } from '../types/game';
+import { bindCard, rebindCard, buildLoadout, type Loadout } from './progression';
 
 /**
  * Slay the Spire Style Card & Deck Manager for Kettlebell Knight.
@@ -15,14 +16,34 @@ export class CardDeckManager {
   private discardPile: CombatCard[] = [];
   private idCounter: number = 0;
   private templates: CardTemplate[] = [];
+  /** Unbound templates by templateId, for rebinding live cards. */
+  private sources = new Map<string, CardTemplate>();
 
   /**
    * `weaponId` is the equipped weapon; its spells are shuffled into every deck built. `cardIds` are the
-   * player's unlocked cards (PlayerProfile.unlockedCards); omitted, the legacy full catalog.
+   * player's unlocked cards (PlayerProfile.unlockedCards); omitted, the legacy full catalog. `loadout` is
+   * the knight's stats, weapon and spell levels (src/shared/progression.ts) the cards' numbers come from.
    */
-  constructor(private weaponId?: string, private cardIds?: readonly string[]) {
+  constructor(private weaponId?: string, private cardIds?: readonly string[], private loadout: Loadout = buildLoadout({ weaponId })) {
     this.initDeck();
     this.dealInitialHand();
+  }
+
+  /**
+   * New stats, weapon or spell levels (a level-up mid-fight): every card, including the ones in hand,
+   * takes its new numbers and keeps its rep progress.
+   */
+  public setLoadout(loadout: Loadout): CombatCard[] {
+    this.loadout = loadout;
+    this.templates = this.templates.map((t) => bindCard(this.sources.get(t.templateId) ?? t, loadout));
+    const rebind = (c: CombatCard) => {
+      const src = this.sources.get(c.templateId);
+      return src ? rebindCard(c, src, loadout) : c;
+    };
+    this.drawPile = this.drawPile.map(rebind);
+    this.hand = this.hand.map(rebind);
+    this.discardPile = this.discardPile.map(rebind);
+    return [...this.hand];
   }
 
   /**
@@ -33,7 +54,9 @@ export class CardDeckManager {
     this.weaponId = weaponId;
     this.cardIds = cardIds;
     const ids = new Set(cardIds?.length ? cardIds : LEGACY_CARD_IDS);
-    const pool = CARD_CATALOG.filter((c) => ids.has(c.templateId));
+    const spells = spellsForWeapon(weaponId);
+    for (const t of [...CARD_CATALOG, ...spells]) this.sources.set(t.templateId, t);
+    const pool = CARD_CATALOG.filter((c) => ids.has(c.templateId)).map((c) => bindCard(c, this.loadout));
     this.templates = pool;
     this.drawPile = [];
     this.hand = [];
@@ -44,7 +67,7 @@ export class CardDeckManager {
     const deckTemplates: CardTemplate[] = [
       ...pool,
       ...pool.filter(c => c.rarity === 'common'), // Extra commons
-      ...spellsForWeapon(weaponId).flatMap((spell) => [spell, spell]),
+      ...spells.map((spell) => bindCard(spell, this.loadout)).flatMap((spell) => [spell, spell]),
     ];
 
     this.drawPile = deckTemplates.map(template => this.createCardInstance(template));
@@ -126,7 +149,8 @@ export class CardDeckManager {
   /** Dev: puts a fresh copy of `template` in the hand, replacing the card with the same exercise (else slot 0). */
   public debugPutInHand(template: CardTemplate): CombatCard[] {
     const i = Math.max(0, this.hand.findIndex((c) => c.exercise === template.exercise));
-    this.hand[i] = this.createCardInstance(template);
+    this.sources.set(template.templateId, template);
+    this.hand[i] = this.createCardInstance(bindCard(template, this.loadout));
     return [...this.hand];
   }
 

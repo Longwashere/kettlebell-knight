@@ -7,7 +7,9 @@ import {
   CardUnlockDef,
   WeaponSpellUnlockInfo,
 } from '../../shared/cardUnlocks';
-import { profileManager, PlayerProfile } from '../../shared/ProfileManager';
+import { profileManager, PlayerProfile, loadoutFor } from '../../shared/ProfileManager';
+import { bindCard } from '../../shared/progression';
+import { ELEMENT_INFO } from '../../shared/elements';
 import { SHOP_ITEMS } from './BlacksmithShop';
 import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { CardFront } from './CombatCardView';
@@ -109,6 +111,10 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
         damage: 45,
         block: 0,
         heal: 0,
+        dmgPct: 1.9,
+        blockPct: 0,
+        healPct: 0,
+        baseReps: 5,
         type: 'ATTACK',
         exerciseLabel: 'SIGNATURE WEAPON SPELL',
         effectDesc: `Granted by ${spell.weaponName}. Shuffled into battle deck when equipped.`,
@@ -127,10 +133,13 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
     });
   }, [weaponSpellsWithMeta]);
 
-  // Filtered list based on active tab & filter mode
+  // Filtered list based on active tab & filter mode. Cards show this knight's numbers and spell levels
+  // (weapon spells with their own weapon's).
   const displayedCards = useMemo(() => {
+    const bind = <T extends { card: CardTemplate }>(items: T[]): T[] =>
+      items.map((item) => ({ ...item, card: bindCard(item.card, loadoutFor(profile, item.card.weaponId)) }));
     if (activeTab === 'WEAPON_SPELLS') {
-      return weaponSpellCardItems;
+      return bind(weaponSpellCardItems);
     }
 
     let list = catalogWithMeta;
@@ -147,8 +156,8 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
       list = list.filter((item) => !item.isUnlocked);
     }
 
-    return list;
-  }, [catalogWithMeta, weaponSpellCardItems, activeTab, filterMode]);
+    return bind(list);
+  }, [catalogWithMeta, weaponSpellCardItems, activeTab, filterMode, profile]);
 
   // Clamp selection index when displayed list changes
   useEffect(() => {
@@ -686,7 +695,7 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
 
                 {/* Footer Entity Metas */}
                 <div className="relative z-10 pt-1.5 border-t border-[#2D2A42] flex justify-between text-[8px] font-mono text-[#A7A9BE]">
-                  <span>ELEMENT: {EXERCISE_SKILLS[activeItem.card.exercise]?.rpgElement || 'PHYSICAL'}</span>
+                  <span>ELEMENT: {activeItem.card.element ? `${ELEMENT_INFO[activeItem.card.element].icon} ${ELEMENT_INFO[activeItem.card.element].label}` : 'PHYSICAL'} • SPELL LV {activeItem.card.level ?? 1}</span>
                   <span className="text-[#38B6FF]">FORM: {activeItem.card.exercise.replace(/_/g, ' ')}</span>
                 </div>
               </div>

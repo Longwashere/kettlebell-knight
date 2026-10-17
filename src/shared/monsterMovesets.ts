@@ -6,6 +6,18 @@
 import { MONSTER_CATALOG, type EncounterTemplate, type MonsterIntent, type MonsterState } from '../types/battle';
 import { PACK_SCALING } from './combatRules';
 import { resolveMonsterVariant } from './monsterVariants';
+import { AFFIX_ELEMENT, MONSTER_ELEMENTS } from './elements';
+
+/** Stage multipliers for an encounter's monsters (src/shared/stageScaling.ts). */
+export interface StageScaling {
+  hp: number;
+  damage: number;
+  block: number;
+  /** Monster level shown on the battle screen (the stage's recommended knight level). */
+  level: number;
+  /** Experience per point of max HP. */
+  xpPerHp: number;
+}
 
 export type IntentTemplate = Omit<MonsterIntent, 'remainingSeconds'>;
 
@@ -329,20 +341,23 @@ export const MONSTER_INTENTS: Record<string, MonsterIntent[]> = Object.fromEntri
   Object.entries(MOVESETS).map(([id, moves]) => [id, moves.map((m) => ({ ...m, remainingSeconds: m.durationSeconds }))]),
 );
 
-/** Rolls a monster's next intent, with its pack-scaled damage and Block baked in. */
-export function rollIntent(m: Pick<MonsterState, 'id' | 'damageScale'>, pick?: number): MonsterIntent {
+/** Rolls a monster's next intent, with its pack- and stage-scaled damage and Block baked in. */
+export function rollIntent(m: Pick<MonsterState, 'id' | 'damageScale' | 'blockScale'>, pick?: number): MonsterIntent {
   const moves = MOVESETS[m.id] ?? MOVESETS.green_slime;
   const t = moves[pick ?? Math.floor(Math.random() * moves.length)] ?? moves[0];
   const scale = m.damageScale ?? 1;
+  const block = t.block !== undefined || t.type === 'DEFEND' ? Math.round((t.block ?? 25) * (m.blockScale ?? scale)) : undefined;
   return {
     ...t,
     damage: Math.round(t.damage * scale),
-    block: t.block !== undefined ? Math.round(t.block * scale) : undefined,
+    block,
+    description: block !== undefined ? t.description.replace(/\+\d+ Block/, `+${block} Block`) : t.description,
     remainingSeconds: t.durationSeconds,
   };
 }
 
-export function createEncounterFromTemplate(template: EncounterTemplate): MonsterState[] {
+/** An encounter's monsters. Without `stage`, the bestiary's own numbers (pack scaling only). */
+export function createEncounterFromTemplate(template: EncounterTemplate, stage?: StageScaling): MonsterState[] {
   const counts: Record<string, number> = {};
   const pack = PACK_SCALING[Math.min(3, template.monsterIds.length)] ?? PACK_SCALING[1];
   return template.monsterIds.map((specOrId, slotIndex) => {
@@ -352,11 +367,12 @@ export function createEncounterFromTemplate(template: EncounterTemplate): Monste
     const count = counts[mId];
     const totalOfThisType = template.monsterIds.filter(item => (typeof item === 'string' ? item : item.id) === mId).length;
     const suffix = totalOfThisType > 1 ? ` ${String.fromCharCode(64 + count)}` : '';
-    const maxHp = Math.round(variant.maxHp * pack.hp);
-    const damageScale = pack.damage * (variant.damageMultiplier ?? 1);
+    const maxHp = Math.round(variant.maxHp * pack.hp * (stage?.hp ?? 1));
+    const damageScale = pack.damage * (variant.damageMultiplier ?? 1) * (stage?.damage ?? 1);
+    const blockScale = pack.damage * (variant.damageMultiplier ?? 1) * (stage?.block ?? 1);
 
     // Openers cycle through the moveset by slot; later slots start a little later so attacks stagger
-    const opener = rollIntent({ id: variant.id, damageScale }, slotIndex % (MOVESETS[variant.id]?.length ?? 1));
+    const opener = rollIntent({ id: variant.id, damageScale, blockScale }, slotIndex % (MOVESETS[variant.id]?.length ?? 1));
     opener.remainingSeconds += slotIndex * 2.5;
 
     return {
@@ -369,6 +385,10 @@ export function createEncounterFromTemplate(template: EncounterTemplate): Monste
       currentHp: maxHp,
       block: 0,
       damageScale,
+      blockScale,
+      level: stage?.level ?? variant.level,
+      element: (variant.affix && AFFIX_ELEMENT[variant.affix]) || MONSTER_ELEMENTS[variant.id],
+      xp: stage ? Math.max(1, Math.round(maxHp * stage.xpPerHp)) : undefined,
       intent: opener,
     };
   });

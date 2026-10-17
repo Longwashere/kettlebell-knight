@@ -4,6 +4,7 @@
  */
 import type { CombatCard, MonsterState } from '../types/battle';
 import { BALANCE } from './cardBalance';
+import { effectiveness, elementMultiplier, type Effectiveness } from './elements';
 
 /**
  * Formation depth, front to back, by encounter size. Matches the slot positions in
@@ -25,11 +26,30 @@ export function frontTarget(monsters: MonsterState[]): number {
 }
 
 /**
- * How hard the set was performed scales the cast. Averaged over all the card's reps so one sloppy
- * final rep doesn't spoil it: power 80 = ×1.0, clamped to ×0.75–×1.35, then times form (0–1).
+ * How hard the set was performed scales the cast: the "out-exercise it" half of progression. Averaged
+ * over all the card's reps so one sloppy final rep doesn't spoil it: power 80 = ×1.0, clamped to
+ * ×0.75–×1.5 (explosive reps, power 120+, pay half again), then times form (0–1).
  */
+export const CAST_POWER = { reference: 80, min: 0.75, max: 1.5 };
 export function castMultiplier(power: number, form: number): number {
-  return Math.min(1.35, Math.max(0.75, power / 80)) * Math.max(0, Math.min(1, form));
+  return Math.min(CAST_POWER.max, Math.max(CAST_POWER.min, power / CAST_POWER.reference)) * Math.max(0, Math.min(1, form));
+}
+
+/**
+ * Damage of one hit of `card` on `m` before Block: the card's own damage by its element, plus the
+ * weapon's elemental damage by the weapon's element.
+ */
+export function hitDamage(card: Pick<CombatCard, 'damage' | 'element' | 'infusion'>, m: Pick<MonsterState, 'element'>): number {
+  const main = card.damage * elementMultiplier(card.element, m.element);
+  const infused = card.infusion ? card.infusion.damage * elementMultiplier(card.infusion.element, m.element) : 0;
+  return main + infused;
+}
+
+/** How a hit's elements fared against the monster, for the hit label (the card's own element first). */
+export function hitEffectiveness(card: Pick<CombatCard, 'element' | 'infusion'>, m: Pick<MonsterState, 'element'>): Effectiveness {
+  const main = effectiveness(card.element, m.element);
+  if (main !== 'neutral') return main;
+  return effectiveness(card.infusion?.element, m.element);
 }
 
 export interface CardHit {
@@ -38,6 +58,7 @@ export interface CardHit {
   blocked: number; // absorbed by Block
   killed: boolean;
   staggered: number; // seconds added to the monster's attack timer
+  effect: Effectiveness; // elemental matchup of the hit
 }
 
 export interface CardResolution {
@@ -58,9 +79,12 @@ export function resolveCard(
   const next = monsters.map((m) => ({ ...m, intent: { ...m.intent } }));
   const hits: CardHit[] = [];
 
-  const strike = (index: number, amount: number) => {
+  /** `share`: part of the card's damage this hit carries (PIERCE's falloff). */
+  const strike = (index: number, share: number) => {
     const m = next[index];
-    if (!isAlive(m) || amount <= 0) return;
+    if (!isAlive(m)) return;
+    const amount = hitDamage(card, m) * share;
+    if (amount <= 0) return;
     let dmg = Math.round(amount * mult);
     let blocked = 0;
     if (!card.shatter) {
@@ -81,7 +105,7 @@ export function resolveCard(
       staggered = card.stagger;
       m.intent.remainingSeconds += staggered;
     }
-    hits.push({ index, damage: dmg, blocked, killed, staggered });
+    hits.push({ index, damage: dmg, blocked, killed, staggered, effect: hitEffectiveness(card, m) });
   };
 
   const order = depthOrder(next);
@@ -90,26 +114,26 @@ export function resolveCard(
   if (card.damage > 0 && target !== undefined) {
     switch (card.target) {
       case 'SINGLE':
-        strike(target, card.damage);
+        strike(target, 1);
         break;
       case 'BACK':
-        strike(order[order.length - 1], card.damage);
+        strike(order[order.length - 1], 1);
         break;
       case 'PIERCE': {
         const behind = order[order.indexOf(target) + 1];
-        strike(target, card.damage);
-        if (behind !== undefined) strike(behind, card.damage * BALANCE.pierceFalloff);
+        strike(target, 1);
+        if (behind !== undefined) strike(behind, BALANCE.pierceFalloff);
         break;
       }
       case 'CHAIN':
         for (let h = 0; h < (card.hits ?? 3); h++) {
           const alive = depthOrder(next);
           if (alive.length === 0) break;
-          strike(alive[Math.floor(rng() * alive.length)], card.damage);
+          strike(alive[Math.floor(rng() * alive.length)], 1);
         }
         break;
       case 'ALL':
-        for (const i of order) strike(i, card.damage);
+        for (const i of order) strike(i, 1);
         break;
     }
   }

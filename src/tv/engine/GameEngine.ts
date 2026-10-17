@@ -1,5 +1,6 @@
 import { Application, Container, Graphics, Text, Assets, Sprite, Texture, Cache, Rectangle, TexturePool, type BindGroup } from 'pixi.js';
 import { Spine, SpineTexture, EventTimeline, RegionAttachment } from '@esotericsoftware/spine-pixi-v8';
+import { BATTLE_MAPS } from './battleMaps';
 import type { TextureAtlas } from '@esotericsoftware/spine-core';
 import { audioManager } from '../../shared/AudioManager';
 import { ExerciseType, EXERCISE_SKILLS } from '../../types/game';
@@ -74,21 +75,8 @@ const KNIGHT_ATLAS_KEY = '/assets/spine/knight/HulkForm2.atlas';
 const KNIGHT_SCALE = 0.15;
 const KNIGHT_HOME = { x: 130, y: 168 }; // knight feet at rest (battlefield coords)
 const MONSTER_OUTLINE_COLOR = 0x0F0E17; // retro.dark
-// Battle arena background textures (clean 1:1 retro canvas match)
-export const BATTLE_MAPS = {
-  CATHEDRAL_CRYPT: '/assets/backgrounds/cathedral_crypt.webp',
-  DARK_FOREST: '/assets/backgrounds/dark_forest.webp',
-  VERDANT_FOREST: '/assets/backgrounds/verdant_forest.webp',
-  OBSIDIAN_THRONE: '/assets/backgrounds/obsidian_throne.webp',
-  VOLCANIC_FORGE: '/assets/backgrounds/volcanic_forge.webp',
-  BLOOD_CEMETERY: '/assets/backgrounds/blood_cemetery.webp',
-  SUNKEN_CISTERN: '/assets/backgrounds/sunken_cistern.webp',
-  BELFRY_RAMPARTS: '/assets/backgrounds/belfry_ramparts.webp',
-  ELDRITCH_ALTAR: '/assets/backgrounds/eldritch_altar.webp',
-  CATHEDRAL_VAULT: '/assets/backgrounds/cathedral_vault.webp',
-  TOWN_NIGHT: '/assets/backgrounds/town_night.webp',
-  TOWN_SQUARE: '/assets/backgrounds/town_square.webp',
-} as const;
+// Battle arena background textures (clean 1:1 retro canvas match): ./battleMaps.ts
+export { BATTLE_MAPS };
 
 export type BattleMapId = keyof typeof BATTLE_MAPS;
 

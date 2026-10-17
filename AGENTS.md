@@ -19,7 +19,7 @@ npm run dev       # Vite on 0.0.0.0:5173 (reachable from phones on the LAN)
 npm run build     # tsc type-check + vite build — run this to verify changes; there is no test suite
 npm run preview
 npm run shot -- <steps>   # headless /tv run: screenshots + state + console errors → work/shots/ (see kk-verify skill)
-npm run balance [-- N cards]  # combat balance simulator: win rate / fight length / HP left per encounter
+npm run balance [-- campaign|encounters] [N] [cards]  # balance sim: stage win rates by level/effort, or a full campaign playthrough
 npm run rigs [-- ids]         # monster rig reference → work/rigs.md: anims + frame lengths + events, moveset, portraits
 npm run vfx:shrink            # TV-sized copies of the Spine VFX: public/assets/spine/vfx → vfx-tv (rerun after adding one)
 npm run sfx [-- ids]          # render the procedural sound bank to work/sfx/*.wav + index.html to audition
@@ -86,14 +86,30 @@ Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test
 
 - Card numbers are derived, not hand-typed: `CARD_CATALOG` (src/types/battle.ts) lists design specs, and
   `designCard` (src/shared/cardBalance.ts) turns each spec's budget (reps × rep seconds × exercise intensity × rarity)
-  into damage/Block/heal. Retune via `EXERCISE_PROFILE` / `BALANCE`, not individual cards.
-- Card resolution (targeting, Block, Shatter, Stagger) is the pure `resolveCard` in src/shared/combat.ts; monster
-  movesets, pack scaling and encounter building are in src/shared/monsterMovesets.ts and combatRules.ts. The TV battle
-  screen and the simulator share all of it.
+  into scaling: `dmgPct` (multiple of Attack), `blockPct`/`healPct` (shares of max HP), priced for `REFERENCE_KNIGHT`.
+  Retune via `EXERCISE_PROFILE` / `BALANCE`, not individual cards. AOE (`ALL`) costs 1.9× per point: less per foe,
+  more in total against 2–3 foes.
+- Progression (src/shared/progression.ts): STR/HP/SPD; each level-up raises one stat from a shuffled bag (STR/HP +12–15%
+  of themselves, SPD +3 up to 20 = −30% reps, 20% dodge). Attack = STR + weapon Attack. `bindCard` turns a template
+  into a knight's card (Speed's rep cut, spell level +5%/level from casts, weapon elemental damage as `infusion`);
+  `CardDeckManager` binds the deck to a `Loadout` (`loadoutFor(profile)` in ProfileManager) and rebinds mid-fight.
+  Weapons: tier = `SHOP_ITEMS` level, Attack pegged to expected STR at its unlock level (`weaponLevelReq`), +6% per
+  weapon level from casts. XP is granted per kill (win or lose) plus an expedition clear bonus.
+- Gold is earned in battle only: each rep adds `repGold(power)` (src/shared/combatRules.ts) to the fight's purse, banked
+  when that fight is won and forfeited on defeat; expedition clears add their `goldReward`.
+- Elements (src/shared/elements.ts): FIRE→NATURE→EARTH→STORM→FROST→FIRE, HOLY↔VOID; strong ×1.5, resisted ×0.6.
+  Cards/spells carry `element`, monsters get one from `MONSTER_ELEMENTS` (affixes override).
+- Stage difficulty (src/shared/stageScaling.ts): each expedition level is normalized to the bestiary average, then
+  scaled to the expected knight at its recommended level (1 + 4 × map + level − 1), × `STAGE_BALANCE`. Use
+  `createStageEncounter`, not raw `createEncounterFromTemplate`, for anything the player fights.
+- Card resolution (targeting, Block, Shatter, Stagger, elements) is the pure `resolveCard` in src/shared/combat.ts;
+  `castMultiplier` (power 80 = ×1, up to ×1.5) is the effort axis. The TV battle screen and the simulator share all of it.
 - A new game's deck is only the `starter_*` cards (`STARTER_CARD_IDS`, stored in `PlayerProfile.unlockedCards`); saves
-  without that field keep the full catalog. Check the new-player deck with `STARTER=1 WEAPON=iron_kettlebell npm run balance`.
-- After any balance change run `npm run balance` and keep: single monsters ≥95% win in ~50–90s, pairs ~90%,
-  trios 85–95%, boss trios ~65–80%, for the simulated average player.
+  without that field keep the full catalog. Check the new-player deck with `STARTER=1 npm run balance`.
+- After any balance change run `npm run balance` (stage table) and `npm run balance -- campaign`, and keep, for an
+  on-level average knight: a map's level 1 ~75–95% expedition wins, its boss level ~45–80%; 4 levels under ~10–50%
+  but all-in effort ~60–95%; 4 over ≥75%. Campaign: average effort arrives at each map about on level with 1–3 tries
+  per stage; all-in clears while slightly under-levelled; casual still progresses by out-levelling.
 
 ## Weapon spells
 

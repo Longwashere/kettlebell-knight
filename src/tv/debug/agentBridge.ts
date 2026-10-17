@@ -621,6 +621,18 @@ const api = {
     });
     return STARTER_CARD_IDS.length;
   },
+  /** Removes cards from the active profile's unlocked list, so their unlock can be earned again. */
+  relockCards: (templateIds: string[]) => {
+    const unlocked = profileManager.getActiveProfile()?.unlockedCards;
+    if (!unlocked) return null;
+    return profileManager.saveActiveProfile({ unlockedCards: unlocked.filter((id) => !templateIds.includes(id)) })?.unlockedCards;
+  },
+  /** Merges unlock progress into the profile (e.g. { exerciseReps: { SWING: 34 } }) so the next rep unlocks a card. */
+  primeUnlockStats: (stats: Partial<NonNullable<ReturnType<typeof profileManager.getActiveProfile>>['unlockStats']>) => {
+    const current = profileManager.getActiveProfile()?.unlockStats;
+    if (!current) return null;
+    return profileManager.saveActiveProfile({ unlockStats: { ...current, ...stats } })?.unlockStats;
+  },
   /** Returns current unlocked cards and unlock progress stats. */
   getCardUnlocks: () => {
     const p = profileManager.getActiveProfile();

@@ -1,5 +1,6 @@
 import { ExerciseType } from './game';
 import { designCard } from '../shared/cardBalance';
+import type { Element } from '../shared/elements';
 
 export type CardType = 'ATTACK' | 'DEFENSE' | 'POWER';
 export type CardRarity = 'common' | 'rare' | 'epic' | 'legendary';
@@ -35,6 +36,22 @@ export interface CombatCard {
   colorHex: string;
   weaponId?: string; // weapon spell: granted by this equipped weapon (src/types/weaponSpells.ts)
   icon: string;
+  /** Elemental typing of the card's damage (src/shared/elements.ts); absent = physical. */
+  element?: Element;
+  /**
+   * Scaling from the design budget (src/shared/cardBalance.ts): damage as a multiple of the knight's
+   * Attack (2 = 200%), Block and heal as a share of max HP. `damage`/`block`/`heal` are these applied to
+   * the knight's stats and card level (src/shared/progression.ts bindCard).
+   */
+  dmgPct: number;
+  blockPct: number;
+  healPct: number;
+  /** Reps before Speed's reduction. */
+  baseReps: number;
+  /** Spell level from casting it (1 when unbound). */
+  level?: number;
+  /** The equipped weapon's elemental damage riding on each hit of this card. */
+  infusion?: { element: Element; damage: number };
   /** Running totals of the reps' power/form, so the cast scales with the whole set, not the last rep. */
   powerSum?: number;
   formSum?: number;
@@ -188,7 +205,10 @@ export interface MonsterState {
   slotIndex?: number;
   instanceId?: string;
   isAlive?: boolean;
-  damageScale?: number; // pack scaling applied to rolled intents (see PACK_SCALING)
+  damageScale?: number; // pack × affix × stage scaling applied to rolled intents' damage
+  blockScale?: number; // stage scaling of DEFEND Block (tracks monster HP, not damage)
+  element?: Element; // src/shared/elements.ts; absent = physical
+  xp?: number; // experience granted to the knight when it dies
   tint?: number;
   scaleMultiplier?: number;
   skin?: string;
@@ -287,80 +307,80 @@ export const CARD_CATALOG: CardTemplate[] = [
   designCard({ templateId: 'starter_wind', name: 'Second Wind', exercise: 'HALO', reps: 4, rarity: 'common', target: 'SINGLE', blockShare: 0.4, healShare: 0.3, colorHex: '#E5E7EB', icon: '💨' }),
 
   // MONSTER ARTS: techniques learned from the bestiary (choreography in src/tv/engine/monsterArts.ts).
-  designCard({ templateId: 'art_echo_shriek', name: 'Echo Shriek', exercise: 'DEADLIFT', reps: 5, rarity: 'common', target: 'ALL', stagger: 0.5, colorHex: '#A78BFA', icon: '🦇' }),
+  designCard({ templateId: 'art_echo_shriek', name: 'Echo Shriek', exercise: 'DEADLIFT', reps: 5, rarity: 'common', target: 'ALL', stagger: 0.5, element: 'VOID', colorHex: '#A78BFA', icon: '🦇' }),
   designCard({ templateId: 'art_dirty_trick', name: 'Dirty Trick', exercise: 'OVERHEAD_PRESS', reps: 4, rarity: 'common', target: 'SINGLE', stagger: 1, colorHex: '#A16207', icon: '🥾' }),
-  designCard({ templateId: 'art_rattle_back', name: 'Rattle Back', exercise: 'SQUAT', reps: 4, rarity: 'common', target: 'SINGLE', blockShare: 0.75, healShare: 0.25, colorHex: '#E2E8F0', icon: '💀' }),
-  designCard({ templateId: 'art_wisp_lure', name: "Will-o'-Lure", exercise: 'HALO', reps: 4, rarity: 'common', target: 'BACK', colorHex: '#67E8F9', icon: '🏮' }),
-  designCard({ templateId: 'art_banshee_step', name: 'Banshee Step', exercise: 'WINDMILL', reps: 5, rarity: 'rare', target: 'BACK', colorHex: '#7DD3FC', icon: '👻' }),
-  designCard({ templateId: 'art_bone_volley', name: 'Bone Volley', exercise: 'OVERHEAD_PRESS', reps: 5, rarity: 'rare', target: 'CHAIN', hits: 3, colorHex: '#F1F5F9', icon: '🏹' }),
-  designCard({ templateId: 'art_carapace_roll', name: 'Carapace Roll', exercise: 'SWING', reps: 5, rarity: 'rare', target: 'PIERCE', blockShare: 0.3, colorHex: '#4D7C0F', icon: '🪲' }),
-  designCard({ templateId: 'art_undertow', name: 'Undertow', exercise: 'GORILLA_ROW', reps: 5, rarity: 'rare', target: 'PIERCE', blockShare: 0.3, colorHex: '#14B8A6', icon: '🌊' }),
-  designCard({ templateId: 'art_tombstone_heave', name: 'Tombstone Heave', exercise: 'DEADLIFT', reps: 5, rarity: 'rare', target: 'BACK', colorHex: '#78716C', icon: '🪦' }),
-  designCard({ templateId: 'art_troll_blood', name: 'Troll Blood', exercise: 'SQUAT', reps: 5, rarity: 'rare', target: 'SINGLE', healShare: 0.45, colorHex: '#65A30D', icon: '🧌' }),
-  designCard({ templateId: 'art_needle_burst', name: 'Needle Burst', exercise: 'SQUAT', reps: 5, rarity: 'rare', target: 'CHAIN', hits: 4, colorHex: '#16A34A', icon: '🌵' }),
-  designCard({ templateId: 'art_pincer_crack', name: 'Pincer Crack', exercise: 'CLEAN', reps: 5, rarity: 'rare', target: 'SINGLE', shatter: true, colorHex: '#EA580C', icon: '🦀' }),
-  designCard({ templateId: 'art_tail_sweep', name: 'Tail Sweep', exercise: 'SINGLE_LEG_RDL', reps: 5, rarity: 'rare', target: 'PIERCE', colorHex: '#059669', icon: '🦎' }),
+  designCard({ templateId: 'art_rattle_back', name: 'Rattle Back', exercise: 'SQUAT', reps: 4, rarity: 'common', target: 'SINGLE', blockShare: 0.75, healShare: 0.25, element: 'VOID', colorHex: '#E2E8F0', icon: '💀' }),
+  designCard({ templateId: 'art_wisp_lure', name: "Will-o'-Lure", exercise: 'HALO', reps: 4, rarity: 'common', target: 'BACK', element: 'HOLY', colorHex: '#67E8F9', icon: '🏮' }),
+  designCard({ templateId: 'art_banshee_step', name: 'Banshee Step', exercise: 'WINDMILL', reps: 5, rarity: 'rare', target: 'BACK', element: 'VOID', colorHex: '#7DD3FC', icon: '👻' }),
+  designCard({ templateId: 'art_bone_volley', name: 'Bone Volley', exercise: 'OVERHEAD_PRESS', reps: 5, rarity: 'rare', target: 'CHAIN', hits: 3, element: 'VOID', colorHex: '#F1F5F9', icon: '🏹' }),
+  designCard({ templateId: 'art_carapace_roll', name: 'Carapace Roll', exercise: 'SWING', reps: 5, rarity: 'rare', target: 'PIERCE', blockShare: 0.3, element: 'EARTH', colorHex: '#4D7C0F', icon: '🪲' }),
+  designCard({ templateId: 'art_undertow', name: 'Undertow', exercise: 'GORILLA_ROW', reps: 5, rarity: 'rare', target: 'PIERCE', blockShare: 0.3, element: 'FROST', colorHex: '#14B8A6', icon: '🌊' }),
+  designCard({ templateId: 'art_tombstone_heave', name: 'Tombstone Heave', exercise: 'DEADLIFT', reps: 5, rarity: 'rare', target: 'BACK', element: 'EARTH', colorHex: '#78716C', icon: '🪦' }),
+  designCard({ templateId: 'art_troll_blood', name: 'Troll Blood', exercise: 'SQUAT', reps: 5, rarity: 'rare', target: 'SINGLE', healShare: 0.45, element: 'NATURE', colorHex: '#65A30D', icon: '🧌' }),
+  designCard({ templateId: 'art_needle_burst', name: 'Needle Burst', exercise: 'SQUAT', reps: 5, rarity: 'rare', target: 'CHAIN', hits: 4, element: 'NATURE', colorHex: '#16A34A', icon: '🌵' }),
+  designCard({ templateId: 'art_pincer_crack', name: 'Pincer Crack', exercise: 'CLEAN', reps: 5, rarity: 'rare', target: 'SINGLE', shatter: true, element: 'FROST', colorHex: '#EA580C', icon: '🦀' }),
+  designCard({ templateId: 'art_tail_sweep', name: 'Tail Sweep', exercise: 'SINGLE_LEG_RDL', reps: 5, rarity: 'rare', target: 'PIERCE', element: 'NATURE', colorHex: '#059669', icon: '🦎' }),
   designCard({ templateId: 'art_berserker_rush', name: 'Berserker Rush', exercise: 'THRUSTER', reps: 5, rarity: 'epic', target: 'CHAIN', hits: 3, colorHex: '#DC2626', icon: '🪓' }),
-  designCard({ templateId: 'art_moonlit_leap', name: 'Moonlit Leap', exercise: 'LUNGE', reps: 5, rarity: 'epic', target: 'BACK', stagger: 1, colorHex: '#C7D2FE', icon: '🦌' }),
-  designCard({ templateId: 'art_stone_skin', name: 'Stone Skin', exercise: 'CLEAN_AND_PRESS', reps: 5, rarity: 'epic', target: 'SINGLE', blockShare: 0.6, colorHex: '#A8A29E', icon: '🗿' }),
-  designCard({ templateId: 'art_black_riposte', name: 'Black Riposte', exercise: 'WINDMILL', reps: 5, rarity: 'epic', target: 'SINGLE', blockShare: 0.4, stagger: 1, colorHex: '#7C3AED', icon: '🗡️' }),
-  designCard({ templateId: 'art_life_leech', name: 'Life Leech', exercise: 'GORILLA_ROW', reps: 5, rarity: 'epic', target: 'SINGLE', healShare: 0.35, colorHex: '#BE123C', icon: '🩸' }),
+  designCard({ templateId: 'art_moonlit_leap', name: 'Moonlit Leap', exercise: 'LUNGE', reps: 5, rarity: 'epic', target: 'BACK', stagger: 1, element: 'HOLY', colorHex: '#C7D2FE', icon: '🦌' }),
+  designCard({ templateId: 'art_stone_skin', name: 'Stone Skin', exercise: 'CLEAN_AND_PRESS', reps: 5, rarity: 'epic', target: 'SINGLE', blockShare: 0.6, element: 'EARTH', colorHex: '#A8A29E', icon: '🗿' }),
+  designCard({ templateId: 'art_black_riposte', name: 'Black Riposte', exercise: 'WINDMILL', reps: 5, rarity: 'epic', target: 'SINGLE', blockShare: 0.4, stagger: 1, element: 'VOID', colorHex: '#7C3AED', icon: '🗡️' }),
+  designCard({ templateId: 'art_life_leech', name: 'Life Leech', exercise: 'GORILLA_ROW', reps: 5, rarity: 'epic', target: 'SINGLE', healShare: 0.35, element: 'VOID', colorHex: '#BE123C', icon: '🩸' }),
   designCard({ templateId: 'art_grizzly_maul', name: 'Grizzly Maul', exercise: 'CLEAN_AND_PRESS', reps: 6, rarity: 'epic', target: 'SINGLE', stagger: 1.5, colorHex: '#92400E', icon: '🐻' }),
-  designCard({ templateId: 'art_phantom_cavalry', name: 'Phantom Cavalry', exercise: 'SNATCH', reps: 6, rarity: 'epic', target: 'ALL', stagger: 1, colorHex: '#93C5FD', icon: '🐎' }),
+  designCard({ templateId: 'art_phantom_cavalry', name: 'Phantom Cavalry', exercise: 'SNATCH', reps: 6, rarity: 'epic', target: 'ALL', stagger: 1, element: 'VOID', colorHex: '#93C5FD', icon: '🐎' }),
 
   // SWING: fast and ballistic. Bread-and-butter single hits, a whirlwind that clears groups.
   designCard({ templateId: 'swing_cleave', name: 'Iron Cleave', exercise: 'SWING', reps: 5, rarity: 'common', target: 'SINGLE', colorHex: '#F4B41A', icon: '⚔️' }),
-  designCard({ templateId: 'swing_whirlwind', name: 'Dragon Whirlwind', exercise: 'SWING', reps: 8, rarity: 'rare', target: 'ALL', colorHex: '#DC2626', icon: '🌪️' }),
-  designCard({ templateId: 'swing_flow', name: 'Momentum Flow', exercise: 'SWING', reps: 4, rarity: 'common', target: 'SINGLE', blockShare: 0.6, colorHex: '#38B6FF', icon: '🌊' }),
+  designCard({ templateId: 'swing_whirlwind', name: 'Dragon Whirlwind', exercise: 'SWING', reps: 8, rarity: 'rare', target: 'ALL', element: 'FIRE', colorHex: '#DC2626', icon: '🌪️' }),
+  designCard({ templateId: 'swing_flow', name: 'Momentum Flow', exercise: 'SWING', reps: 4, rarity: 'common', target: 'SINGLE', blockShare: 0.6, element: 'FROST', colorHex: '#38B6FF', icon: '🌊' }),
 
   // SQUAT: ground shockwaves hit everyone; a pure wall of Block.
-  designCard({ templateId: 'squat_slam', name: 'Titan Ground Slam', exercise: 'SQUAT', reps: 4, rarity: 'common', target: 'ALL', colorHex: '#FF3366', icon: '🔨' }),
+  designCard({ templateId: 'squat_slam', name: 'Titan Ground Slam', exercise: 'SQUAT', reps: 4, rarity: 'common', target: 'ALL', element: 'EARTH', colorHex: '#FF3366', icon: '🔨' }),
   designCard({ templateId: 'squat_bastion', name: 'Aegis Fortress', exercise: 'SQUAT', reps: 5, rarity: 'rare', target: 'SINGLE', blockShare: 1, colorHex: '#00EB88', icon: '🛡️' }),
-  designCard({ templateId: 'squat_earthquake', name: 'Colossus Quake', exercise: 'SQUAT', reps: 7, rarity: 'epic', target: 'ALL', stagger: 1.5, blockShare: 0.15, colorHex: '#A855F7', icon: '🌋' }),
+  designCard({ templateId: 'squat_earthquake', name: 'Colossus Quake', exercise: 'SQUAT', reps: 7, rarity: 'epic', target: 'ALL', stagger: 1.5, blockShare: 0.15, element: 'EARTH', colorHex: '#A855F7', icon: '🌋' }),
 
   // OVERHEAD PRESS: strikes from above, so it can reach the back row or punch through armor.
-  designCard({ templateId: 'press_smite', name: 'Thunder Smite', exercise: 'OVERHEAD_PRESS', reps: 4, rarity: 'common', target: 'BACK', colorHex: '#38B6FF', icon: '⚡' }),
-  designCard({ templateId: 'press_judgement', name: 'Heavenly Pillar', exercise: 'OVERHEAD_PRESS', reps: 6, rarity: 'epic', target: 'SINGLE', shatter: true, colorHex: '#FBBF24', icon: '☀️' }),
-  designCard({ templateId: 'press_sanctuary', name: 'Arcane Scepter', exercise: 'OVERHEAD_PRESS', reps: 3, rarity: 'rare', target: 'SINGLE', blockShare: 0.6, colorHex: '#60A5FA', icon: '✨' }),
+  designCard({ templateId: 'press_smite', name: 'Thunder Smite', exercise: 'OVERHEAD_PRESS', reps: 4, rarity: 'common', target: 'BACK', element: 'STORM', colorHex: '#38B6FF', icon: '⚡' }),
+  designCard({ templateId: 'press_judgement', name: 'Heavenly Pillar', exercise: 'OVERHEAD_PRESS', reps: 6, rarity: 'epic', target: 'SINGLE', shatter: true, element: 'HOLY', colorHex: '#FBBF24', icon: '☀️' }),
+  designCard({ templateId: 'press_sanctuary', name: 'Arcane Scepter', exercise: 'OVERHEAD_PRESS', reps: 3, rarity: 'rare', target: 'SINGLE', blockShare: 0.6, element: 'HOLY', colorHex: '#60A5FA', icon: '✨' }),
 
   // CLEAN & PRESS: heavy, slow and brutal. Armor-breaking and line-clearing.
   designCard({ templateId: 'clean_breaker', name: 'Anvil Breaker', exercise: 'CLEAN_AND_PRESS', reps: 4, rarity: 'rare', target: 'SINGLE', shatter: true, blockShare: 0.2, colorHex: '#F97316', icon: '💥' }),
-  designCard({ templateId: 'clean_stormbreaker', name: 'Stormbreaker Cleaver', exercise: 'CLEAN_AND_PRESS', reps: 6, rarity: 'epic', target: 'PIERCE', stagger: 1, colorHex: '#EA580C', icon: '⚡' }),
+  designCard({ templateId: 'clean_stormbreaker', name: 'Stormbreaker Cleaver', exercise: 'CLEAN_AND_PRESS', reps: 6, rarity: 'epic', target: 'PIERCE', stagger: 1, element: 'STORM', colorHex: '#EA580C', icon: '⚡' }),
 
   // SNATCH: the most explosive lift. A dive onto the back row and the biggest single hit in the game.
-  designCard({ templateId: 'snatch_phoenix', name: 'Phoenix Ascension', exercise: 'SNATCH', reps: 5, rarity: 'rare', target: 'BACK', colorHex: '#EF4444', icon: '🔥' }),
-  designCard({ templateId: 'snatch_solar', name: 'Solar Talon', exercise: 'SNATCH', reps: 8, rarity: 'legendary', target: 'SINGLE', stagger: 2, colorHex: '#B91C1C', icon: '🦅' }),
+  designCard({ templateId: 'snatch_phoenix', name: 'Phoenix Ascension', exercise: 'SNATCH', reps: 5, rarity: 'rare', target: 'BACK', element: 'FIRE', colorHex: '#EF4444', icon: '🔥' }),
+  designCard({ templateId: 'snatch_solar', name: 'Solar Talon', exercise: 'SNATCH', reps: 8, rarity: 'legendary', target: 'SINGLE', stagger: 2, element: 'FIRE', colorHex: '#B91C1C', icon: '🦅' }),
 
   // WINDMILL: slow and controlled. Defensive, with healing.
-  designCard({ templateId: 'windmill_astral', name: 'Astral Spire', exercise: 'WINDMILL', reps: 3, rarity: 'rare', target: 'SINGLE', blockShare: 0.65, colorHex: '#00EB88', icon: '🌌' }),
-  designCard({ templateId: 'windmill_cosmic', name: 'Cosmic Ward', exercise: 'WINDMILL', reps: 5, rarity: 'epic', target: 'SINGLE', blockShare: 0.55, healShare: 0.25, colorHex: '#10B981', icon: '🛡️' }),
+  designCard({ templateId: 'windmill_astral', name: 'Astral Spire', exercise: 'WINDMILL', reps: 3, rarity: 'rare', target: 'SINGLE', blockShare: 0.65, element: 'HOLY', colorHex: '#00EB88', icon: '🌌' }),
+  designCard({ templateId: 'windmill_cosmic', name: 'Cosmic Ward', exercise: 'WINDMILL', reps: 5, rarity: 'epic', target: 'SINGLE', blockShare: 0.55, healShare: 0.25, element: 'HOLY', colorHex: '#10B981', icon: '🛡️' }),
 
   // DEADLIFT: rooted strength. Sustain, and a legendary armor-breaking line attack.
-  designCard({ templateId: 'deadlift_colossus', name: 'Root of Titans', exercise: 'DEADLIFT', reps: 5, rarity: 'common', target: 'SINGLE', blockShare: 0.55, healShare: 0.2, colorHex: '#84CC16', icon: '🌲' }),
-  designCard({ templateId: 'deadlift_sunder', name: 'Mountain Sunder', exercise: 'DEADLIFT', reps: 7, rarity: 'legendary', target: 'PIERCE', shatter: true, colorHex: '#D97706', icon: '⛰️' }),
+  designCard({ templateId: 'deadlift_colossus', name: 'Root of Titans', exercise: 'DEADLIFT', reps: 5, rarity: 'common', target: 'SINGLE', blockShare: 0.55, healShare: 0.2, element: 'NATURE', colorHex: '#84CC16', icon: '🌲' }),
+  designCard({ templateId: 'deadlift_sunder', name: 'Mountain Sunder', exercise: 'DEADLIFT', reps: 7, rarity: 'legendary', target: 'PIERCE', shatter: true, element: 'EARTH', colorHex: '#D97706', icon: '⛰️' }),
 
   // THRUSTER: full-body and exhausting. A meteor onto the back row and the strongest AOE.
-  designCard({ templateId: 'thruster_eruption', name: 'Solar Eruption', exercise: 'THRUSTER', reps: 4, rarity: 'rare', target: 'BACK', blockShare: 0.15, colorHex: '#F59E0B', icon: '☄️' }),
-  designCard({ templateId: 'thruster_supernova', name: 'Supernova Surge', exercise: 'THRUSTER', reps: 6, rarity: 'epic', target: 'ALL', colorHex: '#D97706', icon: '🌟' }),
+  designCard({ templateId: 'thruster_eruption', name: 'Solar Eruption', exercise: 'THRUSTER', reps: 4, rarity: 'rare', target: 'BACK', blockShare: 0.15, element: 'FIRE', colorHex: '#F59E0B', icon: '☄️' }),
+  designCard({ templateId: 'thruster_supernova', name: 'Supernova Surge', exercise: 'THRUSTER', reps: 6, rarity: 'epic', target: 'ALL', element: 'HOLY', colorHex: '#D97706', icon: '🌟' }),
 
   // GORILLA ROW: tearing, alternating pulls. A flurry that spreads across the pack.
   designCard({ templateId: 'row_beast_maw', name: 'Beast Maw', exercise: 'GORILLA_ROW', reps: 5, rarity: 'common', target: 'SINGLE', blockShare: 0.2, colorHex: '#84CC16', icon: '🦍' }),
-  designCard({ templateId: 'row_shadow_ripper', name: 'Shadow Ripper', exercise: 'GORILLA_ROW', reps: 8, rarity: 'rare', target: 'CHAIN', hits: 4, colorHex: '#65A30D', icon: '🗡️' }),
+  designCard({ templateId: 'row_shadow_ripper', name: 'Shadow Ripper', exercise: 'GORILLA_ROW', reps: 8, rarity: 'rare', target: 'CHAIN', hits: 4, element: 'VOID', colorHex: '#65A30D', icon: '🗡️' }),
 
   // HALO: mobility. Protection, healing, and a vortex that slows every foe.
-  designCard({ templateId: 'halo_barrier', name: 'Celestial Barrier', exercise: 'HALO', reps: 4, rarity: 'rare', target: 'SINGLE', blockShare: 0.75, healShare: 0.25, colorHex: '#818CF8', icon: '💫' }),
-  designCard({ templateId: 'halo_vortex', name: 'Astral Vortex', exercise: 'HALO', reps: 5, rarity: 'epic', target: 'ALL', stagger: 1, blockShare: 0.3, colorHex: '#C084FC', icon: '🌀' }),
+  designCard({ templateId: 'halo_barrier', name: 'Celestial Barrier', exercise: 'HALO', reps: 4, rarity: 'rare', target: 'SINGLE', blockShare: 0.75, healShare: 0.25, element: 'HOLY', colorHex: '#818CF8', icon: '💫' }),
+  designCard({ templateId: 'halo_vortex', name: 'Astral Vortex', exercise: 'HALO', reps: 5, rarity: 'epic', target: 'ALL', stagger: 1, blockShare: 0.3, element: 'STORM', colorHex: '#C084FC', icon: '🌀' }),
 
   // SINGLE-LEG RDL: balance and precision. Guarded strikes and a precise armor-piercing reach.
-  designCard({ templateId: 'rdl_valkyrie', name: 'Valkyrie Balance', exercise: 'SINGLE_LEG_RDL', reps: 4, rarity: 'rare', target: 'SINGLE', blockShare: 0.55, colorHex: '#EC4899', icon: '🕊️' }),
-  designCard({ templateId: 'rdl_crane', name: 'Crane Strike', exercise: 'SINGLE_LEG_RDL', reps: 6, rarity: 'epic', target: 'BACK', shatter: true, colorHex: '#DB2777', icon: '🦩' }),
+  designCard({ templateId: 'rdl_valkyrie', name: 'Valkyrie Balance', exercise: 'SINGLE_LEG_RDL', reps: 4, rarity: 'rare', target: 'SINGLE', blockShare: 0.55, element: 'HOLY', colorHex: '#EC4899', icon: '🕊️' }),
+  designCard({ templateId: 'rdl_crane', name: 'Crane Strike', exercise: 'SINGLE_LEG_RDL', reps: 6, rarity: 'epic', target: 'BACK', shatter: true, element: 'STORM', colorHex: '#DB2777', icon: '🦩' }),
 
   // CLEAN (new): snapping hip drive. An interrupting uppercut and a ricocheting bell.
   designCard({ templateId: 'clean_uppercut', name: 'Iron Uppercut', exercise: 'CLEAN', reps: 4, rarity: 'common', target: 'SINGLE', stagger: 1.5, colorHex: '#FB923C', icon: '👊' }),
   designCard({ templateId: 'clean_ricochet', name: 'Ricochet Bell', exercise: 'CLEAN', reps: 6, rarity: 'rare', target: 'CHAIN', hits: 3, colorHex: '#FACC15', icon: '🔔' }),
 
   // LUNGE (new): stepping strikes. A spear thrust through the line and a shielded advance.
-  designCard({ templateId: 'lunge_lancer', name: "Lancer's Lunge", exercise: 'LUNGE', reps: 4, rarity: 'common', target: 'PIERCE', colorHex: '#22D3EE', icon: '🔱' }),
+  designCard({ templateId: 'lunge_lancer', name: "Lancer's Lunge", exercise: 'LUNGE', reps: 4, rarity: 'common', target: 'PIERCE', element: 'FROST', colorHex: '#22D3EE', icon: '🔱' }),
   designCard({ templateId: 'lunge_vanguard', name: 'Vanguard Step', exercise: 'LUNGE', reps: 5, rarity: 'rare', target: 'SINGLE', blockShare: 0.4, stagger: 1, colorHex: '#94A3B8', icon: '🛡️' }),
 ];
 

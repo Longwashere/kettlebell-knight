@@ -19,6 +19,7 @@ import { type MonsterMoveId, CARD_CATALOG, STARTER_CARD_IDS } from '../../types/
 import type { VfxName } from '../engine/vfx';
 import { BATTLE_MAPS, BattleMapId } from '../engine/GameEngine';
 import { CAMPAIGN_MAPS } from '../../shared/expeditionEngine';
+import { STAT_INFO, weaponLevelReq } from '../../shared/progression';
 import { 
   Tv, 
   Smartphone, 
@@ -26,10 +27,8 @@ import {
   Volume2, 
   VolumeX, 
   Swords, 
-  Flame, 
   Award, 
   Activity, 
-  Heart, 
   Shield, 
   Wifi, 
   LogOut 
@@ -163,11 +162,6 @@ export const GameScreen: React.FC = () => {
         setHighestPower((prev) => {
           const next = Math.max(prev, telemetry.power);
           profileManager.saveActiveProfile({ highestPower: next });
-          return next;
-        });
-        setPlayerGold((prev) => {
-          const next = prev + Math.round(telemetry.power * 0.5);
-          profileManager.saveActiveProfile({ gold: next });
           return next;
         });
       }
@@ -326,10 +320,16 @@ export const GameScreen: React.FC = () => {
     }
   }, []);
 
-  // Equip item
+  // Equip item: bought once, then owned (weapons keep their level). Weapons need the knight's level.
+  const ownedItems = new Set(profile?.unlockedItems ?? ['iron_kettlebell']);
   const handleEquipShopItem = (item: EquipmentItem) => {
-    if (playerGold >= item.price || equippedItems.has(item.id)) {
-      if (!equippedItems.has(item.id) && item.price > 0) {
+    if (item.slot === 'weapon' && (profile?.level ?? 1) < weaponLevelReq(item.level)) {
+      audioManager.play('warn');
+      return;
+    }
+    const owned = ownedItems.has(item.id) || equippedItems.has(item.id);
+    if (playerGold >= item.price || owned) {
+      if (!owned && item.price > 0) {
         setPlayerGold((prev) => prev - item.price);
       }
       setEquippedItems((prev) => {
@@ -344,7 +344,8 @@ export const GameScreen: React.FC = () => {
       handlePreviewShopItem(item);
       audioManager.play('equip');
       profileManager.saveActiveProfile({
-        gold: playerGold >= item.price && !equippedItems.has(item.id) ? playerGold - item.price : playerGold,
+        gold: !owned ? playerGold - item.price : playerGold,
+        unlockedItems: owned ? [...ownedItems] : [...ownedItems, item.id],
         equippedItems: {
           ...(profile?.equippedItems || { weapon: 'iron_kettlebell' }),
           [item.slot]: item.id,
@@ -537,20 +538,19 @@ export const GameScreen: React.FC = () => {
                   🪙 {playerGold} GP
                 </span>
               </div>
-              {/* HP & Stamina Bars */}
+              {/* Experience bar and the knight's stats */}
               <div className="flex items-center gap-3 mt-1.5">
-                <div className="flex items-center gap-1">
-                  <Heart className="w-3.5 h-3.5 text-[#FF3366] fill-[#FF3366]" />
+                <div className="flex items-center gap-1" title={`${profile?.xp ?? 0} / ${profile?.maxXp ?? 0} XP to next level`}>
+                  <Sparkles className="w-3.5 h-3.5 text-[#C084FC]" />
                   <div className="w-24 h-2.5 bg-[#0F0E17] border border-[#2E2B44] overflow-hidden">
-                    <div className="w-[85%] h-full bg-[#FF3366]" />
+                    <div className="h-full bg-[#C084FC]" style={{ width: `${Math.min(100, ((profile?.xp ?? 0) / Math.max(1, profile?.maxXp ?? 1)) * 100)}%` }} />
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Flame className="w-3.5 h-3.5 text-[#F4B41A] fill-[#F4B41A]" />
-                  <div className="w-24 h-2.5 bg-[#0F0E17] border border-[#2E2B44] overflow-hidden">
-                    <div className="w-[100%] h-full bg-[#F4B41A]" />
-                  </div>
-                </div>
+                {(['str', 'hp', 'spd'] as const).map((k) => (
+                  <span key={k} className="font-pixel text-[9px]" style={{ color: STAT_INFO[k].color }} title={STAT_INFO[k].hint}>
+                    {STAT_INFO[k].icon} {STAT_INFO[k].label} {profile?.stats?.[k] ?? (k === 'str' ? 20 : k === 'hp' ? 100 : 0)}
+                  </span>
+                ))}
               </div>
             </div>
           </div>
@@ -642,6 +642,9 @@ export const GameScreen: React.FC = () => {
               onBack={() => setCurrentView('HUB')}
               playerGold={playerGold}
               equippedIds={equippedItems}
+              ownedIds={ownedItems}
+              knightLevel={profile?.level ?? 1}
+              weaponCasts={profile?.weaponCasts ?? {}}
             />
           )}
 

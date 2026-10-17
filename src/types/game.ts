@@ -1,4 +1,5 @@
 // 32-Bit Retro Fitness RPG Core Types
+import type { Element } from '../shared/elements';
 
 export type RepEvent = 'REP_TRIGGER' | 'REP_UPDATE' | 'CALIBRATION' | 'HIKE_ENTER' | 'DRIVE_ENTER';
 
@@ -171,6 +172,8 @@ export interface EquipmentItem {
   name: string;
   slot: EquipmentSlot;
   weaponType?: WeaponType;
+  /** Elemental weapon: trades raw Attack for elemental damage on every hit (src/shared/elements.ts). */
+  element?: Element;
   attachmentId: string;
   level: number;
   powerBonus: number;

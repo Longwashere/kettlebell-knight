@@ -1,505 +1,12 @@
 import React from 'react';
 import { EquipmentItem } from '../../types/game';
+import { SHOP_ITEMS } from '../../shared/shopItems';
+import { ELEMENT_INFO } from '../../shared/elements';
+import { WEAPON_MAX_LEVEL, castsForWeaponLevel, levelProgress, weaponLevel, weaponLevelReq, weaponStats } from '../../shared/progression';
+
+export { SHOP_ITEMS };
 import { Shield, Hammer, Sparkles, Coins, ArrowLeft } from 'lucide-react';
 
-export const SHOP_ITEMS: EquipmentItem[] = [
-  // --- MORNING STAR TYPES (Handle + chains + spiked kettlebell) ---
-  {
-    id: 'iron_morningstar',
-    name: 'Iron Morning Star',
-    slot: 'weapon',
-    weaponType: 'morningstar',
-    attachmentId: 'iron_morningstar',
-    level: 3,
-    powerBonus: 25,
-    formMultiplier: 1.15,
-    price: 150,
-    rarity: 'rare',
-    description: '32kg spiked kettlebell swung from heavy forged iron chain links.',
-    colorHex: '#94A3B8',
-  },
-  {
-    id: 'slime_morningstar',
-    name: 'Acid Slime Flail',
-    slot: 'weapon',
-    weaponType: 'morningstar',
-    attachmentId: 'slime_morningstar',
-    level: 2,
-    powerBonus: 20,
-    formMultiplier: 1.12,
-    price: 110,
-    rarity: 'common',
-    description: '24kg bubbling caustic slime bell suspended by dripping ooze strands.',
-    colorHex: '#22C55E',
-  },
-  {
-    id: 'spider_morningstar',
-    name: 'Arachnid Silk Star',
-    slot: 'weapon',
-    weaponType: 'morningstar',
-    attachmentId: 'spider_morningstar',
-    level: 3,
-    powerBonus: 26,
-    formMultiplier: 1.18,
-    price: 160,
-    rarity: 'rare',
-    description: '28kg venomous egg-sac kettlebell hanging on tensile braided spider-silk.',
-    colorHex: '#A855F7',
-  },
-  {
-    id: 'crypt_morningstar',
-    name: 'Cathedral Soul Censer',
-    slot: 'weapon',
-    weaponType: 'morningstar',
-    attachmentId: 'crypt_morningstar',
-    level: 5,
-    powerBonus: 40,
-    formMultiplier: 1.25,
-    price: 320,
-    rarity: 'rare',
-    description: '40kg ornate silver sanctuary censer bell streaming ethereal soul incense on heavy links.',
-    colorHex: '#38BDF8',
-  },
-  {
-    id: 'hellhound_morningstar',
-    name: 'Brimstone Ember Flail',
-    slot: 'weapon',
-    weaponType: 'morningstar',
-    attachmentId: 'hellhound_morningstar',
-    level: 6,
-    powerBonus: 46,
-    formMultiplier: 1.3,
-    price: 420,
-    rarity: 'epic',
-    description: '44kg volcanic slag bell swinging on white-hot chain links. Smells of sulfur and hellfire.',
-    colorHex: '#EF4444',
-  },
-  {
-    id: 'frost_morningstar',
-    name: 'Glacial Permafrost Flail',
-    slot: 'weapon',
-    weaponType: 'morningstar',
-    attachmentId: 'frost_morningstar',
-    level: 7,
-    powerBonus: 52,
-    formMultiplier: 1.35,
-    price: 500,
-    rarity: 'epic',
-    description: '48kg permafrost glacial bell tethered by frozen rime links. Shatters frost crystals on swings.',
-    colorHex: '#93C5FD',
-  },
-  {
-    id: 'troll_morningstar',
-    name: 'Troll Boulder Star',
-    slot: 'weapon',
-    weaponType: 'morningstar',
-    attachmentId: 'troll_morningstar',
-    level: 8,
-    powerBonus: 62,
-    formMultiplier: 1.4,
-    price: 590,
-    rarity: 'epic',
-    description: '68kg river-carved boulder bell lashed with brutal warpaint onto logging chains.',
-    colorHex: '#78716C',
-  },
-  {
-    id: 'kraken_morningstar',
-    name: 'Kraken Anchor Star',
-    slot: 'weapon',
-    weaponType: 'morningstar',
-    attachmentId: 'kraken_morningstar',
-    level: 9,
-    powerBonus: 75,
-    formMultiplier: 1.5,
-    price: 720,
-    rarity: 'legendary',
-    description: '80kg barnacled deep-sea anchor bell swinging from a muscular kraken tentacle chain.',
-    colorHex: '#14B8A6',
-  },
-  {
-    id: 'excalibur_morningstar',
-    name: 'Solar Morning Star',
-    slot: 'weapon',
-    weaponType: 'morningstar',
-    attachmentId: 'excalibur_morningstar',
-    level: 6,
-    powerBonus: 45,
-    formMultiplier: 1.3,
-    price: 350,
-    rarity: 'epic',
-    description: '48kg spiked sun-core bell bound by enchanted golden chain links.',
-    colorHex: '#FBBF24',
-  },
-  {
-    id: 'dragon_morningstar',
-    name: 'Dragon Morning Star',
-    slot: 'weapon',
-    weaponType: 'morningstar',
-    attachmentId: 'dragon_morningstar',
-    level: 8,
-    powerBonus: 65,
-    formMultiplier: 1.45,
-    price: 600,
-    rarity: 'legendary',
-    description: '64kg molten spiked bell connected by searing dragon inferno chains.',
-    colorHex: '#EF4444',
-  },
-  {
-    id: 'void_morningstar',
-    name: 'Void Morning Star',
-    slot: 'weapon',
-    weaponType: 'morningstar',
-    attachmentId: 'void_morningstar',
-    level: 10,
-    powerBonus: 85,
-    formMultiplier: 1.6,
-    price: 900,
-    rarity: 'legendary',
-    description: '100kg cosmic spiked sphere tethered by gravitational warp chains.',
-    colorHex: '#C084FC',
-  },
-
-  // --- BELL TYPES (Pure compact kettlebells gripped by top handle) ---
-  {
-    id: 'iron_kettlebell',
-    name: 'Cast Iron Bell',
-    slot: 'weapon',
-    weaponType: 'bell',
-    attachmentId: 'iron_kettlebell',
-    level: 1,
-    powerBonus: 0,
-    formMultiplier: 1.0,
-    price: 0,
-    rarity: 'common',
-    description: 'Standard 32kg competition cast iron bell. Indestructible grip.',
-    colorHex: '#6B7280',
-  },
-  {
-    id: 'mushroom_bell',
-    name: 'Fungal Spore Bell',
-    slot: 'weapon',
-    weaponType: 'bell',
-    attachmentId: 'mushroom_bell',
-    level: 2,
-    powerBonus: 18,
-    formMultiplier: 1.1,
-    price: 100,
-    rarity: 'common',
-    description: '20kg bioluminescent mushroom cap bell with fungal horn arch. Emits gentle spores on swings.',
-    colorHex: '#C084FC',
-  },
-  {
-    id: 'harpy_bell',
-    name: 'Sky-Raptor Talon Bell',
-    slot: 'weapon',
-    weaponType: 'bell',
-    attachmentId: 'harpy_bell',
-    level: 4,
-    powerBonus: 34,
-    formMultiplier: 1.22,
-    price: 240,
-    rarity: 'rare',
-    description: '30kg aerodynamic mountain-bronze bell gripped by razor raptor talons. Slices high altitude air.',
-    colorHex: '#FCD34D',
-  },
-  {
-    id: 'treemon_bell',
-    name: 'Living Ironwood Bell',
-    slot: 'weapon',
-    weaponType: 'bell',
-    attachmentId: 'treemon_bell',
-    level: 5,
-    powerBonus: 38,
-    formMultiplier: 1.25,
-    price: 300,
-    rarity: 'rare',
-    description: '36kg ancient ironwood bell rooted with forest moss and sprouting leaves. Carved by Treants.',
-    colorHex: '#4ADE80',
-  },
-  {
-    id: 'golem_bell',
-    name: 'Granite Rune Bell',
-    slot: 'weapon',
-    weaponType: 'bell',
-    attachmentId: 'golem_bell',
-    level: 7,
-    powerBonus: 58,
-    formMultiplier: 1.38,
-    price: 540,
-    rarity: 'epic',
-    description: '72kg chiseled tectonic boulder bell reinforced with rebar and glowing runic cyan ley-cracks.',
-    colorHex: '#38BDF8',
-  },
-  {
-    id: 'eldritch_bell',
-    name: 'All-Seeing Cosmic Bell',
-    slot: 'weapon',
-    weaponType: 'bell',
-    attachmentId: 'eldritch_bell',
-    level: 10,
-    powerBonus: 88,
-    formMultiplier: 1.6,
-    price: 900,
-    rarity: 'legendary',
-    description: '120kg cosmic flesh bell with writhing tentacle handle and a giant unblinking golden eye.',
-    colorHex: '#9333EA',
-  },
-  {
-    id: 'excalibur_bell',
-    name: 'Excalibur Bell',
-    slot: 'weapon',
-    weaponType: 'bell',
-    attachmentId: 'excalibur_bell',
-    level: 5,
-    powerBonus: 35,
-    formMultiplier: 1.25,
-    price: 250,
-    rarity: 'epic',
-    description: '48kg bell forged in holy fire. Blasts golden shockwaves on lockout.',
-    colorHex: '#F4B41A',
-  },
-  {
-    id: 'dragon_kettlebell',
-    name: 'Dragon Bell',
-    slot: 'weapon',
-    weaponType: 'bell',
-    attachmentId: 'dragon_kettlebell',
-    level: 8,
-    powerBonus: 55,
-    formMultiplier: 1.4,
-    price: 500,
-    rarity: 'legendary',
-    description: '64kg molten dragon core. Emits searing flames with each explosive drive.',
-    colorHex: '#DC2626',
-  },
-  {
-    id: 'void_bell',
-    name: 'Void Bell',
-    slot: 'weapon',
-    weaponType: 'bell',
-    attachmentId: 'void_bell',
-    level: 10,
-    powerBonus: 70,
-    formMultiplier: 1.5,
-    price: 750,
-    rarity: 'legendary',
-    description: '100kg fallen star bell. Gravity snap amplifies rep momentum.',
-    colorHex: '#A855F7',
-  },
-
-  // --- MACE TYPES (Rigid haft with welded kettlebell head) ---
-  {
-    id: 'goblin_mace',
-    name: 'Goblin Scrap Mace',
-    slot: 'weapon',
-    weaponType: 'mace',
-    attachmentId: 'goblin_mace',
-    level: 2,
-    powerBonus: 16,
-    formMultiplier: 1.1,
-    price: 90,
-    rarity: 'common',
-    description: 'Crude 16kg scrap kettlebell lashed with hemp to a spiked bough. Dropped by Cave Goblins.',
-    colorHex: '#A3E635',
-  },
-  {
-    id: 'iron_mace',
-    name: 'Iron Kettle Mace',
-    slot: 'weapon',
-    weaponType: 'mace',
-    attachmentId: 'iron_mace',
-    level: 4,
-    powerBonus: 30,
-    formMultiplier: 1.2,
-    price: 200,
-    rarity: 'rare',
-    description: 'Rigid oak haft with steel collar welded to a 32kg flanged kettlebell head.',
-    colorHex: '#78716C',
-  },
-  {
-    id: 'skeleton_mace',
-    name: 'Cryptkeeper Femur Mace',
-    slot: 'weapon',
-    weaponType: 'mace',
-    attachmentId: 'skeleton_mace',
-    level: 4,
-    powerBonus: 32,
-    formMultiplier: 1.2,
-    price: 220,
-    rarity: 'rare',
-    description: '32kg skull-carved ossuary kettlebell mounted on a bleached femur shaft. Dropped by Skeleton Warriors.',
-    colorHex: '#E2E8F0',
-  },
-  {
-    id: 'cemetery_mace',
-    name: 'Cemetery Gate Mace',
-    slot: 'weapon',
-    weaponType: 'mace',
-    attachmentId: 'cemetery_mace',
-    level: 6,
-    powerBonus: 48,
-    formMultiplier: 1.3,
-    price: 380,
-    rarity: 'rare',
-    description: '54kg wrought iron tombstone bell on a graveyard iron picket shaft. Heavy kinetic crush.',
-    colorHex: '#94A3B8',
-  },
-  {
-    id: 'belfry_mace',
-    name: 'Belfry Bell Mace',
-    slot: 'weapon',
-    weaponType: 'mace',
-    attachmentId: 'belfry_mace',
-    level: 7,
-    powerBonus: 56,
-    formMultiplier: 1.35,
-    price: 460,
-    rarity: 'epic',
-    description: 'Reshaped 60kg cathedral bronze bell on an oak beam. Resonates deep tolling chimes on impact.',
-    colorHex: '#FBBF24',
-  },
-  {
-    id: 'inferno_mace',
-    name: 'Infernal Basalt Mace',
-    slot: 'weapon',
-    weaponType: 'mace',
-    attachmentId: 'inferno_mace',
-    level: 9,
-    powerBonus: 72,
-    formMultiplier: 1.45,
-    price: 680,
-    rarity: 'legendary',
-    description: '90kg superheated molten basalt kettlebell head. Radiates intense lava heat from core fissure cracks.',
-    colorHex: '#EA580C',
-  },
-
-  // --- SWORD TYPES (Kettlebell Blades) ---
-  {
-    id: 'knight_sword',
-    name: "Knight's Greatsword",
-    slot: 'weapon',
-    weaponType: 'sword',
-    attachmentId: 'sword',
-    level: 1,
-    powerBonus: 10,
-    formMultiplier: 1.05,
-    price: 50,
-    rarity: 'common',
-    description: 'The tempered steel broadsword carried by Sir Kettleburne.',
-    colorHex: '#94A3B8',
-  },
-  {
-    id: 'wolf_sword',
-    name: 'Lupine Predator Saber',
-    slot: 'weapon',
-    weaponType: 'sword',
-    attachmentId: 'wolf_sword',
-    level: 3,
-    powerBonus: 22,
-    formMultiplier: 1.15,
-    price: 140,
-    rarity: 'common',
-    description: '24kg blue-steel kettlebell basket guard forged into a curved predator hunting blade.',
-    colorHex: '#60A5FA',
-  },
-  {
-    id: 'boar_sword',
-    name: 'Tusked Cleaver Sword',
-    slot: 'weapon',
-    weaponType: 'sword',
-    attachmentId: 'boar_sword',
-    level: 4,
-    powerBonus: 30,
-    formMultiplier: 1.2,
-    price: 210,
-    rarity: 'rare',
-    description: '32kg rugged iron kettlebell core flanked by ivory boar tusks and a serrated hunting blade.',
-    colorHex: '#F87171',
-  },
-  {
-    id: 'minotaur_sword',
-    name: 'Labyrinth Horned Cleaver',
-    slot: 'weapon',
-    weaponType: 'sword',
-    attachmentId: 'minotaur_sword',
-    level: 6,
-    powerBonus: 48,
-    formMultiplier: 1.3,
-    price: 430,
-    rarity: 'epic',
-    description: '50kg solid bronze kettlebell core with curving bull horns driving a brutal executioner cleaver.',
-    colorHex: '#F59E0B',
-  },
-  {
-    id: 'dragon_sword',
-    name: 'Dragonheart Flameblade',
-    slot: 'weapon',
-    weaponType: 'sword',
-    attachmentId: 'dragon_sword',
-    level: 8,
-    powerBonus: 68,
-    formMultiplier: 1.45,
-    price: 650,
-    rarity: 'legendary',
-    description: '88kg draconic heart kettlebell radiating dragon fire into a scorch-etched broadsword.',
-    colorHex: '#DC2626',
-  },
-  {
-    id: 'void_sword',
-    name: 'Singularity Voidblade',
-    slot: 'weapon',
-    weaponType: 'sword',
-    attachmentId: 'void_sword',
-    level: 10,
-    powerBonus: 82,
-    formMultiplier: 1.55,
-    price: 850,
-    rarity: 'legendary',
-    description: '108kg dark matter singularity kettlebell core projecting an event-horizon obsidian blade.',
-    colorHex: '#A855F7',
-  },
-
-  // --- DEFENSIVE GEAR ---
-  {
-    id: 'aegis_shield',
-    name: 'Aegis Shield',
-    slot: 'shield',
-    attachmentId: 'aegis_shield',
-    level: 4,
-    powerBonus: 15,
-    formMultiplier: 1.15,
-    price: 300,
-    rarity: 'rare',
-    description: 'Gleaming divine bulwark. Guards against fatigue during high rep sets.',
-    colorHex: '#38B6FF',
-  },
-  {
-    id: 'golden_crown',
-    name: 'Golden Crown',
-    slot: 'helmet',
-    attachmentId: 'golden_crown',
-    level: 6,
-    powerBonus: 25,
-    formMultiplier: 1.2,
-    price: 400,
-    rarity: 'epic',
-    description: 'Royal headpiece. Bestows knightly fervor and +20% gold from workouts.',
-    colorHex: '#F59E0B',
-  },
-  {
-    id: 'paladin_plate',
-    name: 'Paladin Plate',
-    slot: 'armor',
-    attachmentId: 'paladin_plate',
-    level: 5,
-    powerBonus: 30,
-    formMultiplier: 1.2,
-    price: 350,
-    rarity: 'rare',
-    description: 'Masterwork armor. Enhances core stability during the hike phase.',
-    colorHex: '#D97706',
-  },
-];
 
 interface BlacksmithShopProps {
   selectedIndex: number;
@@ -508,6 +15,10 @@ interface BlacksmithShopProps {
   onBack: () => void;
   playerGold: number;
   equippedIds: Set<string>;
+  ownedIds: Set<string>;
+  knightLevel: number;
+  /** Cards cast per weapon: weapon levels. */
+  weaponCasts: Record<string, number>;
 }
 
 export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
@@ -517,6 +28,9 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
   onBack,
   playerGold,
   equippedIds,
+  ownedIds,
+  knightLevel,
+  weaponCasts,
 }) => {
   return (
     <div className="bg-[#1A1926]/95 border-4 border-[#F4B41A] p-6 max-w-2xl w-full mx-auto rounded shadow-pixel-box-gold backdrop-blur-md">
@@ -548,6 +62,12 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
         {SHOP_ITEMS.map((item, index) => {
           const isSelected = selectedIndex === index;
           const isEquipped = equippedIds.has(item.id);
+          const isOwned = ownedIds.has(item.id);
+          const isWeapon = item.slot === 'weapon';
+          const levelReq = isWeapon ? weaponLevelReq(item.level) : 1;
+          const isLocked = knightLevel < levelReq;
+          const wLevel = weaponLevel(weaponCasts[item.id]);
+          const w = isWeapon ? weaponStats(item.id, wLevel) : null;
 
           return (
             <div
@@ -578,7 +98,7 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
                   </div>
                   <div className="flex items-center gap-1.5 mt-1">
                     <span className="text-[9px] font-pixel uppercase tracking-widest text-[#38B6FF]">
-                      {item.slot} • LVL {item.level}
+                      {item.slot} • {item.slot === 'weapon' ? 'TIER' : 'LVL'} {item.level}
                     </span>
                     {item.weaponType && (
                       <span className={`text-[8px] font-pixel px-1 py-0.5 rounded border leading-none ${
@@ -597,6 +117,14 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
                   <span className="text-[9px] bg-[#00EB88]/20 border border-[#00EB88] text-[#00EB88] font-pixel px-1.5 py-0.5">
                     EQUIPPED
                   </span>
+                ) : isLocked ? (
+                  <span className="text-[9px] bg-[#FF3366]/20 border border-[#FF3366] text-[#FF3366] font-pixel px-1.5 py-0.5">
+                    🔒 KNIGHT LV {levelReq}
+                  </span>
+                ) : isOwned ? (
+                  <span className="text-[9px] bg-[#38B6FF]/20 border border-[#38B6FF] text-[#38B6FF] font-pixel px-1.5 py-0.5">
+                    OWNED
+                  </span>
                 ) : (
                   <span className="text-[10px] font-mono text-[#F4B41A] font-bold">
                     {item.price > 0 ? `${item.price} GP` : 'FREE'}
@@ -608,10 +136,34 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
                 {item.description}
               </p>
 
-              <div className="mt-2 flex items-center gap-3 text-[9px] font-pixel text-[#00EB88]">
-                <span>+{item.powerBonus} PWR</span>
-                <span>×{item.formMultiplier} FORM</span>
-              </div>
+              {w ? (
+                <div className="mt-2 space-y-1">
+                  <div className="flex items-center gap-3 text-[9px] font-pixel">
+                    <span className="text-[#FF3366]">+{w.atk} ATK</span>
+                    {w.element ? (
+                      <span style={{ color: ELEMENT_INFO[w.element].color }}>
+                        {ELEMENT_INFO[w.element].icon} +{w.elemDmg} {ELEMENT_INFO[w.element].label}
+                      </span>
+                    ) : (
+                      <span className="text-[#A7A9BE]">PLAIN STEEL</span>
+                    )}
+                    <span className="text-[#F4B41A]">WPN LV {wLevel}</span>
+                  </div>
+                  {(isOwned || isEquipped) && wLevel < WEAPON_MAX_LEVEL && (
+                    <div
+                      className="w-full h-1 bg-[#0F0E17] border border-[#2E2B44] overflow-hidden"
+                      title={`${weaponCasts[item.id] ?? 0} / ${castsForWeaponLevel(wLevel + 1)} casts to weapon level ${wLevel + 1}`}
+                    >
+                      <div className="h-full bg-[#F4B41A]" style={{ width: `${levelProgress(weaponCasts[item.id] ?? 0, castsForWeaponLevel, WEAPON_MAX_LEVEL) * 100}%` }} />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-2 flex items-center gap-3 text-[9px] font-pixel text-[#00EB88]">
+                  <span>+{item.powerBonus} PWR</span>
+                  <span>×{item.formMultiplier} FORM</span>
+                </div>
+              )}
             </div>
           );
         })}

@@ -1,6 +1,11 @@
 /** Battle-wide rules shared by the TV battle screen and the balance simulator. */
 
-export const PLAYER_MAX_HP = 100;
+/**
+ * Gold is earned in battle only: every rep adds to the fight's purse (harder reps add more), and the
+ * purse is kept only if the fight is won. Losing forfeits it; reps outside battle earn nothing.
+ */
+export const GOLD_PER_POWER = 1 / 40;
+export const repGold = (power: number) => Math.max(1, Math.round(power * GOLD_PER_POWER));
 
 /**
  * Block crumbles over time, so defensive cards have to be timed against the visible monster intents

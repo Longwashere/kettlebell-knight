@@ -1,6 +1,6 @@
 import { BattleMapId, EncounterTemplate } from '../types/battle';
 import { ENCOUNTERS } from '../types/encounters';
-import { BATTLE_MAPS } from '../tv/engine/GameEngine';
+import { BATTLE_MAPS } from '../tv/engine/battleMaps';
 
 export interface LevelExpeditionConfig {
   level: number; // 1 to 5
@@ -41,6 +41,19 @@ export const CAMPAIGN_MAP_ORDER: BattleMapId[] = [
   'ELDRITCH_ALTAR',
   'OBSIDIAN_THRONE',
 ];
+
+/** Map position in the campaign, 0-based (TOWN_NIGHT shares TOWN_SQUARE's). */
+export function mapTier(map: BattleMapId | undefined): number {
+  if (!map) return 0;
+  if (map === 'TOWN_NIGHT') return CAMPAIGN_MAP_ORDER.indexOf('TOWN_SQUARE');
+  return Math.max(0, CAMPAIGN_MAP_ORDER.indexOf(map));
+}
+
+/**
+ * Knight level a stage is balanced for (src/shared/stageScaling.ts): 4 levels per map, 1 per expedition
+ * level within it.
+ */
+export const recommendedLevel = (map: BattleMapId | undefined, level = 1) => 1 + 4 * mapTier(map) + (level - 1);
 
 /**
  * Builds 5 progressive level expeditions for any given map from its curated encounter pool.
@@ -453,6 +466,12 @@ export const CAMPAIGN_MAPS: Record<BattleMapId, CampaignMapConfig> = {
     ),
   },
 };
+
+// Level ranges follow the stage curve, not hand-typed numbers
+for (const cfg of Object.values(CAMPAIGN_MAPS)) {
+  cfg.recommendedPlayerLevel = recommendedLevel(cfg.id, 1);
+  cfg.levelRange = `LVL ${recommendedLevel(cfg.id, 1)}–${recommendedLevel(cfg.id, 5)}`;
+}
 
 /**
  * Helper to fetch a map's full configuration.

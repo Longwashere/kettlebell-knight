@@ -3,6 +3,8 @@ import type { CardRarity, CombatCard, CardTemplate } from '../../types/battle';
 import { getCardArt } from './cardArt';
 import { EXERCISE_GUIDES, getExerciseFrames, getExerciseStrip } from './exerciseGuide';
 import { TARGET_LABEL } from '../../shared/cardBalance';
+import { ELEMENT_INFO } from '../../shared/elements';
+import { cardLevelMultiplier } from '../../shared/progression';
 import type { CardTarget } from '../../types/battle';
 
 /**
@@ -26,7 +28,7 @@ const TargetPips: React.FC<{ target: CardTarget }> = ({ target }) => (
 );
 
 /** Rules text with its keywords (targeting, Block, Stagger, healing) highlighted. */
-const KEYWORDS = /(ALL foes|rearmost foe|foe behind|random foes|Ignores Block\.|Stagger [\d.]+s\.|Heal \d+\.|Gain \d+ Block\.)/;
+const KEYWORDS = /(ALL foes|rearmost foe|foe behind|random foes|Ignores Block\.|Stagger [\d.]+s\.|Heal \d+\.|Gain \d+ Block\.|FIRE|FROST|STORM|EARTH|NATURE|HOLY|VOID)/;
 const RulesText: React.FC<{ text: string }> = ({ text }) => (
   <>
     {text.split(KEYWORDS).map((part, i) => (i % 2 ? <b key={i} className="kk-kw">{part}</b> : part))}
@@ -46,6 +48,19 @@ const TYPE_GLYPH: Record<CombatCard['type'], string> = { ATTACK: '⚔', DEFENSE:
 function rgb(hex: string): string {
   const n = parseInt(hex.replace('#', ''), 16);
   return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+}
+
+/** The CSS variables a card face reads (accent colour and rarity metal), for showing a card outside the hand. */
+export function cardStyleVars(card: Pick<CardTemplate, 'colorHex' | 'rarity'>): React.CSSProperties {
+  const rarity = RARITY[card.rarity];
+  return {
+    '--accent': card.colorHex,
+    '--accent-rgb': rgb(card.colorHex),
+    '--rim': rarity.rim,
+    '--rim-dark': rarity.rimDark,
+    '--gem': rarity.gem,
+    '--foil-rgb': rarity.foil ?? '255, 255, 255',
+  } as React.CSSProperties;
 }
 
 interface CombatCardViewProps {
@@ -145,7 +160,7 @@ export const CardFront: React.FC<{ card: CombatCard | CardTemplate; newPip?: num
   return (
     <div className="kk-card kk-card--front">
       <div className="kk-card__head">
-        <div className="kk-card__cost" title={`${card.requiredReps} reps to cast`}>
+        <div className="kk-card__cost" title={card.baseReps > card.requiredReps ? `${card.requiredReps} reps to cast (${card.baseReps} before Speed)` : `${card.requiredReps} reps to cast`}>
           <span>{card.requiredReps}</span>
         </div>
         <div className="kk-card__name" style={{ fontSize: nameSize }}>{card.name}</div>
@@ -155,6 +170,16 @@ export const CardFront: React.FC<{ card: CombatCard | CardTemplate; newPip?: num
         <img src={art} alt="" className="pixelated" draggable={false} />
         {rarity.foil && <div className="kk-card__foil" />}
         {card.weaponId && <div className="kk-card__spell">✦ Weapon Spell</div>}
+        {card.element && (
+          <div className="kk-card__element" style={{ color: ELEMENT_INFO[card.element].color }}>
+            {ELEMENT_INFO[card.element].icon} {ELEMENT_INFO[card.element].label}
+          </div>
+        )}
+        {card.dmgPct > 0 && (
+          <div className="kk-card__power" title="Spell level • damage as a share of Attack">
+            LV{card.level ?? 1} <b>{Math.round(card.dmgPct * cardLevelMultiplier(card.level ?? 1) * 100)}%</b>
+          </div>
+        )}
       </div>
 
       <div className="kk-card__type">
@@ -207,6 +232,11 @@ export const CardFront: React.FC<{ card: CombatCard | CardTemplate; newPip?: num
           <div className="kk-stat__inner">
             <span className="kk-stat__glyph">⚔</span>
             {card.damage}
+            {card.infusion && (
+              <span className="kk-stat__infuse" style={{ color: ELEMENT_INFO[card.infusion.element].color }}>
+                +{card.infusion.damage}
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -272,8 +302,6 @@ export const CastBurst: React.FC<{ card: CombatCard; onDone?: () => void }> = ({
 );
 
 export const CombatCardView: React.FC<CombatCardViewProps> = ({ card, index, handSize, focused, flipped, onSelect, castGhost, dealDelayMs, onCastDone }) => {
-  const rarity = RARITY[card.rarity];
-
   // Animate only the pip that was just earned
   const prevReps = useRef(card.currentReps);
   const newPip = card.currentReps > prevReps.current ? card.currentReps - 1 : -1;
@@ -288,12 +316,7 @@ export const CombatCardView: React.FC<CombatCardViewProps> = ({ card, index, han
   const charge = !focused || card.currentReps === 0 ? '' : repsLeft <= 1 ? 'charged' : repsLeft === 2 ? 'tremble' : 'hum';
 
   const style = {
-    '--accent': card.colorHex,
-    '--accent-rgb': rgb(card.colorHex),
-    '--rim': rarity.rim,
-    '--rim-dark': rarity.rimDark,
-    '--gem': rarity.gem,
-    '--foil-rgb': rarity.foil ?? '255, 255, 255',
+    ...cardStyleVars(card),
     '--fan-rot': `${offset * 2.5}deg`,
     '--fan-y': `${Math.abs(offset) * 4 + 2}px`,
     '--deal-delay': `${dealDelayMs ?? index * 70}ms`,

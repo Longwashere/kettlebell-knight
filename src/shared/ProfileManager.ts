@@ -1,6 +1,25 @@
 import { BattleMapId, STARTER_CARD_IDS } from '../types/battle';
 import { ExerciseType } from '../types/game';
 import { evaluateCardUnlocks, CardUnlockDef } from './cardUnlocks';
+import {
+  BASE_STATS, MAX_LEVEL, buildLoadout, cardLevel, rollLevelUp, weaponLevel, weaponLevelReq, weaponStats,
+  type KnightStats, type Loadout, type StatKey,
+} from './progression';
+import { xpToNext } from './stageScaling';
+
+/** One level gained: which stat the level-up landed on and by how much. */
+export interface LevelUpEvent {
+  level: number;
+  stat: StatKey;
+  gain: number;
+}
+
+/** A card or weapon reaching a new level from being used. */
+export interface MasteryLevelUp {
+  kind: 'card' | 'weapon';
+  id: string;
+  level: number;
+}
 
 export interface MapLevelProgress {
   highestLevelCleared: number; // 0 = none, 1..5
@@ -44,6 +63,14 @@ export interface PlayerProfile {
   unlockedCards?: string[];
   /** Progression stats toward thematic card unlocks (monster kills, exercise reps, etc.). */
   unlockStats?: CardUnlockStats;
+  /** STR / HP / SPD (src/shared/progression.ts). maxHp mirrors stats.hp. */
+  stats?: KnightStats;
+  /** Stats left in the current level-up bag (each stat once per bag, random order). */
+  statBag?: StatKey[];
+  /** Times each card (templateId) was cast: its spell level. */
+  cardCasts?: Record<string, number>;
+  /** Cards cast with each weapon equipped: its weapon level. */
+  weaponCasts?: Record<string, number>;
   unlockedEncounters: number;
   unlockedMaps: BattleMapId[];
   mapProgress: Record<string, MapLevelProgress>;
@@ -60,7 +87,30 @@ export const DEFAULT_KNIGHT_NAME = 'SIR KETTLEBURNE';
 export const DEFAULT_KNIGHT_TITLE = 'IRON VANGUARD';
 
 export function calculateMaxXp(level: number): number {
-  return Math.round(100 * Math.pow(1.35, level - 1));
+  return xpToNext(level);
+}
+
+/** Everything combat needs from a knight: stats, weapon and its level, spell levels. */
+export function loadoutFor(profile: PlayerProfile | null | undefined, weaponId?: string): Loadout {
+  return buildLoadout({
+    level: profile?.level,
+    stats: profile?.stats,
+    weaponId: weaponId ?? profile?.equippedItems?.weapon ?? 'iron_kettlebell',
+    cardCasts: profile?.cardCasts,
+    weaponCasts: profile?.weaponCasts,
+  });
+}
+
+/** Stats for a save made before stats existed: its past level-ups, rolled now. */
+function migrateStats(level: number): { stats: KnightStats; statBag: StatKey[] } {
+  let stats = { ...BASE_STATS };
+  let bag: StatKey[] = [];
+  for (let l = 2; l <= level; l++) {
+    const roll = rollLevelUp(stats, bag);
+    stats = roll.stats;
+    bag = roll.bag;
+  }
+  return { stats, statBag: bag };
 }
 
 export function createDefaultProfile(slotId: string, name: string = DEFAULT_KNIGHT_NAME): PlayerProfile {
@@ -73,8 +123,12 @@ export function createDefaultProfile(slotId: string, name: string = DEFAULT_KNIG
     xp: 0,
     maxXp: calculateMaxXp(1),
     gold: 150,
-    currentHp: 100,
-    maxHp: 100,
+    currentHp: BASE_STATS.hp,
+    maxHp: BASE_STATS.hp,
+    stats: { ...BASE_STATS },
+    statBag: [],
+    cardCasts: {},
+    weaponCasts: {},
     power: 10,
     defense: 5,
     repsCompleted: 0,
@@ -140,6 +194,16 @@ class ProfileManager {
             }
             if (!slot.unlockedCards || slot.unlockedCards.length === 0) {
               slot.unlockedCards = [...STARTER_CARD_IDS];
+            }
+            if (!slot.stats) {
+              Object.assign(slot, migrateStats(Math.min(MAX_LEVEL, slot.level || 1)));
+              slot.cardCasts = slot.cardCasts ?? {};
+              slot.weaponCasts = slot.weaponCasts ?? {};
+              // The experience curve changed: keep the level, start it fresh
+              slot.maxXp = xpToNext(slot.level || 1);
+              slot.xp = Math.min(slot.xp || 0, slot.maxXp - 1);
+              slot.maxHp = slot.stats.hp;
+              slot.currentHp = slot.stats.hp;
             }
             if (!slot.unlockStats) {
               slot.unlockStats = {
@@ -309,26 +373,80 @@ class ProfileManager {
       nextUnlockedMaps.push(nextMapToUnlock);
     }
 
-    const nextXp = profile.xp + xpEarned;
-    let nextLvl = profile.level;
-    let nextMaxXp = profile.maxXp;
-    let currentXpPool = nextXp;
-    while (currentXpPool >= nextMaxXp) {
-      currentXpPool -= nextMaxXp;
-      nextLvl += 1;
-      nextMaxXp = calculateMaxXp(nextLvl);
-    }
-
-    return this.saveActiveProfile({
+    this.saveActiveProfile({
       gold: profile.gold + goldEarned,
-      xp: currentXpPool,
-      level: nextLvl,
-      maxXp: nextMaxXp,
       mapProgress: nextMapProgress,
       unlockedMaps: nextUnlockedMaps,
       repsCompleted: (profile.repsCompleted || 0) + reps,
       workoutSessions: (profile.workoutSessions || 0) + 1,
     });
+    this.awardXp(xpEarned);
+    return this.getActiveProfile();
+  }
+
+  /**
+   * Adds experience (kills grant it as they happen, win or lose). Each level gained raises one random
+   * stat; returns the level-ups in order.
+   */
+  public awardXp(amount: number): LevelUpEvent[] {
+    const profile = this.getActiveProfile();
+    if (!profile || amount <= 0) return [];
+    let { level, xp } = profile;
+    let stats = profile.stats ?? { ...BASE_STATS };
+    let bag = profile.statBag ?? [];
+    const events: LevelUpEvent[] = [];
+    xp += Math.round(amount);
+    while (level < MAX_LEVEL && xp >= xpToNext(level)) {
+      xp -= xpToNext(level);
+      level += 1;
+      const roll = rollLevelUp(stats, bag);
+      stats = roll.stats;
+      bag = roll.bag;
+      events.push({ level, stat: roll.stat, gain: roll.gain });
+    }
+    if (level >= MAX_LEVEL) xp = Math.min(xp, xpToNext(level));
+    const hpGain = stats.hp - (profile.stats?.hp ?? BASE_STATS.hp);
+    this.saveActiveProfile({
+      level,
+      xp,
+      maxXp: xpToNext(level),
+      stats,
+      statBag: bag,
+      maxHp: stats.hp,
+      currentHp: Math.min(stats.hp, (profile.currentHp ?? stats.hp) + hpGain),
+    });
+    return events;
+  }
+
+  /**
+   * A card was cast: counts toward its spell level and the equipped weapon's level. Returns what
+   * levelled up.
+   */
+  public recordCast(templateId: string, weaponId?: string): MasteryLevelUp[] {
+    const profile = this.getActiveProfile();
+    if (!profile) return [];
+    const ups: MasteryLevelUp[] = [];
+    const cardCasts = { ...(profile.cardCasts ?? {}) };
+    const before = cardLevel(cardCasts[templateId]);
+    cardCasts[templateId] = (cardCasts[templateId] ?? 0) + 1;
+    const after = cardLevel(cardCasts[templateId]);
+    if (after > before) ups.push({ kind: 'card', id: templateId, level: after });
+
+    const weaponCasts = { ...(profile.weaponCasts ?? {}) };
+    if (weaponId) {
+      const wBefore = weaponLevel(weaponCasts[weaponId]);
+      weaponCasts[weaponId] = (weaponCasts[weaponId] ?? 0) + 1;
+      const wAfter = weaponLevel(weaponCasts[weaponId]);
+      if (wAfter > wBefore) ups.push({ kind: 'weapon', id: weaponId, level: wAfter });
+    }
+    this.saveActiveProfile({ cardCasts, weaponCasts });
+    return ups;
+  }
+
+  /** Whether the active knight's level allows wielding a weapon (its tier sets the requirement). */
+  public canWield(weaponId: string): boolean {
+    const profile = this.getActiveProfile();
+    return (profile?.level ?? 1) >= weaponLevelReq(weaponStats(weaponId).tier);
   }
 
   /** Records rep telemetry toward card unlock progress, returning any newly unlocked cards. */
