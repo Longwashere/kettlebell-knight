@@ -84,6 +84,11 @@ export interface KnightMoveHost {
   weaponShown(shown: boolean): void;
   /** Hides the rig's own fire trail on ATTACK1/2/4 (plain-steel moves). Restored when the move ends. */
   slashTrail(shown: boolean): void;
+  /**
+   * Recolours one of the rig's built-in effect slots (KNIGHT_FX_SLOTS: 'Normal_Slash' trail, 'Light' burst,
+   * 'PunchFx_Skill3' flurry, 'Dash_Mash' smear); alpha 0 hides it. Restored when the move ends.
+   */
+  fxSlot(name: string, color: number, alpha?: number): void;
   /** Shoves target `i` by `dx` px and/or launches it `lift` px up; it springs back on its own. */
   knock(i: number, dx: number, lift?: number): void;
   /** Tints target `i`'s rig for a few frames (hit flash). */
@@ -161,7 +166,8 @@ export function burst(h: KnightMoveHost, t: KnightTarget, kind: Burst, size: num
   else h.vfx('slash', body.x, body.y, { size, life: 14 });
 }
 
-export function land(h: KnightMoveHost, i: number | undefined, o: { scale?: number; tint?: number; flash?: number; sfx?: SfxName; spark?: number | false; burst?: Burst; burstSize?: number } = {}) {
+/** `glare` scales the screen flash alone (dark, light-driven scenes keep the hit weight without washing out). */
+export function land(h: KnightMoveHost, i: number | undefined, o: { scale?: number; tint?: number; flash?: number; glare?: number; sfx?: SfxName; spark?: number | false; burst?: Burst; burstSize?: number } = {}) {
   const w = WEIGHT[h.ctx.rarity];
   const s = o.scale ?? 1;
   h.impact(i);
@@ -181,7 +187,7 @@ export function land(h: KnightMoveHost, i: number | undefined, o: { scale?: numb
   }
   h.hitStop(Math.round(w.stop * s) + (h.ctx.crit ? 2 : 0));
   h.shake(w.shake * s);
-  h.flash(w.flash * s, o.flash);
+  h.flash(w.flash * s * (o.glare ?? 1), o.flash);
   const idx = i === undefined ? h.targets.map((_, k) => k) : [i];
   for (const k of idx) h.flashTarget(k, o.tint ?? 0xFF6A6A, 7);
   impactSound(h, s, o.sfx);

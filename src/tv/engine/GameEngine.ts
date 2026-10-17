@@ -72,6 +72,8 @@ export interface SkeletonAttachmentMock {
 // 0.15 gives a ~80px knight on the 426x240 canvas.
 const KNIGHT_SKELETON_KEY = '/assets/spine/knight/HulkForm2.json';
 const KNIGHT_ATLAS_KEY = '/assets/spine/knight/HulkForm2.atlas';
+/** Knight rig slots a move may hide or recolour (weapon, built-in effects); reset after every move, mirrored on afterimages. */
+const KNIGHT_FX_SLOTS = ['sword', 'Normal_Slash', 'Light', 'PunchFx_Skill3', 'Dash_Mash'];
 const KNIGHT_SCALE = 0.15;
 const KNIGHT_HOME = { x: 130, y: 168 }; // knight feet at rest (battlefield coords)
 const MONSTER_OUTLINE_COLOR = 0x0F0E17; // retro.dark
@@ -2374,6 +2376,10 @@ export class GameEngine {
         const slot = spine?.skeleton.findSlot('Normal_Slash');
         if (slot) slot.color.a = shown ? 1 : 0;
       },
+      fxSlot: (name, color, alpha = 1) => {
+        const slot = KNIGHT_FX_SLOTS.includes(name) ? spine?.skeleton.findSlot(name) : null;
+        slot?.color.set(((color >> 16) & 255) / 255, ((color >> 8) & 255) / 255, (color & 255) / 255, alpha);
+      },
       knock: (i, dx, lift = 0) => {
         const slot = targets[i] ? this.monsterSlots[targets[i].slot] : undefined;
         if (!slot || slot.isLocked) return;
@@ -2420,10 +2426,7 @@ export class GameEngine {
       if (shadow) shadow.alpha = 1;
       this.knightTimeScale = 1;
       if (spine && !spine.destroyed) {
-        const weaponSlot = spine.skeleton.findSlot('sword');
-        if (weaponSlot) weaponSlot.color.a = 1;
-        const trailSlot = spine.skeleton.findSlot('Normal_Slash');
-        if (trailSlot) trailSlot.color.a = 1;
+        for (const name of KNIGHT_FX_SLOTS) spine.skeleton.findSlot(name)?.color.set(1, 1, 1, 1);
         spine.y = 0;
         spine.scale.set(restScale.x, restScale.y);
         spine.tint = 0xFFFFFF;
@@ -2560,6 +2563,12 @@ export class GameEngine {
       entry.trackTime = current.trackTime;
     }
     ghost.update(0);
+    // Slots a move hid or recoloured on the knight (his weapon mid-throw, the rig's effects) match on his afterimage
+    for (const name of KNIGHT_FX_SLOTS) {
+      const from = src.skeleton.findSlot(name);
+      const to = ghost.skeleton.findSlot(name);
+      if (from && to) to.color.setFromColor(from.color);
+    }
     ghost.x = knight.x + src.x;
     ghost.y = knight.y + src.y;
     ghost.scale.copyFrom(src.scale);

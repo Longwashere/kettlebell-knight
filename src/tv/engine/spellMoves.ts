@@ -2521,246 +2521,600 @@ function singularityEdge(h: KnightMoveHost, tl: Timeline) {
   tl.end(SWEEP + 38);
 }
 
-/** Heaven's Smite: knight raises Excalibell to lockout; radiant swords and golden kettlebells rain from the heavens onto all foes. */
+// ---------------------------------------------------------------------------------------------
+// Excalibell: holy light. Light is drawn additively (lightSpan) over a darkened field, so it glows
+// instead of painting flat colour over the scene.
+
+const HOLY_NIGHT = 0x04030C;
+const HOLY_GOLD = 0xF4B41A;
+const HOLY_PALE = 0xFDE68A;
+const HOLY_WHITE = 0xFFFBEA;
+
+/** drawSpan on an additive Graphics: light that brightens what's under it. */
+function lightSpan(h: KnightMoveHost, tl: Timeline, from: number, to: number, draw: (g: Graphics, t: number, f: number) => void, layer: 'fx' | 'back' | 'ground' = 'fx') {
+  let g: Graphics | null = null;
+  tl.during(from, to, (t, f) => {
+    if (!g) {
+      g = h.gfx(layer);
+      g.blendMode = 'add';
+    }
+    g.clear();
+    if (t < 1) draw(g, t, f);
+  });
+}
+
+/** Soft shaft of light from `top` to `bottom`, `wTop`/`wBot` wide: a wide haze, a body and a white core. */
+function godRay(g: Graphics, x: number, top: number, bottom: number, wTop: number, wBot: number, color: number, alpha = 1) {
+  if (alpha <= 0 || wBot <= 0.3) return;
+  for (const [s, a, c] of [[2.2, 0.1, color], [1, 0.32, color], [0.3, 0.85, 0xFFFFFF]] as const) {
+    g.poly([x - (wTop * s) / 2, top, x + (wTop * s) / 2, top, x + (wBot * s) / 2, bottom, x - (wBot * s) / 2, bottom]).fill({ color: c, alpha: a * alpha });
+  }
+  g.ellipse(x, bottom, wBot * 1.2, Math.max(2, wBot * 0.3)).fill({ color, alpha: 0.45 * alpha });
+}
+
+/** Four-point sparkle (long vertical spike), the holy glint. */
+function glint(g: Graphics, x: number, y: number, r: number, rot: number, color: number, alpha = 1) {
+  if (r <= 0.5 || alpha <= 0) return;
+  const star = (rr: number, w: number, c: number, a: number) => {
+    const pts: number[] = [];
+    for (let i = 0; i < 8; i++) {
+      const ang = rot + (i * Math.PI) / 4;
+      const len = i % 2 ? w : i % 4 === 2 ? rr : rr * 0.65;
+      pts.push(x + Math.cos(ang) * len, y + Math.sin(ang) * len);
+    }
+    g.poly(pts).fill({ color: c, alpha: a });
+  };
+  star(r, Math.max(1, r * 0.14), color, 0.7 * alpha);
+  star(r * 0.6, Math.max(0.6, r * 0.07), 0xFFFFFF, alpha);
+  g.circle(x, y, Math.max(1, r * 0.16)).fill({ color: 0xFFFFFF, alpha });
+}
+
+/** Angelic halo ring seen slightly from above, with a spark running round it. */
+function halo(g: Graphics, x: number, y: number, r: number, f: number, alpha = 1) {
+  if (r <= 1 || alpha <= 0) return;
+  g.ellipse(x, y, r + 2, r * 0.3 + 2).stroke({ width: 5, color: HOLY_GOLD, alpha: 0.25 * alpha });
+  g.ellipse(x, y, r, r * 0.3).stroke({ width: 2, color: HOLY_PALE, alpha });
+  g.ellipse(x, y - 0.5, r, r * 0.3).stroke({ width: 1, color: 0xFFFFFF, alpha });
+  const a = f * 0.2;
+  g.rect(x + Math.cos(a) * r - 1, y + Math.sin(a) * r * 0.3 - 1, 2, 2).fill({ color: 0xFFFFFF, alpha });
+}
+
+/** Radiant greatsword pointing down, its tip at (x, tip): winged crossguard, sapphire, pommel. */
+function holyBlade(g: Graphics, x: number, tip: number, len: number, alpha = 1) {
+  if (alpha <= 0) return;
+  const guardY = tip - len * 0.7;
+  const w = Math.max(3, len * 0.085);
+  g.poly([x, tip, x + w, tip - len * 0.16, x + w, guardY, x - w, guardY, x - w, tip - len * 0.16])
+    .fill({ color: 0xE2E8F0, alpha }).stroke({ width: 1.5, color: INK, alpha });
+  g.poly([x, tip - 3, x + w * 0.4, tip - len * 0.16, x + w * 0.4, guardY, x - w * 0.4, guardY, x - w * 0.4, tip - len * 0.16])
+    .fill({ color: 0xFFFFFF, alpha });
+  const span = len * 0.3;
+  g.poly([x - span, guardY - 7, x - w * 1.3, guardY + 1, x + w * 1.3, guardY + 1, x + span, guardY - 7, x + w * 1.3, guardY - 3, x - w * 1.3, guardY - 3])
+    .fill({ color: HOLY_GOLD, alpha }).stroke({ width: 1.5, color: INK, alpha });
+  g.rect(x - w * 0.55, guardY - len * 0.2, w * 1.1, len * 0.2 - 3).fill({ color: 0x92400E, alpha }).stroke({ width: 1, color: INK, alpha });
+  orb(g, x, guardY - len * 0.22, w * 0.9, P_DECREE, alpha);
+  g.circle(x, guardY - 1, w * 0.5).fill({ color: 0x38BDF8, alpha }).stroke({ width: 1, color: INK, alpha });
+}
+
+/** Hexagonal aegis tile, `r` across, flattened by `squash` as it turns edge-on. */
+function hexTile(g: Graphics, x: number, y: number, r: number, squash: number, alpha = 1) {
+  if (r <= 0.5 || alpha <= 0) return;
+  const pts: number[] = [];
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+    pts.push(x + Math.cos(a) * r * squash, y + Math.sin(a) * r);
+  }
+  g.poly(pts).fill({ color: HOLY_GOLD, alpha: 0.45 * alpha }).stroke({ width: 3, color: HOLY_GOLD, alpha: 0.6 * alpha });
+  g.poly(pts).stroke({ width: 1, color: 0xFFFFFF, alpha });
+  g.circle(x, y, 1.5).fill({ color: 0xFFFFFF, alpha });
+}
+
+/** Feathers of light drifting down around a point. */
+const feathers = (h: KnightMoveHost, x: number, y: number, n = 2, spread = 26) =>
+  h.emit(x + rand(-spread, spread), y + rand(-10, 6), { count: n, colors: [HOLY_WHITE, HOLY_PALE, 0xFFFFFF], speed: [0.15, 0.5], angle: Math.PI / 2, spread: 1.2, gravity: 0.006, size: 2, life: [30, 50] });
+
+/** Golden grit bursting from a holy impact. */
+const holySparks = (h: KnightMoveHost, x: number, y: number, n: number, power = 1) =>
+  h.emit(x, y, { count: n, colors: [HOLY_WHITE, HOLY_PALE, HOLY_GOLD, 0xFFFFFF], speed: [1.4 * power, 4.2 * power], angle: -Math.PI / 2, spread: 1.3, gravity: 0.12, size: 2, life: [14, 28] });
+
+/**
+ * Heaven's Smite: the knight presses Excalibell to lockout and rises on wings of light; a beam from the bell
+ * opens the sky, judgement shafts lock onto every foe, and colossal holy blades plunge down on each in turn.
+ */
 function heavensSmite(h: KnightMoveHost, tl: Timeline) {
   const foes = each(h);
-  const LOCK = 18;
-  tl.at(0, () => h.anim('JUMP_FRONT_START'));
-  tl.during(0, 6, (t) => h.stretch(1 + 0.08 * t, 1 - 0.1 * t));
-  tl.at(6, () => {
-    h.stretch(1, 1);
-    h.anim('SKILL2TULUC');
-    h.camera(1.1, 240, h.home.y - 45, 60);
-    h.sound('holy', { rate: 0.85 });
-  });
-  tl.during(6, LOCK, (t) => h.lift(easeOut(t) * 8));
-  tl.during(LOCK + 24, LOCK + 36, (t) => h.lift(lerp(8, 0, t)));
-  tl.during(0, 14, (t) => h.dim(0.45 * t, 0x140C02));
-  chargeFx(h, tl, 6, LOCK, () => h.weaponTip(), P_DECREE, 30, 10);
-
-  // Divine god-rays beam from heavens
-  drawSpan(h, tl, LOCK - 2, LOCK + 44, (g, t) => {
-    const p = h.pos();
-    for (let k = -2; k <= 2; k++) {
-      pillar(g, p.x + k * 16, 15, p.y, 7, P_DECREE, 0.25 * (1 - t));
-    }
-  }, 'back');
-
-  tl.at(LOCK, () => {
-    h.flash(0.35, 0xFFF3C4);
-    h.shake(8);
-    h.sound('impact_crit', { vol: 0.7 });
-    h.sound('impact_metal', { rate: 0.9, vol: 0.8 });
-    h.sound('holy');
-  });
-
-  // Holy halo pulses expanding from the raised weapon tip
-  drawSpan(h, tl, LOCK, LOCK + 24, (g, t) => {
-    const p = h.weaponTip();
-    for (let k = 0; k < 3; k++) {
-      const r = (t * 1.5 - k * 0.22) * 130;
-      if (r > 0) {
-        g.circle(p.x, p.y, r).stroke({
-          width: 3 * (1 - t) + 1,
-          color: k % 2 ? 0xFFFBEA : 0xF4B41A,
-          alpha: 1 - t,
-        });
-      }
-    }
-  });
-
-  // Swords and kettlebells plummet from the sky
-  foes.forEach((t, i) => {
-    const at = LOCK + 8 + i * 5;
-    const c = chest(t);
-
-    tl.at(at - 7, () => {
-      h.sound('whistle', { rate: 1.8, vol: 0.4 });
-    });
-
-    // Falling radiant sword lance
-    drawSpan(h, tl, at - 7, at + 16, (g, u, f) => {
-      const drop = f < 6 ? easeIn(f / 6) : 1;
-      const fade = f < 6 ? 1 : 1 - (f - 6) / 16;
-      const y = lerp(5, t.y - 6, drop);
-      lance(g, t.x + 3, y - 48, t.x + 3, y, 8, P_DECREE, fade);
-      g.rect(t.x - 8, y - 42, 22, 3).fill({ color: 0xF4B41A, alpha: fade }).stroke({ width: 1, color: INK, alpha: fade });
-    });
-
-    // Falling golden kettlebell right behind the blade
-    drawSpan(h, tl, at - 5, at + 14, (g, u, f) => {
-      const drop = f < 5 ? easeIn(f / 5) : 1;
-      const fade = f < 5 ? 1 : 1 - (f - 5) / 14;
-      const y = lerp(0, t.y - 12, drop);
-      const rot = f * 0.25;
-      kettlebell(g, t.x - 2, y, 7, rot, 0xFFFBEA, fade);
-    });
-
-    tl.at(at, () => {
-      land(h, h.targets.length ? i : undefined, {
-        scale: 1.05,
-        tint: 0xFFF1B8,
-        flash: 0xFFF7D6,
-        burst: 'crater',
-        burstSize: 1.0,
-        sfx: 'impact_heavy',
-      });
-      h.sound('holy', { rate: 1.1 });
-      h.knock(i, 4, -7);
-      h.sparks(c.x, t.y - 6, 12, [0xF4B41A, 0xFFFBEA, 0xFBBF24]);
-    });
-  });
-
-  tl.during(LOCK + 30, LOCK + 46, (t) => h.dim(0.45 * (1 - t), 0x140C02));
-  tl.end(LOCK + 48);
-}
-
-/** Righteous Onslaught: a fierce 3-strike barrage of heavy holy slashes culminating in a jumping kettlebell-tip overhead crush. */
-function righteousOnslaught(h: KnightMoveHost, tl: Timeline) {
-  const t0 = h.target;
-  const c = chest(t0);
-  const HIT1 = 10;
-  const HIT2 = 18;
-  const JUMP = 26;
-  const SLAM = 34;
-
-  // Lunge forward to the enemy
-  travel(h, tl, 0, HIT1, HOME, strikeSpot(h, t0, 50), easeInOut);
-
-  // Strike 1: Diagonal slash down
-  tl.at(0, () => {
-    h.anim('ATTACK1');
-    h.sound('slash', { rate: 1.1 });
-  });
-  slashFx(h, tl, 6, { x: c.x - 4, y: c.y - 2, r: 24, a0: -2.0, a1: 0.6, thick: 6, p: P_DECREE, dur: 7 });
-  tl.at(HIT1, () => {
-    h.flashTarget(0, 0xFFFBEA, 5);
-    h.sparks(c.x, c.y, 8, [0xF4B41A, 0xFFFFFF]);
-    h.knock(0, 3, -2);
-    h.sound('impact', { rate: 1.2 });
-  });
-
-  // Strike 2: Upward backhand crescent cut
-  tl.at(HIT1 + 2, () => {
-    h.anim('ATTACK2');
-    h.sound('slash_heavy', { rate: 1.2 });
-  });
-  slashFx(h, tl, HIT1 + 3, { x: c.x - 6, y: c.y + 4, r: 28, a0: 1.3, a1: -1.6, thick: 8, p: P_DECREE, dur: 7 });
-  tl.at(HIT2, () => {
-    h.flashTarget(0, 0xFFF3C4, 6);
-    h.sparks(c.x, c.y, 10, [0xF4B41A, 0x38B6FF, 0xFFFFFF]);
-    h.shake(4);
-    h.knock(0, 4, -3);
-    h.sound('impact_heavy', { rate: 1.1 });
-  });
-
-  // Strike 3: Knight leaps up and smashes down with the golden kettlebell tip
-  tl.at(JUMP, () => {
-    h.anim('ATTACK3');
-    h.sound('charge', { rate: 1.5, vol: 0.5 });
-  });
-  tl.during(JUMP, SLAM, (t) => h.lift(Math.sin(t * Math.PI) * 14));
-  // Golden starburst flares on weapon tip as kettlebell comes down
-  drawSpan(h, tl, JUMP + 3, SLAM + 4, (g, t) => {
-    const tip = h.weaponTip();
-    starburst(g, tip.x, tip.y, 14 * easeOut(t), 8, t * Math.PI, P_DECREE, 1 - t * 0.5);
-  });
-
-  tl.at(SLAM, () => {
-    land(h, 0, {
-      scale: 1.3,
-      tint: 0xFFFBEA,
-      flash: 0xFFF3C4,
-      burst: 'crater',
-      burstSize: 1.3,
-      sfx: 'impact_heavy',
-    });
-    h.sound('impact_metal', { rate: 1.2, vol: 0.9 });
-    h.sound('impact_crit');
-    h.sound('holy');
-    h.shake(8);
-    h.knock(0, 10, -5);
-    h.sparks(c.x, t0.y - 4, 16, [0xF4B41A, 0xFFFBEA, 0xFBBF24]);
-  });
-
-  // Return home
-  backstep(h, tl, SLAM + 6, SLAM + 18);
-  tl.end(SLAM + 20);
-}
-
-/** Dawn's Aegis Toll: knight drives Excalibell into the ground like a sacred bell; a radiant shockwave pierces forward while a golden aegis shields the knight. */
-function dawnsAegis(h: KnightMoveHost, tl: Timeline) {
-  const t0 = h.target;
-  const foes = each(h);
-  const PLANT = 12;
-  const WAVE_END = 26;
+  const cx = foes.reduce((s, t) => s + t.x, 0) / foes.length;
+  const RAISE = 6; // SKILL2TULUC from 6 is locked out overhead by 16 (raiseAndHold freezes it there)
+  const CALL = 24; // the bell's beam pierces the sky
+  const OPEN = 32; // the heavens open over the foes
+  const SMITE = 50; // the first blade lands
+  const GAP = 6;
+  const LAST = SMITE + GAP * (foes.length - 1);
+  const END = LAST + 34;
+  const SKY = 66; // just under the top of the frame
 
   tl.at(0, () => {
-    h.anim('DEFENSE');
-    h.sound('charge', { rate: 1.3, vol: 0.45 });
+    h.anim('JUMP_FRONT_START');
+    h.camera(1.32, h.home.x + 6, h.home.y - 34, CALL - 2);
+    h.sound('holy', { rate: 0.55, vol: 0.7 });
   });
-  tl.during(0, PLANT, (t) => h.stretch(1 + 0.1 * t, 1 - 0.15 * t));
+  tl.during(0, RAISE, (t) => h.stretch(1 + 0.1 * t, 1 - 0.12 * t));
+  tl.during(RAISE, RAISE + 6, (t) => h.stretch(lerp(0.92, 1, t), lerp(1.1, 1, t)));
+  raiseAndHold(h, tl, RAISE, LAST + 10);
+  tl.during(RAISE, CALL, (t) => h.lift(easeOut(t) * 16));
+  tl.during(LAST + 10, END - 10, (t) => h.lift(lerp(16, 0, easeInOut(t))));
+  tl.at(END - 10, () => h.sound('thud', { vol: 0.4 }));
+  tl.during(0, 16, (t) => h.dim(0.74 * t, HOLY_NIGHT));
+  tl.during(END - 20, END, (t) => h.dim(0.74 * (1 - t), HOLY_NIGHT));
+  tl.every(RAISE, CALL, 3, () => h.ghost(HOLY_GOLD, 0.45, 16));
+  chargeFx(h, tl, RAISE, CALL, () => h.weaponTip(), P_DECREE, 36, 14);
 
-  // Sacred Aegis barrier forms around the knight
-  drawSpan(h, tl, 0, PLANT + 28, (g, t, f) => {
+  // Wings of light and a halo open behind him and stay for the whole judgement
+  lightSpan(h, tl, RAISE, END - 6, (g, t, f) => {
     const p = h.pos();
-    const alpha = f < PLANT ? f / PLANT : 1 - (f - PLANT) / 28;
-    runeCircle(g, p.x, p.y, 28 * easeOut(Math.min(1, f / 8)), f * 0.03, P_DECREE, alpha);
-    groundRing(g, p.x, p.y, 32, 2, 0xF4B41A, alpha * 0.8);
-    orb(g, p.x, p.y - 18, 18 * easeOut(Math.min(1, f / PLANT)), P_DECREE, alpha * 0.35);
+    const open = easeOut(Math.min(1, f / 14));
+    const fade = t > 0.82 ? 1 - (t - 0.82) / 0.18 : 1;
+    const beat = Math.sin(f * 0.22) * 0.08;
+    wing(g, p.x - 8, p.y - 46, 62 * open, -1, open * (0.95 + beat), P_DECREE, 0.95 * fade);
+    wing(g, p.x + 8, p.y - 46, 48 * open, 1, open * (0.85 + beat), P_DECREE, 0.7 * fade);
+    halo(g, p.x + 1, p.y - 70, 10 * open, f, fade);
   }, 'back');
+  tl.every(RAISE + 8, LAST + 10, 4, () => feathers(h, h.pos().x, h.pos().y - 40));
 
-  // Plant the kettlebell tip into the stone
-  tl.at(PLANT, () => {
-    h.stretch(1, 1);
-    h.flash(0.3, 0xFFFBEA);
+  // The call: a beam from the bell punches through the sky; cut wide to reveal the heavens
+  tl.at(CALL, () => {
+    h.flash(0.2, 0xFFF3C4);
     h.shake(6);
-    h.sound('thud', { rate: 1.1 });
-    h.sound('impact_metal', { rate: 0.85, vol: 1.0 });
-    h.sound('holy', { rate: 1.0 });
+    h.camera(1.0, 213, h.home.y - 60, LAST - CALL + 14);
+    h.sound('beam', { rate: 0.7 });
+    h.sound('holy', { rate: 1.1 });
+    h.sound('impact_metal', { rate: 0.6, vol: 0.6 });
+  });
+  lightSpan(h, tl, CALL, OPEN + 14, (g, t) => {
+    const p = h.weaponTip();
+    const w = t < 0.12 ? lerp(2, 14, t / 0.12) : lerp(14, 1, easeIn((t - 0.12) / 0.88));
+    godRay(g, p.x, 0, p.y, w, w * 0.8, HOLY_GOLD, 1 - t * 0.4);
+    glint(g, p.x, p.y, 22 * (1 - t) + 6, t * 0.6, HOLY_WHITE, 1 - t * 0.3);
   });
 
-  // Ground scorch decal
-  drawSpan(h, tl, PLANT, PLANT + 24, (g, t) => {
-    const p = h.pos();
-    scorch(g, p.x + 8, p.y, 18, 0xF4B41A, 0.7 * (1 - t * 0.5));
-  }, 'ground');
-
-  // Piercing golden holy shockwave surges along the floor toward the foes
-  drawSpan(h, tl, PLANT, WAVE_END + 4, (g, t) => {
-    const p = h.pos();
-    const reach = easeOut(t);
-    const frontX = lerp(p.x + 10, t0.x + 60, reach);
-    // Holy lance beam along ground
-    lance(g, p.x + 10, p.y - 2, frontX, p.y - 2, 12 * (1 - t * 0.5), P_DECREE, 1 - t * 0.6);
-    // Ring waves
-    for (let k = 0; k < 3; k++) {
-      const rx = lerp(p.x + 10, t0.x + 40, Math.min(1, reach * 1.2 - k * 0.15));
-      if (rx > p.x + 15) {
-        g.ellipse(rx, p.y - 2, 6, 14 * (1 - t)).stroke({ width: 2, color: 0xFFFBEA, alpha: 1 - t });
-      }
+  // The sky opens: a radiant gate turning over the foes
+  tl.at(OPEN, () => h.sound('portal', { rate: 0.7, vol: 0.6 }));
+  lightSpan(h, tl, OPEN, END - 6, (g, t, f) => {
+    const a = easeOut(Math.min(1, f / 12)) * (t > 0.78 ? 1 - (t - 0.78) / 0.22 : 1);
+    const flare = f >= LAST - OPEN && f < LAST - OPEN + 12 ? 1 - (f - (LAST - OPEN)) / 12 : 0;
+    const s = a * (1 + flare * 0.25);
+    for (let k = 0; k < 9; k++) {
+      const x = cx + (k - 4) * 26 * s;
+      godRay(g, x, SKY, SKY + 70 + 20 * hash(k), 4 * s, 16 * s, HOLY_GOLD, (0.16 + 0.3 * flare) * a * (0.6 + 0.4 * Math.sin(f * 0.1 + k)));
     }
+    g.ellipse(cx, SKY, 110 * s, 12 * s).fill({ color: HOLY_GOLD, alpha: 0.3 * a + 0.3 * flare });
+    for (let k = 0; k < 3; k++) {
+      g.ellipse(cx, SKY, (52 + k * 30) * s, (6 + k * 3) * s).stroke({ width: 2 - k * 0.5, color: k ? HOLY_PALE : 0xFFFFFF, alpha: a * (0.9 - k * 0.25) });
+    }
+    for (let k = 0; k < 16; k++) {
+      const ang = f * 0.03 + (k / 16) * Math.PI * 2;
+      g.rect(cx + Math.cos(ang) * 82 * s - 1, SKY + Math.sin(ang) * 9 * s - 1, 2, 2).fill({ color: 0xFFFFFF, alpha: a });
+    }
+    g.ellipse(cx, SKY, 40 * s, 4 * s).fill({ color: HOLY_PALE, alpha: 0.5 * a });
   });
 
-  // Impact hits foes in line
   foes.forEach((t, i) => {
-    const hitTime = PLANT + 4 + i * 4;
-    tl.at(hitTime, () => {
-      land(h, i === 0 ? 0 : undefined, {
-        scale: 1.2,
-        tint: 0xFFF1B8,
-        flash: 0xFFFFFF,
-        burst: 'crater',
-        burstSize: 1.1,
-        sfx: 'impact_metal',
-      });
-      h.knock(i, 6, -3);
-      h.sparks(t.x, t.y - 8, 12, [0xF4B41A, 0xFFFBEA, 0x38B6FF]);
+    const at = SMITE + i * GAP;
+    const c = chest(t);
+    const big = i === foes.length - 1;
+    // Judgement locks on: a thin shaft behind the foe and a rune closing round its feet
+    lightSpan(h, tl, OPEN + 4 + i * 3, at, (g, u) => godRay(g, t.x, SKY, t.y, 2 + 4 * u, 4 + 18 * easeIn(u), HOLY_PALE, 0.35 + 0.4 * u), 'back');
+    lightSpan(h, tl, OPEN + 4 + i * 3, at + 2, (g, u, f) => runeCircle(g, t.x, t.y, lerp(42, 20, easeIn(u)), f * 0.08, P_DECREE, Math.min(1, f / 8)), 'ground');
+    tl.at(OPEN + 4 + i * 3, () => h.sound('rune', { rate: 1 + i * 0.15, vol: 0.4 }));
+
+    // A colossal blade plunges from the gate, trailing light
+    const DROP = 7;
+    tl.at(at - DROP, () => h.sound('whistle', { rate: 1.6, vol: 0.45 }));
+    const tipAt = (u: number) => lerp(SKY - 20, t.y + 4, easeIn(u));
+    lightSpan(h, tl, at - DROP, at + 1, (g, u) => {
+      const tip = tipAt(u);
+      godRay(g, t.x, SKY, tip, 6, 12, HOLY_GOLD, 0.6);
+      for (let k = 1; k <= 3; k++) holyBlade(g, t.x, tipAt(Math.max(0, u - k * 0.12)), 84, 0.3 / k);
+    });
+    // Its glow stays on while it stands embedded
+    lightSpan(h, tl, at - DROP, at + 26, (g, _u, f) => {
+      const fade = f <= DROP + 10 ? 1 : 1 - (f - DROP - 10) / 16;
+      const tip = tipAt(Math.min(1, f / DROP));
+      g.ellipse(t.x, tip - 34, 12, 46).fill({ color: HOLY_GOLD, alpha: 0.3 * fade });
+      g.ellipse(t.x, tip - 30, 5, 38).fill({ color: HOLY_PALE, alpha: 0.35 * fade });
+    }, 'back');
+    drawSpan(h, tl, at - DROP, at + 26, (g, _u, f) => {
+      const u = Math.min(1, f / DROP);
+      const fade = f <= DROP + 10 ? 1 : 1 - (f - DROP - 10) / 16;
+      holyBlade(g, t.x, tipAt(u), 84, fade);
+    });
+    tl.every(at + 14, at + 26, 3, () => h.emit(t.x + rand(-4, 4), t.y - rand(10, 50), { count: 2, colors: [HOLY_WHITE, HOLY_PALE], speed: [0.2, 0.6], angle: -Math.PI / 2, spread: 0.5, gravity: -0.02, size: 2, life: [18, 30] }));
+
+    // Contact: a pillar of light detonates on the foe
+    lightSpan(h, tl, at, at + 20, (g, u) => {
+      const w = 34 * (1 - easeOut(u)) + 2;
+      godRay(g, t.x, 30, t.y, w * 0.6, w, 0xFFF3C4, 1 - u);
+      glint(g, c.x, c.y, 34 * (1 - u) + 6, u * 0.4, HOLY_WHITE, 1 - u);
+    });
+    ringFx(h, tl, at, { x: t.x, y: t.y }, 6, big ? 90 : 60, HOLY_PALE, 20, 4);
+    tl.at(at, () => {
+      land(h, h.targets.length ? i : undefined, { scale: big ? 1.2 : 0.8, glare: 0.35, tint: 0xFFF1B8, flash: 0xFFF7D6, burst: 'crater', burstSize: big ? 1.3 : 1, sfx: 'stab' });
+      h.knock(i, 3, -8);
+      h.sound('holy', { rate: 1 + i * 0.12, vol: 0.7 });
+      holySparks(h, t.x, t.y - 6, big ? 22 : 14);
+      if (i === 0) h.camera(1.14, cx, h.home.y - 50, 10, true);
     });
   });
 
-  tl.during(PLANT + 16, PLANT + 28, (t) => h.idle());
-  tl.end(PLANT + 30);
+  // Finale: the gate flares and every foe burns white
+  tl.at(LAST + 4, () => {
+    h.flash(0.1, 0xFFF7D6);
+    h.shake(10);
+    h.sound('impact_crit', { rate: 0.8, vol: 0.8 });
+    foes.forEach((_, i) => h.flashTarget(i, 0xFFFFFF, 8));
+  });
+  tl.end(END);
+}
+
+/**
+ * Righteous Onslaught: SKILL3RADON's barrage reforged in light. He blinks onto the first foe and cuts twice,
+ * leaps out of sight and descends down a shaft of judgement on the next for a four-cut flurry, then falls from
+ * heaven once more to brand the last with a cross. Gold afterimages chase every cut; the rig's fire trails and
+ * blue burst are hidden and redrawn as holy light. One chain hit lands at the end of each phase.
+ */
+function righteousOnslaught(h: KnightMoveHost, tl: Timeline) {
+  const hits = each(h); // CHAIN: one entry per strike, a foe can repeat
+  const n = hits.length;
+  const SPEED = 1.2;
+  const R = (rigFrame: number) => Math.round(rigFrame / SPEED); // SKILL3RADON frame → move frame
+  // Three phases (opening pair, flurry after the first dive, crash after the second); the chain hit each lands
+  const seg = [0, Math.min(1, n - 1), n - 1];
+  const lands = n >= 3 ? [0, 1, 2] : n === 2 ? [0, -1, 1] : [-1, -1, 0];
+  const spot = seg.map((i) => strikeSpot(h, hits[i], 46));
+  const GHOST = 0xFFD86B;
+
+  // The rig's own cuts are fire (PunchFx_Skill3 sweeps, Normal_Slash thrust) and its landing burst is blue
+  const reskin = () => {
+    h.fxSlot('PunchFx_Skill3', 0, 0);
+    h.fxSlot('Normal_Slash', 0, 0);
+    h.fxSlot('Light', 0, 0);
+    h.fxSlot('Dash_Mash', 0xFFC53D, 0.55);
+  };
+
+  /** A cut that doesn't deal the chain hit: flash, spark, a sliver of hit-stop. */
+  const chip = (i: number) => {
+    const c = chest(hits[i]);
+    h.flashTarget(i, 0xFFF1B8, 4);
+    h.knock(i, 4, 1);
+    h.shake(4);
+    h.hitStop(2);
+    h.sound('impact', { rate: 1.2, vol: 0.55 });
+    holySparks(h, c.x, c.y, 8);
+  };
+  const strike = (s: number, big: boolean) => {
+    const i = seg[s];
+    const c = chest(hits[i]);
+    if (lands[s] < 0) return chip(i);
+    land(h, h.targets.length ? lands[s] : undefined, { scale: big ? 1.45 : 1, glare: big ? 0.3 : 0.35, tint: 0xFFFFFF, flash: 0xFFF3C4, burst: big ? 'crater' : 'slash', burstSize: big ? 1.4 : 1, sfx: big ? 'impact_crit' : undefined });
+    h.knock(i, big ? 16 : 10, big ? -6 : 3);
+    h.sound('holy', { rate: big ? 0.9 : 1.3, vol: 0.6 });
+    holySparks(h, c.x, c.y, big ? 26 : 14, big ? 1.2 : 1);
+  };
+
+  tl.at(0, () => {
+    h.anim('SKILL3RADON');
+    h.animSpeed(SPEED);
+    reskin();
+    h.sound('holy', { rate: 0.8, vol: 0.6 });
+    h.sound('portal', { rate: 1.4, vol: 0.5 });
+  });
+  tl.during(0, 12, (t) => h.dim(0.75 * t, HOLY_NIGHT));
+
+  // Blink in: he leaves home in a column of light and resolves out of one in front of the first foe
+  const homeX = h.home.x;
+  lightSpan(h, tl, 0, 12, (g, t) => {
+    godRay(g, homeX, 40, h.home.y, 10 * (1 - t), 18 * (1 - t), HOLY_GOLD, 1 - t);
+    glint(g, homeX, h.home.y - 30, 26 * (1 - t), 0, HOLY_WHITE, 1 - t);
+  });
+  tl.at(1, () => h.offset(spot[0].x, spot[0].y));
+  lightSpan(h, tl, R(2), R(20), (g, t, f) => {
+    const p = h.pos();
+    godRay(g, p.x + 2, 40, p.y, 6 + 6 * t, 14 + 12 * (1 - t), HOLY_GOLD, 1 - t * t);
+    halo(g, p.x + 1, p.y - 70, 10 * easeOut(Math.min(1, f / 6)), f, 1 - t);
+  });
+  tl.at(R(14), () => {
+    h.camera(1.25, hits[seg[0]].x - 40, h.home.y - 32, R(56) - R(14));
+    h.sound('magic', { rate: 1.5, vol: 0.5 });
+  });
+
+  // The cuts: the rig's sweeps (rig frames), low rising / high falling, redrawn as gold crescents
+  const SWEEPS: { at: number; s: number; low: boolean; hit: number }[] = [
+    { at: 22, s: 0, low: true, hit: 28 }, { at: 42, s: 0, low: false, hit: 48 },
+    { at: 82, s: 1, low: true, hit: 86 }, { at: 94, s: 1, low: false, hit: 98 },
+    { at: 108, s: 1, low: true, hit: 112 }, { at: 120, s: 1, low: false, hit: 124 },
+  ];
+  SWEEPS.forEach((w, k) => {
+    const c = chest(hits[seg[w.s]]);
+    const arcO = w.low
+      ? { x: c.x - 16, y: c.y - 4, r: 36, a0: 2.5, a1: -0.7, thick: 13, p: P_DECREE, dur: R(14) }
+      : { x: c.x - 16, y: c.y + 2, r: 36, a0: -2.5, a1: 0.7, thick: 13, p: P_DECREE, dur: R(14) };
+    tl.at(R(w.at), () => swingSound(h, k % 2 === 1, { rate: 1.05 + k * 0.04 }));
+    slashFx(h, tl, R(w.hit) - 3, arcO);
+    lightSpan(h, tl, R(w.hit) - 2, R(w.hit) + 10, (g, u) => {
+      crescent(g, arcO.x, arcO.y, arcO.r + 8, arcO.a0, arcO.a1, 22 * (1 - u), P_DECREE, 0.45 * (1 - u));
+      glint(g, c.x, c.y, 26 * (1 - u) + 4, 0.4, HOLY_WHITE, 1 - u);
+    });
+    // A bright echo of the cutting pose hangs in the air
+    tl.at(R(w.hit), () => {
+      h.ghost(0xFFFBEA, 0.75, 22);
+      const last = k === 1 || k === SWEEPS.length - 1;
+      if (last) {
+        strike(w.s, false);
+        h.camera(1.32, c.x - 26, c.y + 4, 10, true);
+      } else chip(seg[w.s]);
+    });
+  });
+  // The gold trail behind every move he makes
+  for (const [a, b] of [[16, 56], [66, 130]]) tl.every(R(a), R(b), 2, () => h.ghost(GHOST, 0.5, 14));
+
+  // Two descents from heaven: he leaps out of frame, the next foe is marked by a shaft of judgement, and he
+  // dives down it (rig: up by 62 / 142, down by 66 / 146)
+  const dive = (s: number, up: number, top: number, down: number) => {
+    const t = hits[seg[s]];
+    tl.at(R(up), () => {
+      h.sound('jump', { vol: 0.7 });
+      swingSound(h, true);
+    });
+    tl.every(R(up), R(top), 1, () => h.ghost(0xFFF3C4, 0.5, 12));
+    lightSpan(h, tl, R(up), R(down) + 1, (g, u) => godRay(g, t.x - 20, 40, t.y, 4 + 10 * u, 10 + 30 * easeIn(u), HOLY_PALE, 0.4 + 0.5 * u), 'back');
+    lightSpan(h, tl, R(up), R(down) + 4, (g, u, f) => runeCircle(g, t.x - 20, t.y, lerp(46, 24, easeIn(u)), f * 0.1, P_DECREE, Math.min(1, f / 6)), 'ground');
+    tl.at(R(top) - 1, () => {
+      h.offset(spot[s].x, spot[s].y);
+      h.sound('whistle', { rate: 1.7, vol: 0.5 });
+      h.camera(1.15, t.x - 30, h.home.y - 44, 14);
+    });
+    tl.every(R(top), R(down) + 1, 1, () => h.ghost(0xFFFBEA, 0.6, 12));
+    lightSpan(h, tl, R(top), R(down) + 3, (g, u) => {
+      const p = h.pos();
+      godRay(g, p.x, 40, p.y, 8, 20, HOLY_GOLD, 0.8 * (1 - u * 0.5));
+    });
+  };
+  dive(1, 54, 62, 66);
+  dive(2, 128, 142, 146);
+
+  // First landing: the blue burst becomes a crown of gold light
+  tl.at(R(66), () => {
+    const p = h.pos();
+    h.shake(9);
+    h.hitStop(4);
+    h.camera(1.2, p.x + 20, p.y - 30, R(130) - R(66), true);
+    h.sound('impact_heavy', { vol: 0.8 });
+    h.sound('holy', { rate: 1.1, vol: 0.6 });
+    h.sound('block', { rate: 0.5, vol: 0.6 });
+    h.vfx('shockwave', p.x + 8, p.y - 8, { size: 1.1 });
+    holySparks(h, p.x + 8, p.y - 4, 18, 1.1);
+  });
+  lightSpan(h, tl, R(66), R(66) + 16, (g, u) => {
+    const p = h.pos();
+    starburst(g, p.x + 6, p.y - 30, 44 * easeOut(u) + 6, 12, u * 0.6, P_DECREE, 0.6 * (1 - u));
+    glint(g, p.x + 6, p.y - 30, 40 * (1 - u) + 6, 0, HOLY_WHITE, 1 - u);
+  });
+  ringFx(h, tl, R(66), () => ({ x: h.pos().x + 6, y: h.pos().y }), 8, 80, HOLY_PALE, 18, 4);
+
+  // Final crash: a lance of light rides the dive, and a cross is seared through the last foe
+  const fin = hits[seg[2]];
+  const fc = chest(fin);
+  const HIT = R(148);
+  lightSpan(h, tl, R(142), HIT - 1, (g, u) => {
+    const tip = h.weaponTip();
+    lance(g, tip.x - 14, tip.y - 50, tip.x, tip.y, 10, P_DECREE, 0.8);
+    glint(g, tip.x, tip.y, 16, u, HOLY_WHITE);
+  });
+  tl.at(HIT - 4, () => swingSound(h, true));
+  lightSpan(h, tl, HIT, HIT + 26, (g, u) => {
+    const v = easeOut(Math.min(1, u * 4));
+    const a = u < 0.4 ? 1 : 1 - (u - 0.4) / 0.6;
+    godRay(g, fc.x, fc.y - 70 * v, fc.y + 40 * v, 10, 10, HOLY_GOLD, a);
+    g.rect(fc.x - 40 * v, fc.y - 12, 80 * v, 10).fill({ color: HOLY_GOLD, alpha: 0.35 * a });
+    g.rect(fc.x - 36 * v, fc.y - 9, 72 * v, 4).fill({ color: 0xFFFFFF, alpha: 0.9 * a });
+    glint(g, fc.x, fc.y - 7, 46 * (1 - u) + 8, 0, HOLY_WHITE, a);
+  });
+  ringFx(h, tl, HIT, { x: fin.x, y: fin.y }, 8, 100, HOLY_PALE, 22, 5);
+  tl.at(HIT, () => {
+    strike(2, true);
+    h.ghost(0xFFFBEA, 0.8, 26);
+    h.camera(1.4, fc.x - 14, fc.y, 16, true);
+    h.dim(0.85, HOLY_NIGHT);
+    h.sound('block', { rate: 0.42, vol: 0.9 }); // the bell rings out
+  });
+  tl.every(HIT + 2, HIT + 20, 3, () => feathers(h, fc.x, fc.y - 10, 2, 20));
+
+  // Blink home: a column of light where he stood, and he resolves out of another at home
+  const BACK = R(160) + 2;
+  lightSpan(h, tl, BACK, BACK + 14, (g, t) => {
+    godRay(g, h.home.x, 40, h.home.y, 10 * (1 - t), 18 * (1 - t), HOLY_GOLD, 1 - t);
+    glint(g, h.home.x, h.home.y - 30, 22 * (1 - t), 0, HOLY_WHITE, 1 - t);
+  });
+  tl.at(BACK, () => {
+    h.ghost(0xFFF3C4, 0.7, 18);
+    h.offset(0, 0);
+    h.idle();
+    h.sound('portal', { rate: 1.6, vol: 0.4 });
+  });
+  tl.during(BACK - 6, BACK + 12, (t) => h.dim(0.85 * (1 - t), HOLY_NIGHT));
+  tl.end(BACK + 14);
+}
+
+/**
+ * Dawn's Aegis Toll: in the dark before dawn the knight slams Excalibell into the stone like a cathedral bell;
+ * the sun rises behind him, a wall of dawnlight rolls through the foe and the one behind it, shattering
+ * their guard, and the light settles round him as a hexagonal aegis.
+ */
+function dawnsAegis(h: KnightMoveHost, tl: Timeline) {
+  const foes = each(h); // PIERCE: the target, then the foe behind it
+  const PLANT = 30; // ANIME_METEOR_SLAM lands at f30
+  const ox = h.home.x + 30; // where the bell strikes the floor
+  const oy = h.home.y;
+  const DAWN = 0x0A0618;
+  const reach = Math.max(...foes.map((t) => t.x)) + 70 - ox;
+  const WAVE = 24;
+  const front = (u: number) => ox + 10 + (reach - 10) * easeOut(u);
+  const AEGIS = PLANT + 22;
+  const GUARD = AEGIS + 22;
+  const END = GUARD + 18;
+
+  tl.at(0, () => {
+    h.anim('ANIME_METEOR_SLAM');
+    h.camera(1.32, h.home.x + 14, h.home.y - 36, PLANT - 2);
+    h.sound('holy', { rate: 0.5, vol: 0.6 });
+    chargeSound(h, PLANT);
+  });
+  tl.during(0, 18, (t) => h.dim(0.75 * t, DAWN));
+  tl.every(16, PLANT - 2, 3, () => h.ghost(HOLY_GOLD, 0.4, 14));
+  chargeFx(h, tl, 8, PLANT, () => h.weaponTip(), P_DECREE, 34, 14);
+  tl.at(PLANT - 6, () => swingSound(h, true));
+
+  // The sun rises behind him: a slow climb, then it blazes up on the toll
+  lightSpan(h, tl, 2, END - 4, (g, t, f) => {
+    const rise = easeOut(Math.min(1, f / PLANT));
+    const blaze = f > PLANT ? Math.max(0, 1 - (f - PLANT) / 30) : 0;
+    const fade = t > 0.72 ? 1 - (t - 0.72) / 0.28 : 1;
+    const x = h.home.x - 8;
+    const y = h.home.y - 10 - rise * 26;
+    const r = 18 + 10 * rise + 16 * blaze;
+    for (let k = 0; k < 14; k++) {
+      const a = Math.PI + ((k + 0.5) / 14) * Math.PI + Math.sin(f * 0.02) * 0.06;
+      const len = r * (2.4 + 0.8 * hash(k)) * (0.6 + 0.4 * rise);
+      const s = 0.07;
+      g.poly([x + Math.cos(a - s) * r, y + Math.sin(a - s) * r, x + Math.cos(a) * len, y + Math.sin(a) * len, x + Math.cos(a + s) * r, y + Math.sin(a + s) * r])
+        .fill({ color: k % 2 ? HOLY_PALE : HOLY_GOLD, alpha: (0.14 + 0.2 * blaze) * fade * rise });
+    }
+    g.circle(x, y, r * 1.6).fill({ color: 0xF97316, alpha: 0.1 * fade * rise });
+    g.circle(x, y, r).fill({ color: HOLY_GOLD, alpha: (0.3 + 0.3 * blaze) * fade * rise });
+    g.circle(x, y, r * 0.65).fill({ color: HOLY_WHITE, alpha: (0.35 + 0.4 * blaze) * fade * rise });
+    // Horizon line of first light along the floor
+    g.ellipse(x + 40, oy - 2, 120 * rise, 4).fill({ color: HOLY_GOLD, alpha: (0.2 + 0.25 * blaze) * fade });
+  }, 'back');
+
+  // The toll: the bell meets the stone
+  tl.at(PLANT, () => {
+    h.hitStop(6);
+    h.stretch(1.14, 0.86);
+    h.flash(0.2, 0xFFF3C4);
+    h.shake(12);
+    h.camera(1.0, 213, h.home.y - 50, GUARD - PLANT, true);
+    h.dim(0.8, DAWN);
+    h.sound('block', { rate: 0.36, vol: 1.15 }); // BONG
+    h.sound('impact_heavy', { vol: 0.8 });
+    h.sound('holy');
+    h.sound('quake', { vol: 0.5 });
+    h.vfx('shockwave', ox, oy - 8, { size: 1.3 });
+    h.vfx('summon', h.home.x + 4, oy, { anim: 'animation2', size: 1.5, squash: 0.35, layer: 'ground', tint: 0xFDE047 });
+    holySparks(h, ox, oy - 4, 22, 1.1);
+  });
+  tl.at(PLANT + 5, () => h.stretch(1, 1));
+  lightSpan(h, tl, PLANT, PLANT + 16, (g, u) => {
+    godRay(g, ox, 40, oy, 8 * (1 - u) + 1, 26 * (1 - u) + 2, HOLY_GOLD, 1 - u);
+    glint(g, ox, oy - 8, 40 * (1 - u) + 6, 0, HOLY_WHITE, 1 - u);
+  });
+  // Echoes of the bell
+  [PLANT + 14, PLANT + 28].forEach((at, k) => {
+    tl.at(at, () => {
+      h.sound('block', { rate: 0.4 + k * 0.04, vol: 0.55 - k * 0.2 });
+      h.shake(4 - k * 2);
+    });
+    lightSpan(h, tl, at, at + 18, (g, u) => {
+      for (let j = 0; j < 2; j++) {
+        const r = (12 + 70 * easeOut(u)) * (1 - j * 0.3);
+        g.ellipse(ox, oy - 4, r, r * 0.28).stroke({ width: 2, color: HOLY_PALE, alpha: (1 - u) * (0.7 - k * 0.25) });
+      }
+    }, 'ground');
+  });
+
+  // A wall of dawnlight rolls down the line
+  crackFx(h, tl, PLANT, { x: ox, y: oy + 2 }, { x: ox + reach, y: oy + 2 }, P_DECREE, WAVE * 0.6, 50);
+  tl.at(PLANT + 2, () => h.sound('wave', { rate: 1.4, vol: 0.5 }));
+  lightSpan(h, tl, PLANT, PLANT + WAVE + 8, (g, t, f) => {
+    const u = Math.min(1, f / WAVE);
+    const fade = f > WAVE ? 1 - (f - WAVE) / 8 : 1;
+    const x = front(u);
+    const grow = 0.5 + 0.5 * Math.min(1, f / 6);
+    // A standing wall of dawnlight, brightest at its leading edge, smearing back toward the knight
+    const tail = Math.min(70, x - ox - 6);
+    if (tail > 0) {
+      g.poly([x - tail, oy, x - tail * 0.5, oy - 30 * grow, x, oy - 74 * grow, x + 6, oy - 60 * grow, x + 8, oy]).fill({ color: HOLY_GOLD, alpha: 0.28 * fade });
+      g.poly([x - tail * 0.5, oy, x - tail * 0.2, oy - 26 * grow, x + 1, oy - 64 * grow, x + 5, oy]).fill({ color: HOLY_PALE, alpha: 0.4 * fade });
+    }
+    g.ellipse(x + 2, oy - 34 * grow, 4, 34 * grow).fill({ color: 0xFFFFFF, alpha: 0.85 * fade });
+    g.ellipse(x + 2, oy - 34 * grow, 12, 40 * grow).fill({ color: HOLY_GOLD, alpha: 0.3 * fade });
+    g.rect(ox + 6, oy - 7, Math.max(0, x - ox - 6), 8).fill({ color: HOLY_GOLD, alpha: 0.3 * fade });
+    g.rect(ox + 6, oy - 4, Math.max(0, x - ox - 6), 2).fill({ color: 0xFFFFFF, alpha: 0.8 * fade });
+  });
+  tl.every(PLANT + 2, PLANT + WAVE, 2, (i) => {
+    const x = front(Math.min(1, (i * 2 + 2) / WAVE));
+    h.emit(x, oy - 2, { count: 2, colors: [HOLY_WHITE, HOLY_PALE, HOLY_GOLD], speed: [0.8, 2.2], angle: -Math.PI / 2, spread: 0.5, gravity: -0.02, size: 2, life: [14, 24] });
+  });
+
+  // Each foe the wave reaches: light erupts through it and its guard shatters
+  foes.forEach((t, i) => {
+    const v = Math.min(1, Math.max(0, (t.x - 10 - ox - 10) / (reach - 10)));
+    const at = PLANT + Math.max(2, Math.round((1 - Math.cbrt(1 - v)) * WAVE));
+    const c = chest(t);
+    lightSpan(h, tl, at, at + 18, (g, u) => {
+      godRay(g, t.x, t.y - t.height - 40 * easeOut(u), t.y, 14 * (1 - u) + 2, 26 * (1 - u) + 2, HOLY_GOLD, 1 - u);
+      glint(g, c.x, c.y, 30 * (1 - u) + 6, 0.2, HOLY_WHITE, 1 - u);
+    });
+    if (h.ctx.shatter) {
+      // Its guard flashes up as a hex ward and splinters outward
+      lightSpan(h, tl, at, at + 18, (g, u) => {
+        for (let k = 0; k < 7; k++) {
+          const ang = (k / 7) * Math.PI * 2 + u * 0.8;
+          const r = lerp(10, 44, easeOut(u));
+          hexTile(g, c.x + Math.cos(ang) * r, c.y + Math.sin(ang) * r * 0.8 + u * u * 20, 8 * (1 - u * 0.5), Math.abs(Math.cos(ang + u * 6)) * 0.7 + 0.3, 1 - u);
+        }
+      });
+    }
+    tl.at(at, () => {
+      land(h, h.targets.length ? i : undefined, { scale: i ? 0.9 : 1.1, glare: 0.35, tint: 0xFFF1B8, flash: 0xFFFFFF, sfx: 'impact_metal' });
+      h.knock(i, 12, 6);
+      h.sound('holy', { rate: 1.2 + i * 0.15, vol: 0.5 });
+      if (h.ctx.shatter) {
+        h.emit(c.x, c.y, { count: 16, colors: [0xFDE68A, 0xFFFFFF, HOLY_GOLD], speed: [2, 4.5], angle: -Math.PI / 2, spread: Math.PI, gravity: 0.18, size: 3, life: [14, 26] });
+        h.sound('ice', { rate: 1.3, vol: 0.5 });
+      }
+    });
+  });
+
+  // The aegis: tiles of light gather from the dawn and lock into a dome around him
+  tl.at(AEGIS - 2, () => {
+    h.anim('DEFENSE');
+    h.camera(1.25, h.home.x + 6, h.home.y - 32, END - AEGIS);
+    h.sound('ward', { rate: 0.8, vol: 0.6 });
+  });
+  const tiles = Array.from({ length: 8 }, (_, k) => ({ a: (k / 8) * Math.PI * 2, row: k % 2 }));
+  lightSpan(h, tl, AEGIS, GUARD + 8, (g, t, f) => {
+    const p = { x: h.home.x + 2, y: h.home.y - 30 };
+    const gather = easeOut(Math.min(1, f / 18));
+    const lock = f > GUARD - AEGIS ? 1 - (f - (GUARD - AEGIS)) / 8 : 1;
+    tiles.forEach((tile, k) => {
+      const ang = tile.a + (1 - gather) * 2.2 + f * 0.01;
+      const rx = lerp(70, 30, gather);
+      const x = p.x + Math.cos(ang) * rx;
+      const y = p.y + (tile.row ? -10 : 10) + Math.sin(ang) * 6 * gather;
+      const depth = 0.55 + 0.45 * Math.abs(Math.cos(ang));
+      hexTile(g, x, y, 11 * depth, Math.abs(Math.sin(ang)) * 0.6 + 0.4, lock * (0.5 + 0.5 * gather) * (k % 2 ? 0.9 : 1));
+    });
+    g.ellipse(p.x, p.y, 32 * gather, 38 * gather).fill({ color: HOLY_GOLD, alpha: 0.16 * gather * lock });
+    g.ellipse(p.x, p.y, 34 * gather, 40 * gather).stroke({ width: 2, color: HOLY_PALE, alpha: 0.8 * gather * lock });
+  });
+  tl.every(AEGIS, GUARD, 4, () => feathers(h, h.home.x + 2, h.home.y - 50, 1, 30));
+  tl.at(GUARD, () => {
+    h.guard(0xFDE047);
+    h.flash(0.25, 0xFFF3C4);
+    h.sound('holy', { rate: 1.4, vol: 0.5 });
+  });
+  tl.during(GUARD - 4, END, (t) => h.dim(0.8 * (1 - t), DAWN));
+  tl.end(END);
 }
 
 // ---------------------------------------------------------------------------------------------
