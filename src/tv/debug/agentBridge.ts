@@ -233,7 +233,7 @@ const api = {
   /** Invokes a registered action by name. */
   call,
 
-  /** Switch TV view: 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'ALCHEMIST' | 'SANCTUARY'. Resolves when the view is up. */
+  /** Switch TV view: 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'SANCTUARY'. Resolves when the view is up. */
   async goto(view: string): Promise<unknown> {
     const target = view.toUpperCase();
     call('goto', target);

@@ -18,7 +18,7 @@ import { registerDebug } from '../debug/agentBridge';
 import { type MonsterMoveId, CARD_CATALOG, STARTER_CARD_IDS, type BattleMapId } from '../../types/battle';
 import type { VfxName } from '../engine/vfx';
 import { BATTLE_MAPS } from '../engine/GameEngine';
-import { CAMPAIGN_MAPS } from '../../shared/expeditionEngine';
+import { CAMPAIGN_MAPS, latestUnlockedStage } from '../../shared/expeditionEngine';
 import { STAT_INFO, weaponLevelReq } from '../../shared/progression';
 import { 
   Tv, 
@@ -34,17 +34,17 @@ import {
   LogOut 
 } from 'lucide-react';
 
-export type TVScreenView = 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'ALCHEMIST' | 'SANCTUARY' | 'TITLE' | 'MAP_SELECT';
+export type TVScreenView = 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'SANCTUARY' | 'TITLE' | 'MAP_SELECT';
 
 export const GameScreen: React.FC = () => {
   // GameEngine Reference - Strictly isolated from React re-renders!
   const engineRef = useRef<GameEngine | null>(null);
   const pixiContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // TV UI Views: 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'ALCHEMIST' | 'SANCTUARY' | 'TITLE' | 'MAP_SELECT'
+  // TV UI Views: 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'SANCTUARY' | 'TITLE' | 'MAP_SELECT'
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const urlView = searchParams?.get('view')?.toUpperCase() as TVScreenView | undefined;
-  const validViews: TVScreenView[] = ['HUB', 'BLACKSMITH', 'COMBAT', 'ALCHEMIST', 'SANCTUARY', 'TITLE', 'MAP_SELECT'];
+  const validViews: TVScreenView[] = ['HUB', 'BLACKSMITH', 'COMBAT', 'SANCTUARY', 'TITLE', 'MAP_SELECT'];
   const initialView: TVScreenView = urlView && validViews.includes(urlView)
     ? urlView
     : profileManager.hasSavedProfile()
@@ -56,12 +56,15 @@ export const GameScreen: React.FC = () => {
   const currentViewRef = useRef(currentView);
   currentViewRef.current = currentView;
 
+  // Where leaving a battle returns to: the map screen, or the hub for a Quick Play run
+  const [battleReturnView, setBattleReturnView] = useState<TVScreenView>('MAP_SELECT');
+
   // Selected expedition state
   const [selectedExpeditionMap, setSelectedExpeditionMap] = useState<BattleMapId>('VERDANT_FOREST');
   const [selectedExpeditionLevel, setSelectedExpeditionLevel] = useState<number>(1);
 
   // Navigation indices
-  const [hubIndex, setHubIndex] = useState<number>(1); // Default to Blacksmith
+  const [hubIndex, setHubIndex] = useState<number>(0); // Quick Play
   const [shopIndex, setShopIndex] = useState<number>(0);
 
   // Networking state
@@ -195,7 +198,7 @@ export const GameScreen: React.FC = () => {
     } else if (currentView === 'MAP_SELECT') {
       engineRef.current.setCharactersVisible(false);
       void engineRef.current.loadBackground(BATTLE_MAPS.GUILD_HALL);
-    } else if (currentView === 'HUB' || currentView === 'ALCHEMIST' || currentView === 'SANCTUARY') {
+    } else if (currentView === 'HUB' || currentView === 'SANCTUARY') {
       // Town menus are pure menus: just the town backdrop, no knight or monster on stage
       engineRef.current.setCharactersVisible(false);
       void engineRef.current.loadBackground(BATTLE_MAPS.GUILD_HALL);
@@ -206,6 +209,20 @@ export const GameScreen: React.FC = () => {
       engineRef.current.setCharactersVisible(true);
     }
   }, [currentView, isEngineReady]);
+
+  // Entering the town hub always lands on Quick Play
+  useEffect(() => {
+    if (currentView === 'HUB') setHubIndex(0);
+  }, [currentView]);
+
+  // Quick Play: jump straight into the furthest unlocked stage
+  const handleQuickPlay = useCallback(() => {
+    const { mapId, level } = latestUnlockedStage(profileManager.getActiveProfile());
+    setSelectedExpeditionMap(mapId);
+    setSelectedExpeditionLevel(level);
+    setBattleReturnView('HUB');
+    setCurrentView('COMBAT');
+  }, []);
 
   // Handle transition from Title Screen into the game
   const handleStartGameFromTitle = useCallback((loadedProfile: PlayerProfile) => {
@@ -420,8 +437,8 @@ export const GameScreen: React.FC = () => {
           handlePreviewShopItem(SHOP_ITEMS[0]);
         } else if (selectedNode === 'GATE') {
           setCurrentView('MAP_SELECT');
-        } else if (selectedNode === 'ALCHEMIST') {
-          setCurrentView('ALCHEMIST');
+        } else if (selectedNode === 'QUICK_PLAY') {
+          handleQuickPlay();
         } else if (selectedNode === 'SANCTUARY') {
           setCurrentView('SANCTUARY');
         } else if (selectedNode === 'TITLE') {
@@ -471,6 +488,7 @@ export const GameScreen: React.FC = () => {
           onStartExpedition={(mapId, level) => {
             setSelectedExpeditionMap(mapId);
             setSelectedExpeditionLevel(level);
+            setBattleReturnView('MAP_SELECT');
             setCurrentView('COMBAT');
           }}
           onBackToHub={() => setCurrentView('HUB')}
@@ -483,7 +501,7 @@ export const GameScreen: React.FC = () => {
           cardIds={profile?.unlockedCards}
           expeditionMapId={selectedExpeditionMap}
           expeditionLevel={selectedExpeditionLevel}
-          onExitBattle={() => setCurrentView('MAP_SELECT')}
+          onExitBattle={() => setCurrentView(battleReturnView)}
         />
       ) : (
         <div className="relative z-10 w-full h-full flex flex-col justify-between p-6 pointer-events-auto">
@@ -590,8 +608,8 @@ export const GameScreen: React.FC = () => {
                   handlePreviewShopItem(SHOP_ITEMS[0]);
                 } else if (node === 'GATE') {
                   setCurrentView('MAP_SELECT');
-                } else if (node === 'ALCHEMIST') {
-                  setCurrentView('ALCHEMIST');
+                } else if (node === 'QUICK_PLAY') {
+                  handleQuickPlay();
                 } else if (node === 'SANCTUARY') {
                   setCurrentView('SANCTUARY');
                 }
@@ -615,25 +633,6 @@ export const GameScreen: React.FC = () => {
               knightLevel={profile?.level ?? 1}
               weaponCasts={profile?.weaponCasts ?? {}}
             />
-          )}
-
-          {currentView === 'ALCHEMIST' && (
-            <div className="bg-[#1A1926]/95 border-4 border-[#38B6FF] p-6 max-w-lg w-full text-center rounded shadow-pixel-box backdrop-blur-md">
-              <h2 className="text-sm font-pixel text-[#38B6FF] mb-2">ALCHEMIST'S APOTHECARY</h2>
-              <p className="text-xs text-[#A7A9BE] font-mono mb-4">
-                "Drink this Electrolyte Brew before your sets to maintain hip snap velocity!"
-              </p>
-              <div className="bg-[#0F0E17] border-2 border-[#2E2B44] p-3 text-left space-y-2 mb-4">
-                <div className="text-[11px] font-pixel text-[#F4B41A]">🧪 STAMINA DRAUGHT (50 GP)</div>
-                <div className="text-[10px] text-[#A7A9BE] font-mono">Restores 50 Energy. Decreases rest time by 15%.</div>
-              </div>
-              <button
-                onClick={() => setCurrentView('HUB')}
-                className="bg-[#38B6FF] text-[#0F0E17] font-pixel text-[10px] py-2 px-6 border-2 border-black shadow-pixel-box"
-              >
-                [BACK / ESC] RETURN TO HUB
-              </button>
-            </div>
           )}
 
           {currentView === 'SANCTUARY' && (

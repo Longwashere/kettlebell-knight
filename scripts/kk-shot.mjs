@@ -10,7 +10,7 @@
  *
  * Steps run in order:
  *   ready                     wait for engine init + asset loads (implicit after page load)
- *   goto:<VIEW>               HUB | BLACKSMITH | COMBAT | ALCHEMIST | SANCTUARY | TITLE
+ *   goto:<VIEW>               HUB | BLACKSMITH | COMBAT | SANCTUARY | TITLE
  *   encounter:<id|index>      ENCOUNTERS id/index, a monster id for a solo fight (encounter:kraken),
  *                             or a comma list of monsters: encounter:wolf,boar
  *   bg:<BATTLE_MAPS key>      e.g. bg:BLOOD_CEMETERY

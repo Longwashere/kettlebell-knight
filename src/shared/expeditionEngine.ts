@@ -492,6 +492,19 @@ export function getNextCampaignMap(currentMapId: BattleMapId): BattleMapId | nul
 }
 
 /**
+ * The furthest stage the player can fight: the last unlocked map in campaign order, at the level after its
+ * highest clear (capped at the map's final level). Used by the hub's Quick Play.
+ */
+export function latestUnlockedStage(
+  profile: { unlockedMaps?: BattleMapId[]; mapProgress?: Record<string, { highestLevelCleared: number }> } | null,
+): { mapId: BattleMapId; level: number } {
+  const unlocked = profile?.unlockedMaps ?? [];
+  const mapId = [...CAMPAIGN_MAP_ORDER].reverse().find((m) => unlocked.includes(m)) ?? 'VERDANT_FOREST';
+  const cleared = profile?.mapProgress?.[mapId]?.highestLevelCleared ?? 0;
+  return { mapId, level: Math.min(cleared + 1, getMapConfig(mapId).levels.length) };
+}
+
+/**
  * Resolves full EncounterTemplate objects for a given (mapId, level).
  */
 export function getExpeditionEncounters(mapId: BattleMapId, level: number): EncounterTemplate[] {

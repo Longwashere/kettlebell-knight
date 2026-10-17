@@ -90,26 +90,26 @@ const ICON_SHIELD = [
   '.........kk.........',
 ];
 
-const ICON_POTION = [
-  '........kkkk........',
-  '.......knnnNk.......',
-  '.......knnnNk.......',
-  '.......knnnNk.......',
-  '......kGGqqGGk......',
-  '.......kGqqGk.......',
-  '......kkGqqGkk......',
-  '.....kGGGqqGGGk.....',
-  '....kGGqqqqqqGGk....',
-  '....kGqqwqqqqqGk....',
-  '...kGbbwbbbbBBBGk...',
-  '...kGbbwbbbbBBBGk...',
-  '...kGbwbbbbbBBBGk...',
-  '...kGbbbbbbcBBBGk...',
-  '....kGbbbcbbBBGk....',
-  '....kGGbbbbbcGGk....',
-  '.....kGGbbbbGGk.....',
-  '......kkGGGGkk......',
-  '........kkkk........',
+const ICON_BOLT = [
+  '....................',
+  '..........kkkkk.....',
+  '.........kyyyyk.....',
+  '........kyyyyk......',
+  '.......kyyyyk.......',
+  '......kyyyyk........',
+  '.....kyyyyk.........',
+  '....kyyyyykkkkk.....',
+  '...kwyyyyyyyyyk.....',
+  '...kkkkkyyyyyk......',
+  '.......kyyyyk.......',
+  '......kyyyyk........',
+  '.....kyyyyk.........',
+  '....kyyygk..........',
+  '...kyygk............',
+  '...kygk.............',
+  '..kygk..............',
+  '..kgk...............',
+  '..kk................',
   '....................',
 ];
 
@@ -200,6 +200,14 @@ export interface HubNodeInfo {
 
 export const HUB_NODES: HubNodeInfo[] = [
   {
+    id: 'QUICK_PLAY',
+    title: 'QUICK PLAY',
+    subtitle: 'LATEST STAGE',
+    desc: 'Fight thy latest unlocked stage.',
+    icon: ICON_BOLT,
+    accentColor: '#38B6FF',
+  },
+  {
     id: 'GATE',
     title: 'GUILD GATE',
     subtitle: 'DUNGEON QUESTS',
@@ -214,14 +222,6 @@ export const HUB_NODES: HubNodeInfo[] = [
     desc: 'Forge bells and armor for thy knight.',
     icon: ICON_SHIELD,
     accentColor: '#F4B41A',
-  },
-  {
-    id: 'ALCHEMIST',
-    title: 'ALCHEMIST',
-    subtitle: 'POTIONS & BREWS',
-    desc: 'Elixirs of endurance and pre-workout concoctions.',
-    icon: ICON_POTION,
-    accentColor: '#38B6FF',
   },
   {
     id: 'SANCTUARY',
