@@ -2521,6 +2521,248 @@ function singularityEdge(h: KnightMoveHost, tl: Timeline) {
   tl.end(SWEEP + 38);
 }
 
+/** Heaven's Smite: knight raises Excalibell to lockout; radiant swords and golden kettlebells rain from the heavens onto all foes. */
+function heavensSmite(h: KnightMoveHost, tl: Timeline) {
+  const foes = each(h);
+  const LOCK = 18;
+  tl.at(0, () => h.anim('JUMP_FRONT_START'));
+  tl.during(0, 6, (t) => h.stretch(1 + 0.08 * t, 1 - 0.1 * t));
+  tl.at(6, () => {
+    h.stretch(1, 1);
+    h.anim('SKILL2TULUC');
+    h.camera(1.1, 240, h.home.y - 45, 60);
+    h.sound('holy', { rate: 0.85 });
+  });
+  tl.during(6, LOCK, (t) => h.lift(easeOut(t) * 8));
+  tl.during(LOCK + 24, LOCK + 36, (t) => h.lift(lerp(8, 0, t)));
+  tl.during(0, 14, (t) => h.dim(0.45 * t, 0x140C02));
+  chargeFx(h, tl, 6, LOCK, () => h.weaponTip(), P_DECREE, 30, 10);
+
+  // Divine god-rays beam from heavens
+  drawSpan(h, tl, LOCK - 2, LOCK + 44, (g, t) => {
+    const p = h.pos();
+    for (let k = -2; k <= 2; k++) {
+      pillar(g, p.x + k * 16, 15, p.y, 7, P_DECREE, 0.25 * (1 - t));
+    }
+  }, 'back');
+
+  tl.at(LOCK, () => {
+    h.flash(0.35, 0xFFF3C4);
+    h.shake(8);
+    h.sound('impact_crit', { vol: 0.7 });
+    h.sound('impact_metal', { rate: 0.9, vol: 0.8 });
+    h.sound('holy');
+  });
+
+  // Holy halo pulses expanding from the raised weapon tip
+  drawSpan(h, tl, LOCK, LOCK + 24, (g, t) => {
+    const p = h.weaponTip();
+    for (let k = 0; k < 3; k++) {
+      const r = (t * 1.5 - k * 0.22) * 130;
+      if (r > 0) {
+        g.circle(p.x, p.y, r).stroke({
+          width: 3 * (1 - t) + 1,
+          color: k % 2 ? 0xFFFBEA : 0xF4B41A,
+          alpha: 1 - t,
+        });
+      }
+    }
+  });
+
+  // Swords and kettlebells plummet from the sky
+  foes.forEach((t, i) => {
+    const at = LOCK + 8 + i * 5;
+    const c = chest(t);
+
+    tl.at(at - 7, () => {
+      h.sound('whistle', { rate: 1.8, vol: 0.4 });
+    });
+
+    // Falling radiant sword lance
+    drawSpan(h, tl, at - 7, at + 16, (g, u, f) => {
+      const drop = f < 6 ? easeIn(f / 6) : 1;
+      const fade = f < 6 ? 1 : 1 - (f - 6) / 16;
+      const y = lerp(5, t.y - 6, drop);
+      lance(g, t.x + 3, y - 48, t.x + 3, y, 8, P_DECREE, fade);
+      g.rect(t.x - 8, y - 42, 22, 3).fill({ color: 0xF4B41A, alpha: fade }).stroke({ width: 1, color: INK, alpha: fade });
+    });
+
+    // Falling golden kettlebell right behind the blade
+    drawSpan(h, tl, at - 5, at + 14, (g, u, f) => {
+      const drop = f < 5 ? easeIn(f / 5) : 1;
+      const fade = f < 5 ? 1 : 1 - (f - 5) / 14;
+      const y = lerp(0, t.y - 12, drop);
+      const rot = f * 0.25;
+      kettlebell(g, t.x - 2, y, 7, rot, 0xFFFBEA, fade);
+    });
+
+    tl.at(at, () => {
+      land(h, h.targets.length ? i : undefined, {
+        scale: 1.05,
+        tint: 0xFFF1B8,
+        flash: 0xFFF7D6,
+        burst: 'crater',
+        burstSize: 1.0,
+        sfx: 'impact_heavy',
+      });
+      h.sound('holy', { rate: 1.1 });
+      h.knock(i, 4, -7);
+      h.sparks(c.x, t.y - 6, 12, [0xF4B41A, 0xFFFBEA, 0xFBBF24]);
+    });
+  });
+
+  tl.during(LOCK + 30, LOCK + 46, (t) => h.dim(0.45 * (1 - t), 0x140C02));
+  tl.end(LOCK + 48);
+}
+
+/** Righteous Onslaught: a fierce 3-strike barrage of heavy holy slashes culminating in a jumping kettlebell-tip overhead crush. */
+function righteousOnslaught(h: KnightMoveHost, tl: Timeline) {
+  const t0 = h.target;
+  const c = chest(t0);
+  const HIT1 = 10;
+  const HIT2 = 18;
+  const JUMP = 26;
+  const SLAM = 34;
+
+  // Lunge forward to the enemy
+  travel(h, tl, 0, HIT1, HOME, strikeSpot(h, t0, 50), easeInOut);
+
+  // Strike 1: Diagonal slash down
+  tl.at(0, () => {
+    h.anim('ATTACK1');
+    h.sound('slash', { rate: 1.1 });
+  });
+  slashFx(h, tl, 6, { x: c.x - 4, y: c.y - 2, r: 24, a0: -2.0, a1: 0.6, thick: 6, p: P_DECREE, dur: 7 });
+  tl.at(HIT1, () => {
+    h.flashTarget(0, 0xFFFBEA, 5);
+    h.sparks(c.x, c.y, 8, [0xF4B41A, 0xFFFFFF]);
+    h.knock(0, 3, -2);
+    h.sound('impact', { rate: 1.2 });
+  });
+
+  // Strike 2: Upward backhand crescent cut
+  tl.at(HIT1 + 2, () => {
+    h.anim('ATTACK2');
+    h.sound('slash_heavy', { rate: 1.2 });
+  });
+  slashFx(h, tl, HIT1 + 3, { x: c.x - 6, y: c.y + 4, r: 28, a0: 1.3, a1: -1.6, thick: 8, p: P_DECREE, dur: 7 });
+  tl.at(HIT2, () => {
+    h.flashTarget(0, 0xFFF3C4, 6);
+    h.sparks(c.x, c.y, 10, [0xF4B41A, 0x38B6FF, 0xFFFFFF]);
+    h.shake(4);
+    h.knock(0, 4, -3);
+    h.sound('impact_heavy', { rate: 1.1 });
+  });
+
+  // Strike 3: Knight leaps up and smashes down with the golden kettlebell tip
+  tl.at(JUMP, () => {
+    h.anim('ATTACK3');
+    h.sound('charge', { rate: 1.5, vol: 0.5 });
+  });
+  tl.during(JUMP, SLAM, (t) => h.lift(Math.sin(t * Math.PI) * 14));
+  // Golden starburst flares on weapon tip as kettlebell comes down
+  drawSpan(h, tl, JUMP + 3, SLAM + 4, (g, t) => {
+    const tip = h.weaponTip();
+    starburst(g, tip.x, tip.y, 14 * easeOut(t), 8, t * Math.PI, P_DECREE, 1 - t * 0.5);
+  });
+
+  tl.at(SLAM, () => {
+    land(h, 0, {
+      scale: 1.3,
+      tint: 0xFFFBEA,
+      flash: 0xFFF3C4,
+      burst: 'crater',
+      burstSize: 1.3,
+      sfx: 'impact_heavy',
+    });
+    h.sound('impact_metal', { rate: 1.2, vol: 0.9 });
+    h.sound('impact_crit');
+    h.sound('holy');
+    h.shake(8);
+    h.knock(0, 10, -5);
+    h.sparks(c.x, t0.y - 4, 16, [0xF4B41A, 0xFFFBEA, 0xFBBF24]);
+  });
+
+  // Return home
+  backstep(h, tl, SLAM + 6, SLAM + 18);
+  tl.end(SLAM + 20);
+}
+
+/** Dawn's Aegis Toll: knight drives Excalibell into the ground like a sacred bell; a radiant shockwave pierces forward while a golden aegis shields the knight. */
+function dawnsAegis(h: KnightMoveHost, tl: Timeline) {
+  const t0 = h.target;
+  const foes = each(h);
+  const PLANT = 12;
+  const WAVE_END = 26;
+
+  tl.at(0, () => {
+    h.anim('DEFENSE');
+    h.sound('charge', { rate: 1.3, vol: 0.45 });
+  });
+  tl.during(0, PLANT, (t) => h.stretch(1 + 0.1 * t, 1 - 0.15 * t));
+
+  // Sacred Aegis barrier forms around the knight
+  drawSpan(h, tl, 0, PLANT + 28, (g, t, f) => {
+    const p = h.pos();
+    const alpha = f < PLANT ? f / PLANT : 1 - (f - PLANT) / 28;
+    runeCircle(g, p.x, p.y, 28 * easeOut(Math.min(1, f / 8)), f * 0.03, P_DECREE, alpha);
+    groundRing(g, p.x, p.y, 32, 2, 0xF4B41A, alpha * 0.8);
+    orb(g, p.x, p.y - 18, 18 * easeOut(Math.min(1, f / PLANT)), P_DECREE, alpha * 0.35);
+  }, 'back');
+
+  // Plant the kettlebell tip into the stone
+  tl.at(PLANT, () => {
+    h.stretch(1, 1);
+    h.flash(0.3, 0xFFFBEA);
+    h.shake(6);
+    h.sound('thud', { rate: 1.1 });
+    h.sound('impact_metal', { rate: 0.85, vol: 1.0 });
+    h.sound('holy', { rate: 1.0 });
+  });
+
+  // Ground scorch decal
+  drawSpan(h, tl, PLANT, PLANT + 24, (g, t) => {
+    const p = h.pos();
+    scorch(g, p.x + 8, p.y, 18, 0xF4B41A, 0.7 * (1 - t * 0.5));
+  }, 'ground');
+
+  // Piercing golden holy shockwave surges along the floor toward the foes
+  drawSpan(h, tl, PLANT, WAVE_END + 4, (g, t) => {
+    const p = h.pos();
+    const reach = easeOut(t);
+    const frontX = lerp(p.x + 10, t0.x + 60, reach);
+    // Holy lance beam along ground
+    lance(g, p.x + 10, p.y - 2, frontX, p.y - 2, 12 * (1 - t * 0.5), P_DECREE, 1 - t * 0.6);
+    // Ring waves
+    for (let k = 0; k < 3; k++) {
+      const rx = lerp(p.x + 10, t0.x + 40, Math.min(1, reach * 1.2 - k * 0.15));
+      if (rx > p.x + 15) {
+        g.ellipse(rx, p.y - 2, 6, 14 * (1 - t)).stroke({ width: 2, color: 0xFFFBEA, alpha: 1 - t });
+      }
+    }
+  });
+
+  // Impact hits foes in line
+  foes.forEach((t, i) => {
+    const hitTime = PLANT + 4 + i * 4;
+    tl.at(hitTime, () => {
+      land(h, i === 0 ? 0 : undefined, {
+        scale: 1.2,
+        tint: 0xFFF1B8,
+        flash: 0xFFFFFF,
+        burst: 'crater',
+        burstSize: 1.1,
+        sfx: 'impact_metal',
+      });
+      h.knock(i, 6, -3);
+      h.sparks(t.x, t.y - 8, 12, [0xF4B41A, 0xFFFBEA, 0x38B6FF]);
+    });
+  });
+
+  tl.during(PLANT + 16, PLANT + 28, (t) => h.idle());
+  tl.end(PLANT + 30);
+}
+
 // ---------------------------------------------------------------------------------------------
 
 /** One move per weapon spell templateId (src/types/weaponSpells.ts). */
@@ -2569,4 +2811,8 @@ export const SPELL_MOVES: Record<string, KnightMove> = {
   spell_scorched_earth: scorchedEarth,
   spell_severed_moment: severedMoment,
   spell_singularity_edge: singularityEdge,
+
+  spell_heavens_smite: heavensSmite,
+  spell_righteous_onslaught: righteousOnslaught,
+  spell_dawns_aegis: dawnsAegis,
 };

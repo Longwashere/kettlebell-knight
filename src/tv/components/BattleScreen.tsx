@@ -802,6 +802,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     {
       // ENCOUNTERS id or index, or an ad-hoc list of MONSTER_CATALOG ids / sprite types (e.g. ['wolf', 'BOAR'])
       encounter: (which: string | number | string[]) => {
+        if (typeof which === 'string' && which.includes(',')) {
+          which = which.split(',').map((s) => s.trim());
+        }
         if (Array.isArray(which)) {
           const monsterIds = which.map((w) => {
             const cat = MONSTER_CATALOG.find((c) => c.id === w || c.spriteType === w.toUpperCase());

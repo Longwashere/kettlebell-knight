@@ -125,6 +125,11 @@ export const WEAPON_SPELLS: Record<string, CardTemplate[]> = {
     spell('void_sword', { templateId: 'spell_severed_moment', name: 'Severed Moment', exercise: 'SINGLE_LEG_RDL', reps: 5, rarity: 'legendary', target: 'SINGLE', shatter: true, element: 'VOID', colorHex: '#A855F7', icon: '⏳' }),
     spell('void_sword', { templateId: 'spell_singularity_edge', name: 'Singularity Edge', exercise: 'WINDMILL', reps: 6, rarity: 'legendary', target: 'ALL', element: 'VOID', colorHex: '#7C3AED', icon: '🌑' }),
   ],
+  excalibell: [
+    spell('excalibell', { templateId: 'spell_heavens_smite', name: "Heaven's Smite", exercise: 'OVERHEAD_PRESS', reps: 5, rarity: 'legendary', target: 'ALL', element: 'HOLY', colorHex: '#FBBF24', icon: '⚜️' }),
+    spell('excalibell', { templateId: 'spell_righteous_onslaught', name: 'Righteous Onslaught', exercise: 'SWING', reps: 5, rarity: 'legendary', target: 'CHAIN', hits: 3, element: 'HOLY', colorHex: '#F59E0B', icon: '⚔️' }),
+    spell('excalibell', { templateId: 'spell_dawns_aegis', name: "Dawn's Aegis Toll", exercise: 'SQUAT', reps: 5, rarity: 'legendary', target: 'PIERCE', shatter: true, blockShare: 0.35, element: 'HOLY', colorHex: '#FDE047', icon: '🛡️' }),
+  ],
 };
 
 /** Every weapon spell card, flat. */

@@ -487,6 +487,21 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     description: '108kg dark matter singularity kettlebell core projecting an event-horizon obsidian blade.',
     colorHex: '#A855F7',
   },
+  {
+    id: 'excalibell',
+    name: 'Excalibell',
+    slot: 'weapon',
+    weaponType: 'sword',
+    element: 'HOLY',
+    attachmentId: 'excalibell',
+    level: 9,
+    powerBonus: 76,
+    formMultiplier: 1.5,
+    price: 780,
+    rarity: 'legendary',
+    description: 'A radiant holy greatsword tipped with a gleaming golden kettlebell. Royal might and holy bludgeon unified.',
+    colorHex: '#F4B41A',
+  },
 
   // --- DEFENSIVE GEAR ---
   {

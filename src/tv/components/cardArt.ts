@@ -1490,13 +1490,16 @@ const SPELL_ART: Record<string, { sky: Sky; horizon: Horizon; fx: SpellFx; stars
   spell_scorched_earth: { sky: 'fire', horizon: 'hills', fx: 'flames' },
   spell_severed_moment: { sky: 'arcane', horizon: 'none', fx: 'rings', stars: 24 },
   spell_singularity_edge: { sky: 'arcane', horizon: 'none', fx: 'spiral', stars: 24 },
+  spell_heavens_smite: { sky: 'holy', horizon: 'spires', fx: 'beam', stars: 16 },
+  spell_righteous_onslaught: { sky: 'holy', horizon: 'peaks', fx: 'wings' },
+  spell_dawns_aegis: { sky: 'holy', horizon: 'spires', fx: 'rings', stars: 20 },
 };
 
 for (const spell of ALL_WEAPON_SPELLS) {
   const art = SPELL_ART[spell.templateId];
   if (!art) continue;
   const w = spell.weaponId ?? '';
-  const family: Family = w.includes('morningstar') ? 'flail' : w.includes('mace') ? 'mace' : w.includes('sword') ? 'sword' : 'bell';
+  const family: Family = w.includes('morningstar') ? 'flail' : w.includes('mace') ? 'mace' : (w.includes('sword') || w.includes('excalibell')) ? 'sword' : 'bell';
   const c = tone(parseInt(spell.colorHex.slice(1), 16));
   SCENES[spell.templateId] = {
     sky: art.sky,

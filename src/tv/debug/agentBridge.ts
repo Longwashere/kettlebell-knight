@@ -245,6 +245,9 @@ const api = {
    * (e.g. ['wolf', 'boar']). Switches to COMBAT first if needed and waits for monster rigs to load.
    */
   async encounter(which: string | number | string[]): Promise<unknown> {
+    if (typeof which === 'string' && which.includes(',')) {
+      which = which.split(',').map((s) => s.trim());
+    }
     if (state().screen && (state().screen as any).view !== 'COMBAT') await api.goto('COMBAT');
     await waitFor((s) => s.engine?.ready && s.battle);
     const before = (state().battle as any)?.monsters?.[0]?.instanceId;
