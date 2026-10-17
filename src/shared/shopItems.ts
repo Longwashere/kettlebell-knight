@@ -497,10 +497,11 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     level: 9,
     powerBonus: 76,
     formMultiplier: 1.5,
-    price: 780,
+    price: 0,
     rarity: 'legendary',
-    description: 'A radiant holy greatsword tipped with a gleaming golden kettlebell. Royal might and holy bludgeon unified.',
+    description: 'A radiant holy greatsword tipped with a gleaming golden kettlebell. Sealed in an enchanted stone deep in the forests; it grows with the knight who pulls it free.',
     colorHex: '#F4B41A',
+    stoneBound: true,
   },
 
   // --- DEFENSIVE GEAR ---

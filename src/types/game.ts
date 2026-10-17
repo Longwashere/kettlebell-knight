@@ -183,6 +183,11 @@ export interface EquipmentItem {
   description: string;
   colorHex: string;
   spriteIcon?: string;
+  /**
+   * Sealed in the Excalibell stone (src/shared/excalibellTrial.ts): never sold, won only in its trial. Wieldable
+   * at any knight level; its tier follows the bearer (stoneBoundTier in src/shared/progression.ts).
+   */
+  stoneBound?: boolean;
 }
 
 export type HubLocation = 'QUICK_PLAY' | 'GATE' | 'BLACKSMITH' | 'SANCTUARY' | 'TITLE';

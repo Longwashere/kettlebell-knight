@@ -11,6 +11,7 @@ import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { MoveTracer, type Box, type MoveTraceReport } from './moveTrace';
 import { VFX_RIGS, VFX_NAMES, type VfxName, type VfxOpts } from './vfx';
 import { OutlineFilter } from './outlineFilter';
+import { ExcalibellStone } from './excalibellStone';
 import {
   KNIGHT_MOVES, KNIGHT_MOVE_IDS, knightMoveFor, knightMoveCard,
   type KnightMoveId, type KnightMoveHost, type KnightMoveContext, type KnightTarget,
@@ -1053,6 +1054,10 @@ export class GameEngine {
   private knightTimeScale = 1; // Spine playback speed set by a move (hit-stop overrides it)
   public isKillCamActive: boolean = false;
 
+  // Secret stage: the Enchanted Stone of Excalibell (excalibellStone.ts)
+  private excalibellStone: ExcalibellStone | null = null;
+  private excalibellTexture: Texture | null = null;
+
   // Dev automation (window.__kk): ready once init() finishes; loadsInFlight counts pending asset loads
   private isReady: boolean = false;
   private loadsInFlight: number = 0;
@@ -1392,6 +1397,57 @@ export class GameEngine {
   /** Power-up / buff cast (BUFF), then back to IDLE. */
   public playKnightBuff(): void {
     this.playKnightAnimation('BUFF');
+  }
+
+  /**
+   * Shows or removes the Enchanted Stone of Excalibell where the monsters stand. The bell is the knight
+   * atlas's own `excalibell` region, so it costs no extra VRAM.
+   */
+  public showExcalibellStone(visible: boolean): void {
+    this.excalibellStone?.destroy();
+    this.excalibellStone = null;
+    this.excalibellTexture?.destroy(false);
+    this.excalibellTexture = null;
+    if (!visible || !this.app || !this.gameLayer) return;
+    try {
+      const region = Assets.get<TextureAtlas>(KNIGHT_ATLAS_KEY)?.findRegion('excalibell');
+      if (region) {
+        const source = (region.page.texture as SpineTexture).texture.source;
+        this.excalibellTexture = new Texture({ source, frame: new Rectangle(region.x, region.y, region.width, region.height) });
+      }
+    } catch (err) {
+      console.warn('[GameEngine] Excalibell art unavailable:', err);
+    }
+    this.excalibellStone = new ExcalibellStone(MONSTER_X - 10, 168, this.excalibellTexture, this.app.ticker, {
+      shake: (n) => this.moveShake(n),
+      flash: (a, c) => this.moveFlash(a, c),
+    });
+    this.gameLayer.addChildAt(this.excalibellStone.view, 0);
+  }
+
+  /** A trial squat: the knight dips, the stone loosens. `progress` = squats done / needed. */
+  public excalibellRep(progress: number): void {
+    this.excalibellStone?.setProgress(progress);
+    this.excalibellStone?.rep();
+    this.playKnightAnimation('LANDING_END');
+  }
+
+  /** Trial won: the bell tears free, then the knight raises it. */
+  public excalibellPull(): void {
+    this.playKnightBuff();
+    this.excalibellStone?.pull(() => {
+      if (this.isDestroyed) return;
+      this.skeleton.setAttachment('weapon', 'excalibell');
+      this.moveFlash(0.35, 0xFFFBEA);
+      this.playKnightVictory();
+      audioManager.play('level_up');
+    });
+  }
+
+  /** Trial failed: the stone seals and the knight staggers. */
+  public excalibellReject(): void {
+    this.excalibellStone?.reject();
+    this.playKnightHit();
   }
 
   /** Clears victory/defeat lock and returns the knight to IDLE (new battle). */
@@ -3662,6 +3718,7 @@ export class GameEngine {
    */
   public async destroy(): Promise<void> {
     this.isDestroyed = true;
+    this.showExcalibellStone(false);
     this.knightSpine = null;
     this.clearAllMonsters();
     this.releaseVfx();

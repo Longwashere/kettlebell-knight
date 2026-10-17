@@ -141,10 +141,20 @@ export interface WeaponStats {
   element?: Element;
 }
 
-/** `tierOverride`: a hypothetical weapon of that tier (the expected-knight model). */
-export function weaponStats(weaponId: string | undefined, level = 1, tierOverride?: number): WeaponStats {
+/**
+ * A stone-bound weapon (Excalibell) grows with its bearer: one tier above the best the knight could buy, up to
+ * its own tier. Without a bearer level it shows at its own tier.
+ */
+export const stoneBoundTier = (itemTier: number, bearerLevel?: number) =>
+  bearerLevel === undefined ? itemTier : Math.min(itemTier, expectedWeaponTier(bearerLevel) + 1);
+
+/**
+ * `tierOverride`: a hypothetical weapon of that tier (the expected-knight model). `bearerLevel`: the knight's
+ * level, which sets a stone-bound weapon's tier.
+ */
+export function weaponStats(weaponId: string | undefined, level = 1, tierOverride?: number, bearerLevel?: number): WeaponStats {
   const item = SHOP_ITEMS.find((i) => i.id === weaponId && i.slot === 'weapon');
-  const tier = tierOverride ?? item?.level ?? 1;
+  const tier = tierOverride ?? (item?.stoneBound ? stoneBoundTier(item.level, bearerLevel) : item?.level ?? 1);
   const base = expectedStats(weaponLevelReq(tier)).str * weaponLevelMultiplier(level);
   if (item?.element) {
     return {
@@ -184,7 +194,7 @@ export interface LoadoutSource {
 
 export function buildLoadout(src: LoadoutSource = {}): Loadout {
   const stats = src.stats ?? BASE_STATS;
-  const weapon = weaponStats(src.weaponId, weaponLevel(src.weaponId ? src.weaponCasts?.[src.weaponId] : 0));
+  const weapon = weaponStats(src.weaponId, weaponLevel(src.weaponId ? src.weaponCasts?.[src.weaponId] : 0), undefined, src.level ?? 1);
   return {
     level: src.level ?? 1,
     stats,

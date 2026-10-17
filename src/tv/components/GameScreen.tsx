@@ -9,6 +9,7 @@ import { BattleScreen } from './BattleScreen';
 import { TitleScreen } from './TitleScreen';
 import { MapSelectScreen } from './MapSelectScreen';
 import { CardCodexScreen } from './CardCodexScreen';
+import { ExcalibellTrial } from './ExcalibellTrial';
 import { QRCodeModal } from './QRCodeModal';
 import { QRCodeSVG } from 'qrcode.react';
 import { EquipmentItem, HubLocation, RepTelemetry } from '../../types/game';
@@ -34,7 +35,7 @@ import {
   LogOut 
 } from 'lucide-react';
 
-export type TVScreenView = 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'SANCTUARY' | 'TITLE' | 'MAP_SELECT';
+export type TVScreenView = 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'SANCTUARY' | 'TITLE' | 'MAP_SELECT' | 'EXCALIBELL';
 
 export const GameScreen: React.FC = () => {
   // GameEngine Reference - Strictly isolated from React re-renders!
@@ -44,7 +45,7 @@ export const GameScreen: React.FC = () => {
   // TV UI Views: 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'SANCTUARY' | 'TITLE' | 'MAP_SELECT'
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const urlView = searchParams?.get('view')?.toUpperCase() as TVScreenView | undefined;
-  const validViews: TVScreenView[] = ['HUB', 'BLACKSMITH', 'COMBAT', 'SANCTUARY', 'TITLE', 'MAP_SELECT'];
+  const validViews: TVScreenView[] = ['HUB', 'BLACKSMITH', 'COMBAT', 'SANCTUARY', 'TITLE', 'MAP_SELECT', 'EXCALIBELL'];
   const initialView: TVScreenView = urlView && validViews.includes(urlView)
     ? urlView
     : profileManager.hasSavedProfile()
@@ -142,8 +143,9 @@ export const GameScreen: React.FC = () => {
     unsubTelemetry = networkManager.onTelemetry((telemetry: RepTelemetry) => {
       if (telemetry.event === 'REP_TRIGGER') {
         // Direct zero-overhead pass-through to PixiJS WebGL loop. In battle the attack animation
-        // plays when a card is cast (BattleScreen), with the real damage, not on every rep.
-        if (engineRef.current && currentViewRef.current !== 'COMBAT') {
+        // plays when a card is cast (BattleScreen), with the real damage, not on every rep; the Excalibell
+        // trial plays its own squat beat.
+        if (engineRef.current && currentViewRef.current !== 'COMBAT' && currentViewRef.current !== 'EXCALIBELL') {
           engineRef.current.onRepCompleted(
             telemetry.power, 
             telemetry.form, 
@@ -230,6 +232,10 @@ export const GameScreen: React.FC = () => {
     setBattleReturnView('HUB');
     setCurrentView('COMBAT');
   }, []);
+
+  // Secret stage: a forest clear led to the Excalibell stone; win or lose, it ends in the hub
+  const handleExcalibellTrial = useCallback(() => setCurrentView('EXCALIBELL'), []);
+  const handleLeaveExcalibell = useCallback(() => setCurrentView('HUB'), []);
 
   // Handle transition from Title Screen into the game
   const handleStartGameFromTitle = useCallback((loadedProfile: PlayerProfile) => {
@@ -352,11 +358,12 @@ export const GameScreen: React.FC = () => {
   // Equip item: bought once, then owned (weapons keep their level). Weapons need the knight's level.
   const ownedItems = new Set(profile?.unlockedItems ?? ['iron_kettlebell']);
   const handleEquipShopItem = (item: EquipmentItem) => {
-    if (item.slot === 'weapon' && (profile?.level ?? 1) < weaponLevelReq(item.level)) {
+    const owned = ownedItems.has(item.id) || equippedItems.has(item.id);
+    // Stone-bound weapons (Excalibell) are never sold: only their owner can equip them, at any level
+    if (item.stoneBound ? !owned : item.slot === 'weapon' && (profile?.level ?? 1) < weaponLevelReq(item.level)) {
       audioManager.play('warn');
       return;
     }
-    const owned = ownedItems.has(item.id) || equippedItems.has(item.id);
     if (playerGold >= item.price || owned) {
       if (!owned && item.price > 0) {
         setPlayerGold((prev) => prev - item.price);
@@ -465,7 +472,7 @@ export const GameScreen: React.FC = () => {
         setCurrentView('HUB');
       }
     },
-  }, { enabled: currentView !== 'COMBAT' && currentView !== 'TITLE' });
+  }, { enabled: currentView !== 'COMBAT' && currentView !== 'TITLE' && currentView !== 'EXCALIBELL' });
 
   const toggleMute = () => {
     const muted = audioManager.toggleMute();
@@ -509,6 +516,14 @@ export const GameScreen: React.FC = () => {
           expeditionMapId={selectedExpeditionMap}
           expeditionLevel={selectedExpeditionLevel}
           onExitBattle={() => setCurrentView(battleReturnView)}
+          onExcalibellTrial={handleExcalibellTrial}
+        />
+      ) : currentView === 'EXCALIBELL' ? (
+        <ExcalibellTrial
+          engineRef={engineRef}
+          isEngineReady={isEngineReady}
+          mapId={selectedExpeditionMap}
+          onExit={handleLeaveExcalibell}
         />
       ) : (
         <div className="relative z-10 w-full h-full flex flex-col justify-between p-6 pointer-events-auto">

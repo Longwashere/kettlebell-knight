@@ -21,6 +21,7 @@ import { CardUnlockCelebration } from './CardUnlockCelebration';
 import { MasteryCelebration } from './MasteryCelebration';
 import type { CardUnlockDef } from '../../shared/cardUnlocks';
 import { CombatCardView } from './CombatCardView';
+import { EXCALIBELL_TRIAL, rollExcalibellTrial } from '../../shared/excalibellTrial';
 import { 
   Shield, 
   Swords, 
@@ -45,6 +46,8 @@ interface BattleScreenProps {
   expeditionMapId?: BattleMapId;
   expeditionLevel?: number;
   onExitBattle: () => void;
+  /** A forest clear led to the secret Excalibell stone: leave battle for it. */
+  onExcalibellTrial?: () => void;
   onBattleStateSync?: (state: {
     hand: CombatCard[];
     monster: MonsterState;
@@ -61,6 +64,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   expeditionMapId,
   expeditionLevel,
   onExitBattle,
+  onExcalibellTrial,
   onBattleStateSync,
 }) => {
   // The knight's stats, weapon and spell levels: every card's numbers come from it. Rebuilt when the
@@ -158,6 +162,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const [currentLevel, setCurrentLevel] = useState<number>(expeditionLevel || 1);
   const [expeditionStep, setExpeditionStep] = useState<number>(0);
   const [totalLevelReps, setTotalLevelReps] = useState<number>(0);
+  // Goblet squats this expedition level: each raises the chance the Excalibell stone appears after the clear
+  const levelSquatsRef = useRef<number>(0);
+  const [excalibellCalls, setExcalibellCalls] = useState<boolean>(false);
 
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const initialEncounterParam = parseInt(searchParams?.get('encounter') || '0', 10);
@@ -186,6 +193,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         setRunXp(0);
         setRunLevelUps([]);
         setRunGold(0);
+        levelSquatsRef.current = 0;
         fightGoldRef.current = 0;
         setFightGold(0);
         setBattleStatus('FIGHTING');
@@ -393,6 +401,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     setRunGold(0);
     fightGoldRef.current = 0;
     setFightGold(0);
+    levelSquatsRef.current = 0;
+    setExcalibellCalls(false);
   };
 
   // Monster Attack Execution: the engine plays the move's choreography and calls back on the
@@ -461,6 +471,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     const repUnlocks = profileManager.recordRepStats(exercise, power, form, currentMap);
     fightGoldRef.current += repGold(power);
     setFightGold(fightGoldRef.current);
+    if (exercise === EXCALIBELL_TRIAL.exercise) levelSquatsRef.current += 1;
     if (repUnlocks.length > 0) {
       setPendingCardUnlocks((prev) => [...prev, ...repUnlocks]);
     }
@@ -552,6 +563,12 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             if (clearUnlocks.length > 0) {
               setPendingCardUnlocks((prev) => [...prev, ...clearUnlocks]);
             }
+            // Secret stage: the Excalibell stone may call (counted as met now: one try per appearance)
+            if (onExcalibellTrial && rollExcalibellTrial(profileManager.getActiveProfile(), currentMap, currentLevel, levelSquatsRef.current)) {
+              profileManager.recordExcalibellMet();
+              setExcalibellCalls(true);
+              audioManager.play('holy', { delay: 1.2, vol: 0.7 });
+            }
           } else {
             battleStatusRef.current = 'VICTORY';
             setBattleStatus('VICTORY');
@@ -629,7 +646,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
     // The deck's own hand: a level-up during this rep may have rebound the cards
     setHand(deckManagerRef.current.getHand());
-  }, [engineRef, isExpeditionMode, expeditionStep, expeditionEncounters, currentMap, currentLevel, totalLevelReps, grantXp, announceMastery]);
+  }, [engineRef, isExpeditionMode, expeditionStep, expeditionEncounters, currentMap, currentLevel, totalLevelReps, grantXp, announceMastery, onExcalibellTrial]);
 
   // Expose rep callback for NetworkManager telemetry
   useEffect(() => {
@@ -921,7 +938,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         if (battleStatus === 'ENCOUNTER_CLEARED') {
           continueReward(handleNextExpeditionEncounter);
         } else if (battleStatus === 'EXPEDITION_VICTORY') {
-          continueReward(currentLevel < 5 ? handleNextLevelExpedition : onExitBattle);
+          continueReward(excalibellCalls && onExcalibellTrial ? onExcalibellTrial : currentLevel < 5 ? handleNextLevelExpedition : onExitBattle);
         } else if (battleStatus === 'DEFEAT') {
           continueReward(isExpeditionMode ? handleRetryExpedition : handleNextEncounter);
         } else {
@@ -933,7 +950,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       }
     },
     onBack: () => {
-      if (battleStatus !== 'FIGHTING') continueReward(onExitBattle);
+      if (battleStatus === 'EXPEDITION_VICTORY' && excalibellCalls && onExcalibellTrial) continueReward(onExcalibellTrial);
+      else if (battleStatus !== 'FIGHTING') continueReward(onExitBattle);
       else onExitBattle();
     },
     onDemoSwing: () => {
@@ -1224,6 +1242,20 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                   </span>
                   <RunXpLine xp={runXp} levelUps={runLevelUps} />
                 </div>
+                {excalibellCalls && onExcalibellTrial ? (
+                  <>
+                    <div className="bg-[#F4B41A]/10 border-2 border-[#FDE047] p-3 rounded text-center mb-4 -mt-2 animate-pulse">
+                      <span className="block text-[10px] font-pixel text-[#FDE047]">✦ A GOLDEN LIGHT GLIMMERS BETWEEN THE TREES... ✦</span>
+                      <span className="block text-[9px] font-mono text-[#A7A9BE] mt-1">Something ancient calls to thee.</span>
+                    </div>
+                    <button
+                      onClick={() => continueReward(onExcalibellTrial)}
+                      className="w-full bg-[#FDE047] hover:bg-[#fff3a0] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
+                    >
+                      FOLLOW THE LIGHT ▶
+                    </button>
+                  </>
+                ) : (
                 <div className="flex gap-3">
                   {currentLevel < 5 ? (
                     <button
@@ -1247,6 +1279,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                     TOWN HUB
                   </button>
                 </div>
+                )}
               </>
             ) : battleStatus === 'VICTORY' ? (
               <>

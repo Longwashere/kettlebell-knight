@@ -6,6 +6,8 @@ import {
   type KnightStats, type Loadout, type StatKey,
 } from './progression';
 import { xpToNext } from './stageScaling';
+import { SHOP_ITEMS } from './shopItems';
+import { EXCALIBELL_TRIAL, type ExcalibellTrialRecord } from './excalibellTrial';
 
 /** One level gained: which stat the level-up landed on and by how much. */
 export interface LevelUpEvent {
@@ -71,6 +73,8 @@ export interface PlayerProfile {
   cardCasts?: Record<string, number>;
   /** Cards cast with each weapon equipped: its weapon level. */
   weaponCasts?: Record<string, number>;
+  /** The secret Excalibell stone (src/shared/excalibellTrial.ts): times met, and whether it was won. */
+  excalibellTrial?: ExcalibellTrialRecord;
   unlockedEncounters: number;
   unlockedMaps: BattleMapId[];
   mapProgress: Record<string, MapLevelProgress>;
@@ -446,7 +450,28 @@ class ProfileManager {
   /** Whether the active knight's level allows wielding a weapon (its tier sets the requirement). */
   public canWield(weaponId: string): boolean {
     const profile = this.getActiveProfile();
+    if (SHOP_ITEMS.find((i) => i.id === weaponId)?.stoneBound) return Boolean(profile?.unlockedItems.includes(weaponId));
     return (profile?.level ?? 1) >= weaponLevelReq(weaponStats(weaponId).tier);
+  }
+
+  /** The Excalibell stone appeared: it is no longer owed to this knight (one try per meeting). */
+  public recordExcalibellMet(): void {
+    const profile = this.getActiveProfile();
+    if (!profile) return;
+    const rec = profile.excalibellTrial ?? { encounters: 0, won: false };
+    this.saveActiveProfile({ excalibellTrial: { ...rec, encounters: rec.encounters + 1 } });
+  }
+
+  /** Excalibell pulled from the stone: owned and equipped. */
+  public claimExcalibell(): void {
+    const profile = this.getActiveProfile();
+    if (!profile) return;
+    const id = EXCALIBELL_TRIAL.weaponId;
+    this.saveActiveProfile({
+      excalibellTrial: { encounters: profile.excalibellTrial?.encounters ?? 1, won: true },
+      unlockedItems: profile.unlockedItems.includes(id) ? profile.unlockedItems : [...profile.unlockedItems, id],
+      equippedItems: { ...profile.equippedItems, weapon: id },
+    });
   }
 
   /** Records rep telemetry toward card unlock progress, returning any newly unlocked cards. */

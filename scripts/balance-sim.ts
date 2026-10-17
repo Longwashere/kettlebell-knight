@@ -84,7 +84,7 @@ function stageElements(map: BattleMapId, level: number) {
 /** The best weapon a knight of `level` may wield for these foes: highest damage over their elements. */
 function pickWeapon(level: number, foes: ReturnType<typeof stageElements>, owned?: Set<string>): string {
   if (FORCE_WEAPON) return FORCE_WEAPON;
-  const candidates = SHOP_ITEMS.filter((i) => i.slot === 'weapon' && level >= weaponLevelReq(i.level) && (!owned || owned.has(i.id)));
+  const candidates = SHOP_ITEMS.filter((i) => i.slot === 'weapon' && !i.stoneBound && level >= weaponLevelReq(i.level) && (!owned || owned.has(i.id)));
   const score = (id: string) => {
     const w = weaponStats(id, EXPECTED_KNIGHT.weaponLevel);
     return foes.reduce((sum, el) => sum + w.atk + w.elemDmg * elementMultiplier(w.element, el), 0);

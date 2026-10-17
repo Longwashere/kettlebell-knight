@@ -92,8 +92,8 @@ export const MasteryCelebration: React.FC<MasteryCelebrationProps> = ({ levelUps
   const name = card?.name ?? weapon?.name ?? page.id;
   const stats: { label: string; from: string; to: string }[] = [];
   if (weapon) {
-    const before = weaponStats(weapon.id, page.from);
-    const after = weaponStats(weapon.id, page.to);
+    const before = weaponStats(weapon.id, page.from, undefined, loadout.level);
+    const after = weaponStats(weapon.id, page.to, undefined, loadout.level);
     stats.push({ label: 'ATTACK', from: `${before.atk}`, to: `${after.atk}` });
     if (after.elemDmg > 0 && after.element) {
       stats.push({ label: `${ELEMENT_INFO[after.element].label} DMG`, from: `${before.elemDmg}`, to: `${after.elemDmg}` });

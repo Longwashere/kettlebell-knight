@@ -64,10 +64,11 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
           const isEquipped = equippedIds.has(item.id);
           const isOwned = ownedIds.has(item.id);
           const isWeapon = item.slot === 'weapon';
-          const levelReq = isWeapon ? weaponLevelReq(item.level) : 1;
+          const levelReq = isWeapon && !item.stoneBound ? weaponLevelReq(item.level) : 1;
           const isLocked = knightLevel < levelReq;
+          const inStone = item.stoneBound && !isOwned;
           const wLevel = weaponLevel(weaponCasts[item.id]);
-          const w = isWeapon ? weaponStats(item.id, wLevel) : null;
+          const w = isWeapon ? weaponStats(item.id, wLevel, undefined, knightLevel) : null;
 
           return (
             <div
@@ -98,7 +99,7 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
                   </div>
                   <div className="flex items-center gap-1.5 mt-1">
                     <span className="text-[9px] font-pixel uppercase tracking-widest text-[#38B6FF]">
-                      {item.slot} • {item.slot === 'weapon' ? 'TIER' : 'LVL'} {item.level}
+                      {item.slot} • {item.slot === 'weapon' ? 'TIER' : 'LVL'} {w?.tier ?? item.level}
                     </span>
                     {item.weaponType && (
                       <span className={`text-[8px] font-pixel px-1 py-0.5 rounded border leading-none ${
@@ -113,7 +114,11 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
                   </div>
                 </div>
 
-                {isEquipped ? (
+                {inStone ? (
+                  <span className="text-[9px] bg-[#F4B41A]/20 border border-[#F4B41A] text-[#F4B41A] font-pixel px-1.5 py-0.5">
+                    ⚔ SEALED IN STONE
+                  </span>
+                ) : isEquipped ? (
                   <span className="text-[9px] bg-[#00EB88]/20 border border-[#00EB88] text-[#00EB88] font-pixel px-1.5 py-0.5">
                     EQUIPPED
                   </span>
