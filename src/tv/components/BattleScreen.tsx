@@ -11,7 +11,7 @@ import { ExerciseType, RepTelemetry } from '../../types/game';
 import { CardDeckManager } from '../../shared/CardDeckManager';
 import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { audioManager } from '../../shared/AudioManager';
-import { GameEngine, BATTLE_MAPS } from '../engine/GameEngine';
+import { GameEngine, BATTLE_MAPS, getMapBattleMusic } from '../engine/GameEngine';
 import { useTVRemote } from '../hooks/useTVRemote';
 import { registerDebug } from '../debug/agentBridge';
 import { getMapConfig, getExpeditionEncounters, getNextCampaignMap } from '../../shared/expeditionEngine';
@@ -277,17 +277,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     });
   }, [hand, monsters, targetedMonsterIndex, playerHp, playerBlock, onBattleStateSync]);
 
-  // Background Music: Invigorating Electric Pow Wow soundtrack during combat
+  // Background Music: Signature instrumental battle soundtrack for the current map.
+  // Kept playing continuously through encounters, victories, defeats, and map select
+  // until the player returns to the Town Hub.
   useEffect(() => {
-    if (battleStatus === 'FIGHTING') {
-      audioManager.playBgm('/assets/music/battle_electric_pow_wow.mp3', 0.65);
-    } else if (battleStatus === 'VICTORY' || battleStatus === 'EXPEDITION_VICTORY' || battleStatus === 'DEFEAT') {
-      audioManager.stopBgm();
-    }
-    return () => {
-      audioManager.stopBgm();
-    };
-  }, [battleStatus]);
+    const musicUrl = getMapBattleMusic(currentMap);
+    audioManager.playBgm(musicUrl, 0.65);
+  }, [currentMap]);
 
   // Real-Time Multi-Monster Attack ATB Timer Loop
   useEffect(() => {

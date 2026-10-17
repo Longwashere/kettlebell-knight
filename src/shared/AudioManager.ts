@@ -96,7 +96,12 @@ class AudioManager {
         this.bgmAudio = new Audio();
         this.bgmAudio.loop = true;
       }
-      if (this.bgmAudio.src !== url && !this.bgmAudio.src.endsWith(url)) {
+      const isSameSrc = this.bgmAudio.src === url || this.bgmAudio.src.endsWith(url);
+      if (isSameSrc && !this.bgmAudio.paused) {
+        // Already playing this track continuously; keep current playback position
+        return;
+      }
+      if (!isSameSrc) {
         this.bgmAudio.src = url;
       }
       this.bgmAudio.volume = this.isMuted ? 0 : this.bgmVolume;
@@ -110,6 +115,10 @@ class AudioManager {
     } catch (e) {
       console.warn('[audio] failed to play BGM:', e);
     }
+  }
+
+  public isBgmPlaying(): boolean {
+    return Boolean(this.bgmAudio && !this.bgmAudio.paused && !this.bgmAudio.ended);
   }
 
   public stopBgm(): void {

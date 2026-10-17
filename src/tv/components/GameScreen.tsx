@@ -86,6 +86,13 @@ export const GameScreen: React.FC = () => {
   const [highestPower, setHighestPower] = useState<number>(0);
   const [isEngineReady, setIsEngineReady] = useState<boolean>(false);
 
+  // Stop background battle soundtrack only when returning to the Town Hub or Title screen
+  useEffect(() => {
+    if (currentView === 'HUB' || currentView === 'TITLE' || currentView === 'BLACKSMITH') {
+      audioManager.stopBgm();
+    }
+  }, [currentView]);
+
   // 1. Initialize PixiJS GameEngine strictly inside container div
   useEffect(() => {
     let engine: GameEngine | null = null;

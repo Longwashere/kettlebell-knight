@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Text, Assets, Sprite, Texture, Cache, Rectangle, TexturePool, type BindGroup } from 'pixi.js';
 import { Spine, SpineTexture, EventTimeline, RegionAttachment } from '@esotericsoftware/spine-pixi-v8';
-import { BATTLE_MAPS } from './battleMaps';
+import { BATTLE_MAPS, MAP_BATTLE_MUSIC, getMapBattleMusic } from './battleMaps';
 import type { TextureAtlas } from '@esotericsoftware/spine-core';
 import { audioManager } from '../../shared/AudioManager';
 import { ExerciseType, EXERCISE_SKILLS } from '../../types/game';
@@ -78,7 +78,7 @@ const KNIGHT_SCALE = 0.15;
 const KNIGHT_HOME = { x: 130, y: 168 }; // knight feet at rest (battlefield coords)
 const MONSTER_OUTLINE_COLOR = 0x0F0E17; // retro.dark
 // Battle arena background textures (clean 1:1 retro canvas match): ./battleMaps.ts
-export { BATTLE_MAPS };
+export { BATTLE_MAPS, MAP_BATTLE_MUSIC, getMapBattleMusic };
 
 export type BattleMapId = keyof typeof BATTLE_MAPS;
 

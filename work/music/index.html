@@ -2,11 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Kettlebell Knight — Dark Fantasy Electric Pow Wow Soundtrack</title>
+  <title>Kettlebell Knight — Signature Map Battle Soundtracks</title>
   <style>
     :root {
       --bg: #090812;
       --panel: #161426;
+      --card: #1f1b33;
       --border: #383058;
       --accent: #ff3366;
       --gold: #ffbe0b;
@@ -25,7 +26,7 @@
       align-items: center;
       min-height: 100vh;
     }
-    .container { max-width: 900px; width: 100%; }
+    .container { max-width: 960px; width: 100%; }
     header {
       text-align: center;
       margin-bottom: 24px;
@@ -33,7 +34,7 @@
       padding-bottom: 16px;
     }
     h1 {
-      font-size: 28px;
+      font-size: 26px;
       color: var(--gold);
       letter-spacing: 1.5px;
       text-transform: uppercase;
@@ -97,29 +98,36 @@
       background: linear-gradient(135deg, #ff4d7a, #ff724e);
       transform: translateY(-2px);
     }
+    .now-playing {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .now-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: var(--gold);
+    }
+    .now-meta {
+      font-size: 12px;
+      color: var(--subtext);
+    }
     .time-display {
-      font-size: 20px;
+      font-size: 18px;
       font-family: monospace;
       color: var(--cyan);
       font-weight: bold;
     }
-    .loop-toggle {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 14px;
-      color: var(--subtext);
-    }
     canvas#visualizer {
       width: 100%;
-      height: 100px;
+      height: 90px;
       background: #06050c;
       border-radius: 8px;
       border: 1px solid var(--border);
       display: block;
       margin-bottom: 22px;
     }
-    .stems-title {
+    .grid-title {
       font-size: 13px;
       text-transform: uppercase;
       letter-spacing: 1.5px;
@@ -128,43 +136,64 @@
       display: flex;
       justify-content: space-between;
     }
-    .stem-row {
+    .map-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .map-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .map-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      background: #282342;
+    }
+    .map-card.active {
+      border-color: var(--cyan);
+      background: #1c263d;
+      box-shadow: 0 0 16px rgba(0, 245, 212, 0.25);
+    }
+    .map-card-header {
       display: flex;
       align-items: center;
-      gap: 14px;
-      padding: 12px 16px;
-      background: rgba(0,0,0,0.3);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 8px;
-      margin-bottom: 10px;
+      justify-content: space-between;
     }
-    .stem-label {
-      width: 250px;
+    .map-card-title {
+      font-weight: 700;
       font-size: 14px;
-      font-weight: 600;
       color: var(--text);
     }
-    .stem-desc {
+    .map-card.active .map-card-title {
+      color: var(--cyan);
+    }
+    .map-card-act {
+      font-size: 10px;
+      color: var(--gold);
+      background: rgba(255, 190, 11, 0.15);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .map-card-desc {
       font-size: 11px;
       color: var(--subtext);
-      display: block;
-      margin-top: 3px;
+      line-height: 1.4;
     }
-    .stem-slider {
-      flex: 1;
-      accent-color: var(--accent);
-    }
-    .btn-stem {
-      background: #27223d;
-      border: 1px solid var(--border);
-      color: var(--text);
-      font-size: 12px;
-      padding: 6px 14px;
-      border-radius: 6px;
-      cursor: pointer;
+    .map-card-tempo {
+      font-size: 11px;
+      color: var(--cyan);
       font-weight: 600;
     }
-    .btn-stem:hover { background: #352e54; }
     .workout-banner {
       background: linear-gradient(135deg, #241433, #13172e);
       border: 1px solid #4a3862;
@@ -180,88 +209,151 @@
 <body>
   <div class="container">
     <header>
-      <h1>Blood & Iron — Dark Fantasy Electric Pow Wow</h1>
+      <h1>Kettlebell Knight — Map Battle Soundtracks</h1>
       <div style="margin-top:6px;">
-        <span class="badge">Electric Pow Wow</span>
-        <span class="badge" style="background:#7928ca;">Dark Fantasy RPG</span>
-        <span class="tempo-pill">133 BPM Workout Cadence</span>
+        <span class="badge">100% Instrumental</span>
+        <span class="badge" style="background:#7928ca;">Zero Lyrics / No Words</span>
+        <span class="tempo-pill">128–136 BPM Kettlebell Cadence</span>
       </div>
     </header>
 
     <div class="player-card">
       <div class="main-controls">
-        <button id="playBtn" class="btn-play">▶ Play Full Track</button>
-        <div class="time-display" id="timeDisplay">0:00 / 1:41</div>
-        <label class="loop-toggle">
-          <input type="checkbox" id="loopCheck" checked> Seamless Loop (Endless Workout)
-        </label>
-      </div>
-
-      <canvas id="visualizer" width="840" height="100"></canvas>
-
-      <audio id="audioMaster" src="electric_pow_wow_battle.mp3" preload="auto"></audio>
-
-      <div class="stems-title">
-        <span>Sound Layer & Stem Control</span>
-        <span style="font-size:11px; text-transform:none;">Solo any instrument:</span>
-      </div>
-
-      <div class="stem-row">
-        <div class="stem-label">
-          Pow Wow Vocal Chants
-          <span class="stem-desc">Authentic Northern call-and-response vocal harmonies</span>
+        <button id="playBtn" class="btn-play">▶ Play Track</button>
+        <div class="now-playing">
+          <div class="now-title" id="nowTitle">VERDANT FOREST</div>
+          <div class="now-meta" id="nowMeta">Wild Woodlands • Sylvan Flutes & Wood Drums • 130 BPM</div>
         </div>
-        <audio id="audioStem1" src="stems/01_powwow_vocals.wav" preload="auto"></audio>
-        <input type="range" class="stem-slider" id="vol1" min="0" max="1" step="0.05" value="1">
-        <button class="btn-stem" onclick="playSolo('audioStem1')">Solo</button>
+        <div class="time-display" id="timeDisplay">0:00 / 0:51</div>
       </div>
 
-      <div class="stem-row">
-        <div class="stem-label">
-          Acoustic Pow Wow Grand Drum
-          <span class="stem-desc">Bison-hide drum circle pulse & thunderous honor beats</span>
-        </div>
-        <audio id="audioStem2" src="stems/02_powwow_acoustic_drums.wav" preload="auto"></audio>
-        <input type="range" class="stem-slider" id="vol2" min="0" max="1" step="0.05" value="1">
-        <button class="btn-stem" onclick="playSolo('audioStem2')">Solo</button>
+      <canvas id="visualizer" width="900" height="90"></canvas>
+
+      <audio id="audioMaster" src="battle_verdant_forest.mp3" preload="auto" loop></audio>
+
+      <div class="grid-title">
+        <span>Campaign Realm Jukebox (Click any map to audition its signature track):</span>
+        <span style="font-size:11px; text-transform:none; color:var(--cyan);">Continuous in-game battle playback</span>
       </div>
 
-      <div class="stem-row">
-        <div class="stem-label">
-          Electronic Powwow-Step 808
-          <span class="stem-desc">133 BPM syncopated kicks, claps & rolling shakers</span>
-        </div>
-        <audio id="audioStem3" src="stems/03_electronic_beat_808.wav" preload="auto"></audio>
-        <input type="range" class="stem-slider" id="vol3" min="0" max="1" step="0.05" value="1">
-        <button class="btn-stem" onclick="playSolo('audioStem3')">Solo</button>
-      </div>
-
-      <div class="stem-row">
-        <div class="stem-label">
-          Dark Fantasy Orchestral
-          <span class="stem-desc">Gothic cathedral bells, brass warhorns & cellos</span>
-        </div>
-        <audio id="audioStem4" src="stems/04_dark_fantasy_orchestral.wav" preload="auto"></audio>
-        <input type="range" class="stem-slider" id="vol4" min="0" max="1" step="0.05" value="1">
-        <button class="btn-stem" onclick="playSolo('audioStem4')">Solo</button>
-      </div>
+      <div class="map-grid" id="mapGrid"></div>
     </div>
 
     <div class="workout-banner">
-      <strong>⚡ Dark Fantasy Workout Battle Arrangement:</strong><br>
-      • <strong>Intro (Bars 0-8, 0:00-0:14):</strong> Low abyssal drone, tolling gothic cathedral bell & lone northern vocal invocation in the dungeon.<br>
-      • <strong>Drop 1 "Blood on the Stone" (Bars 8-24, 0:14-0:43):</strong> Massive sub drop boom! Full 133 BPM syncopated club bounce, soaring vocal group harmonies, answering brass warhorn stabs.<br>
-      • <strong>Honor Beat Breakdown (Bars 24-32, 0:43-0:58):</strong> 4 colossal acoustic grand drum honor beats shake the room, timed for max kettlebell snaps.<br>
-      • <strong>Drop 2 "Knight's Awakening" (Bars 32-48, 0:58-1:27):</strong> Peak workout intensity! High vocal lead, chugging dark fantasy string ostinato, clashing iron bells and heavy 808 glides.<br>
-      • <strong>Outro & Loop (Bars 48-56, 1:27-1:41):</strong> Tapers back to the cathedral bell and dungeon pulse, looping seamlessly for endless reps.
+      <strong>⚡ Pure Instrumental Battle Workout Soundtracks:</strong><br>
+      • <strong>Zero Lyrics / Words:</strong> Pure driving instrumental soundscapes that keep the focus on physical performance and form.<br>
+      • <strong>Dynamic Environmental Identity:</strong> From woodwind flutes in the forest, to cathedral crypt bells, to roaring belfry winds, to molten magma anvils, and final boss imperial warhorns.<br>
+      • <strong>Continuous Workout Flow:</strong> Once battle begins, the track plays non-stop through multi-encounter expeditions and map selections, only resting when returning to the Town Hub.
     </div>
   </div>
 
   <script>
+    const MAPS = [
+      {
+        id: 'verdant_forest',
+        name: 'VERDANT FOREST',
+        act: 'ACT I',
+        tempo: '130 BPM',
+        desc: 'Overgrown pines • Sylvan wooden flutes, log drums, organic forest bounce',
+        file: 'battle_verdant_forest.mp3'
+      },
+      {
+        id: 'dark_forest',
+        name: 'DARK FOREST',
+        act: 'ACT I',
+        tempo: '132 BPM',
+        desc: 'Corrupted briars • Plucked dark cellos, hollow wind drones, shadowy 808s',
+        file: 'battle_dark_forest.mp3'
+      },
+      {
+        id: 'town_square',
+        name: 'TOWN SQUARE',
+        act: 'ACT II',
+        tempo: '131 BPM',
+        desc: 'Besieged cobblestones • Market tambourines, war snares & rogue lute riffs',
+        file: 'battle_town_square.mp3'
+      },
+      {
+        id: 'town_night',
+        name: 'TOWN NIGHT',
+        act: 'ACT II',
+        tempo: '129 BPM',
+        desc: 'Moonlit siege • Stealthy night percussion, muted clangs & dark bells',
+        file: 'battle_town_night.mp3'
+      },
+      {
+        id: 'sunken_cistern',
+        name: 'SUNKEN CISTERN',
+        act: 'ACT II',
+        tempo: '130 BPM',
+        desc: 'Submerged aqueducts • Aquatic metallic gamelan, splash snares & abyss sub drops',
+        file: 'battle_sunken_cistern.mp3'
+      },
+      {
+        id: 'cathedral_crypt',
+        name: 'CATHEDRAL CRYPT',
+        act: 'ACT III',
+        tempo: '132 BPM',
+        desc: 'Osseous sepulchers • Funeral bells, bone-xylophone clatter & pipe organ stabs',
+        file: 'battle_cathedral_crypt.mp3'
+      },
+      {
+        id: 'blood_cemetery',
+        name: 'BLOOD CEMETERY',
+        act: 'ACT III',
+        tempo: '134 BPM',
+        desc: 'Crimson moon graveyard • Aggressive low brass braams & distorted 808s',
+        file: 'battle_blood_cemetery.mp3'
+      },
+      {
+        id: 'belfry_ramparts',
+        name: 'BELFRY RAMPARTS',
+        act: 'ACT IV',
+        tempo: '136 BPM',
+        desc: 'Storm-lashed parapets • Roaring gale winds, galloping siege drums & high brass',
+        file: 'battle_belfry_ramparts.mp3'
+      },
+      {
+        id: 'cathedral_vault',
+        name: 'CATHEDRAL VAULT',
+        act: 'ACT IV',
+        tempo: '131 BPM',
+        desc: 'Armored treasury • Clockwork gears, industrial anvil strikes & automaton stomps',
+        file: 'battle_cathedral_vault.mp3'
+      },
+      {
+        id: 'volcanic_forge',
+        name: 'VOLCANIC FORGE',
+        act: 'ACT V',
+        tempo: '134 BPM',
+        desc: 'Molten basalt caldera • Titan hammer smashes & scorching aggressive synth leads',
+        file: 'battle_volcanic_forge.mp3'
+      },
+      {
+        id: 'eldritch_altar',
+        name: 'ELDRITCH ALTAR',
+        act: 'ACT V',
+        tempo: '132 BPM',
+        desc: 'Sacrificial void rift • Dissonant cosmic arpeggios & black hole pitch glides',
+        file: 'battle_eldritch_altar.mp3'
+      },
+      {
+        id: 'obsidian_throne',
+        name: 'OBSIDIAN THRONE',
+        act: 'ACT VI',
+        tempo: '135 BPM',
+        desc: 'Imperial sovereign citadel • Supreme royal warhorns, timpani rolls & boss climax',
+        file: 'battle_obsidian_throne.mp3'
+      }
+    ];
+
+    let currentIdx = 0;
     const playBtn = document.getElementById('playBtn');
     const audioMaster = document.getElementById('audioMaster');
-    const loopCheck = document.getElementById('loopCheck');
     const timeDisplay = document.getElementById('timeDisplay');
+    const nowTitle = document.getElementById('nowTitle');
+    const nowMeta = document.getElementById('nowMeta');
+    const mapGrid = document.getElementById('mapGrid');
     const canvas = document.getElementById('visualizer');
     const ctx = canvas.getContext('2d');
 
@@ -280,6 +372,42 @@
       analyser.connect(audioCtx.destination);
     }
 
+    function selectMap(idx, autoPlay = true) {
+      currentIdx = idx;
+      const m = MAPS[idx];
+      audioMaster.src = m.file;
+      nowTitle.textContent = m.name;
+      nowMeta.textContent = m.act + ' • ' + m.desc + ' • ' + m.tempo;
+
+      document.querySelectorAll('.map-card').forEach((c, i) => {
+        c.classList.toggle('active', i === idx);
+      });
+
+      if (autoPlay) {
+        initAudio();
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        audioMaster.play();
+        isPlaying = true;
+        playBtn.textContent = '⏸ Pause Track';
+      }
+    }
+
+    // Build Grid
+    MAPS.forEach((m, idx) => {
+      const card = document.createElement('div');
+      card.className = 'map-card' + (idx === 0 ? ' active' : '');
+      card.innerHTML = `
+        <div class="map-card-header">
+          <span class="map-card-title">${m.name}</span>
+          <span class="map-card-act">${m.act}</span>
+        </div>
+        <div class="map-card-desc">${m.desc}</div>
+        <div class="map-card-tempo">⚡ ${m.tempo}</div>
+      `;
+      card.onclick = () => selectMap(idx, true);
+      mapGrid.appendChild(card);
+    });
+
     playBtn.addEventListener('click', () => {
       initAudio();
       if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
@@ -287,33 +415,22 @@
       if (!isPlaying) {
         audioMaster.play();
         isPlaying = true;
-        playBtn.textContent = '⏸ Pause Soundtrack';
+        playBtn.textContent = '⏸ Pause Track';
       } else {
         audioMaster.pause();
         isPlaying = false;
-        playBtn.textContent = '▶ Play Full Track';
+        playBtn.textContent = '▶ Play Track';
       }
-    });
-
-    loopCheck.addEventListener('change', (e) => {
-      audioMaster.loop = e.target.checked;
     });
 
     audioMaster.addEventListener('timeupdate', () => {
       const cur = Math.floor(audioMaster.currentTime);
-      const total = Math.floor(audioMaster.duration || 101);
+      const total = Math.floor(audioMaster.duration || 51);
       const curM = Math.floor(cur / 60);
       const curS = (cur % 60).toString().padStart(2, '0');
       const totM = Math.floor(total / 60);
       const totS = (total % 60).toString().padStart(2, '0');
       timeDisplay.textContent = curM + ':' + curS + ' / ' + totM + ':' + totS;
-    });
-
-    audioMaster.addEventListener('ended', () => {
-      if (!audioMaster.loop) {
-        isPlaying = false;
-        playBtn.textContent = '▶ Play Full Track';
-      }
     });
 
     // Retro Neon Audio Visualizer
@@ -326,7 +443,7 @@
         ctx.fillStyle = '#2d2745';
         ctx.font = '13px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('Press Play to Start Music & Visualizer', canvas.width / 2, canvas.height / 2 + 5);
+        ctx.fillText('Select any map above to audition its battle track', canvas.width / 2, canvas.height / 2 + 5);
         return;
       }
 
@@ -339,32 +456,14 @@
 
       for (let i = 0; i < bufferLength; i++) {
         const barHeight = (dataArray[i] / 255) * (canvas.height - 12);
-        const hue = 330 + (i / bufferLength) * 100;
-        ctx.fillStyle = 'hsl(' + hue + ', 95%, 58%)';
+        const hue = 180 + (i / bufferLength) * 160;
+        ctx.fillStyle = 'hsl(' + hue + ', 95%, 55%)';
         const steppedHeight = Math.floor(barHeight / 4) * 4;
         ctx.fillRect(x, canvas.height - steppedHeight, barWidth - 2, steppedHeight);
         x += barWidth;
       }
     }
     draw();
-
-    function playSolo(id) {
-      const target = document.getElementById(id);
-      audioMaster.pause();
-      isPlaying = false;
-      playBtn.textContent = '▶ Play Full Track';
-
-      document.querySelectorAll('audio').forEach(a => {
-        if (a !== target) a.pause();
-      });
-
-      if (target.paused) {
-        target.currentTime = audioMaster.currentTime % (target.duration || 101);
-        target.play();
-      } else {
-        target.pause();
-      }
-    }
   </script>
 </body>
 </html>
