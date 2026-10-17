@@ -2826,6 +2826,7 @@ export class GameEngine {
     switch (weaponId) {
       case 'excalibur_bell':
       case 'excalibur_morningstar':
+      case 'excalibell':
       case 'belfry_mace':
         return { mainColor: 0xF4B41A, highlightColor: 0xFFFBEA, handleColor: 0x38B6FF, runeColor: 0x38B6FF };
       case 'dragon_kettlebell':

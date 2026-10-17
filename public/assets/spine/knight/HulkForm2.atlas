@@ -166,3 +166,6 @@ offsets:0,0,40,40
 eldritch_bell
 bounds:352,200,40,40
 offsets:0,0,40,40
+excalibell
+bounds:392,200,64,34
+offsets:0,0,64,34

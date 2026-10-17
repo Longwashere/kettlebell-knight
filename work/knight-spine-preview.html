@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Knight Excalibell Spine Preview</title>
+  <style>
+    body { margin: 0; background: #14141e; color: #fff; font-family: sans-serif; padding: 20px; }
+    h2 { color: #f4b41a; margin-top: 0; }
+    .row { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 30px; }
+    .card { background: #1c1c2b; border: 1px solid #2e2e42; border-radius: 8px; padding: 12px; }
+    .title { font-size: 14px; font-weight: bold; color: #ffd700; margin-bottom: 8px; }
+    canvas { display: block; border-radius: 4px; background: #262638; image-rendering: pixelated; }
+  </style>
+</head>
+<body>
+  <h2>Knight Spine Rig &mdash; Excalibell Visual Verification</h2>
+  <div id="out" class="row"></div>
+
+<script type="module">
+import { Application, Assets, Graphics } from 'pixi.js';
+import { Spine } from '@esotericsoftware/spine-pixi-v8';
+
+const SKELETON_KEY = '/assets/spine/knight/HulkForm2.json';
+const ATLAS_KEY = '/assets/spine/knight/HulkForm2.atlas';
+
+await Assets.load([SKELETON_KEY, ATLAS_KEY]);
+
+const tests = [
+  { name: 'minotaur_sword (Reference)', weapon: 'minotaur_sword', anim: 'IDLE', time: 0.1 },
+  { name: 'Excalibell Style A (Tipped) - IDLE', weapon: 'excalibell', anim: 'IDLE', time: 0.1 },
+  { name: 'Excalibell Style A (Tipped) - ATTACK1', weapon: 'excalibell', anim: 'ATTACK1', time: 0.25 },
+  { name: 'Excalibell Style B (Guard) - IDLE', weapon: 'excalibell_guard', anim: 'IDLE', time: 0.1 },
+  { name: 'Excalibell Style B (Guard) - ATTACK1', weapon: 'excalibell_guard', anim: 'ATTACK1', time: 0.25 },
+];
+
+for (const t of tests) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  const title = document.createElement('div');
+  title.className = 'title';
+  title.innerText = t.name;
+  card.appendChild(title);
+
+  const app = new Application();
+  await app.init({ width: 320, height: 320, background: 0x1f2233 });
+  card.appendChild(app.canvas);
+  document.getElementById('out').appendChild(card);
+
+  const spine = Spine.from({
+    skeleton: SKELETON_KEY,
+    atlas: ATLAS_KEY,
+    scale: 0.35,
+    autoUpdate: false,
+  });
+
+  spine.x = 130;
+  spine.y = 260;
+
+  // Set weapon attachment
+  const slot = spine.skeleton.findSlot('sword');
+  if (slot) {
+    const att = spine.skeleton.getAttachmentByName('sword', t.weapon);
+    if (att) {
+      slot.setAttachment(att);
+    } else {
+      console.error('Attachment not found:', t.weapon);
+    }
+  }
+
+  // Crosshair baseline
+  const g = new Graphics();
+  g.rect(0, 260, 320, 1).fill(0x334455);
+  app.stage.addChild(g);
+
+  spine.state.setAnimation(0, t.anim, false);
+  spine.update(t.time);
+  app.stage.addChild(spine);
+  app.render();
+}
+window.__previewReady = true;
+</script>
+</body>
+</html>
