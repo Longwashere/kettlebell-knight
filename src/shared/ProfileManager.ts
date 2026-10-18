@@ -80,6 +80,8 @@ export interface PlayerProfile {
   unlockedEncounters: number;
   unlockedMaps: BattleMapId[];
   mapProgress: Record<string, MapLevelProgress>;
+  /** Stage cinematics viewed by the knight (avoids re-interrupting subsequent embarks). */
+  viewedCinematics?: string[];
   createdAt: number;
   lastSavedAt: number;
   playTimeSeconds: number;
@@ -347,6 +349,20 @@ class ProfileManager {
   public getMapProgress(mapId: BattleMapId): MapLevelProgress {
     const profile = this.getActiveProfile();
     return profile?.mapProgress?.[mapId] || { highestLevelCleared: 0, totalClears: 0, bestReps: 0 };
+  }
+
+  public hasViewedCinematic(mapId: string): boolean {
+    const profile = this.getActiveProfile();
+    return Boolean(profile?.viewedCinematics?.includes(mapId));
+  }
+
+  public markCinematicViewed(mapId: string): void {
+    const profile = this.getActiveProfile();
+    if (!profile) return;
+    const current = profile.viewedCinematics || [];
+    if (!current.includes(mapId)) {
+      this.saveActiveProfile({ viewedCinematics: [...current, mapId] });
+    }
   }
 
   public recordLevelVictory(

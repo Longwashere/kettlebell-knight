@@ -11,6 +11,7 @@ import { getExpeditionEncounters, recommendedLevel } from '../../shared/expediti
 import { expeditionClearXp } from '../../shared/stageScaling';
 import { audioManager } from '../../shared/AudioManager';
 import { useTVRemote } from '../hooks/useTVRemote';
+import { registerDebug } from '../debug/agentBridge';
 import {
   Swords,
   Lock,
@@ -21,7 +22,9 @@ import {
   CheckCircle2,
   Sparkles,
   ArrowLeft,
+  Film,
 } from 'lucide-react';
+import { StageCinematic } from './StageCinematic';
 
 interface MapSelectScreenProps {
   onStartExpedition: (mapId: BattleMapId, level: number) => void;
@@ -35,6 +38,8 @@ export const MapSelectScreen: React.FC<MapSelectScreenProps> = ({
   const [profile, setProfile] = useState<PlayerProfile | null>(() => profileManager.getActiveProfile());
   const [selectedMapIndex, setSelectedMapIndex] = useState<number>(0);
   const [selectedLevel, setSelectedLevel] = useState<number>(1);
+  const [showCinematic, setShowCinematic] = useState<boolean>(false);
+  const [cinematicMode, setCinematicMode] = useState<'MANUAL' | 'AUTO_EMBARK'>('MANUAL');
 
   // Sync profile updates
   useEffect(() => {
@@ -42,6 +47,31 @@ export const MapSelectScreen: React.FC<MapSelectScreenProps> = ({
       setProfile(active);
     });
   }, []);
+
+  // Dev automation bridge for map select and cinematic
+  useEffect(
+    () =>
+      registerDebug(
+        'mapSelect',
+        () => ({
+          mapId: CAMPAIGN_MAP_ORDER[selectedMapIndex],
+          mapIndex: selectedMapIndex,
+          level: selectedLevel,
+          showCinematic,
+        }),
+        {
+          setMap: (id: string) => {
+            const idx = CAMPAIGN_MAP_ORDER.indexOf(id.toUpperCase() as BattleMapId);
+            if (idx >= 0) {
+              setSelectedMapIndex(idx);
+              setSelectedLevel(1);
+            }
+          },
+          cinematic: (open?: boolean) => setShowCinematic(open ?? true),
+        }
+      ),
+    [selectedMapIndex, selectedLevel, showCinematic]
+  );
 
   const currentMapId = CAMPAIGN_MAP_ORDER[selectedMapIndex];
   const currentMapConfig: CampaignMapConfig = CAMPAIGN_MAPS[currentMapId];
@@ -88,28 +118,55 @@ export const MapSelectScreen: React.FC<MapSelectScreenProps> = ({
       return;
     }
 
+    // First time embarking on Level 1 of a stage: play the dark fantasy prologue automatically!
+    if (selectedLevel === 1 && !profileManager.hasViewedCinematic(currentMapId)) {
+      profileManager.markCinematicViewed(currentMapId);
+      audioManager.play('ui_select');
+      setCinematicMode('AUTO_EMBARK');
+      setShowCinematic(true);
+      return;
+    }
+
     audioManager.play('equip');
     onStartExpedition(currentMapId, selectedLevel);
   };
 
-  // TV Remote D-Pad Navigation
-  useTVRemote({
-    onLeft: handlePrevMap,
-    onRight: handleNextMap,
-    onUp: () => {
-      setSelectedLevel((prev) => Math.max(1, prev - 1));
-      audioManager.play('ui_select');
+  // Keyboard shortcut [C] for stage cinematic
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'c' || e.key === 'C') {
+        if (!showCinematic) {
+          audioManager.play('ui_select');
+          setCinematicMode('MANUAL');
+          setShowCinematic(true);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showCinematic]);
+
+  // TV Remote D-Pad Navigation (disabled when cinematic modal is active)
+  useTVRemote(
+    {
+      onLeft: handlePrevMap,
+      onRight: handleNextMap,
+      onUp: () => {
+        setSelectedLevel((prev) => Math.max(1, prev - 1));
+        audioManager.play('ui_select');
+      },
+      onDown: () => {
+        setSelectedLevel((prev) => Math.min(5, prev + 1));
+        audioManager.play('ui_select');
+      },
+      onSelect: handleEmbark,
+      onBack: () => {
+        audioManager.play('ui_select');
+        onBackToHub();
+      },
     },
-    onDown: () => {
-      setSelectedLevel((prev) => Math.min(5, prev + 1));
-      audioManager.play('ui_select');
-    },
-    onSelect: handleEmbark,
-    onBack: () => {
-      audioManager.play('ui_select');
-      onBackToHub();
-    },
-  });
+    { enabled: !showCinematic }
+  );
 
   return (
     <div className="absolute inset-0 z-30 flex flex-col justify-between p-6 bg-black/80 backdrop-blur-md select-none text-white overflow-hidden">
@@ -185,6 +242,19 @@ export const MapSelectScreen: React.FC<MapSelectScreenProps> = ({
             <p className="font-mono text-[11px] text-[#A7A9BE] leading-relaxed line-clamp-4">
               {currentMapConfig.description}
             </p>
+
+            {/* Stage Cinematic Button */}
+            <button
+              onClick={() => {
+                audioManager.play('ui_select');
+                setCinematicMode('MANUAL');
+                setShowCinematic(true);
+              }}
+              className="mt-3 w-full py-2 px-3 bg-[#0F0E17]/90 hover:bg-[#2E2B44] border-2 border-[#F4B41A]/50 hover:border-[#F4B41A] rounded font-pixel text-[11px] text-[#F4B41A] flex items-center justify-center gap-2 transition-all shadow-pixel-box cursor-pointer group"
+            >
+              <Film className="w-3.5 h-3.5 text-[#F4B41A] group-hover:scale-110 transition-transform" />
+              <span>[C] WATCH STAGE CINEMATIC</span>
+            </button>
           </div>
 
           {/* Map Stage Navigation Carousel & Stats */}
@@ -364,9 +434,30 @@ export const MapSelectScreen: React.FC<MapSelectScreenProps> = ({
       <div className="flex items-center justify-between border-t-2 border-[#2E2B44] pt-2 text-[10px] font-pixel text-[#A7A9BE]">
         <span>[◀ / ▶] CHANGE MAP</span>
         <span>[▲ / ▼] SELECT LEVEL</span>
+        <span>[C] STAGE CINEMATIC</span>
         <span>[SELECT / ENTER] EMBARK ON RUN</span>
         <span>[BACK / ESC] RETURN TO CITADEL</span>
       </div>
+
+      {/* 64-BIT DARK FANTASY STAGE CINEMATIC MODAL */}
+      {showCinematic && (
+        <StageCinematic
+          mapId={currentMapId}
+          onClose={() => {
+            setShowCinematic(false);
+            if (cinematicMode === 'AUTO_EMBARK') {
+              // Skipped prologue: proceed directly into battle!
+              audioManager.play('equip');
+              onStartExpedition(currentMapId, selectedLevel);
+            }
+          }}
+          onEmbark={() => {
+            setShowCinematic(false);
+            audioManager.play('equip');
+            onStartExpedition(currentMapId, selectedLevel);
+          }}
+        />
+      )}
     </div>
   );
 };

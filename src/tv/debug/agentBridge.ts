@@ -644,6 +644,14 @@ const api = {
       stats: p?.unlockStats,
     };
   },
+  /** Navigates to MAP_SELECT and opens the specified stage cinematic (defaults to VERDANT_FOREST). */
+  async playCinematic(mapId: string = 'VERDANT_FOREST'): Promise<void> {
+    call('goto', 'MAP_SELECT');
+    await sleep(200);
+    call('setMap', mapId);
+    await sleep(50);
+    call('cinematic', true);
+  },
 };
 
 export type KKDebugApi = typeof api;
@@ -651,9 +659,11 @@ export type KKDebugApi = typeof api;
 declare global {
   interface Window {
     __kk?: KKDebugApi;
+    playCinematic?: (mapId?: string) => Promise<void>;
   }
 }
 
 if (import.meta.env.DEV && typeof window !== 'undefined') {
   window.__kk = api;
+  window.playCinematic = api.playCinematic;
 }

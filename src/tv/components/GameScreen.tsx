@@ -485,7 +485,7 @@ export const GameScreen: React.FC = () => {
         setCurrentView('HUB');
       }
     },
-  }, { enabled: currentView !== 'COMBAT' && currentView !== 'TITLE' && currentView !== 'TRIAL' });
+  }, { enabled: currentView !== 'COMBAT' && currentView !== 'TITLE' && currentView !== 'TRIAL' && currentView !== 'MAP_SELECT' });
 
   const toggleMute = () => {
     const muted = audioManager.toggleMute();
