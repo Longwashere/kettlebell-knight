@@ -557,8 +557,8 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   TROLL: {
     skeleton: `${MONSTER_DIR}/troll/troll_boss.json`,
     atlas: `${MONSTER_DIR}/troll/troll_boss.atlas`,
-    scale: 0.055,
-    height: 72,
+    scale: 0.077,
+    height: 100,
     idle: 'Idle',
     attack: 'Attack01',
     heavyAttack: 'Attack01',

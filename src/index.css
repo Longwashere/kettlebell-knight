@@ -1429,21 +1429,28 @@ canvas,
 .kk-cine-art {
   position: absolute;
   inset: -6%;
-  background-size: cover;
-  background-position: center;
+  width: 112%;
+  height: 112%;
+  max-width: none;
+  object-fit: cover;
   image-rendering: pixelated;
-  will-change: transform, opacity;
-  animation: kkCineDriftA 22s ease-in-out infinite alternate, kkCineFadeIn 1.2s ease-out both;
+  will-change: transform;
+  animation: kkCineDriftA 22s ease-in-out infinite alternate;
 }
 .kk-cine-art--b {
-  animation-name: kkCineDriftB, kkCineFadeIn;
+  animation-name: kkCineDriftB;
 }
-.kk-cine-art--after {
-  /* chapter change: wait for the old art to fade to black first */
-  animation-delay: 0s, 0.75s;
+/* Black curtain over the art: lifts on open, closes and reopens on a chapter change (CURTAIN_COVER_MS) */
+.kk-cine-curtain--open {
+  animation: kkCineFadeOut 1.2s ease-out both;
 }
-.kk-cine-art--out {
-  animation: kkCineFadeOut 0.8s ease-in both;
+.kk-cine-curtain {
+  animation: kkCineCurtain 0.95s ease-in-out both;
+}
+@keyframes kkCineCurtain {
+  0% { opacity: 0; }
+  32%, 38% { opacity: 1; }
+  100% { opacity: 0; }
 }
 @keyframes kkCineDriftA {
   from { transform: scale(1.02) translate(-1.2%, 0.6%); }
@@ -1452,10 +1459,6 @@ canvas,
 @keyframes kkCineDriftB {
   from { transform: scale(1.1) translate(1%, -1%); }
   to { transform: scale(1.03) translate(-1.2%, 0.5%); }
-}
-@keyframes kkCineFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
 }
 @keyframes kkCineFadeOut {
   from { opacity: 1; }

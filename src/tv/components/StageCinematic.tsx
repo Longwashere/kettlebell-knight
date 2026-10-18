@@ -26,6 +26,8 @@ const PARCHMENT = '#ECE2CA';
 const PARCHMENT_DIM = '#A99F88';
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
 const WORD_MS = 55;
+/** Chapter change: the curtain closes over the old art, the art swaps, then it opens (kkCineCurtain in index.css). */
+const CURTAIN_COVER_MS = 300;
 /** Hands-off pacing: after the text is in, hold long enough to read it, then turn the page. */
 const HOLD_PER_WORD_S = 0.3;
 const HOLD_EPIGRAPH_S = 3;
@@ -67,17 +69,46 @@ export const StageCinematic: React.FC<StageCinematicProps> = ({ mapId, onClose, 
   const lore: StageLore = getStageLore(mapId);
   const [sceneIndex, setSceneIndex] = useState<number>(0);
   const [shownWords, setShownWords] = useState<number>(0);
-  const [prevArt, setPrevArt] = useState<{ src: string; key: number } | null>(null);
-  const [changedChapter, setChangedChapter] = useState<boolean>(false);
+  /** The chapter whose art is on screen; it trails sceneIndex until the curtain has covered the old art. */
+  const [artIndex, setArtIndex] = useState<number>(0);
+  const [curtain, setCurtain] = useState<number>(0);
+  const [readyArt, setReadyArt] = useState<ReadonlySet<string>>(() => new Set());
   const timerRef = useRef<number | null>(null);
 
   const scene: CinematicScene = lore.scenes[sceneIndex] || lore.scenes[0];
   const mood = MOOD[scene.mood];
-  const art = scene.image || BATTLE_MAPS[mapId] || BATTLE_MAPS.VERDANT_FOREST;
+  const artFor = (s: CinematicScene) => s.image || BATTLE_MAPS[mapId] || BATTLE_MAPS.VERDANT_FOREST;
+  const art = artFor(lore.scenes[artIndex] || lore.scenes[0]);
   const words = scene.text.join(' ').split(/\s+/);
   const isTypingComplete = shownWords >= words.length;
   const isFinalScene = sceneIndex === lore.scenes.length - 1;
   const { kicker, title } = splitChapter(scene.chapter);
+
+  // Fetch and decode every chapter's art up front. Without this a chapter's image only starts downloading when its
+  // page turns, and the fade-in reveals it half-painted (progressive JPEGs draw top-down) on a cold cache.
+  useEffect(() => {
+    let alive = true;
+    const srcs = [...new Set(lore.scenes.map(artFor))];
+    const imgs = srcs.map((src) => {
+      const img = new Image();
+      img.src = src;
+      const done = () => alive && setReadyArt((prev) => new Set(prev).add(src));
+      img.decode().then(done, done); // a broken image still unblocks its chapter
+      return img;
+    });
+    return () => {
+      alive = false;
+      imgs.forEach((img) => (img.src = ''));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapId, lore]);
+
+  // Swap the art once the curtain is fully down, so the new image never has to fade in on its own
+  useEffect(() => {
+    if (artIndex === sceneIndex) return;
+    const t = window.setTimeout(() => setArtIndex(sceneIndex), CURTAIN_COVER_MS);
+    return () => clearTimeout(t);
+  }, [sceneIndex, artIndex]);
 
   const stopTimer = () => {
     if (timerRef.current) {
@@ -110,8 +141,7 @@ export const StageCinematic: React.FC<StageCinematicProps> = ({ mapId, onClose, 
 
   const goTo = (idx: number) => {
     if (idx === sceneIndex || idx < 0 || idx >= lore.scenes.length) return;
-    setPrevArt({ src: art, key: sceneIndex });
-    setChangedChapter(true);
+    setCurtain((c) => c + 1);
     setSceneIndex(idx);
   };
 
@@ -167,18 +197,20 @@ export const StageCinematic: React.FC<StageCinematicProps> = ({ mapId, onClose, 
     >
       {/* ART: slow drift, crossfading between chapters */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {prevArt && (
-          <div
-            key={`prev-${prevArt.key}`}
-            className="kk-cine-art kk-cine-art--out"
-            style={{ backgroundImage: `url(${prevArt.src})` }}
-            onAnimationEnd={() => setPrevArt(null)}
+        {/* Art stays fully opaque: a huge layer that fades itself in from opacity 0 can be left
+            half-painted by Chrome's compositor. Fades are done by the black curtain over it instead. */}
+        {readyArt.has(art) && (
+          <img
+            key={`art-${artIndex}`}
+            src={art}
+            alt=""
+            draggable={false}
+            className={`kk-cine-art ${artIndex % 2 ? 'kk-cine-art--b' : ''}`}
           />
         )}
         <div
-          key={`art-${sceneIndex}`}
-          className={`kk-cine-art ${sceneIndex % 2 ? 'kk-cine-art--b' : ''} ${changedChapter ? 'kk-cine-art--after' : ''}`}
-          style={{ backgroundImage: `url(${art})` }}
+          key={`curtain-${curtain}`}
+          className={`absolute inset-0 bg-black ${curtain ? 'kk-cine-curtain' : 'kk-cine-curtain--open'}`}
         />
 
         {/* Shade: heavy floor of darkness for the text, lighter crown, vignette, mood-tinted underglow */}
