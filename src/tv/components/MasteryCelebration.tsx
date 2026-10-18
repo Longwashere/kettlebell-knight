@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo } from 'react';
 import type { MasteryLevelUp } from '../../shared/ProfileManager';
 import { CARD_CATALOG, CardTemplate } from '../../types/battle';
-import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
+import { ALL_WEAPON_SPELLS, WEAPON_SPELLS } from '../../types/weaponSpells';
 import { SHOP_ITEMS } from '../../shared/shopItems';
 import { ELEMENT_INFO } from '../../shared/elements';
+import type { EquipmentItem } from '../../types/game';
 import {
   CARD_LEVEL_BONUS, CARD_MAX_LEVEL, WEAPON_LEVEL_BONUS, WEAPON_MAX_LEVEL, bindCard, castsForCardLevel,
   castsForWeaponLevel, weaponStats, type Loadout,
@@ -49,6 +50,100 @@ function toPages(levelUps: MasteryLevelUp[]): MasteryPage[] {
 }
 
 const pct = (n: number) => `+${Math.round(n * 100)}%`;
+
+/**
+ * Weapon card face matching the 90s dark fantasy TCG card aesthetic of CardFront,
+ * featuring the weapon's pixel art sprite, rarity frame, tier badge, attack stat, and signature spells.
+ */
+export const WeaponCardFront: React.FC<{
+  weapon: EquipmentItem;
+  level: number;
+  knightLevel?: number;
+}> = ({ weapon, level, knightLevel = 1 }) => {
+  const stats = useMemo(() => weaponStats(weapon.id, level, undefined, knightLevel), [weapon.id, level, knightLevel]);
+  const spells = useMemo(() => WEAPON_SPELLS[weapon.id] ?? [], [weapon.id]);
+  const hasFoil = weapon.rarity === 'epic' || weapon.rarity === 'legendary';
+  const nameSize = weapon.name.length > 17 ? 10 : weapon.name.length > 13 ? 11 : 12;
+
+  return (
+    <div className="kk-card kk-card--front">
+      <div className="kk-card__head">
+        <div className="kk-card__cost" title={`Weapon Level ${level}`}>
+          <span>{level}</span>
+        </div>
+        <div className="kk-card__name" style={{ fontSize: nameSize }}>{weapon.name}</div>
+      </div>
+
+      <div className="kk-card__art">
+        <div className="relative w-full h-full flex items-center justify-center overflow-hidden bg-[#0A0910]">
+          <div
+            className="absolute inset-0 opacity-40 pointer-events-none"
+            style={{
+              background: `radial-gradient(circle at center, ${weapon.colorHex} 0%, transparent 70%)`,
+            }}
+          />
+          <img
+            src={`/assets/codex/weapons/art_${weapon.id}.png`}
+            alt={weapon.name}
+            className="relative z-10 max-h-[68px] w-auto max-w-[85%] scale-125 object-contain filter drop-shadow-[0_0_10px_rgba(0,0,0,0.95)] drop-shadow-[0_0_14px_rgba(255,255,255,0.2)] pixelated"
+            style={{ imageRendering: 'pixelated', width: 'auto', height: 'auto', objectFit: 'contain' }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/assets/codex/weapons/kettlebell_iron.png';
+            }}
+          />
+        </div>
+        {hasFoil && <div className="kk-card__foil" />}
+        <div className="kk-card__spell">TIER {weapon.level}</div>
+        {weapon.element && (
+          <div className="kk-card__element" style={{ color: ELEMENT_INFO[weapon.element].color }}>
+            {ELEMENT_INFO[weapon.element].icon} {ELEMENT_INFO[weapon.element].label}
+          </div>
+        )}
+        <div className="kk-card__power" title="Attack stat at current level">
+          ATK <b>{stats.atk}</b>
+        </div>
+      </div>
+
+      <div className="kk-card__type">
+        <span>
+          <span className="kk-card__glyph">⚔</span> {weapon.weaponType ? weapon.weaponType.toUpperCase() : 'WEAPON'}
+        </span>
+        <span className="kk-card__rarity" title={weapon.rarity.toUpperCase()}>
+          {weapon.rarity.toUpperCase()} <i className="kk-card__gem" />
+        </span>
+      </div>
+
+      <div className="kk-card__text">
+        {weapon.description}
+      </div>
+
+      <div className="kk-card__foot">
+        <div className="flex flex-col justify-center w-full h-full px-2 py-1 text-left bg-[#0A0910]/70 border border-[#2E2B3A] rounded">
+          <div className="text-[7.5px] font-pixel text-[#F3E9CF]/70 uppercase tracking-wider mb-1 flex items-center justify-between">
+            <span>✦ SIGNATURE SPELLS</span>
+            <span className="text-[#38B6FF]">{pct(WEAPON_LEVEL_BONUS)} ATK/LV</span>
+          </div>
+          {spells.length > 0 ? (
+            <div className="flex flex-col gap-1">
+              {spells.slice(0, 2).map((s) => (
+                <div key={s.templateId} className="flex items-center gap-1.5 bg-[#000]/60 border border-[#2E2B3A] px-1.5 py-1 rounded">
+                  <span className="text-[10px] leading-none shrink-0">{s.icon ?? '✦'}</span>
+                  <span className="font-pixel text-[8px] text-[#FDE68A] truncate">{s.name}</span>
+                  <span className="ml-auto text-[7px] font-pixel text-[#A7A9BE] shrink-0">{s.requiredReps} {s.exercise}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center flex-1 text-center py-1">
+              <span className="font-pixel text-[8px] text-[#FDE68A]">✦ FORGED RELIC ✦</span>
+              <span className="font-pixel text-[7px] text-[#A7A9BE] mt-0.5">CITADEL ARMORY ARMAMENT</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /** Post-fight reward step after the card unlocks: each spell and weapon that levelled up this fight. */
 export const MasteryCelebration: React.FC<MasteryCelebrationProps> = ({ levelUps, loadout, onDismiss }) => {
@@ -126,19 +221,15 @@ export const MasteryCelebration: React.FC<MasteryCelebrationProps> = ({ levelUps
             <div key={page.id} className="relative w-[228px] h-[330px] shrink-0 animate-fadeIn" style={cardStyleVars(card)}>
               <CardFront card={card} />
             </div>
-          ) : (
+          ) : weapon ? (
             <div
               key={page.id}
-              className="w-[228px] h-[330px] shrink-0 animate-fadeIn border-4 border-black rounded flex flex-col items-center justify-center gap-4 bg-[#0F0E17]"
-              style={{ boxShadow: `inset 0 0 0 4px ${weapon!.colorHex}` }}
+              className="relative w-[228px] h-[330px] shrink-0 animate-fadeIn"
+              style={cardStyleVars({ colorHex: weapon.colorHex, rarity: weapon.rarity ?? 'common' })}
             >
-              <span className="w-16 h-16 rounded-sm border-4 border-black" style={{ backgroundColor: weapon!.colorHex }} />
-              <span className="font-pixel text-[11px] text-white text-center px-3">{weapon!.name}</span>
-              <span className="text-[9px] font-pixel uppercase tracking-widest text-[#38B6FF]">
-                {weapon!.weaponType ?? 'weapon'} • TIER {weapon!.level}
-              </span>
+              <WeaponCardFront weapon={weapon} level={page.to} knightLevel={loadout.level} />
             </div>
-          )}
+          ) : null}
 
           <div className="flex-1 min-w-0 flex flex-col text-left">
             {pages.length > 1 && (

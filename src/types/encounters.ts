@@ -17,7 +17,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
     description: 'Woodland foraging rats accompanied by a watchful canopy crow.',
     map: 'VERDANT_FOREST',
     monsterIds: [
-      { id: 'plague_rat', name: 'FIELD FORAGER', title: 'WOODLAND PEST', tint: 0x8D6E63, scaleMultiplier: 0.85 },
+      { id: 'plague_rat', name: 'FIELD FORAGER', title: 'WOODLAND PEST', tint: 0xFAF5F0, outlineColor: 0x8D6E63, scaleMultiplier: 0.85 },
       'storm_crow',
     ],
   },
@@ -28,7 +28,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
     map: 'VERDANT_FOREST',
     monsterIds: [
       'boar',
-      { id: 'plague_rat', name: 'FIELD FORAGER', title: 'WOODLAND PEST', tint: 0x8D6E63, scaleMultiplier: 0.85 },
+      { id: 'plague_rat', name: 'FIELD FORAGER', title: 'WOODLAND PEST', tint: 0xFAF5F0, outlineColor: 0x8D6E63, scaleMultiplier: 0.85 },
     ],
   },
   {
@@ -51,7 +51,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
     description: 'A green camouflaged bark spider dropping beside a nesting crow.',
     map: 'VERDANT_FOREST',
     monsterIds: [
-      { id: 'giant_spider', name: 'BARK SPIDER', title: 'CANOPY LURKER', tint: 0x558B2F, outlineColor: 0x33691E },
+      { id: 'giant_spider', name: 'BARK SPIDER', title: 'CANOPY LURKER', tint: 0xF1F8E9, outlineColor: 0x4CAF50 },
       'storm_crow',
     ],
   },
@@ -225,7 +225,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
     description: 'A dusty pale spider spinning webs across a sarcophagus beside a crypt crawler.',
     map: 'CATHEDRAL_CRYPT',
     monsterIds: [
-      { id: 'giant_spider', name: 'TOMB WEAVER', title: 'COFFIN BROOD', tint: 0xB0BEC5, outlineColor: 0x78909C },
+      { id: 'giant_spider', name: 'TOMB WEAVER', title: 'COFFIN BROOD', tint: 0xF0F4F8, outlineColor: 0x78909C },
       'crypt_crawler',
     ],
   },
@@ -293,7 +293,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
     description: 'A crimson bat gorged on blood accompanied by a ghostly spirit lantern.',
     map: 'BLOOD_CEMETERY',
     monsterIds: [
-      { id: 'bat', name: 'VAMPIRIC BLOOD BAT', title: 'CRIMSON WING', tint: 0xEF5350, outlineColor: 0xB71C1C },
+      { id: 'bat', name: 'VAMPIRIC BLOOD BAT', title: 'CRIMSON WING', tint: 0xFFF1F0, outlineColor: 0xEF5350 },
       'lantern_wisp',
     ],
   },
@@ -303,7 +303,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
     description: 'A dark carrion rat accompanied by a hungry shadow wolf.',
     map: 'BLOOD_CEMETERY',
     monsterIds: [
-      { id: 'plague_rat', name: 'CARRION RAT', title: 'TOMB FEASTER', tint: 0x4E342E, outlineColor: 0x3E2723 },
+      { id: 'plague_rat', name: 'CARRION RAT', title: 'TOMB FEASTER', tint: 0xFAF0EE, outlineColor: 0xA16207 },
       'wolf',
     ],
   },
@@ -385,7 +385,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
     description: 'An aquatic insect chittering through dark flooded gutters beside green slime.',
     map: 'SUNKEN_CISTERN',
     monsterIds: [
-      { id: 'crypt_crawler', name: 'MIRE SCUTTLER', title: 'AQUATIC CHITIN', tint: 0x00838F, outlineColor: 0x006064 },
+      { id: 'crypt_crawler', name: 'MIRE SCUTTLER', title: 'AQUATIC CHITIN', tint: 0xECFEFF, outlineColor: 0x06B6D4 },
       'green_slime',
     ],
   },
@@ -402,7 +402,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
     description: 'A waterlogged armored beetle supported by a giant crab.',
     map: 'SUNKEN_CISTERN',
     monsterIds: [
-      { id: 'giant_beetle', name: 'DREDGE BEETLE', title: 'WATERLOGGED CARAPACE', tint: 0x00695C, outlineColor: 0x004D40 },
+      { id: 'giant_beetle', name: 'DREDGE BEETLE', title: 'WATERLOGGED CARAPACE', tint: 0xECFDF5, outlineColor: 0x10B981 },
       'giant_crab',
     ],
   },
@@ -419,7 +419,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
     description: 'A slimy swamp troll wielding an anchor-encrusted club beside green slime.',
     map: 'SUNKEN_CISTERN',
     monsterIds: [
-      { id: 'troll', name: 'MUD TROLL', title: 'SWAMP BRUTE', tint: 0x558B2F, outlineColor: 0x33691E },
+      { id: 'troll', name: 'MUD TROLL', title: 'SWAMP BRUTE', tint: 0xF1F8E9, outlineColor: 0x4CAF50 },
       'green_slime',
     ],
   },
@@ -840,8 +840,8 @@ export const ENCOUNTERS: EncounterTemplate[] = [
     description: 'Two ferocious war hounds clad in blackened iron armor.',
     map: 'OBSIDIAN_THRONE',
     monsterIds: [
-      { id: 'vault_hound', name: 'EMPEROR HOUND', title: 'ROYAL WAR BEAST', tint: 0x424242, outlineColor: 0xC62828 },
-      { id: 'vault_hound', name: 'EMPEROR HOUND', title: 'ROYAL WAR BEAST', tint: 0x424242, outlineColor: 0xC62828 },
+      { id: 'vault_hound', name: 'EMPEROR HOUND', title: 'ROYAL WAR BEAST', tint: 0xF1F5F9, outlineColor: 0xDC2626 },
+      { id: 'vault_hound', name: 'EMPEROR HOUND', title: 'ROYAL WAR BEAST', tint: 0xF1F5F9, outlineColor: 0xDC2626 },
     ],
   },
   {
@@ -850,8 +850,8 @@ export const ENCOUNTERS: EncounterTemplate[] = [
     description: 'Dark polished stone gargoyles guarding the throne pillars beside a war hound.',
     map: 'OBSIDIAN_THRONE',
     monsterIds: [
-      { id: 'gargoyle', name: 'OBSIDIAN GARGOYLE', title: 'THRONE ROOST', tint: 0x263238, outlineColor: 0x37474F },
-      { id: 'vault_hound', name: 'EMPEROR HOUND', title: 'ROYAL WAR BEAST', tint: 0x424242, outlineColor: 0xC62828 },
+      { id: 'gargoyle', name: 'OBSIDIAN GARGOYLE', title: 'THRONE ROOST', tint: 0xF8FAFC, outlineColor: 0x475569 },
+      { id: 'vault_hound', name: 'EMPEROR HOUND', title: 'ROYAL WAR BEAST', tint: 0xF1F5F9, outlineColor: 0xDC2626 },
     ],
   },
   {
@@ -860,8 +860,8 @@ export const ENCOUNTERS: EncounterTemplate[] = [
     description: 'An undying champion in royal obsidian plate accompanied by an emperor hound.',
     map: 'OBSIDIAN_THRONE',
     monsterIds: [
-      { id: 'skeleton_knight', name: 'IMPERIAL HONOR GUARD', title: 'UNDYING PALADIN', tint: 0x455A64, outlineColor: 0x263238 },
-      { id: 'vault_hound', name: 'EMPEROR HOUND', title: 'ROYAL WAR BEAST', tint: 0x424242, outlineColor: 0xC62828 },
+      { id: 'skeleton_knight', name: 'IMPERIAL HONOR GUARD', title: 'UNDYING PALADIN', tint: 0xF1F5F9, outlineColor: 0x475569 },
+      { id: 'vault_hound', name: 'EMPEROR HOUND', title: 'ROYAL WAR BEAST', tint: 0xF1F5F9, outlineColor: 0xDC2626 },
     ],
   },
   {
@@ -871,7 +871,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
     map: 'OBSIDIAN_THRONE',
     monsterIds: [
       'dark_knight',
-      { id: 'vault_hound', name: 'EMPEROR HOUND', title: 'ROYAL WAR BEAST', tint: 0x424242, outlineColor: 0xC62828 },
+      { id: 'vault_hound', name: 'EMPEROR HOUND', title: 'ROYAL WAR BEAST', tint: 0xF1F5F9, outlineColor: 0xDC2626 },
     ],
   },
   {
@@ -881,7 +881,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
     map: 'OBSIDIAN_THRONE',
     monsterIds: [
       'dark_mage',
-      { id: 'skeleton_knight', name: 'IMPERIAL HONOR GUARD', title: 'UNDYING PALADIN', tint: 0x455A64, outlineColor: 0x263238 },
+      { id: 'skeleton_knight', name: 'IMPERIAL HONOR GUARD', title: 'UNDYING PALADIN', tint: 0xF1F5F9, outlineColor: 0x475569 },
     ],
   },
   {
@@ -890,7 +890,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
     description: 'A bone colossus assembled from defeated kings, supported by the court sorcerer.',
     map: 'OBSIDIAN_THRONE',
     monsterIds: [
-      { id: 'bone_golem', name: 'CONQUEROR COLOSSUS', title: 'FUSED MONARCHS', tint: 0x37474F, outlineColor: 0x880E4F },
+      { id: 'bone_golem', name: 'CONQUEROR COLOSSUS', title: 'FUSED MONARCHS', tint: 0xFDF2F8, outlineColor: 0xDB2777 },
       'dark_mage',
     ],
   },
@@ -993,7 +993,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
     description: 'A back-alley alchemist peddling forbidden curses alongside a sewer rat.',
     map: 'TOWN_NIGHT',
     monsterIds: [
-      { id: 'dark_mage', name: 'HEDGE WARLOCK', title: 'ALLEY ALCHEMIST', tint: 0x4A148C, outlineColor: 0x6A1B9A },
+      { id: 'dark_mage', name: 'HEDGE WARLOCK', title: 'ALLEY ALCHEMIST', outlineColor: 0x9333EA, aura: 'void' },
       'plague_rat',
     ],
   },

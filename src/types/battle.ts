@@ -187,7 +187,7 @@ export interface MonsterVariantSpec {
   scaleMultiplier?: number;
   skin?: string;
   affix?: MonsterAffix;
-  aura?: 'fire' | 'ice' | 'poison' | 'summon';
+  aura?: 'fire' | 'ice' | 'poison' | 'summon' | 'void' | 'storm' | 'shadow' | 'golden' | 'holy' | 'earth';
   outlineColor?: number;
   hpMultiplier?: number;
 }
@@ -213,7 +213,7 @@ export interface MonsterState {
   scaleMultiplier?: number;
   skin?: string;
   affix?: MonsterAffix;
-  aura?: 'fire' | 'ice' | 'poison' | 'summon';
+  aura?: 'fire' | 'ice' | 'poison' | 'summon' | 'void' | 'storm' | 'shadow' | 'golden' | 'holy' | 'earth';
   outlineColor?: number;
 }
 

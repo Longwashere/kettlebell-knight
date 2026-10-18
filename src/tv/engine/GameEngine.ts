@@ -4,7 +4,8 @@ import { BATTLE_MAPS, MAP_BATTLE_MUSIC, getMapBattleMusic } from './battleMaps';
 import type { TextureAtlas } from '@esotericsoftware/spine-core';
 import { audioManager } from '../../shared/AudioManager';
 import { ExerciseType, EXERCISE_SKILLS } from '../../types/game';
-import type { MonsterSprite, MonsterMoveId } from '../../types/battle';
+import type { MonsterSprite, MonsterMoveId, MonsterAffix } from '../../types/battle';
+import type { Element } from '../../shared/elements';
 import { MONSTER_MOVES, type MoveHost, type ImpactResult } from './monsterMoves';
 import { Timeline, lerp, type EmitOptions } from './choreo';
 import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
@@ -407,8 +408,8 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   HARPY: {
     skeleton: `${MONSTER_DIR}/harpy/Harpy.json`,
     atlas: `${MONSTER_DIR}/harpy/Harpy.atlas`,
-    scale: 0.8,
-    height: 55,
+    scale: 0.4,
+    height: 28,
     idle: 'Move',
     attack: 'Attack_01',
     heavyAttack: 'Attack_01',
@@ -818,16 +819,42 @@ function applyRigSkin(spine: Spine, rig: MonsterRig): void {
 }
 
 /** Applies tint to Pixi Container, skeleton, and all individual Spine slots so the GPU batcher colors every part. */
-function setSpineTint(spine: Spine, tint: number): void {
-  spine.tint = tint;
-  const r = ((tint >> 16) & 0xFF) / 255;
-  const g = ((tint >> 8) & 0xFF) / 255;
-  const b = (tint & 0xFF) / 255;
+function setSpineTint(spine: Spine, tint: number, isVfx = false): void {
+  let r = (tint >> 16) & 0xFF;
+  let g = (tint >> 8) & 0xFF;
+  let b = tint & 0xFF;
+
+  // Multiplicative Spine tinting on monster sprites crushes dark pixels into black silhouettes if RGB values are low.
+  // For monster sprites, ensure channels stay in a high-luminance range (minimum 210) by soft-blending toward white,
+  // preserving the intended hue while guaranteeing 100% of pixel-art textures and shading remain visible.
+  if (!isVfx) {
+    const minChannel = Math.min(r, g, b);
+    const maxChannel = Math.max(r, g, b);
+    if (maxChannel < 220 || minChannel < 180) {
+      const factor = 0.25; // 25% tint strength, 75% white
+      r = Math.round(255 - (255 - r) * factor);
+      g = Math.round(255 - (255 - g) * factor);
+      b = Math.round(255 - (255 - b) * factor);
+      const curMin = Math.min(r, g, b);
+      if (curMin < 210) {
+        const boost = 210 - curMin;
+        r = Math.min(255, r + boost);
+        g = Math.min(255, g + boost);
+        b = Math.min(255, b + boost);
+      }
+    }
+  }
+
+  const finalTint = (r << 16) | (g << 8) | b;
+  spine.tint = finalTint;
+  const rf = r / 255;
+  const gf = g / 255;
+  const bf = b / 255;
   if (spine.skeleton) {
-    spine.skeleton.color?.set(r, g, b, 1);
+    spine.skeleton.color?.set(rf, gf, bf, 1);
     if (spine.skeleton.slots) {
       for (const slot of spine.skeleton.slots) {
-        slot.color?.set(r, g, b, slot.color?.a ?? 1);
+        slot.color?.set(rf, gf, bf, slot.color?.a ?? 1);
       }
     }
   }
@@ -918,6 +945,150 @@ function releaseMonsterRig(rig: MonsterRig): void {
  *    Uses Assets.load/unload on scene transitions to prevent WebGL Context Loss on 1GB Fire TV sticks.
  * 3. Dynamic Spine/Attachment preview swapping with proactive asset unloading.
  */
+export type MonsterAuraName =
+  | 'fire'
+  | 'ice'
+  | 'poison'
+  | 'summon'
+  | 'void'
+  | 'storm'
+  | 'shadow'
+  | 'golden'
+  | 'holy'
+  | 'earth';
+
+export interface AuraPresetConfig {
+  vfx: VfxName;
+  vfxTint?: number;
+  vfxSize: number;
+  vfxAlpha: number;
+  vfxY: number;
+  poolColor: number;
+  poolAlpha: number;
+  outlineColor: number;
+}
+
+export const AURA_PRESET_CONFIGS: Record<MonsterAuraName, AuraPresetConfig> = {
+  fire: {
+    vfx: 'fire',
+    vfxTint: 0xFF5722,
+    vfxSize: 1.35,
+    vfxAlpha: 0.6,
+    vfxY: -18,
+    poolColor: 0xC2410C,
+    poolAlpha: 0.40,
+    outlineColor: 0xFF5722,
+  },
+  ice: {
+    vfx: 'ice',
+    vfxTint: 0x38BDF8,
+    vfxSize: 1.35,
+    vfxAlpha: 0.65,
+    vfxY: -18,
+    poolColor: 0x0284C7,
+    poolAlpha: 0.35,
+    outlineColor: 0x00B0FF,
+  },
+  poison: {
+    vfx: 'poison',
+    vfxTint: 0x4ADE80,
+    vfxSize: 1.30,
+    vfxAlpha: 0.65,
+    vfxY: -18,
+    poolColor: 0x15803D,
+    poolAlpha: 0.35,
+    outlineColor: 0x22C55E,
+  },
+  void: {
+    vfx: 'fire',
+    vfxTint: 0x9333EA,
+    vfxSize: 1.35,
+    vfxAlpha: 0.6,
+    vfxY: -18,
+    poolColor: 0x4A148C,
+    poolAlpha: 0.35,
+    outlineColor: 0x9333EA,
+  },
+  storm: {
+    vfx: 'fire',
+    vfxTint: 0xFACC15,
+    vfxSize: 1.35,
+    vfxAlpha: 0.6,
+    vfxY: -18,
+    poolColor: 0xCA8A04,
+    poolAlpha: 0.35,
+    outlineColor: 0xEAB308,
+  },
+  shadow: {
+    vfx: 'fire',
+    vfxTint: 0x475569,
+    vfxSize: 1.35,
+    vfxAlpha: 0.55,
+    vfxY: -18,
+    poolColor: 0x0F172A,
+    poolAlpha: 0.45,
+    outlineColor: 0x64748B,
+  },
+  golden: {
+    vfx: 'heal',
+    vfxTint: 0xFBBF24,
+    vfxSize: 1.25,
+    vfxAlpha: 0.6,
+    vfxY: -16,
+    poolColor: 0xD97706,
+    poolAlpha: 0.35,
+    outlineColor: 0xF59E0B,
+  },
+  holy: {
+    vfx: 'heal',
+    vfxTint: 0xFDE68A,
+    vfxSize: 1.25,
+    vfxAlpha: 0.6,
+    vfxY: -16,
+    poolColor: 0xD97706,
+    poolAlpha: 0.35,
+    outlineColor: 0xFBBF24,
+  },
+  earth: {
+    vfx: 'shockwave',
+    vfxTint: 0x92400E,
+    vfxSize: 1.25,
+    vfxAlpha: 0.6,
+    vfxY: -8,
+    poolColor: 0x78350F,
+    poolAlpha: 0.40,
+    outlineColor: 0xB45309,
+  },
+  summon: {
+    vfx: 'summon',
+    vfxSize: 1.15,
+    vfxAlpha: 0.65,
+    vfxY: -8,
+    poolColor: 0x6D28D9,
+    poolAlpha: 0.35,
+    outlineColor: 0x7C3AED,
+  },
+};
+
+const AFFIX_AURA_MAP: Record<MonsterAffix, MonsterAuraName> = {
+  FIRE: 'fire',
+  FROST: 'ice',
+  TOXIC: 'poison',
+  VOID: 'void',
+  STORM: 'storm',
+  SHADOW: 'shadow',
+  GOLDEN: 'golden',
+};
+
+/**
+ * 32-Bit Retro PixiJS Game Engine for Amazon Fire TV (426x240 Virtual Resolution)
+ * 
+ * Strict Performance Constraints:
+ * 1. Zero React Layout Thrashing: telemetry bypasses React state and feeds directly here.
+ * 2. Strict VRAM Management: 426x240 canvas scaled with CSS pixelated rendering.
+ *    Uses Assets.load/unload on scene transitions to prevent WebGL Context Loss on 1GB Fire TV sticks.
+ * 3. Dynamic Spine/Attachment preview swapping with proactive asset unloading.
+ */
 export type MonsterInputItem =
   | MonsterSprite
   | {
@@ -925,8 +1096,10 @@ export type MonsterInputItem =
       tint?: number;
       scaleMultiplier?: number;
       skin?: string;
-      aura?: 'fire' | 'ice' | 'poison' | 'summon';
+      aura?: MonsterAuraName;
       outlineColor?: number;
+      affix?: MonsterAffix;
+      element?: Element;
     };
 
 export interface MonsterSlot {
@@ -952,6 +1125,7 @@ export interface MonsterSlot {
   scaleMultiplier?: number;
   customOutline?: OutlineFilter | null;
   auraSpine?: Spine | null;
+  auraPool?: Graphics | null;
 }
 
 export class GameEngine {
@@ -1400,15 +1574,16 @@ export class GameEngine {
   }
 
   /**
-   * Shows or removes the Enchanted Stone of Excalibell where the monsters stand. The bell is the knight
-   * atlas's own `excalibell` region, so it costs no extra VRAM.
+   * Shows or removes the Enchanted Stone of Excalibell: a full-screen hero shot over the dimmed backdrop, with
+   * the knight off stage. The bell is the knight atlas's own `excalibell` region, so it costs no extra VRAM.
    */
   public showExcalibellStone(visible: boolean): void {
     this.excalibellStone?.destroy();
     this.excalibellStone = null;
     this.excalibellTexture?.destroy(false);
     this.excalibellTexture = null;
-    if (!visible || !this.app || !this.gameLayer) return;
+    if (this.knightContainer) this.knightContainer.visible = !visible;
+    if (!visible || !this.app || !this.uiLayer) return;
     try {
       const region = Assets.get<TextureAtlas>(KNIGHT_ATLAS_KEY)?.findRegion('excalibell');
       if (region) {
@@ -1418,36 +1593,26 @@ export class GameEngine {
     } catch (err) {
       console.warn('[GameEngine] Excalibell art unavailable:', err);
     }
-    this.excalibellStone = new ExcalibellStone(MONSTER_X - 10, 168, this.excalibellTexture, this.app.ticker, {
-      shake: (n) => this.moveShake(n),
-      flash: (a, c) => this.moveFlash(a, c),
-    });
-    this.gameLayer.addChildAt(this.excalibellStone.view, 0);
+    this.excalibellStone = new ExcalibellStone(this.excalibellTexture, this.app.ticker, { shake: (n) => this.moveShake(n) });
+    this.uiLayer.addChildAt(this.excalibellStone.view, 0);
   }
 
-  /** A trial squat: the knight dips, the stone loosens. `progress` = squats done / needed. */
+  /** A trial squat: the stone loosens. `progress` = squats done / needed. */
   public excalibellRep(progress: number): void {
     this.excalibellStone?.setProgress(progress);
     this.excalibellStone?.rep();
-    this.playKnightAnimation('LANDING_END');
   }
 
-  /** Trial won: the bell tears free, then the knight raises it. */
+  /** Trial won: the bell tears free and rises; the knight now wields it. */
   public excalibellPull(): void {
-    this.playKnightBuff();
     this.excalibellStone?.pull(() => {
-      if (this.isDestroyed) return;
-      this.skeleton.setAttachment('weapon', 'excalibell');
-      this.moveFlash(0.35, 0xFFFBEA);
-      this.playKnightVictory();
-      audioManager.play('level_up');
+      if (!this.isDestroyed) this.skeleton.setAttachment('weapon', 'excalibell');
     });
   }
 
-  /** Trial failed: the stone seals and the knight staggers. */
+  /** Trial failed: the stone seals. */
   public excalibellReject(): void {
     this.excalibellStone?.reject();
-    this.playKnightHit();
   }
 
   /** Clears victory/defeat lock and returns the knight to IDLE (new battle). */
@@ -1593,6 +1758,13 @@ export class GameEngine {
         return;
       }
 
+      const resolvedAura: MonsterAuraName | undefined =
+        variant?.aura ??
+        (variant?.affix ? AFFIX_AURA_MAP[variant.affix] : undefined) ??
+        (variant?.element === 'VOID' ? 'void' : undefined);
+
+      const auraCfg = resolvedAura ? AURA_PRESET_CONFIGS[resolvedAura] : undefined;
+
       try {
         const spineScale = rig.scale * scaleMult;
         const spine = Spine.from({ skeleton: rig.skeleton, atlas: rig.atlas, scale: spineScale, autoUpdate: true });
@@ -1613,16 +1785,20 @@ export class GameEngine {
           applyRigSkin(spine, rig);
         }
 
-        // Outline filter (variant custom color or standard monster outline)
-        if (variant?.outlineColor !== undefined) {
-          const customFilter = new OutlineFilter({ color: variant.outlineColor });
+        // Outline filter (variant custom color, aura preset outline, or standard monster outline)
+        const outlineColor = variant?.outlineColor !== undefined
+          ? variant.outlineColor
+          : auraCfg?.outlineColor;
+
+        if (outlineColor !== undefined) {
+          const customFilter = new OutlineFilter({ color: outlineColor });
           slot.customOutline = customFilter;
           spine.filters = [customFilter];
         } else {
           spine.filters = [this.monsterOutline];
         }
 
-        // Variant Base Tint
+        // Variant Base Tint (high luminance highlight preserving full sprite pixel art)
         if (variant?.tint !== undefined) {
           setSpineTint(spine, variant.tint);
         }
@@ -1658,23 +1834,33 @@ export class GameEngine {
         console.error(`[GameEngine] Failed to instantiate monster rig ${type}:`, err);
       }
 
-      // Ambient Affix Aura
-      if (variant?.aura) {
-        const auraName = variant.aura;
+      // Ambient Elemental Affix Aura & Floor Pool
+      if (auraCfg) {
         const attachAura = () => {
           if (this.isDestroyed || !slot.isAlive || slotContainer.destroyed) return;
-          const aura = this.spawnVfx(slotContainer, auraName, 0, -8 * scaleMult, {
+
+          // Ambient elemental pool on floor beneath monster drop shadow
+          const pool = new Graphics();
+          pool.ellipse(0, 0, 22 * scaleMult, 7 * scaleMult);
+          pool.fill({ color: auraCfg.poolColor, alpha: auraCfg.poolAlpha });
+          slot.auraPool = pool;
+          slotContainer.addChildAt(pool, 0);
+
+          // Billowing elemental aura rendered on top of the monster spine
+          const auraY = ((rig.offY ?? 0) + auraCfg.vfxY) * scaleMult;
+          const aura = this.spawnVfx(slotContainer, auraCfg.vfx, 0, auraY, {
             loop: true,
-            size: 1.15 * scaleMult,
-            alpha: 0.65,
+            size: auraCfg.vfxSize * scaleMult,
+            alpha: auraCfg.vfxAlpha,
+            tint: auraCfg.vfxTint,
           });
           if (aura) {
             slot.auraSpine = aura;
-            if (slotContainer.children.length > 2) {
-              slotContainer.setChildIndex(aura, 1); // between shadow (0) and spine (2)
-            }
+            // Render on top of the monster spine so the elemental VFX is clearly visible
+            slotContainer.setChildIndex(aura, slotContainer.children.length - 1);
           }
         };
+
         if (this.vfxReady) {
           attachAura();
         } else {
@@ -1715,6 +1901,10 @@ export class GameEngine {
       if (slot.customOutline) {
         slot.customOutline.destroy();
         slot.customOutline = null;
+      }
+      if (slot.auraPool) {
+        slot.auraPool.destroy();
+        slot.auraPool = null;
       }
       if (slot.auraSpine) {
         slot.auraSpine.destroy();
@@ -1865,7 +2055,7 @@ export class GameEngine {
     vfx.scale.set(size * (o.flipX ? -1 : 1), size * (o.squash ?? 1));
     vfx.rotation = o.rotation ?? 0;
     vfx.position.set(x, y);
-    if (o.tint !== undefined) vfx.tint = o.tint;
+    if (o.tint !== undefined) setSpineTint(vfx, o.tint, true);
     vfx.alpha = o.alpha ?? 1;
     parent.addChild(vfx);
     vfx.update(0);
@@ -3529,6 +3719,7 @@ export class GameEngine {
       idle,
       fps: this.app ? Math.round(this.app.ticker.FPS) : 0,
       background: this.currentBgKey,
+      excalibell: this.excalibellStone?.debugState() ?? null,
       knight: { animation: knightAnimation, locked: this.knightLocked, move: this.activeKnightMove?.id ?? null },
       monsters,
       targetSlot: this.targetSlotIndex,

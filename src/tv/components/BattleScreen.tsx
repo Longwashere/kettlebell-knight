@@ -896,6 +896,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       // Queues spell/weapon level-ups as if cast this fight (shown after the card unlocks), e.g.
       // mastery([{ kind: 'card', id: 'starter_swing', level: 2 }, { kind: 'weapon', id: 'iron_bell', level: 3 }])
       mastery: (ups: MasteryLevelUp[]) => announceMastery(ups),
+      showMastery: (ups: MasteryLevelUp[]) => {
+        setPendingMastery(ups);
+        setRewardStep('mastery');
+      },
     },
   ));
 
