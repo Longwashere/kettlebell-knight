@@ -18,6 +18,10 @@ const MAX_VOICES = 12;
 /** The same sound retriggered within this window plays quieter, and is dropped past STACK_LIMIT copies. */
 const STACK_WINDOW = 0.045;
 const STACK_LIMIT = 3;
+/** Master gain at full SFX volume. */
+const SFX_MASTER = 0.9;
+const LEVELS_KEY = 'kk-audio-levels';
+const clamp01 = (v: number) => Math.max(0, Math.min(1, Number(v) || 0));
 
 interface Voice {
   src: AudioBufferSourceNode;
@@ -34,6 +38,9 @@ class AudioManager {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private isMuted = false;
+  /** Player settings (pause menu), 0–1, saved per device: scale the music track and every sound effect. */
+  private musicLevel = 1;
+  private sfxLevel = 1;
   private buffers = new Map<SoundId, AudioBuffer>();
   private voices: Voice[] = [];
   private lastPlayed = new Map<SoundId, { at: number; count: number }>();
@@ -56,12 +63,21 @@ class AudioManager {
       comp.attack.value = 0.003;
       comp.release.value = 0.15;
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.9;
       this.master.connect(comp);
       comp.connect(this.ctx.destination);
     } catch (e) {
       console.warn('AudioContext not available:', e);
     }
+    try {
+      const saved = JSON.parse(localStorage.getItem(LEVELS_KEY) ?? 'null');
+      if (saved) {
+        this.musicLevel = clamp01(saved.music ?? 1);
+        this.sfxLevel = clamp01(saved.sfx ?? 1);
+      }
+    } catch {
+      // storage blocked: keep full volume
+    }
+    if (this.master) this.master.gain.value = SFX_MASTER * this.sfxLevel;
   }
 
   public static getInstance(): AudioManager {
@@ -78,7 +94,7 @@ class AudioManager {
       for (const v of this.voices) this.stop(v);
       if (this.bgmAudio) this.bgmAudio.volume = 0;
     } else {
-      if (this.bgmAudio) this.bgmAudio.volume = this.bgmVolume;
+      if (this.bgmAudio) this.bgmAudio.volume = this.bgmLevel();
     }
     return this.isMuted;
   }
@@ -104,7 +120,7 @@ class AudioManager {
       if (!isSameSrc) {
         this.bgmAudio.src = url;
       }
-      this.bgmAudio.volume = this.isMuted ? 0 : this.bgmVolume;
+      this.bgmAudio.volume = this.isMuted ? 0 : this.bgmLevel();
       const playPromise = this.bgmAudio.play();
       if (playPromise) {
         playPromise.catch((e) => {
@@ -133,14 +149,47 @@ class AudioManager {
 
   public resumeBgm(): void {
     if (!this.bgmAudio) return;
-    if (!this.isMuted) this.bgmAudio.volume = this.bgmVolume;
+    if (!this.isMuted) this.bgmAudio.volume = this.bgmLevel();
     this.bgmAudio.play().catch(() => {});
   }
 
   public setBgmVolume(volume: number): void {
     this.bgmVolume = Math.max(0, Math.min(1, volume));
     if (this.bgmAudio && !this.isMuted) {
-      this.bgmAudio.volume = this.bgmVolume;
+      this.bgmAudio.volume = this.bgmLevel();
+    }
+  }
+
+  /** The track's own level scaled by the player's music setting. */
+  private bgmLevel(): number {
+    return this.bgmVolume * this.musicLevel;
+  }
+
+  public getMusicLevel(): number {
+    return this.musicLevel;
+  }
+
+  public getSfxLevel(): number {
+    return this.sfxLevel;
+  }
+
+  public setMusicLevel(level: number): void {
+    this.musicLevel = clamp01(level);
+    if (this.bgmAudio && !this.isMuted) this.bgmAudio.volume = this.bgmLevel();
+    this.saveLevels();
+  }
+
+  public setSfxLevel(level: number): void {
+    this.sfxLevel = clamp01(level);
+    if (this.master) this.master.gain.value = SFX_MASTER * this.sfxLevel;
+    this.saveLevels();
+  }
+
+  private saveLevels(): void {
+    try {
+      localStorage.setItem(LEVELS_KEY, JSON.stringify({ music: this.musicLevel, sfx: this.sfxLevel }));
+    } catch {
+      // storage blocked: the levels last for this session only
     }
   }
 

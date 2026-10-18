@@ -1732,6 +1732,14 @@ export class GameEngine {
   }
 
   /** Clears victory/defeat lock and returns the knight to IDLE (new battle). */
+  /** Pause menu: stops the render ticker, so rigs, moves, VFX and the frame on screen all hold. */
+  public setPaused(paused: boolean): void {
+    const ticker = this.app?.ticker;
+    if (!ticker || this.isDestroyed) return;
+    if (paused) ticker.stop();
+    else ticker.start();
+  }
+
   public resetKnight(): void {
     this.knightLocked = false;
     this.knightVictoryPending = false;

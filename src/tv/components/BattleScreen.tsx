@@ -19,6 +19,7 @@ import { profileManager, loadoutFor, type LevelUpEvent, type MasteryLevelUp } fr
 import { SHOP_ITEMS } from '../../shared/shopItems';
 import { CardUnlockCelebration } from './CardUnlockCelebration';
 import { MasteryCelebration } from './MasteryCelebration';
+import { PauseMenu } from './PauseMenu';
 import type { CardUnlockDef } from '../../shared/cardUnlocks';
 import { CombatCardView } from './CombatCardView';
 import { rollSecretTrial, type SecretTrialId } from '../../shared/secretTrials';
@@ -235,6 +236,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   battleStatusRef.current = battleStatus;
   const atbFrozenRef = useRef<boolean>(false); // dev bridge: pause monster timers during captures
   const isAwaitingVictoryRef = useRef<boolean>(false);
+  // Pause menu (Back / Esc mid-fight): monster timers, the engine and incoming reps all hold
+  const [paused, setPaused] = useState<boolean>(false);
+  const pausedRef = useRef<boolean>(false);
+  pausedRef.current = paused;
   const victoryFallbackTimerRef = useRef<number | null>(null);
 
   const hasInitializedRef = useRef<boolean>(false);
@@ -305,7 +310,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       const now = performance.now();
       const dt = (now - lastTime) / 1000;
       lastTime = now;
-      if (atbFrozenRef.current) return;
+      if (atbFrozenRef.current || pausedRef.current) return;
 
       // Advance every attack timer from the latest state; attacks fire outside the state update so
       // they run exactly once (React may replay updater functions)
@@ -466,7 +471,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
    * If the card reaches required reps, it activates and damages monster / grants block!
    */
   const handleApplyRep = useCallback((exercise: ExerciseType, power: number = 80, form: number = 1.0) => {
-    if (battleStatusRef.current !== 'FIGHTING' || isAwaitingVictoryRef.current) return;
+    if (battleStatusRef.current !== 'FIGHTING' || isAwaitingVictoryRef.current || pausedRef.current) return;
 
     // Record rep progression toward card unlocks
     const repUnlocks = profileManager.recordRepStats(exercise, power, form, currentMap);
@@ -840,6 +845,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             currentReps: hand[actionCardIndex].currentReps, requiredReps: hand[actionCardIndex].requiredReps }
         : null,
       frozen: atbFrozenRef.current,
+      paused,
       flippedCard: flippedCardId,
       rewardStep,
       pendingMastery,
@@ -883,6 +889,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       },
       moves: (slotIndex: number) => (MOVESETS[monstersRef.current[slotIndex]?.id] ?? []).map((t) => t.move),
       freeze: (on: boolean) => { atbFrozenRef.current = on; },
+      pause: (on: boolean) => setPaused(on),
       // Drops every living foe to 1 HP, so the next hit wins the fight (victory screens, secret trial calls)
       weaken: () => commitMonsters((prev) => prev.map((m) => (m.currentHp > 0 ? { ...m, currentHp: 1 } : m))),
       focusCard: (index: number) => setFocusedCardIndex(Math.max(0, Math.min(hand.length - 1, index))),
@@ -964,7 +971,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     onBack: () => {
       if (battleStatus === 'EXPEDITION_VICTORY' && secretCall && onSecretTrial) continueReward(() => onSecretTrial(secretCall));
       else if (battleStatus !== 'FIGHTING') continueReward(onExitBattle);
-      else onExitBattle();
+      else if (!isAwaitingVictoryRef.current) setPaused(true);
     },
     onDemoSwing: () => {
       if (hand.length > 0) {
@@ -974,7 +981,16 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         }
       }
     },
-  }, { enabled: !showingUnlocks });
+  }, { enabled: !showingUnlocks && !paused });
+
+  // Freeze the engine with the menu; a fight that ends (or a screen that unmounts) never leaves it stopped
+  useEffect(() => {
+    if (paused && battleStatus !== 'FIGHTING') setPaused(false);
+  }, [paused, battleStatus]);
+  useEffect(() => {
+    engineRef.current?.setPaused(paused);
+  }, [paused, engineRef]);
+  useEffect(() => () => engineRef.current?.setPaused(false), [engineRef]);
 
   return (
     <div className="absolute inset-0 z-20 flex flex-col justify-between p-6 pointer-events-auto select-none">
@@ -1291,6 +1307,17 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             )}
           </div>
         </div>
+      )}
+
+      {paused && (
+        <PauseMenu
+          fightGold={fightGold}
+          onResume={() => setPaused(false)}
+          onQuit={() => {
+            setPaused(false);
+            onExitBattle();
+          }}
+        />
       )}
 
       {/* Reward step two: the cards unlocked this fight, one by one */}
