@@ -1432,13 +1432,16 @@ export class GameEngine {
       this.currentBgKey = targetKey;
 
       const bgSprite = new Sprite(texture);
-      // Exact 1:1 native pixel-perfect mapping on 426x240 retro canvas
-      bgSprite.width = 426;
-      bgSprite.height = 240;
-      bgSprite.x = 0;
-      // Shift up by 42px so the floor horizon (y=144 in image) sits at y=102,
+      // Horizontal overscan padding (20px per side) so camera shakes (intensity up to 14px)
+      // and zoom punch-ins never reveal the flat background edges/seams.
+      const overscanX = 20;
+      const scale = (426 + overscanX * 2) / 426;
+      bgSprite.width = 426 + overscanX * 2;
+      bgSprite.height = Math.round(240 * scale);
+      bgSprite.x = -overscanX;
+      // Shift up proportionally so the floor horizon (y=144 in image) sits at y=102,
       // placing combatants (y=128) firmly 16px deep onto the stone floor tiles.
-      bgSprite.y = -42;
+      bgSprite.y = Math.round(102 - 144 * scale);
 
       const darkBase = new Graphics();
       darkBase.rect(-50, -30, 526, 300).fill({ color: 0x12101E });
