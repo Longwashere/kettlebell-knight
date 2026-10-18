@@ -832,6 +832,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         element: m.element,
         xp: m.xp,
         level: m.level,
+        size: m.sizeClass,
+        scale: m.scaleMultiplier,
         alive: m.isAlive,
         intent: { name: m.intent.name, type: m.intent.type, remaining: Number(m.intent.remainingSeconds.toFixed(2)) },
       })),
@@ -1117,6 +1119,12 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                       </div>
                     </div>
 
+                    {m.sizeClass === 'GIANT' && (
+                      <span className="kk-hud-plate__size kk-hud-plate__size--giant" title="Giant: 40% more HP">▲ GIANT</span>
+                    )}
+                    {m.sizeClass === 'MINI' && (
+                      <span className="kk-hud-plate__size kk-hud-plate__size--mini" title="Miniature: attacks faster">▼ MINI</span>
+                    )}
                     {m.affix && (
                       <span className="kk-hud-plate__affix" style={{ borderColor: affixColor, color: affixColor }}>
                         {m.affix}

@@ -16,7 +16,7 @@
  * Tune with `npm run balance` (scripts/balance-sim.ts) and keep its targets.
  */
 import { ENCOUNTERS, type BattleMapId, type EncounterTemplate } from '../types/battle';
-import { MOVESETS, createEncounterFromTemplate, type StageScaling } from './monsterMovesets';
+import { MOVESETS, createEncounterFromTemplate, rollMonsterSize, type StageScaling } from './monsterMovesets';
 import { CAMPAIGN_MAP_ORDER, getMapConfig, mapTier, recommendedLevel } from './expeditionEngine';
 
 export { mapTier, recommendedLevel };
@@ -100,14 +100,15 @@ export function stageScaling(map: BattleMapId | undefined, level = 1): StageScal
   };
 }
 
-/** A stage's monsters, scaled. */
-export function createStageEncounter(template: EncounterTemplate, level = 1, map: BattleMapId | undefined = template.map): ReturnType<typeof createEncounterFromTemplate> {
-  return createEncounterFromTemplate(template, stageScaling(map, level), map);
+/** A stage's monsters, scaled, each with a random size for this fight (Miniature / Giant; `sized = false` skips it). */
+export function createStageEncounter(template: EncounterTemplate, level = 1, map: BattleMapId | undefined = template.map, sized = true): ReturnType<typeof createEncounterFromTemplate> {
+  const monsters = createEncounterFromTemplate(template, stageScaling(map, level), map);
+  return sized ? monsters.map((m) => rollMonsterSize(m)) : monsters;
 }
 
 /** Experience for clearing an expedition level, on top of the kills. */
 export function expeditionClearXp(encounters: EncounterTemplate[], map: BattleMapId, level: number): number {
-  const kills = encounters.flatMap((e) => createStageEncounter(e, level, map)).reduce((sum, m) => sum + (m.xp ?? 0), 0);
+  const kills = encounters.flatMap((e) => createStageEncounter(e, level, map, false)).reduce((sum, m) => sum + (m.xp ?? 0), 0);
   return Math.round(kills * STAGE_BALANCE.clearBonus);
 }
 

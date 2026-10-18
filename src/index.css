@@ -1405,6 +1405,26 @@ canvas,
   line-height: 9px;
   text-transform: uppercase;
 }
+.kk-hud-plate__size {
+  position: absolute;
+  bottom: -6px;
+  left: 8px;
+  padding: 0 4px;
+  border: 1px solid;
+  border-radius: 2px;
+  background: #0F0E17;
+  font-family: "Press Start 2P", monospace;
+  font-size: 6px;
+  line-height: 9px;
+}
+.kk-hud-plate__size--giant {
+  border-color: #FF3366;
+  color: #FF3366;
+}
+.kk-hud-plate__size--mini {
+  border-color: #00EB88;
+  color: #00EB88;
+}
 .kk-hud-gem--sm {
   width: 18px;
   height: 20px;

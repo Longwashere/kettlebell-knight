@@ -342,18 +342,51 @@ export const MONSTER_INTENTS: Record<string, MonsterIntent[]> = Object.fromEntri
 );
 
 /** Rolls a monster's next intent, with its pack- and stage-scaled damage and Block baked in. */
-export function rollIntent(m: Pick<MonsterState, 'id' | 'damageScale' | 'blockScale'>, pick?: number): MonsterIntent {
+export function rollIntent(m: Pick<MonsterState, 'id' | 'damageScale' | 'blockScale' | 'speedScale'>, pick?: number): MonsterIntent {
   const moves = MOVESETS[m.id] ?? MOVESETS.green_slime;
   const t = moves[pick ?? Math.floor(Math.random() * moves.length)] ?? moves[0];
   const scale = m.damageScale ?? 1;
   const block = t.block !== undefined || t.type === 'DEFEND' ? Math.round((t.block ?? 25) * (m.blockScale ?? scale)) : undefined;
+  const durationSeconds = t.durationSeconds * (m.speedScale ?? 1);
   return {
     ...t,
     damage: Math.round(t.damage * scale),
     block,
     description: block !== undefined ? t.description.replace(/\+\d+ Block/, `+${block} Block`) : t.description,
-    remainingSeconds: t.durationSeconds,
+    durationSeconds,
+    remainingSeconds: durationSeconds,
   };
+}
+
+/** Random size spread per fight: ±20%. Beyond ±10% a monster is a Miniature or a Giant. */
+export const MONSTER_SIZE = {
+  spread: 0.2,
+  classAt: 0.1,
+  /** Miniatures charge their attacks in this share of the time. */
+  miniSpeed: 0.75,
+  /** Giants have this much more HP. */
+  giantHp: 1.4,
+};
+
+/** Rolls a monster's size for this fight: scales it, and makes it a Miniature (faster) or Giant (tougher). */
+export function rollMonsterSize(m: MonsterState, roll = Math.random() * 2 - 1): MonsterState {
+  const delta = roll * MONSTER_SIZE.spread;
+  const sizeClass = delta <= -MONSTER_SIZE.classAt ? 'MINI' : delta >= MONSTER_SIZE.classAt ? 'GIANT' : undefined;
+  const scaleMultiplier = (m.scaleMultiplier ?? 1) * (1 + delta);
+  if (!sizeClass) return { ...m, scaleMultiplier };
+  if (sizeClass === 'GIANT') {
+    const maxHp = Math.round(m.maxHp * MONSTER_SIZE.giantHp);
+    const xp = m.xp !== undefined ? Math.round(m.xp * MONSTER_SIZE.giantHp) : undefined;
+    return { ...m, scaleMultiplier, sizeClass, maxHp, currentHp: maxHp, xp };
+  }
+  // Re-time the opener so its stagger offset keeps, just charging faster
+  const speedScale = MONSTER_SIZE.miniSpeed;
+  const intent = {
+    ...m.intent,
+    durationSeconds: m.intent.durationSeconds * speedScale,
+    remainingSeconds: m.intent.remainingSeconds * speedScale,
+  };
+  return { ...m, scaleMultiplier, sizeClass, speedScale, intent };
 }
 
 /**

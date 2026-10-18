@@ -192,6 +192,9 @@ export interface MonsterVariantSpec {
   hpMultiplier?: number;
 }
 
+/** MINI: shrunk 10–20%, attacks faster. GIANT: grown 10–20%, more HP. */
+export type MonsterSizeClass = 'MINI' | 'GIANT';
+
 export interface MonsterState {
   id: string;
   name: string;
@@ -207,6 +210,8 @@ export interface MonsterState {
   isAlive?: boolean;
   damageScale?: number; // pack × affix × stage scaling applied to rolled intents' damage
   blockScale?: number; // stage scaling of DEFEND Block (tracks monster HP, not damage)
+  sizeClass?: MonsterSizeClass; // rolled per fight (src/shared/monsterMovesets.ts rollMonsterSize)
+  speedScale?: number; // multiplier on rolled intents' charge time (<1 attacks faster)
   element?: Element; // src/shared/elements.ts; absent = physical
   xp?: number; // experience granted to the knight when it dies
   tint?: number;
