@@ -45,6 +45,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
   // Load slots state
   const [slots, setSlots] = useState<(PlayerProfile | null)[]>(() => profileManager.getAllSlots());
   const [slotIndex, setSlotIndex] = useState<number>(0);
+  const [slotSubFocus, setSlotSubFocus] = useState<'SLOT' | 'PURGE'>('SLOT');
   const [purgeConfirmSlot, setPurgeConfirmSlot] = useState<string | null>(null);
 
   const hasActiveSave = useMemo(() => profileManager.hasSavedProfile(), [slots]);
@@ -147,6 +148,8 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
       } else if (mode === 'LOAD_SLOTS') {
         setSlotIndex((prev) => {
           const next = Math.max(0, prev - 1);
+          setSlotSubFocus('SLOT');
+          setPurgeConfirmSlot(null);
           audioManager.play('ui_move');
           return next;
         });
@@ -170,6 +173,8 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
       } else if (mode === 'LOAD_SLOTS') {
         setSlotIndex((prev) => {
           const next = Math.min(TOTAL_SAVE_SLOTS - 1, prev + 1);
+          setSlotSubFocus('SLOT');
+          setPurgeConfirmSlot(null);
           audioManager.play('ui_move');
           return next;
         });
@@ -183,6 +188,12 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
           audioManager.play('ui_move');
           return next;
         });
+      } else if (mode === 'LOAD_SLOTS') {
+        if (slotSubFocus === 'PURGE') {
+          setSlotSubFocus('SLOT');
+          setPurgeConfirmSlot(null);
+          audioManager.play('ui_move');
+        }
       }
     },
     onRight: () => {
@@ -193,6 +204,12 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
           audioManager.play('ui_move');
           return next;
         });
+      } else if (mode === 'LOAD_SLOTS') {
+        const currentSlot = slots[slotIndex];
+        if (currentSlot && slotSubFocus === 'SLOT') {
+          setSlotSubFocus('PURGE');
+          audioManager.play('ui_move');
+        }
       }
     },
     onSelect: () => {
@@ -229,15 +246,39 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
         }
       } else if (mode === 'LOAD_SLOTS') {
         const currentSlot = slots[slotIndex];
-        if (currentSlot) {
-          handleSelectSlotToLoad(currentSlot);
+        if (slotSubFocus === 'PURGE' && currentSlot) {
+          if (purgeConfirmSlot === currentSlot.id) {
+            handleDeleteSlot(currentSlot.id);
+            setPurgeConfirmSlot(null);
+            setSlotSubFocus('SLOT');
+          } else {
+            setPurgeConfirmSlot(currentSlot.id);
+            audioManager.play('ui_move');
+          }
         } else {
-          handleStartNewGameMode(`slot_${slotIndex + 1}`);
+          if (currentSlot) {
+            handleSelectSlotToLoad(currentSlot);
+          } else {
+            handleStartNewGameMode(`slot_${slotIndex + 1}`);
+          }
         }
       }
     },
     onBack: () => {
-      if (mode === 'NAME_ENTRY' || mode === 'LOAD_SLOTS') {
+      if (mode === 'LOAD_SLOTS') {
+        if (purgeConfirmSlot) {
+          setPurgeConfirmSlot(null);
+          audioManager.play('ui_move');
+        } else if (slotSubFocus === 'PURGE') {
+          setSlotSubFocus('SLOT');
+          audioManager.play('ui_move');
+        } else {
+          setMode('MAIN_MENU');
+          setPurgeConfirmSlot(null);
+          setSlotSubFocus('SLOT');
+          audioManager.play('ui_select');
+        }
+      } else if (mode === 'NAME_ENTRY') {
         setMode('MAIN_MENU');
         setPurgeConfirmSlot(null);
         audioManager.play('ui_select');
@@ -479,7 +520,9 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
                     }}
                     className={`p-3 border-2 rounded transition-all cursor-pointer ${
                       isSelected
-                        ? 'border-[#00EB88] bg-[#22332A]/90 ring-2 ring-[#00EB88]/40 shadow-pixel-box'
+                        ? slotSubFocus === 'PURGE'
+                          ? 'border-[#00EB88]/60 bg-[#22332A]/50 ring-1 ring-[#00EB88]/30 shadow-pixel-box'
+                          : 'border-[#00EB88] bg-[#22332A]/90 ring-2 ring-[#00EB88]/40 shadow-pixel-box'
                         : 'border-[#2E2B44] bg-[#0F0E17]/90 hover:border-[#00EB88]/50'
                     }`}
                   >
@@ -518,17 +561,24 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
 
                           {/* Purge / Delete Button */}
                           {purgeConfirmSlot === slot.id ? (
-                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <div className={`flex items-center gap-1 ${isSelected && slotSubFocus === 'PURGE' ? 'ring-2 ring-[#FF3366] p-0.5 rounded' : ''}`} onClick={(e) => e.stopPropagation()}>
                               <button
                                 type="button"
-                                onClick={() => handleDeleteSlot(slot.id)}
+                                onClick={() => {
+                                  handleDeleteSlot(slot.id);
+                                  setPurgeConfirmSlot(null);
+                                  setSlotSubFocus('SLOT');
+                                }}
                                 className="bg-[#FF3366] text-white font-pixel text-[8px] px-2 py-1 border border-black animate-pulse"
                               >
                                 PURGE!
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setPurgeConfirmSlot(null)}
+                                onClick={() => {
+                                  setPurgeConfirmSlot(null);
+                                  setSlotSubFocus('SLOT');
+                                }}
                                 className="bg-[#2E2B44] text-white font-pixel text-[8px] px-1.5 py-1 border border-black"
                               >
                                 ✕
@@ -540,10 +590,15 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setPurgeConfirmSlot(slot.id);
+                                setSlotSubFocus('PURGE');
                                 audioManager.play('ui_move');
                               }}
-                              className="text-[#FF3366] hover:text-white p-1 border border-transparent hover:border-[#FF3366] rounded"
-                              title="Delete Save"
+                              className={`p-1 border rounded transition-all ${
+                                isSelected && slotSubFocus === 'PURGE'
+                                  ? 'border-[#FF3366] bg-[#FF3366]/30 text-white ring-2 ring-[#FF3366] scale-110 shadow-pixel-box'
+                                  : 'text-[#FF3366] hover:text-white border-transparent hover:border-[#FF3366]'
+                              }`}
+                              title="Delete Save (D-Pad Right to focus)"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -567,6 +622,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
                 onClick={() => {
                   setMode('MAIN_MENU');
                   setPurgeConfirmSlot(null);
+                  setSlotSubFocus('SLOT');
                   audioManager.play('ui_select');
                 }}
                 className="bg-[#2E2B44] hover:bg-[#3E3B5E] text-white font-pixel text-[9px] px-3 py-2 border border-black flex items-center gap-1"
@@ -576,7 +632,11 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
               </button>
 
               <span className="font-mono text-[9px] text-[#A7A9BE]">
-                [▲ / ▼] SELECT • [ENTER] RESUME OR CREATE
+                {purgeConfirmSlot
+                  ? '[ENTER] CONFIRM PURGE • [ESC / ◄] CANCEL'
+                  : slotSubFocus === 'PURGE'
+                  ? '[ENTER] ARM PURGE • [◄] RETURN TO TOMB'
+                  : '[▲ / ▼] SELECT • [ENTER] AWAKEN • [►] DELETE SAVE'}
               </span>
             </div>
           </div>

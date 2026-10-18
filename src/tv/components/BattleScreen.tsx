@@ -1078,6 +1078,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       }
       else if (battleStatus === 'EXPEDITION_VICTORY' && secretCall && onSecretTrial) continueReward(() => onSecretTrial(secretCall));
       else if (battleStatus !== 'FIGHTING') continueReward(onExitBattle);
+      else if (flippedCardId !== null) {
+        setFlippedCardId(null);
+        audioManager.play('ui_move');
+      }
       else if (!isAwaitingVictoryRef.current) setPaused(true);
     },
     onDemoSwing: () => {
@@ -1422,6 +1426,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                 </div>
               </>
             )}
+
+            {/* 10-foot remote button prompt */}
+            <div className="mt-4 pt-2.5 border-t border-[#2E2B44] flex items-center justify-center gap-4 text-[9px] font-pixel text-[#A7A9BE]">
+              <span className="text-[#F4B41A]">[ENTER] {battleStatus === 'DEFEAT' ? 'RETRY' : 'CONTINUE'}</span>
+              <span>•</span>
+              <span className="text-white">[BACK / ESC] TOWN HUB</span>
+            </div>
           </div>
         </div>
       )}

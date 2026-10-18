@@ -247,12 +247,14 @@ interface HubMenuProps {
   selectedIndex: number;
   onSelectNode: (node: HubLocation) => void;
   onHoverNode: (index: number) => void;
+  isFocused?: boolean;
 }
 
 export const HubMenu: React.FC<HubMenuProps> = ({
   selectedIndex,
   onSelectNode,
   onHoverNode,
+  isFocused = true,
 }) => {
   return (
     <div className="kk-hub">
@@ -270,7 +272,7 @@ export const HubMenu: React.FC<HubMenuProps> = ({
       {/* 5 hub plaques (Fire TV 10-foot navigation) */}
       <div className="kk-hub__row">
         {HUB_NODES.map((node, index) => {
-          const isSelected = selectedIndex === index;
+          const isSelected = isFocused && selectedIndex === index;
 
           return (
             <div

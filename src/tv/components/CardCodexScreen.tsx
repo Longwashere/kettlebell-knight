@@ -195,14 +195,22 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
     audioManager.play('ui_select');
   };
 
+  const kinematicsRef = useRef<HTMLDivElement | null>(null);
+
   // D-Pad Remote Navigation
   useTVRemote({
     onLeft: () => {
-      if (activeTab === 'KINEMATICS') return;
+      if (activeTab === 'KINEMATICS') {
+        kinematicsRef.current?.scrollBy({ top: -100, behavior: 'smooth' });
+        return;
+      }
       handlePrevCard();
     },
     onRight: () => {
-      if (activeTab === 'KINEMATICS') return;
+      if (activeTab === 'KINEMATICS') {
+        kinematicsRef.current?.scrollBy({ top: 100, behavior: 'smooth' });
+        return;
+      }
       handleNextCard();
     },
     onUp: () => {
@@ -212,7 +220,16 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
       cycleTab(1);
     },
     onSelect: () => {
-      audioManager.play('ui_select');
+      if (activeTab !== 'KINEMATICS' && activeTab !== 'WEAPON_SPELLS') {
+        const modes = ['ALL', 'UNLOCKED', 'LOCKED'] as const;
+        const curIdx = modes.indexOf(filterMode);
+        const nextMode = modes[(curIdx + 1) % modes.length];
+        setFilterMode(nextMode);
+        setSelectedIndex(0);
+        audioManager.play('ui_select');
+      } else {
+        audioManager.play('ui_select');
+      }
     },
     onBack: () => {
       onBackToHub();
@@ -371,7 +388,7 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
       {/* Main Content Area */}
       {activeTab === 'KINEMATICS' ? (
         /* Kinematics Telemetry View */
-        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+        <div ref={kinematicsRef} className="flex-1 overflow-y-auto space-y-3 pr-1">
           <div className="bg-[#0A0910] border-2 border-[#00EB88] p-4 rounded text-left">
             <h3 className="font-pixel text-xs text-[#00EB88] mb-1 flex items-center gap-2">
               <Activity className="w-4 h-4" />
@@ -867,9 +884,17 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
       {/* 32-Bit Dark Fantasy Footer Control Legend */}
       <footer className="mt-2 pt-1.5 border-t border-[#2D2A42] flex items-center justify-between text-[9px] font-pixel text-[#38B6FF]">
         <div className="flex items-center gap-3">
-          <span>[◀ / ▶] SWIPE CARDS</span>
+          <span>
+            {activeTab === 'KINEMATICS' ? '[◀ / ▶] SCROLL TELEMETRY' : '[◀ / ▶] SWIPE CARDS'}
+          </span>
           <span>•</span>
           <span>[▲ / ▼] SWITCH CATEGORIES</span>
+          {activeTab !== 'KINEMATICS' && activeTab !== 'WEAPON_SPELLS' && (
+            <>
+              <span>•</span>
+              <span className="text-[#00EB88]">[ENTER] FILTER ({filterMode})</span>
+            </>
+          )}
         </div>
         <div className="text-[#F4B41A]">
           <span>[ESC / BACK] RETURN TO CITADEL HUB</span>

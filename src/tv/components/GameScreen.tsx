@@ -71,6 +71,8 @@ export const GameScreen: React.FC = () => {
   // Navigation indices
   const [hubIndex, setHubIndex] = useState<number>(0); // Quick Play
   const [shopIndex, setShopIndex] = useState<number>(0);
+  const [hubFocusArea, setHubFocusArea] = useState<'CAROUSEL' | 'TOP_BAR'>('CAROUSEL');
+  const [topBarIndex, setTopBarIndex] = useState<number>(0); // 0: Mobile Pair, 1: Title Screen, 2: Mute
 
   // Networking state
   const [roomId, setRoomId] = useState<string>('');
@@ -226,7 +228,10 @@ export const GameScreen: React.FC = () => {
 
   // Entering the town hub always lands on Quick Play
   useEffect(() => {
-    if (currentView === 'HUB') setHubIndex(0);
+    if (currentView === 'HUB') {
+      setHubIndex(0);
+      setHubFocusArea('CAROUSEL');
+    }
   }, [currentView]);
 
   // Quick Play: jump straight into the furthest unlocked stage
@@ -412,7 +417,13 @@ export const GameScreen: React.FC = () => {
    */
   useTVRemote({
     onUp: () => {
-      if (currentView === 'BLACKSMITH') {
+      if (currentView === 'HUB') {
+        if (hubFocusArea === 'CAROUSEL') {
+          setHubFocusArea('TOP_BAR');
+          setTopBarIndex(0);
+          audioManager.play('ui_move');
+        }
+      } else if (currentView === 'BLACKSMITH') {
         setShopIndex((prev) => {
           const next = Math.max(0, prev - 2);
           handlePreviewShopItem(SHOP_ITEMS[next]);
@@ -421,7 +432,12 @@ export const GameScreen: React.FC = () => {
       }
     },
     onDown: () => {
-      if (currentView === 'BLACKSMITH') {
+      if (currentView === 'HUB') {
+        if (hubFocusArea === 'TOP_BAR') {
+          setHubFocusArea('CAROUSEL');
+          audioManager.play('ui_move');
+        }
+      } else if (currentView === 'BLACKSMITH') {
         setShopIndex((prev) => {
           const next = Math.min(SHOP_ITEMS.length - 1, prev + 2);
           handlePreviewShopItem(SHOP_ITEMS[next]);
@@ -431,7 +447,11 @@ export const GameScreen: React.FC = () => {
     },
     onLeft: () => {
       if (currentView === 'HUB') {
-        setHubIndex((prev) => Math.max(0, prev - 1));
+        if (hubFocusArea === 'CAROUSEL') {
+          setHubIndex((prev) => Math.max(0, prev - 1));
+        } else {
+          setTopBarIndex((prev) => Math.max(0, prev - 1));
+        }
       } else if (currentView === 'BLACKSMITH') {
         setShopIndex((prev) => {
           const next = Math.max(0, prev - 1);
@@ -442,7 +462,11 @@ export const GameScreen: React.FC = () => {
     },
     onRight: () => {
       if (currentView === 'HUB') {
-        setHubIndex((prev) => Math.min(HUB_NODES.length - 1, prev + 1));
+        if (hubFocusArea === 'CAROUSEL') {
+          setHubIndex((prev) => Math.min(HUB_NODES.length - 1, prev + 1));
+        } else {
+          setTopBarIndex((prev) => Math.min(2, prev + 1));
+        }
       } else if (currentView === 'BLACKSMITH') {
         setShopIndex((prev) => {
           const next = Math.min(SHOP_ITEMS.length - 1, prev + 1);
@@ -458,6 +482,17 @@ export const GameScreen: React.FC = () => {
       }
 
       if (currentView === 'HUB') {
+        if (hubFocusArea === 'TOP_BAR') {
+          if (topBarIndex === 0) {
+            setIsQrModalOpen(true);
+          } else if (topBarIndex === 1) {
+            handleGoToTitle();
+          } else if (topBarIndex === 2) {
+            toggleMute();
+          }
+          return;
+        }
+
         const selectedNode = HUB_NODES[hubIndex].id;
         if (selectedNode === 'BLACKSMITH') {
           setCurrentView('BLACKSMITH');
@@ -482,11 +517,13 @@ export const GameScreen: React.FC = () => {
     onBack: () => {
       if (isQrModalOpen) {
         setIsQrModalOpen(false);
+      } else if (currentView === 'HUB' && hubFocusArea === 'TOP_BAR') {
+        setHubFocusArea('CAROUSEL');
       } else if (currentView !== 'HUB') {
         setCurrentView('HUB');
       }
     },
-  }, { enabled: currentView !== 'COMBAT' && currentView !== 'TITLE' && currentView !== 'TRIAL' && currentView !== 'MAP_SELECT' });
+  }, { enabled: currentView !== 'COMBAT' && currentView !== 'TITLE' && currentView !== 'TRIAL' && currentView !== 'MAP_SELECT' && currentView !== 'SANCTUARY' });
 
   const toggleMute = () => {
     const muted = audioManager.toggleMute();
@@ -603,7 +640,11 @@ export const GameScreen: React.FC = () => {
             {/* WebRTC Mobile Pairing Pill Button */}
             <button
               onClick={() => setIsQrModalOpen(true)}
-              className="bg-[#1A1926]/90 hover:bg-[#242138] border-4 border-[#38B6FF] px-4 py-2 rounded shadow-pixel-box flex items-center gap-2.5 transition-transform active:scale-95"
+              className={`bg-[#1A1926]/90 hover:bg-[#242138] border-4 px-4 py-2 rounded shadow-pixel-box flex items-center gap-2.5 transition-all active:scale-95 ${
+                currentView === 'HUB' && hubFocusArea === 'TOP_BAR' && topBarIndex === 0
+                  ? 'border-[#F4B41A] ring-2 ring-[#F4B41A] scale-105'
+                  : 'border-[#38B6FF]'
+              }`}
             >
               <Smartphone className="w-5 h-5 text-[#38B6FF]" />
               <div className="text-left">
@@ -617,7 +658,11 @@ export const GameScreen: React.FC = () => {
             {/* Title / Save & Quit button */}
             <button
               onClick={handleGoToTitle}
-              className="p-3 bg-[#1A1926]/90 border-4 border-[#2E2B44] hover:border-[#F4B41A] text-white shadow-pixel-box"
+              className={`p-3 bg-[#1A1926]/90 border-4 text-white shadow-pixel-box transition-all ${
+                currentView === 'HUB' && hubFocusArea === 'TOP_BAR' && topBarIndex === 1
+                  ? 'border-[#F4B41A] ring-2 ring-[#F4B41A] scale-105'
+                  : 'border-[#2E2B44] hover:border-[#F4B41A]'
+              }`}
               title="Save & Return to Title Screen"
             >
               <LogOut className="w-4 h-4 text-[#F4B41A]" />
@@ -626,7 +671,11 @@ export const GameScreen: React.FC = () => {
             {/* Mute toggle */}
             <button
               onClick={toggleMute}
-              className="p-3 bg-[#1A1926]/90 border-4 border-[#2E2B44] hover:border-[#F4B41A] text-white shadow-pixel-box"
+              className={`p-3 bg-[#1A1926]/90 border-4 text-white shadow-pixel-box transition-all ${
+                currentView === 'HUB' && hubFocusArea === 'TOP_BAR' && topBarIndex === 2
+                  ? 'border-[#F4B41A] ring-2 ring-[#F4B41A] scale-105'
+                  : 'border-[#2E2B44] hover:border-[#F4B41A]'
+              }`}
               title="Toggle Audio"
             >
               {isMuted ? <VolumeX className="w-4 h-4 text-[#FF3366]" /> : <Volume2 className="w-4 h-4 text-[#00EB88]" />}
@@ -639,6 +688,7 @@ export const GameScreen: React.FC = () => {
           {currentView === 'HUB' && (
             <HubMenu
               selectedIndex={hubIndex}
+              isFocused={hubFocusArea === 'CAROUSEL'}
               onSelectNode={(node) => {
                 if (node === 'BLACKSMITH') {
                   setCurrentView('BLACKSMITH');
@@ -719,9 +769,23 @@ export const GameScreen: React.FC = () => {
         <footer className="border-t-4 border-[#2E2B44] bg-[#1A1926]/90 p-3 rounded shadow-pixel-box flex items-center justify-between text-[10px] font-mono text-[#A7A9BE] backdrop-blur-sm">
           <div className="flex items-center space-x-4">
             <span className="flex items-center gap-1.5 text-white font-pixel text-[9px]">
-              <span className="bg-[#2E2B44] px-1.5 py-0.5 border border-[#F4B41A] text-[#F4B41A]">D-PAD</span>
-              <span>NAVIGATE</span>
+              <span className="bg-[#2E2B44] px-1.5 py-0.5 border border-[#F4B41A] text-[#F4B41A]">
+                {currentView === 'HUB' && hubFocusArea === 'TOP_BAR' ? '◀ / ▶' : 'D-PAD'}
+              </span>
+              <span>
+                {currentView === 'HUB' && hubFocusArea === 'TOP_BAR' ? 'SELECT TOP BAR' : 'NAVIGATE'}
+              </span>
             </span>
+            {currentView === 'HUB' && (
+              <span className="flex items-center gap-1.5 text-white font-pixel text-[9px]">
+                <span className="bg-[#2E2B44] px-1.5 py-0.5 border border-[#38B6FF] text-[#38B6FF]">
+                  {hubFocusArea === 'TOP_BAR' ? '▼ / ESC' : '▲'}
+                </span>
+                <span>
+                  {hubFocusArea === 'TOP_BAR' ? 'CITADEL PLAQUES' : 'TOP BAR (PAIR/MUTE)'}
+                </span>
+              </span>
+            )}
             <span className="flex items-center gap-1.5 text-white font-pixel text-[9px]">
               <span className="bg-[#2E2B44] px-1.5 py-0.5 border border-[#F4B41A] text-[#F4B41A]">SELECT / ENTER</span>
               <span>CONFIRM</span>
