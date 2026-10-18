@@ -184,10 +184,12 @@ export interface EquipmentItem {
   colorHex: string;
   spriteIcon?: string;
   /**
-   * Sealed in the Excalibell stone (src/shared/excalibellTrial.ts): never sold, won only in its trial. Wieldable
+   * Sealed in a secret trial (src/shared/secretTrials.ts): never sold, won only in its trial. Wieldable
    * at any knight level; its tier follows the bearer (stoneBoundTier in src/shared/progression.ts).
    */
   stoneBound?: boolean;
+  /** Extra share of gold from every rep while equipped (the Midas Bell: 0.5 = +50%). */
+  repGoldBonus?: number;
 }
 
 export type HubLocation = 'QUICK_PLAY' | 'GATE' | 'BLACKSMITH' | 'SANCTUARY' | 'TITLE';

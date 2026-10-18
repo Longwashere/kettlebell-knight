@@ -1,6 +1,11 @@
 import React from 'react';
 import { EquipmentItem } from '../../types/game';
 import { SHOP_ITEMS } from '../../shared/shopItems';
+import { isSecretTrialId } from '../../shared/secretTrials';
+import { SECRET_TRIAL_COPY } from './secretTrialCopy';
+
+/** How a stone-bound weapon's lock reads in the shop: its trial's words and colour. */
+const sealedCopy = (id: string) => (isSecretTrialId(id) ? SECRET_TRIAL_COPY[id] : SECRET_TRIAL_COPY.excalibell);
 import { ELEMENT_INFO } from '../../shared/elements';
 import { WEAPON_MAX_LEVEL, castsForWeaponLevel, levelProgress, weaponLevel, weaponLevelReq, weaponStats } from '../../shared/progression';
 
@@ -115,8 +120,11 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
                 </div>
 
                 {inStone ? (
-                  <span className="text-[9px] bg-[#F4B41A]/20 border border-[#F4B41A] text-[#F4B41A] font-pixel px-1.5 py-0.5">
-                    ⚔ SEALED IN STONE
+                  <span
+                    className="text-[9px] border font-pixel px-1.5 py-0.5"
+                    style={{ color: sealedCopy(item.id).accent, borderColor: sealedCopy(item.id).accent, background: `${sealedCopy(item.id).accent}33` }}
+                  >
+                    {sealedCopy(item.id).sealed}
                   </span>
                 ) : isEquipped ? (
                   <span className="text-[9px] bg-[#00EB88]/20 border border-[#00EB88] text-[#00EB88] font-pixel px-1.5 py-0.5">

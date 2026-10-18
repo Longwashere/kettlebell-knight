@@ -103,6 +103,44 @@ export const WEAPON_SPELLS: Record<string, CardTemplate[]> = {
     spell('inferno_mace', { templateId: 'spell_basalt_fissure', name: 'Basalt Fissure', exercise: 'SQUAT', reps: 6, rarity: 'legendary', target: 'PIERCE', element: 'EARTH', colorHex: '#EA580C', icon: '🌋' }),
     spell('inferno_mace', { templateId: 'spell_core_breach', name: 'Core Breach', exercise: 'CLEAN_AND_PRESS', reps: 5, rarity: 'legendary', target: 'SINGLE', shatter: true, element: 'FIRE', colorHex: '#F97316', icon: '💥' }),
   ],
+  // --- Secret-trial legendaries (src/shared/secretTrials.ts) ---
+  bellringer_mallet: [
+    spell('bellringer_mallet', { templateId: 'spell_test_your_strength', name: 'Test Your Strength', exercise: 'SWING', reps: 5, rarity: 'legendary', target: 'SINGLE', stagger: 1.5, element: 'EARTH', colorHex: '#FBBF24', icon: '🔔' }),
+    spell('bellringer_mallet', { templateId: 'spell_big_top_finale', name: 'Big Top Finale', exercise: 'CLEAN_AND_PRESS', reps: 5, rarity: 'legendary', target: 'ALL', stagger: 1, element: 'EARTH', colorHex: '#F472B6', icon: '🎪' }),
+  ],
+  leviathan_anchor: [
+    spell('leviathan_anchor', { templateId: 'spell_undertow', name: 'Undertow', exercise: 'GORILLA_ROW', reps: 5, rarity: 'legendary', target: 'ALL', stagger: 1, element: 'FROST', colorHex: '#2DD4BF', icon: '🌊' }),
+    spell('leviathan_anchor', { templateId: 'spell_leviathans_maw', name: "Leviathan's Maw", exercise: 'SNATCH', reps: 5, rarity: 'legendary', target: 'SINGLE', shatter: true, element: 'FROST', colorHex: '#0E7490', icon: '🐋' }),
+  ],
+  everburning_censer: [
+    spell('everburning_censer', { templateId: 'spell_sanctified_smoke', name: 'Sanctified Smoke', exercise: 'HALO', reps: 5, rarity: 'legendary', target: 'SINGLE', blockShare: 0.35, element: 'HOLY', colorHex: '#7DD3FC', icon: '💨' }),
+    spell('everburning_censer', { templateId: 'spell_candlemass', name: 'Candlemass', exercise: 'SWING', reps: 6, rarity: 'legendary', target: 'ALL', element: 'HOLY', colorHex: '#FDE68A', icon: '🕯️' }),
+  ],
+  tolling_thunder: [
+    spell('tolling_thunder', { templateId: 'spell_peal', name: 'Peal of Thunder', exercise: 'SNATCH', reps: 5, rarity: 'legendary', target: 'CHAIN', hits: 3, element: 'STORM', colorHex: '#67E8F9', icon: '⚡' }),
+    spell('tolling_thunder', { templateId: 'spell_storm_toll', name: 'Storm Toll', exercise: 'CLEAN_AND_PRESS', reps: 5, rarity: 'legendary', target: 'ALL', stagger: 1, element: 'STORM', colorHex: '#93C5FD', icon: '🌩️' }),
+  ],
+  midas_bell: [
+    spell('midas_bell', { templateId: 'spell_golden_touch', name: 'Golden Touch', exercise: 'THRUSTER', reps: 5, rarity: 'legendary', target: 'SINGLE', shatter: true, element: 'EARTH', colorHex: '#F2B636', icon: '✨' }),
+    spell('midas_bell', { templateId: 'spell_treasury_rain', name: 'Treasury Rain', exercise: 'SWING', reps: 6, rarity: 'legendary', target: 'ALL', element: 'EARTH', colorHex: '#FDE68A', icon: '💰' }),
+  ],
+  heartforge: [
+    spell('heartforge', { templateId: 'spell_quench', name: 'Quench', exercise: 'CLEAN_AND_PRESS', reps: 5, rarity: 'legendary', target: 'PIERCE', element: 'FIRE', colorHex: '#FB923C', icon: '♨️' }),
+    spell('heartforge', { templateId: 'spell_titans_anvil', name: "Titan's Anvil", exercise: 'SWING', reps: 5, rarity: 'legendary', target: 'SINGLE', stagger: 1.5, element: 'FIRE', colorHex: '#EA580C', icon: '🔨' }),
+  ],
+  hollow_bell: [
+    spell('hollow_bell', { templateId: 'spell_stare_back', name: 'Stare Back', exercise: 'SINGLE_LEG_RDL', reps: 5, rarity: 'legendary', target: 'SINGLE', shatter: true, element: 'VOID', colorHex: '#C084FC', icon: '👁️' }),
+    spell('hollow_bell', { templateId: 'spell_rift_hymn', name: 'Rift Hymn', exercise: 'HALO', reps: 6, rarity: 'legendary', target: 'ALL', stagger: 1, element: 'VOID', colorHex: '#4ADE80', icon: '🎶' }),
+  ],
+  excalibane: [
+    spell('excalibane', { templateId: 'spell_eclipse_edge', name: 'Eclipse Edge', exercise: 'SNATCH', reps: 5, rarity: 'legendary', target: 'PIERCE', element: 'VOID', colorHex: '#A78BFA', icon: '🌑' }),
+    spell('excalibane', { templateId: 'spell_twin_sovereigns', name: 'Twin Sovereigns', exercise: 'CLEAN_AND_PRESS', reps: 5, rarity: 'legendary', target: 'ALL', shatter: true, element: 'VOID', colorHex: '#FBBF24', icon: '⚔️' }),
+  ],
+  // The Dead Weight (secret trial, Blood Cemetery): a coffin-iron bell that feeds on what it buries
+  dead_weight: [
+    spell('dead_weight', { templateId: 'spell_six_feet_under', name: 'Six Feet Under', exercise: 'DEADLIFT', reps: 5, rarity: 'legendary', target: 'SINGLE', healShare: 0.3, element: 'VOID', colorHex: '#E11D48', icon: '⚰️' }),
+    spell('dead_weight', { templateId: 'spell_blood_moon', name: 'Blood Moon Requiem', exercise: 'SNATCH', reps: 5, rarity: 'legendary', target: 'ALL', stagger: 1, element: 'VOID', colorHex: '#9F1239', icon: '🌕' }),
+  ],
 
   // --- Swords: blade arts ---
   knight_sword: [

@@ -9,7 +9,8 @@ import { BattleScreen } from './BattleScreen';
 import { TitleScreen } from './TitleScreen';
 import { MapSelectScreen } from './MapSelectScreen';
 import { CardCodexScreen } from './CardCodexScreen';
-import { ExcalibellTrial } from './ExcalibellTrial';
+import { SecretTrial } from './SecretTrial';
+import { isSecretTrialId, type SecretTrialId } from '../../shared/secretTrials';
 import { QRCodeModal } from './QRCodeModal';
 import { QRCodeSVG } from 'qrcode.react';
 import { EquipmentItem, HubLocation, RepTelemetry } from '../../types/game';
@@ -35,7 +36,7 @@ import {
   LogOut 
 } from 'lucide-react';
 
-export type TVScreenView = 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'SANCTUARY' | 'TITLE' | 'MAP_SELECT' | 'EXCALIBELL';
+export type TVScreenView = 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'SANCTUARY' | 'TITLE' | 'MAP_SELECT' | 'TRIAL';
 
 export const GameScreen: React.FC = () => {
   // GameEngine Reference - Strictly isolated from React re-renders!
@@ -45,7 +46,7 @@ export const GameScreen: React.FC = () => {
   // TV UI Views: 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'SANCTUARY' | 'TITLE' | 'MAP_SELECT'
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const urlView = searchParams?.get('view')?.toUpperCase() as TVScreenView | undefined;
-  const validViews: TVScreenView[] = ['HUB', 'BLACKSMITH', 'COMBAT', 'SANCTUARY', 'TITLE', 'MAP_SELECT', 'EXCALIBELL'];
+  const validViews: TVScreenView[] = ['HUB', 'BLACKSMITH', 'COMBAT', 'SANCTUARY', 'TITLE', 'MAP_SELECT', 'TRIAL'];
   const initialView: TVScreenView = urlView && validViews.includes(urlView)
     ? urlView
     : profileManager.hasSavedProfile()
@@ -53,6 +54,9 @@ export const GameScreen: React.FC = () => {
     : 'TITLE';
 
   const [currentView, setCurrentView] = useState<TVScreenView>(initialView);
+  // The secret stage shown in the TRIAL view (?view=trial&trial=<id> in dev)
+  const urlTrial = searchParams?.get('trial');
+  const [secretTrialId, setSecretTrialId] = useState<SecretTrialId>(isSecretTrialId(urlTrial) ? urlTrial : 'excalibell');
   // Read by the telemetry listener (registered once), so it can tell whether a battle is running
   const currentViewRef = useRef(currentView);
   currentViewRef.current = currentView;
@@ -143,9 +147,9 @@ export const GameScreen: React.FC = () => {
     unsubTelemetry = networkManager.onTelemetry((telemetry: RepTelemetry) => {
       if (telemetry.event === 'REP_TRIGGER') {
         // Direct zero-overhead pass-through to PixiJS WebGL loop. In battle the attack animation
-        // plays when a card is cast (BattleScreen), with the real damage, not on every rep; the Excalibell
-        // trial plays its own squat beat.
-        if (engineRef.current && currentViewRef.current !== 'COMBAT' && currentViewRef.current !== 'EXCALIBELL') {
+        // plays when a card is cast (BattleScreen), with the real damage, not on every rep; a secret
+        // trial plays its own rep beat.
+        if (engineRef.current && currentViewRef.current !== 'COMBAT' && currentViewRef.current !== 'TRIAL') {
           engineRef.current.onRepCompleted(
             telemetry.power, 
             telemetry.form, 
@@ -234,9 +238,12 @@ export const GameScreen: React.FC = () => {
     setCurrentView('COMBAT');
   }, []);
 
-  // Secret stage: a forest clear led to the Excalibell stone; win or lose, it ends in the hub
-  const handleExcalibellTrial = useCallback(() => setCurrentView('EXCALIBELL'), []);
-  const handleLeaveExcalibell = useCallback(() => setCurrentView('HUB'), []);
+  // Secret stage: a level clear led to a trial (src/shared/secretTrials.ts); win or lose, it ends in the hub
+  const handleSecretTrial = useCallback((id: SecretTrialId) => {
+    setSecretTrialId(id);
+    setCurrentView('TRIAL');
+  }, []);
+  const handleLeaveSecretTrial = useCallback(() => setCurrentView('HUB'), []);
 
   // Handle transition from Title Screen into the game
   const handleStartGameFromTitle = useCallback((loadedProfile: PlayerProfile) => {
@@ -312,6 +319,11 @@ export const GameScreen: React.FC = () => {
           engineRef.current?.loadBackground(BATTLE_MAPS.GUILD_HALL);
         }
       },
+      // Opens a secret trial directly (e.g. trial('dead_weight')), as if a level clear had called it
+      trial: (id: string) => {
+        if (!isSecretTrialId(id)) throw new Error(`Unknown trial "${id}". Known: excalibell, dead_weight`);
+        handleSecretTrial(id);
+      },
       expedition: (mapId: string, level?: number) => {
         const id = mapId.toUpperCase() as BattleMapId;
         setSelectedExpeditionMap(id);
@@ -360,7 +372,7 @@ export const GameScreen: React.FC = () => {
   const ownedItems = new Set(profile?.unlockedItems ?? ['iron_kettlebell']);
   const handleEquipShopItem = (item: EquipmentItem) => {
     const owned = ownedItems.has(item.id) || equippedItems.has(item.id);
-    // Stone-bound weapons (Excalibell) are never sold: only their owner can equip them, at any level
+    // Stone-bound weapons (secret trials) are never sold: only their owner can equip them, at any level
     if (item.stoneBound ? !owned : item.slot === 'weapon' && (profile?.level ?? 1) < weaponLevelReq(item.level)) {
       audioManager.play('warn');
       return;
@@ -473,7 +485,7 @@ export const GameScreen: React.FC = () => {
         setCurrentView('HUB');
       }
     },
-  }, { enabled: currentView !== 'COMBAT' && currentView !== 'TITLE' && currentView !== 'EXCALIBELL' });
+  }, { enabled: currentView !== 'COMBAT' && currentView !== 'TITLE' && currentView !== 'TRIAL' });
 
   const toggleMute = () => {
     const muted = audioManager.toggleMute();
@@ -517,14 +529,16 @@ export const GameScreen: React.FC = () => {
           expeditionMapId={selectedExpeditionMap}
           expeditionLevel={selectedExpeditionLevel}
           onExitBattle={() => setCurrentView(battleReturnView)}
-          onExcalibellTrial={handleExcalibellTrial}
+          onSecretTrial={handleSecretTrial}
         />
-      ) : currentView === 'EXCALIBELL' ? (
-        <ExcalibellTrial
+      ) : currentView === 'TRIAL' ? (
+        <SecretTrial
+          key={secretTrialId}
+          trialId={secretTrialId}
           engineRef={engineRef}
           isEngineReady={isEngineReady}
           mapId={selectedExpeditionMap}
-          onExit={handleLeaveExcalibell}
+          onExit={handleLeaveSecretTrial}
         />
       ) : (
         <div className="relative z-10 w-full h-full flex flex-col justify-between p-6 pointer-events-auto">

@@ -7,7 +7,7 @@ import {
 } from './progression';
 import { xpToNext } from './stageScaling';
 import { SHOP_ITEMS } from './shopItems';
-import { EXCALIBELL_TRIAL, type ExcalibellTrialRecord } from './excalibellTrial';
+import { trialRecord, type SecretTrialId, type SecretTrialRecord } from './secretTrials';
 
 /** One level gained: which stat the level-up landed on and by how much. */
 export interface LevelUpEvent {
@@ -73,8 +73,10 @@ export interface PlayerProfile {
   cardCasts?: Record<string, number>;
   /** Cards cast with each weapon equipped: its weapon level. */
   weaponCasts?: Record<string, number>;
-  /** The secret Excalibell stone (src/shared/excalibellTrial.ts): times met, and whether it was won. */
-  excalibellTrial?: ExcalibellTrialRecord;
+  /** Secret stages (src/shared/secretTrials.ts), per trial: times met, and whether its weapon was won. */
+  secretTrials?: Partial<Record<SecretTrialId, SecretTrialRecord>>;
+  /** Legacy Excalibell record from saves before secretTrials; read through trialRecord(). */
+  excalibellTrial?: SecretTrialRecord;
   unlockedEncounters: number;
   unlockedMaps: BattleMapId[];
   mapProgress: Record<string, MapLevelProgress>;
@@ -454,21 +456,20 @@ class ProfileManager {
     return (profile?.level ?? 1) >= weaponLevelReq(weaponStats(weaponId).tier);
   }
 
-  /** The Excalibell stone appeared: it is no longer owed to this knight (one try per meeting). */
-  public recordExcalibellMet(): void {
+  /** A secret trial appeared: it is no longer owed to this knight (one try per meeting). */
+  public recordSecretTrialMet(id: SecretTrialId): void {
     const profile = this.getActiveProfile();
     if (!profile) return;
-    const rec = profile.excalibellTrial ?? { encounters: 0, won: false };
-    this.saveActiveProfile({ excalibellTrial: { ...rec, encounters: rec.encounters + 1 } });
+    const rec = trialRecord(profile, id) ?? { encounters: 0, won: false };
+    this.saveActiveProfile({ secretTrials: { ...profile.secretTrials, [id]: { ...rec, encounters: rec.encounters + 1 } } });
   }
 
-  /** Excalibell pulled from the stone: owned and equipped. */
-  public claimExcalibell(): void {
+  /** A secret trial won: its weapon is owned and equipped. */
+  public claimSecretTrial(id: SecretTrialId): void {
     const profile = this.getActiveProfile();
     if (!profile) return;
-    const id = EXCALIBELL_TRIAL.weaponId;
     this.saveActiveProfile({
-      excalibellTrial: { encounters: profile.excalibellTrial?.encounters ?? 1, won: true },
+      secretTrials: { ...profile.secretTrials, [id]: { encounters: trialRecord(profile, id)?.encounters ?? 1, won: true } },
       unlockedItems: profile.unlockedItems.includes(id) ? profile.unlockedItems : [...profile.unlockedItems, id],
       equippedItems: { ...profile.equippedItems, weapon: id },
     });

@@ -12,7 +12,8 @@ import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { MoveTracer, type Box, type MoveTraceReport } from './moveTrace';
 import { VFX_RIGS, VFX_NAMES, type VfxName, type VfxOpts } from './vfx';
 import { OutlineFilter } from './outlineFilter';
-import { ExcalibellStone } from './excalibellStone';
+import { TRIAL_SCENES, type TrialScene } from './trialScenes';
+import type { SecretTrialId, TrialRepResult } from '../../shared/secretTrials';
 import {
   KNIGHT_MOVES, KNIGHT_MOVE_IDS, knightMoveFor, knightMoveCard,
   type KnightMoveId, type KnightMoveHost, type KnightMoveContext, type KnightTarget,
@@ -1230,11 +1231,14 @@ export class GameEngine {
   private knightTimeScale = 1; // Spine playback speed set by a move (hit-stop overrides it)
   public isKillCamActive: boolean = false;
 
-  // Secret stage: the Enchanted Stone of Excalibell (excalibellStone.ts)
-  private excalibellStone: ExcalibellStone | null = null;
+  // Secret stage (trialScenes.ts): the scene on stage and which trial it is
+  private trialScene: TrialScene | null = null;
+  private trialId: SecretTrialId | null = null;
+  private trialToken = 0; // a newer showSecretTrial call cancels a pending one
+  private bgRequest = 0; // the latest loadBackground call
   private showcaseLight: Graphics | null = null;
   private showcaseHidden: Container[] = [];
-  private excalibellTexture: Texture | null = null;
+  private trialTexture: Texture | null = null;
 
   // Dev automation (window.__kk): ready once init() finishes; loadsInFlight counts pending asset loads
   private isReady: boolean = false;
@@ -1412,10 +1416,12 @@ export class GameEngine {
     if (!this.bgLayer) return;
     const targetKey = bgKey ?? MONSTER_BACKGROUNDS[this.monsterSprite] ?? BATTLE_BG_KEY;
     if (this.currentBgKey === targetKey && this.bgLayer.children.length > 0) return;
+    // The latest request wins: a slower earlier load (e.g. the default at init) must not replace it
+    const request = ++this.bgRequest;
 
     try {
       const texture = await Assets.load(targetKey);
-      if (this.isDestroyed || !this.bgLayer) return;
+      if (this.isDestroyed || !this.bgLayer || request !== this.bgRequest) return;
 
       // Unload previous background from VRAM to preserve 1GB Fire TV memory
       if (this.currentBgKey && this.currentBgKey !== targetKey && Assets.cache.has(this.currentBgKey)) {
@@ -1578,42 +1584,55 @@ export class GameEngine {
   }
 
   /**
-   * Shows or removes the Enchanted Stone of Excalibell: a full-screen hero shot over the dimmed backdrop, with
-   * the knight staged beside the stone at the scene's zoom (borrowed from the battlefield and handed back on
-   * removal). The bell is the knight atlas's own `excalibell` region, so it costs no extra VRAM.
+   * Shows or removes a secret stage's scene (trialScenes.ts; null removes it): a full-screen hero shot over the
+   * dimmed backdrop, with the knight staged beside it at the scene's zoom (borrowed from the battlefield and
+   * handed back on removal). The sealed weapon is the knight atlas's own region, so it costs no extra VRAM.
    */
-  public showExcalibellStone(visible: boolean): void {
-    const actor = this.excalibellStone?.detachActor();
+  public showSecretTrial(id: SecretTrialId | null): void {
+    const actor = this.trialScene?.detachActor();
     if (actor && this.gameLayer && !actor.destroyed) {
       this.gameLayer.addChild(actor);
       actor.position.set(KNIGHT_HOME.x, KNIGHT_HOME.y);
       actor.scale.set(1);
-      this.playExcalibellPose('IDLE', true);
+      this.playTrialPose('IDLE', true);
     }
-    this.excalibellStone?.destroy();
-    this.excalibellStone = null;
-    this.excalibellTexture?.destroy(false);
-    this.excalibellTexture = null;
-    if (!visible || !this.app || !this.uiLayer) return;
+    this.trialScene?.destroy();
+    this.trialScene = null;
+    this.trialId = null;
+    this.trialTexture?.destroy(false);
+    this.trialTexture = null;
+    const token = ++this.trialToken;
+    if (!id || !this.app || !this.uiLayer) return;
+    // The weapon art is the knight atlas's: wait for the rig if the trial is the first thing shown (dev URL)
+    void loadSpineRig(KNIGHT_SKELETON_KEY, KNIGHT_ATLAS_KEY)
+      .catch((err) => console.warn('[GameEngine] Knight rig unavailable for the trial:', err))
+      .then(() => {
+        if (token === this.trialToken && !this.isDestroyed) this.stageSecretTrial(id);
+      });
+  }
+
+  private stageSecretTrial(id: SecretTrialId): void {
+    if (!this.app || !this.uiLayer) return;
     try {
-      const region = Assets.get<TextureAtlas>(KNIGHT_ATLAS_KEY)?.findRegion('excalibell');
+      const region = Assets.get<TextureAtlas>(KNIGHT_ATLAS_KEY)?.findRegion(id);
       if (region) {
         const source = (region.page.texture as SpineTexture).texture.source;
-        this.excalibellTexture = new Texture({ source, frame: new Rectangle(region.x, region.y, region.width, region.height) });
+        this.trialTexture = new Texture({ source, frame: new Rectangle(region.x, region.y, region.width, region.height) });
       }
     } catch (err) {
-      console.warn('[GameEngine] Excalibell art unavailable:', err);
+      console.warn('[GameEngine] Trial weapon art unavailable:', id, err);
     }
-    const stone: ExcalibellStone = new ExcalibellStone(this.excalibellTexture, this.app.ticker, {
+    const scene: TrialScene = TRIAL_SCENES[id].create(this.trialTexture, this.app.ticker, {
       shake: (n) => this.moveShake(n),
-      handPoint: (): { x: number; y: number } | null => this.knightHandIn(stone.view),
+      handPoint: (): { x: number; y: number } | null => this.knightHandIn(scene.view),
     });
-    this.excalibellStone = stone;
-    this.uiLayer.addChildAt(stone.view, 0);
+    this.trialScene = scene;
+    this.trialId = id;
+    this.uiLayer.addChildAt(scene.view, 0);
     if (this.knightContainer) {
       this.knightContainer.visible = true;
-      stone.attachActor(this.knightContainer);
-      this.playExcalibellPose('IDLE', true);
+      scene.attachActor(this.knightContainer);
+      this.playTrialPose('IDLE', true);
     }
   }
 
@@ -1625,35 +1644,58 @@ export class GameEngine {
     return space.toLocal(spine.toGlobal({ x: bone.worldX, y: bone.worldY }));
   }
 
-  /** Plays a knight animation during the trial, returning to the idle loop after one-shots. */
-  private playExcalibellPose(anim: string, loop = false, then = 'IDLE'): void {
+  /** Plays a knight animation during a trial, returning to the idle loop after one-shots. */
+  private playTrialPose(anim: string, loop = false, then = 'IDLE'): void {
     const spine = this.knightSpine;
     if (!spine || spine.destroyed || !spine.skeleton.data.findAnimation(anim)) return;
     spine.state.setAnimation(0, anim, loop);
     if (!loop) spine.state.addAnimation(0, then, true, 0);
   }
 
-  /** A trial squat: the stone loosens and the knight braces against it. `progress` = squats done / needed. */
-  public excalibellRep(progress: number): void {
-    this.excalibellStone?.setProgress(progress);
-    this.excalibellStone?.rep();
-    this.playExcalibellPose('DEFENSE');
+  /** A trial rep: the scene answers and the knight strains. `progress` = 0–1 toward the win. */
+  public secretTrialRep(progress: number, power = 80): void {
+    this.trialScene?.setProgress(progress);
+    this.trialScene?.rep(power);
+    if (this.trialId) this.playTrialPose(TRIAL_SCENES[this.trialId].repPose);
   }
 
-  /** Trial won: the knight strains, the bell tears free and rises, then settles into his hand. */
-  public excalibellPull(): void {
-    this.playExcalibellPose('SKILL2TULUC');
-    this.excalibellStone?.pull(() => {
-      if (this.isDestroyed) return;
-      this.skeleton.setAttachment('weapon', 'excalibell');
-      this.playExcalibellPose('LEVEL_UP', false, 'WIN');
+  /** A trial rep that did not count (too weak, off the beat): the scene shrugs it off, the knight still moves. */
+  public secretTrialMiss(kind: TrialRepResult, power = 80): void {
+    this.trialScene?.miss?.(kind, power);
+    if (this.trialId) this.playTrialPose(TRIAL_SCENES[this.trialId].repPose);
+  }
+
+  /** Every frame while the clock runs: progress (a leak trial's drains) and danger, both 0–1. */
+  public secretTrialFrame(progress: number, danger: number): void {
+    this.trialScene?.setProgress(progress);
+    this.trialScene?.setClock?.(danger);
+  }
+
+  /** Rhythm trials: the beat. */
+  public secretTrialBeat(): void {
+    this.trialScene?.beat?.();
+  }
+
+  /** The Hollow Choir: the scene lies for a moment. */
+  public secretTrialGlitch(): void {
+    this.trialScene?.glitch?.();
+  }
+
+  /** Trial won: the knight strains, the weapon breaks free and rises, then settles into his hand. */
+  public secretTrialWin(): void {
+    const id = this.trialId;
+    this.playTrialPose('SKILL2TULUC');
+    this.trialScene?.pull(() => {
+      if (this.isDestroyed || !id) return;
+      this.skeleton.setAttachment('weapon', id);
+      this.playTrialPose('LEVEL_UP', false, 'WIN');
     });
   }
 
-  /** Trial failed: the stone seals and throws the knight back. */
-  public excalibellReject(): void {
-    this.excalibellStone?.reject();
-    this.playExcalibellPose('HIT2');
+  /** Trial failed: the scene seals and throws the knight back. */
+  public secretTrialLose(): void {
+    this.trialScene?.reject();
+    this.playTrialPose('HIT2');
   }
 
   /**
@@ -3178,6 +3220,24 @@ export class GameEngine {
       case 'mushroom_bell':
         return { mainColor: 0x7E22CE, highlightColor: 0xC084FC, handleColor: 0x581C87, runeColor: 0x14B8A6 };
       case 'crypt_morningstar':
+      case 'bellringer_mallet':
+        return { mainColor: 0xB45309, highlightColor: 0xFDE68A, handleColor: 0xDC2626, runeColor: 0xFBBF24 };
+      case 'leviathan_anchor':
+        return { mainColor: 0x0E7490, highlightColor: 0x99F6E4, handleColor: 0x57534E, runeColor: 0x2DD4BF };
+      case 'everburning_censer':
+        return { mainColor: 0xCBD5E1, highlightColor: 0xE0F2FE, handleColor: 0x94A3B8, runeColor: 0x7DD3FC };
+      case 'tolling_thunder':
+        return { mainColor: 0x9A6A24, highlightColor: 0xF2D27A, handleColor: 0x67E8F9, runeColor: 0xA5F3FC };
+      case 'midas_bell':
+        return { mainColor: 0xD99A1F, highlightColor: 0xFFF3C4, handleColor: 0xB7791F, runeColor: 0xFDE68A };
+      case 'heartforge':
+        return { mainColor: 0xEA580C, highlightColor: 0xFDE68A, handleColor: 0x44403C, runeColor: 0xFB923C };
+      case 'hollow_bell':
+        return { mainColor: 0x3B0764, highlightColor: 0xC084FC, handleColor: 0x1E1033, runeColor: 0x4ADE80 };
+      case 'excalibane':
+        return { mainColor: 0x1F1830, highlightColor: 0xA78BFA, handleColor: 0xFBBF24, runeColor: 0xA78BFA };
+      case 'dead_weight':
+        return { mainColor: 0x9F1239, highlightColor: 0xFB7185, handleColor: 0xE2E8F0, runeColor: 0xE11D48 };
       case 'skeleton_mace':
         return { mainColor: 0x38BDF8, highlightColor: 0xE0F2FE, handleColor: 0x0284C7, runeColor: 0x38BDF8 };
       case 'frost_morningstar':
@@ -3792,7 +3852,7 @@ export class GameEngine {
       idle,
       fps: this.app ? Math.round(this.app.ticker.FPS) : 0,
       background: this.currentBgKey,
-      excalibell: this.excalibellStone?.debugState() ?? null,
+      trial: this.trialScene ? { id: this.trialId, ...this.trialScene.debugState() } : null,
       knight: { animation: knightAnimation, locked: this.knightLocked, move: this.activeKnightMove?.id ?? null },
       monsters,
       targetSlot: this.targetSlotIndex,
@@ -3982,7 +4042,7 @@ export class GameEngine {
    */
   public async destroy(): Promise<void> {
     this.isDestroyed = true;
-    this.showExcalibellStone(false);
+    this.showSecretTrial(null);
     this.knightSpine = null;
     this.clearAllMonsters();
     this.releaseVfx();

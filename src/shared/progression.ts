@@ -142,8 +142,8 @@ export interface WeaponStats {
 }
 
 /**
- * A stone-bound weapon (Excalibell) grows with its bearer: one tier above the best the knight could buy, up to
- * its own tier. Without a bearer level it shows at its own tier.
+ * A stone-bound weapon (a secret trial's: Excalibell, the Dead Weight) grows with its bearer: one tier above the
+ * best the knight could buy, up to its own tier. Without a bearer level it shows at its own tier.
  */
 export const stoneBoundTier = (itemTier: number, bearerLevel?: number) =>
   bearerLevel === undefined ? itemTier : Math.min(itemTier, expectedWeaponTier(bearerLevel) + 1);

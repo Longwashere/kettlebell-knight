@@ -10,6 +10,7 @@
  */
 
 import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
+import { SHOP_ITEMS } from '../../shared/shopItems';
 
 export const CARD_ART_W = 96;
 export const CARD_ART_H = 52;
@@ -1482,6 +1483,24 @@ const SPELL_ART: Record<string, { sky: Sky; horizon: Horizon; fx: SpellFx; stars
   spell_cathedral_toll: { sky: 'holy', horizon: 'spires', fx: 'rings' },
   spell_basalt_fissure: { sky: 'fire', horizon: 'peaks', fx: 'beam' },
   spell_core_breach: { sky: 'fire', horizon: 'hills', fx: 'flames' },
+  spell_test_your_strength: { sky: 'dawn', horizon: 'spires', fx: 'rings', stars: 10 },
+  spell_big_top_finale: { sky: 'arcane', horizon: 'spires', fx: 'sparks', stars: 22 },
+  spell_undertow: { sky: 'water', horizon: 'none', fx: 'drips' },
+  spell_leviathans_maw: { sky: 'water', horizon: 'none', fx: 'tentacles' },
+  spell_sanctified_smoke: { sky: 'holy', horizon: 'spires', fx: 'rings', stars: 12 },
+  spell_candlemass: { sky: 'holy', horizon: 'spires', fx: 'flames', stars: 16 },
+  spell_peal: { sky: 'storm', horizon: 'spires', fx: 'bolts' },
+  spell_storm_toll: { sky: 'storm', horizon: 'peaks', fx: 'rings' },
+  spell_golden_touch: { sky: 'earth', horizon: 'spires', fx: 'sparks', stars: 14 },
+  spell_treasury_rain: { sky: 'earth', horizon: 'hills', fx: 'shards' },
+  spell_quench: { sky: 'fire', horizon: 'hills', fx: 'beam' },
+  spell_titans_anvil: { sky: 'fire', horizon: 'peaks', fx: 'rocks' },
+  spell_stare_back: { sky: 'arcane', horizon: 'none', fx: 'eye', stars: 20 },
+  spell_rift_hymn: { sky: 'arcane', horizon: 'none', fx: 'tentacles', stars: 20 },
+  spell_eclipse_edge: { sky: 'shadow', horizon: 'spires', fx: 'beam', stars: 18 },
+  spell_twin_sovereigns: { sky: 'shadow', horizon: 'peaks', fx: 'wings', stars: 18 },
+  spell_six_feet_under: { sky: 'shadow', horizon: 'spires', fx: 'drips', stars: 10 },
+  spell_blood_moon: { sky: 'shadow', horizon: 'spires', fx: 'skulls', stars: 18 },
   spell_kettleburne_oath: { sky: 'steel', horizon: 'spires', fx: 'sparks', stars: 10 },
   spell_lunar_hunt: { sky: 'storm', horizon: 'forest', fx: 'sparks', stars: 20 },
   spell_tusk_gore: { sky: 'dawn', horizon: 'forest', fx: 'shards' },
@@ -1499,7 +1518,8 @@ for (const spell of ALL_WEAPON_SPELLS) {
   const art = SPELL_ART[spell.templateId];
   if (!art) continue;
   const w = spell.weaponId ?? '';
-  const family: Family = w.includes('morningstar') ? 'flail' : w.includes('mace') ? 'mace' : (w.includes('sword') || w.includes('excalibell')) ? 'sword' : 'bell';
+  const type = SHOP_ITEMS.find((i) => i.id === w)?.weaponType;
+  const family: Family = type === 'morningstar' ? 'flail' : type === 'mace' ? 'mace' : type === 'sword' ? 'sword' : 'bell';
   const c = tone(parseInt(spell.colorHex.slice(1), 16));
   SCENES[spell.templateId] = {
     sky: art.sky,

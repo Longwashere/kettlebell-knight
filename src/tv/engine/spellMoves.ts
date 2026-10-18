@@ -64,15 +64,16 @@ const P_MOON = pal(0x60A5FA, 0xEFF6FF, 0x0B1A33);
 const P_TUSK = pal(0xF87171, 0xFFF1F2, 0x450A0A);
 const P_BULL = pal(0xF59E0B, 0xFEF3C7, 0x2A1503);
 const P_NULL = pal(0x7C3AED, 0xC4B5FD, 0x000000);
+const P_CRIMSON = pal(0xE11D48, 0xFFE4E6, 0x1A0308);
 
 // =============================================================================================
 // Weapon-themed drawing helpers
 
 /** The hand gripping the weapon: raised overhead (whirls) or at the hip. */
-const grip = (h: KnightMoveHost, raised = true): P => (raised ? { x: h.pos().x + 4, y: h.pos().y - 50 } : { x: h.pos().x + 12, y: h.pos().y - 26 });
+export const grip = (h: KnightMoveHost, raised = true): P => (raised ? { x: h.pos().x + 4, y: h.pos().y - 50 } : { x: h.pos().x + 12, y: h.pos().y - 26 });
 
 /** Chain of links from (x0,y0) to (x1,y1), sagging by `sag` px. */
-function chain(g: Graphics, x0: number, y0: number, x1: number, y1: number, link: number, sag = 0, alpha = 1) {
+export function chain(g: Graphics, x0: number, y0: number, x1: number, y1: number, link: number, sag = 0, alpha = 1) {
   const len = Math.hypot(x1 - x0, y1 - y0);
   const n = Math.max(2, Math.round(len / 4));
   let px = x0;
@@ -89,7 +90,7 @@ function chain(g: Graphics, x0: number, y0: number, x1: number, y1: number, link
 }
 
 /** Spiked flail head: ball with `spikes` points, ink rim, body and highlight. */
-function flailHead(g: Graphics, x: number, y: number, r: number, spin: number, p: Pal, spikes = 8, alpha = 1) {
+export function flailHead(g: Graphics, x: number, y: number, r: number, spin: number, p: Pal, spikes = 8, alpha = 1) {
   for (let i = 0; i < spikes; i++) {
     const a = spin + (i / spikes) * Math.PI * 2;
     const bx = x + Math.cos(a) * r * 0.8;
@@ -111,7 +112,7 @@ function flail(g: Graphics, hand: P, head: P, r: number, spin: number, p: Pal, l
  * Whirls a flail head overhead on its chain over [from, to], speeding up. `draw` overrides the head (e.g.
  * a censer or anchor). Returns a function giving the head's position on the last drawn frame.
  */
-function whirl(
+export function whirl(
   h: KnightMoveHost, tl: Timeline, from: number, to: number, p: Pal,
   o: { r?: number; reach?: number; link?: number; trail?: number[]; head?: (g: Graphics, x: number, y: number, f: number) => void } = {},
 ) {
@@ -140,7 +141,7 @@ function whirl(
 }
 
 /** Holds the knight's arm raised (SKILL2TULUC frozen at its raise) from `at` until released. */
-function raiseAndHold(h: KnightMoveHost, tl: Timeline, at: number, until: number) {
+export function raiseAndHold(h: KnightMoveHost, tl: Timeline, at: number, until: number) {
   tl.at(at, () => h.anim('SKILL2TULUC'));
   tl.at(at + 10, () => h.animSpeed(0));
   tl.at(until, () => h.animSpeed(1));
@@ -205,7 +206,7 @@ function cone(g: Graphics, x: number, y: number, ang: number, len: number, sprea
 }
 
 /** Almond eye with lids `open` 0-1, iris looking toward `look` (-1..1 x offset). */
-function eye(g: Graphics, x: number, y: number, r: number, open: number, look: number, p: Pal, alpha = 1) {
+export function eye(g: Graphics, x: number, y: number, r: number, open: number, look: number, p: Pal, alpha = 1) {
   if (open <= 0.02) {
     g.moveTo(x - r, y).lineTo(x + r, y).stroke({ width: 3, color: p.ink, alpha });
     return;
@@ -230,7 +231,7 @@ function eye(g: Graphics, x: number, y: number, r: number, open: number, look: n
 }
 
 /** Phantom cathedral bell, `w` wide at the lip. */
-function phantomBell(g: Graphics, x: number, y: number, w: number, p: Pal, alpha = 1) {
+export function phantomBell(g: Graphics, x: number, y: number, w: number, p: Pal, alpha = 1) {
   const hgt = w * 0.95;
   const pts = [
     x - w * 0.5, y + hgt * 0.5, x - w * 0.42, y + hgt * 0.35, x - w * 0.3, y - hgt * 0.1, x - w * 0.24, y - hgt * 0.4,
@@ -260,7 +261,7 @@ function tombstone(g: Graphics, x: number, groundY: number, up: number, s = 1, l
 }
 
 /** Ship anchor (shank down, flukes up when `rot` 0). */
-function anchor(g: Graphics, x: number, y: number, s: number, rot: number, p: Pal, alpha = 1) {
+export function anchor(g: Graphics, x: number, y: number, s: number, rot: number, p: Pal, alpha = 1) {
   const c = Math.cos(rot);
   const sn = Math.sin(rot);
   const T = (dx: number, dy: number): [number, number] => [x + (dx * c - dy * sn) * s, y + (dx * sn + dy * c) * s];
@@ -292,7 +293,7 @@ function anchor(g: Graphics, x: number, y: number, s: number, rot: number, p: Pa
 }
 
 /** Little flying skull with a chattering jaw. */
-function skull(g: Graphics, x: number, y: number, s: number, f: number, p: Pal, alpha = 1) {
+export function skull(g: Graphics, x: number, y: number, s: number, f: number, p: Pal, alpha = 1) {
   const jaw = Math.abs(Math.sin(f * 0.8)) * s * 0.35;
   g.circle(x, y, s).fill({ color: p.body, alpha }).stroke({ width: 1.5, color: p.ink, alpha });
   g.rect(x - s * 0.6, y + s * 0.5 + jaw, s * 1.2, s * 0.45).fill({ color: p.body, alpha }).stroke({ width: 1, color: p.ink, alpha });
@@ -303,7 +304,7 @@ function skull(g: Graphics, x: number, y: number, s: number, f: number, p: Pal, 
 }
 
 /** Black hole: event horizon, tilted accretion disk and lensing ring. */
-function blackHole(g: Graphics, x: number, y: number, r: number, f: number, p: Pal, alpha = 1) {
+export function blackHole(g: Graphics, x: number, y: number, r: number, f: number, p: Pal, alpha = 1) {
   if (r <= 0.5) return;
   g.ellipse(x, y, r * 2.6, r * 0.75).stroke({ width: r * 0.5, color: p.body, alpha: 0.5 * alpha });
   for (let k = 0; k < 10; k++) {
@@ -318,7 +319,7 @@ function blackHole(g: Graphics, x: number, y: number, r: number, f: number, p: P
 }
 
 /** Sun disk with rotating rays. */
-function sun(g: Graphics, x: number, y: number, r: number, f: number, p: Pal, alpha = 1) {
+export function sun(g: Graphics, x: number, y: number, r: number, f: number, p: Pal, alpha = 1) {
   if (r <= 0.5) return;
   for (let k = 0; k < 12; k++) {
     const a = (k / 12) * Math.PI * 2 + f * 0.05;
@@ -2128,6 +2129,346 @@ function coreBreach(h: KnightMoveHost, tl: Timeline) {
   tl.end(HIT + 34);
 }
 
+// The Dead Weight (secret trial): grave chains, open earth, blood under a red moon.
+
+/**
+ * A crimson wraith: hooded head with burning eyes, a tail of soul-smoke trailing `trail` px behind it, and a
+ * spectral kettlebell in its claws. `raise` 1 holds the bell overhead, 0 has it slammed down in front (facing +x).
+ */
+export function wraith(g: Graphics, x: number, y: number, s: number, f: number, raise: number, alpha = 1, trail = 0) {
+  const sway = Math.sin(f * 0.35) * s * 0.3;
+  // Halo of soul-light
+  g.circle(x, y - s * 0.2, s * 1.6).fill({ color: 0xE11D48, alpha: 0.1 * alpha });
+  g.circle(x, y - s * 0.2, s * 1.1).fill({ color: 0xE11D48, alpha: 0.12 * alpha });
+  // A tattered hooded robe, its hem shredding into smoke behind it
+  const hem = y + s * 1.1 + trail * 0.4;
+  const robe: number[] = [x + s * 0.15, y - s * 1.4, x + s * 0.8, y - s * 0.5, x + s * 0.95 + sway, hem];
+  const tatters = 5;
+  for (let k = 1; k < tatters; k++) {
+    const u = k / tatters;
+    const deep = k % 2 ? s * 0.55 + trail * 0.6 : 0;
+    robe.push(x + s * 0.95 - u * s * 1.9 + sway * (1 - u) + Math.sin(f * 0.5 + k) * s * 0.12, hem + deep);
+  }
+  robe.push(x - s * 0.95 + sway * 0.4, hem, x - s * 0.7, y - s * 0.45);
+  g.poly(robe).fill({ color: 0x881337, alpha: 0.7 * alpha }).stroke({ width: 1.5, color: 0xFB7185, alpha: 0.9 * alpha });
+  // Folds of light down the robe
+  g.moveTo(x + s * 0.1, y - s * 0.2).lineTo(x + s * 0.2 + sway * 0.5, hem).stroke({ width: 1, color: 0xFDA4AF, alpha: 0.5 * alpha });
+  g.moveTo(x - s * 0.4, y - s * 0.2).lineTo(x - s * 0.5 + sway * 0.3, hem).stroke({ width: 1, color: 0xFDA4AF, alpha: 0.35 * alpha });
+  // The hollow under the hood, and two burning eyes
+  g.ellipse(x + s * 0.2, y - s * 0.75, s * 0.4, s * 0.45).fill({ color: 0x1A0308, alpha });
+  for (const ex of [0.02, 0.38]) {
+    g.rect(x + s * ex - 1, y - s * 0.8, 2, 2).fill({ color: 0xFFE4E6, alpha });
+    g.rect(x + s * ex - 2, y - s * 0.8 - 0.5, 4, 3).fill({ color: 0xE11D48, alpha: 0.5 * alpha });
+  }
+  // The bell: overhead, or driven down in front
+  const bx = x + s * 1.2 * (1 - raise) + s * 0.15;
+  const by = y - s * 2.1 * raise + s * 0.4 * (1 - raise);
+  for (const side of [-1, 1]) {
+    g.moveTo(x + side * s * 0.6, y - s * 0.35).lineTo(bx + side * s * 0.3, by + s * 0.35).stroke({ width: 2.5, color: 0x9F1239, alpha: 0.85 * alpha });
+    g.moveTo(x + side * s * 0.6, y - s * 0.35).lineTo(bx + side * s * 0.3, by + s * 0.35).stroke({ width: 1, color: 0xFDA4AF, alpha: 0.7 * alpha });
+  }
+  const r = s * 0.5;
+  g.circle(bx, by - r * 0.95, r * 0.5).stroke({ width: 2, color: 0xFDA4AF, alpha: 0.85 * alpha });
+  g.circle(bx, by, r + 1.5).fill({ color: 0x4C0519, alpha: 0.8 * alpha });
+  g.circle(bx, by, r).fill({ color: 0xE11D48, alpha: 0.7 * alpha }).stroke({ width: 1.5, color: 0xFFE4E6, alpha });
+  g.rect(bx - 0.5, by - r * 0.5, 1, r).fill({ color: 0xFFE4E6, alpha: 0.8 * alpha });
+  g.rect(bx - r * 0.35, by - r * 0.15, r * 0.7, 1).fill({ color: 0xFFE4E6, alpha: 0.8 * alpha });
+}
+
+/** An iron chain bursting up out of the earth at (x, groundY) and hooking toward (tx, ty), `t` 0–1 of its reach. */
+function graveChain(g: Graphics, x: number, groundY: number, tx: number, ty: number, t: number, f: number, alpha = 1) {
+  if (t <= 0.02) return;
+  const ex = lerp(x, tx, t);
+  const ey = lerp(groundY, ty, t) - Math.sin(t * Math.PI) * 6;
+  chain(g, x, groundY, ex, ey, 0x4B515B, Math.sin(f * 0.4) * 2, alpha);
+  // The hook at its end
+  g.moveTo(ex, ey).lineTo(ex + 3, ey - 2).lineTo(ex + 3, ey + 3).stroke({ width: 1.5, color: 0xA3ABB5, alpha });
+  g.ellipse(x, groundY, 4, 1.5).fill({ color: 0x140B08, alpha: 0.9 * alpha });
+}
+
+/** Open grave under a foe: a dark pit that yawns `open` 0–1, with crimson light at its bottom. */
+function openGrave(g: Graphics, x: number, groundY: number, open: number, alpha = 1) {
+  if (open <= 0.02) return;
+  const w = 26 * open;
+  g.ellipse(x, groundY, w + 3, 5 * open + 1).fill({ color: 0x352015, alpha });
+  g.ellipse(x, groundY, w, 4 * open).fill({ color: 0x07030A, alpha });
+  g.ellipse(x, groundY + 1, w * 0.6, 2 * open).fill({ color: 0xE11D48, alpha: 0.5 * alpha });
+}
+
+/**
+ * Six Feet Under, in three beats:
+ *   summoning  the knight marches in under a crimson dim; a blood rune opens at their feet and three wraiths of
+ *              the cemetery's dead claw up out of the earth behind them, spectral kettlebells in hand
+ *   volley     the wraiths hurl themselves in arcs to hang over the foe while the knight winds the Dead Weight
+ *              up and looses three soul-skulls at it; the camera creeps in
+ *   slam       wraiths and knight bring their bells down on the same frame (the damage): snap punch-in,
+ *              crimson blast and quake, then the grave opens, chains drag the foe under, and its life streams
+ *              back to the knight as soul orbs while the camera pulls back to them
+ */
+function sixFeetUnder(h: KnightMoveHost, tl: Timeline) {
+  const t0 = h.target;
+  const c = chest(t0);
+  const ground = t0.y + 4;
+  const RISE = 14; // the wraiths break the earth
+  const HIT = 48; // knight and wraiths connect together
+  const DIVE = HIT - 6;
+  const DIM = 0x12030A;
+  const SOUL = [0xE11D48, 0xFB7185, 0xFFE4E6];
+  const WS = 13; // wraith size
+
+  // --- Summoning --------------------------------------------------------------------------------
+  tl.at(0, () => {
+    h.anim('RUN', true);
+    h.sound('rattle', { rate: 0.7, vol: 0.5 });
+    h.sound('dark', { vol: 0.6 });
+  });
+  tl.every(0, 12, 6, () => h.sound('step', { vol: 0.4, rate: 1.1 }));
+  travel(h, tl, 0, 12, HOME, strikeSpot(h, t0, 60), easeInOut);
+  ghostTrail(h, tl, 2, 12, 0xE11D48, 3, 0.35);
+  tl.during(0, 14, (t) => h.dim(0.62 * t, DIM));
+  // Wide two-shot: the knight, the risen dead and the foe
+  tl.at(10, () => h.camera(1.08, (strikeSpot(h, t0, 60).x + HOME.x + h.home.x * 2 + t0.x) / 3, h.home.y - 46, 30));
+  // The blood rune under the knight
+  drawSpan(h, tl, 10, HIT + 4, (g, t, f) => {
+    const p = h.pos();
+    const open = easeOut(Math.min(1, f / 8));
+    runeCircle(g, p.x - 6, p.y + 1, 38 * open, f * 0.05, P_CRIMSON, t > 0.85 ? 1 - (t - 0.85) / 0.15 : 0.9);
+  }, 'ground');
+  tl.at(10, () => {
+    const p = h.pos();
+    h.vfx('summon', p.x - 6, p.y - 2, { anim: 'animation2', size: 0.9, tint: 0xE11D48, layer: 'ground', squash: 0.45, life: HIT - 6 });
+  });
+
+  // Three wraiths: where each breaks the earth, and where it hangs over the foe
+  const ghosts = [0, 1, 2].map((k) => {
+    const up = RISE + k * 3;
+    const launch = 24 + k * 3;
+    const arrive = launch + 11;
+    const rise = once(() => ({ x: h.pos().x - 40 + k * 20, y: h.home.y - 2 }));
+    const hover = { x: c.x - 34 + k * 30, y: c.y - 66 - (k === 1 ? 12 : 0) };
+    const strike = { x: c.x - 16 + k * 14, y: c.y - 8 + (k === 1 ? -4 : 2) };
+    return { k, up, launch, arrive, rise, hover, strike };
+  });
+  for (const gh of ghosts) {
+    const { k, up, launch, arrive, rise, hover, strike } = gh;
+    tl.at(up, () => {
+      const p = rise();
+      h.sound('wail', { rate: 0.75 + k * 0.12, vol: 0.4 });
+      h.emit(p.x, p.y, { count: 10, colors: [0x352015, 0x5C2B14, 0xE11D48], speed: [1, 2.5], angle: -Math.PI / 2, spread: 1, gravity: 0.2, size: 2, life: [12, 22] });
+    });
+    // Clawing up out of the ground
+    drawSpan(h, tl, up, launch, (g, t, f) => {
+      if (f === 0) g.blendMode = 'add';
+      const p = rise();
+      const e = easeOut(t);
+      wraith(g, p.x, p.y - 40 * e, WS, f + k * 5, 0.4 + 0.6 * e, Math.min(1, t * 3), 10 * (1 - e));
+      g.ellipse(p.x, p.y, 12, 3).fill({ color: 0x07030A, alpha: 0.8 * (1 - t) });
+    });
+    // Hurled in an arc over the foe (a projectile with a soul-smoke wake)
+    projectile(h, tl, launch, arrive - launch, () => ({ x: rise().x, y: rise().y - 40 }), () => hover, 30 + k * 8,
+      (g, x, y, _t, f) => {
+        g.blendMode = 'add';
+        wraith(g, x, y, WS, f + k * 5, 1, 1, 14);
+      },
+      () => h.sound('whoosh', { rate: 1.3 + k * 0.1, vol: 0.4 }),
+      (x, y) => { if (Math.random() < 0.6) h.emit(x, y + 8, { count: 1, colors: SOUL, speed: [0.1, 0.4], spread: Math.PI, gravity: -0.01, size: 2, life: [10, 18] }); },
+    );
+    tl.at(launch, () => h.sound('whoosh_heavy', { rate: 1.4, vol: 0.35 }));
+    // Hanging over the foe, trembling, bell raised, until the dive
+    drawSpan(h, tl, arrive, DIVE, (g, _t, f) => {
+      if (f === 0) g.blendMode = 'add';
+      const shiver = Math.sin(f * 1.7 + k) * 1.2;
+      wraith(g, hover.x + shiver, hover.y + Math.sin(f * 0.25 + k) * 2, WS, f + k * 5, 1, 1);
+      g.circle(hover.x, hover.y - 18, 12 + Math.sin(f * 0.5) * 2).fill({ color: 0xE11D48, alpha: 0.12 });
+    });
+    // The dive: stretched into a streak, bell coming down, landing on HIT
+    drawSpan(h, tl, DIVE, HIT + 1, (g, t, f) => {
+      if (f === 0) g.blendMode = 'add';
+      const e = easeIn(t);
+      const x = lerp(hover.x, strike.x, e);
+      const y = lerp(hover.y, strike.y, e);
+      g.moveTo(hover.x, hover.y).lineTo(x, y).stroke({ width: 8, color: 0xE11D48, alpha: 0.25 * t });
+      g.moveTo(hover.x, hover.y).lineTo(x, y).stroke({ width: 1.5, color: 0xFFE4E6, alpha: 0.5 * t });
+      wraith(g, x, y, WS + 2 * e, f + k * 5, 1 - e, 1, 8 + 18 * e);
+    });
+  }
+
+  // --- Volley: the knight winds up and fires soul-skulls ----------------------------------------
+  tl.at(12, () => {
+    h.anim('ATTACK4');
+    h.animSpeed(0.32);
+    h.fxSlot('Normal_Slash', 0xE11D48); // the rig's swing trail burns crimson
+    chargeSound(h, HIT - 12);
+  });
+  tl.during(14, HIT - 4, (t) => h.lift(easeOut(t) * 10));
+  chargeFx(h, tl, 16, HIT - 4, () => h.weaponTip(), P_CRIMSON, 36, 12);
+  // Crimson seeps from the coffin-bell's seams as it rises
+  drawSpan(h, tl, 12, HIT, (g, t, f) => {
+    const p = h.weaponTip();
+    for (let k = 0; k < 4; k++) g.rect(p.x - 4 + k * 3, p.y + 3 + ((f + k * 3) % 8), 1, 2).fill({ color: 0xE11D48, alpha: 0.4 + 0.5 * t });
+    g.circle(p.x, p.y, 4 + 7 * t).fill({ color: 0xE11D48, alpha: 0.15 + 0.3 * t });
+  });
+  // The camera creeps in as the dead gather over the foe
+  tl.at(30, () => h.camera(1.18, (h.pos().x + c.x) / 2 + 10, c.y - 30, HIT - 30));
+  [22, 28, 34].forEach((at, k) => {
+    const aim = { x: c.x + rand(-3, 3), y: c.y + (k - 1) * 5 };
+    projectile(h, tl, at, 9, () => h.weaponTip(), () => aim, 10 + k * 5,
+      (g, x, y, _t, f) => {
+        g.circle(x, y, 6).fill({ color: 0xE11D48, alpha: 0.25 });
+        skull(g, x, y, 3.5, f, P_CRIMSON);
+      },
+      () => {
+        h.flashTarget(0, 0xFB7185, 4);
+        h.shake(1.5);
+        h.sound('wail', { rate: 1.6 + k * 0.1, vol: 0.25 });
+        h.sound('chomp', { rate: 1.3, vol: 0.4 });
+        h.sparks(aim.x, aim.y, 5, SOUL);
+      },
+      (x, y) => h.emit(x, y, { count: 1, colors: SOUL, speed: [0.1, 0.3], spread: Math.PI, gravity: 0, size: 2, life: [6, 12] }),
+    );
+    tl.at(at, () => h.sound('shoot', { rate: 0.8, vol: 0.35 }));
+  });
+  tl.every(36, DIVE, 2, (i) => h.shake(0.5 + i * 0.25)); // the air thickens before the drop
+  tl.at(HIT - 4, () => {
+    h.animSpeed(1.8);
+    swingSound(h, true);
+    h.sound('wail', { rate: 0.6, vol: 0.6 }); // the dead scream as they fall
+  });
+  tl.during(HIT - 4, HIT, (t) => h.lift(lerp(10, 0, easeIn(t))));
+
+  // --- Slam: knight and wraiths together --------------------------------------------------------
+  for (const gh of ghosts) hitFx(h, tl, HIT, gh.strike, P_CRIMSON, 9, SOUL);
+  hitFx(h, tl, HIT, c, P_CRIMSON, 26, [0xFFE4E6, 0xE11D48, 0x9F1239, BLOOD_DARK]);
+  ringFx(h, tl, HIT, { x: t0.x - 4, y: ground }, 10, 150, 0xE11D48, 22, 5);
+  ringFx(h, tl, HIT + 3, { x: t0.x - 4, y: ground }, 6, 90, 0xFFE4E6, 16, 2);
+  tl.at(HIT, () => {
+    h.animSpeed(1);
+    land(h, 0, { scale: 1.45, tint: 0xFECDD3, flash: 0xFFE4E6, glare: 0.8, burst: 'quake', burstSize: 1.3, sfx: 'wood' });
+    h.vfx('explosion', c.x, c.y - 4, { size: 0.75, tint: 0xF43F5E, life: 18 });
+    h.flash(0.15, 0xE11D48);
+    h.camera(1.42, c.x - 6, c.y - 4, 12, true);
+    h.sound('crack', { rate: 0.8, vol: 0.6 });
+    h.sound('rattle', { rate: 0.6, vol: 0.8, delay: 0.08 });
+    h.sound('explosion', { rate: 0.7, vol: 0.5 });
+    h.stretch(1.12, 0.9);
+    debris(h, { x: t0.x, y: ground }, 18, [...DIRT, 0x352015]);
+    // The wraiths burst into soul-smoke on contact
+    for (const gh of ghosts) h.emit(gh.strike.x, gh.strike.y, { count: 14, colors: SOUL, speed: [1, 3.5], spread: Math.PI, gravity: -0.02, size: 2, life: [14, 26] });
+  });
+  tl.during(HIT, HIT + 6, (t) => h.stretch(lerp(1.12, 1, t), lerp(0.9, 1, t)));
+  // The earth opens and the chains come for it
+  drawSpan(h, tl, HIT, HIT + 36, (g, t) => openGrave(g, t0.x - 4, ground, t < 0.15 ? easeOut(t / 0.15) : t > 0.8 ? 1 - (t - 0.8) / 0.2 : 1), 'ground');
+  drawSpan(h, tl, HIT + 2, HIT + 32, (g, t, f) => {
+    const reach = t < 0.3 ? easeOut(t / 0.3) : t > 0.75 ? 1 - (t - 0.75) / 0.25 : 1;
+    graveChain(g, t0.x - 26, ground, c.x - 6, c.y + 2, reach, f);
+    graveChain(g, t0.x + 16, ground, c.x + 2, c.y - 4, reach * 0.95, f + 3);
+    graveChain(g, t0.x - 8, ground + 2, c.x - 2, c.y + 8, reach * 0.9, f + 6);
+  });
+  // Dragged half under, then spat back up
+  tl.at(HIT + 8, () => {
+    h.knock(0, 2, -8);
+    h.flashTarget(0, 0xE11D48, 6);
+    h.sound('gurgle', { rate: 0.7, vol: 0.5 });
+  });
+
+  // --- Its life streams back to the knight ------------------------------------------------------
+  tl.at(HIT + 14, () => h.camera(1.14, (h.pos().x + c.x) / 2 - 20, h.home.y - 40, 26));
+  for (let k = 0; k < 6; k++) {
+    const at = HIT + 10 + k * 2;
+    projectile(h, tl, at, 14, () => ({ x: c.x + rand(-6, 6), y: c.y + rand(-6, 6) }), () => kChest(h), 18 + k * 4,
+      (g, x, y) => {
+        g.circle(x, y, 4).fill({ color: 0xE11D48, alpha: 0.3 });
+        g.circle(x, y, 2.5).fill({ color: 0xE11D48 }).stroke({ width: 1, color: 0x4C0519 });
+        g.rect(x - 0.5, y - 0.5, 1, 1).fill({ color: 0xFFE4E6 });
+      },
+      () => { if (k % 2 === 0) h.sound('heal', { rate: 1.3 + k * 0.05, vol: 0.2 }); },
+      (x, y) => { if (Math.random() < 0.5) h.emit(x, y, { count: 1, colors: SOUL, speed: [0.1, 0.3], spread: Math.PI, gravity: -0.02, size: 1, life: [8, 14] }); },
+    );
+  }
+  tl.at(HIT + 26, () => {
+    h.vfx('heal', h.pos().x, h.pos().y - 26, { size: 0.9, tint: 0xFB7185 });
+    h.sound('heal', { rate: 0.8, vol: 0.6 });
+    h.ghost(0xE11D48, 0.5, 18);
+  });
+  motesFx(h, tl, HIT + 26, HIT + 40, () => h.pos(), SOUL, 3, 14);
+  backstep(h, tl, HIT + 30, HIT + 46, 16);
+  tl.during(HIT + 36, HIT + 50, (t) => h.dim(0.62 * (1 - t), DIM));
+  tl.end(HIT + 52);
+}
+
+/**
+ * Blood Moon Requiem: the knight snatches the Dead Weight overhead and a blood moon swells behind it; its toll
+ * shakes a swarm of bats loose from the moon, who fall on every foe, and the graveyard earth splits red under them.
+ */
+function bloodMoonRequiem(h: KnightMoveHost, tl: Timeline) {
+  const foes = each(h);
+  const cx = foes.reduce((sum, t) => sum + t.x, 0) / foes.length;
+  // Top centre, where the Blood Cemetery's own moon hangs: there it swells over it, elsewhere it is a new one
+  const moon = { x: 213, y: 30 };
+  const TOLL = 26;
+  raiseAndHold(h, tl, 0, TOLL + 8);
+  tl.at(0, () => {
+    h.camera(1.04, (h.home.x + cx) / 2, h.home.y - 50, 60);
+    h.sound('dark', { vol: 0.7 });
+    h.sound('wail', { rate: 0.7, vol: 0.35, delay: 0.3 });
+  });
+  tl.during(0, 14, (t) => h.dim(0.6 * t, 0x1A0308));
+  // The moon swells and reddens over the field
+  drawSpan(h, tl, 0, TOLL + 40, (g, t, f) => {
+    const grow = easeOut(Math.min(1, f / 18));
+    const fade = t > 0.8 ? 1 - (t - 0.8) / 0.2 : 1;
+    const r = 30 * grow;
+    for (let i = 5; i >= 1; i--) g.circle(moon.x, moon.y, r + i * 6).fill({ color: 0x9F1239, alpha: 0.06 * fade });
+    g.circle(moon.x, moon.y, r).fill({ color: f > TOLL ? 0xB91C1C : 0xC2410C, alpha: fade });
+    g.circle(moon.x - r * 0.3, moon.y - r * 0.2, r * 0.28).fill({ color: 0x7F1D1D, alpha: 0.6 * fade });
+    g.circle(moon.x + r * 0.35, moon.y + r * 0.25, r * 0.22).fill({ color: 0x7F1D1D, alpha: 0.6 * fade });
+  }, 'back');
+  // A tether of crimson from the raised bell to the moon
+  drawSpan(h, tl, 10, TOLL, (g, t) => {
+    const p = h.weaponTip();
+    g.moveTo(p.x, p.y).lineTo(moon.x, moon.y).stroke({ width: 1 + 2 * t, color: 0xE11D48, alpha: 0.3 + 0.4 * t });
+    g.circle(p.x, p.y, 4 + 4 * t).fill({ color: 0xE11D48, alpha: 0.4 * t });
+  });
+  tl.every(10, TOLL, 4, (i) => h.sound('rattle', { rate: 0.6 + i * 0.08, vol: 0.3 }));
+  tl.at(TOLL, () => {
+    h.shake(6);
+    h.sound('block', { rate: 0.4, vol: 0.8 }); // the toll
+    h.sound('swarm', { vol: 0.7 });
+    h.sound('screech', { rate: 1.3, vol: 0.4, delay: 0.1 });
+  });
+  ringFx(h, tl, TOLL, moon, 30, 140, 0xE11D48, 18, 3);
+  // Bats pour off the moon onto each foe
+  foes.forEach((t, i) => {
+    const c = chest(t);
+    for (let b = 0; b < 4; b++) {
+      const at = TOLL + 2 + i * 5 + b * 2;
+      drawSpan(h, tl, at, at + 14, (g, u, f) => {
+        const x = lerp(moon.x, c.x + (b - 1.5) * 6, easeIn(u)) + Math.sin(u * 10 + b) * 10 * (1 - u);
+        const y = lerp(moon.y, c.y + (b % 2) * 6, easeIn(u)) - arc(u) * 10;
+        flier(g, x, y, 6 + (b % 2), f * 0.9 + b, 0x1A0308, 0xE11D48, x > moon.x ? 1 : -1);
+      });
+    }
+    const hit = TOLL + 16 + i * 5 + 6;
+    tl.at(hit, () => {
+      land(h, h.targets.length ? i : undefined, { scale: 0.9, tint: 0xFECDD3, burst: 'slash', burstSize: 0.8, sfx: 'chomp' });
+      h.sound('flap', { vol: 0.5, rate: 1.2 });
+      h.knock(i, 6, 6);
+      h.emit(c.x, c.y, { count: 8, colors: [0xE11D48, 0x9F1239, 0xFB7185], speed: [1, 2.5], spread: Math.PI, gravity: 0.15, size: 2, life: [12, 22] });
+    });
+    // The earth splits red beneath them
+    drawSpan(h, tl, hit, hit + 24, (g, u) => {
+      const a = u > 0.6 ? 1 - (u - 0.6) / 0.4 : 1;
+      const len = 16 * easeOut(Math.min(1, u * 3));
+      for (let k = -1; k <= 1; k++) {
+        g.moveTo(t.x, t.y + 4).lineTo(t.x + k * len, t.y + 4 + Math.abs(k) * 2 + (k === 0 ? 3 : 0)).stroke({ width: 2, color: 0xE11D48, alpha: 0.8 * a });
+      }
+    }, 'ground');
+  });
+  const last = TOLL + 22 + (foes.length - 1) * 5;
+  tl.during(last + 6, last + 20, (t) => h.dim(0.6 * (1 - t), 0x1A0308));
+  tl.end(last + 22);
+}
+
 // =============================================================================================
 // SWORDS
 
@@ -3156,6 +3497,8 @@ export const SPELL_MOVES: Record<string, KnightMove> = {
   spell_cathedral_toll: cathedralToll,
   spell_basalt_fissure: basaltFissure,
   spell_core_breach: coreBreach,
+  spell_six_feet_under: sixFeetUnder,
+  spell_blood_moon: bloodMoonRequiem,
 
   spell_kettleburne_oath: kettleburneOath,
   spell_lunar_hunt: lunarHunt,

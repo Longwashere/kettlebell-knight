@@ -27,6 +27,7 @@ import type { ExerciseType } from '../../types/game';
 import { CARD_CATALOG } from '../../types/battle';
 import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { SPELL_MOVES } from './spellMoves';
+import { SECRET_SPELL_MOVES } from './secretSpellMoves';
 import { STARTER_MOVES } from './starterMoves';
 import { MONSTER_ART_MOVES } from './monsterArts';
 import {
@@ -1632,6 +1633,7 @@ function vanguardStep(h: KnightMoveHost, tl: Timeline) {
 /** One move per CARD_CATALOG templateId (starter cards in starterMoves.ts), plus the weapon spells (spellMoves.ts). */
 export const KNIGHT_MOVES: Record<string, KnightMove> = {
   ...SPELL_MOVES,
+  ...SECRET_SPELL_MOVES,
   ...STARTER_MOVES,
   ...MONSTER_ART_MOVES,
   swing_cleave: ironCleave,
