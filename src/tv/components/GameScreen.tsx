@@ -201,6 +201,7 @@ export const GameScreen: React.FC = () => {
   // Sync 90s dark fantasy background and character visibility to current view
   useEffect(() => {
     if (!isEngineReady || !engineRef.current) return;
+    engineRef.current.setShowcase(currentView === 'BLACKSMITH');
     if (currentView === 'TITLE') {
       engineRef.current.setCharactersVisible(false);
       void engineRef.current.loadBackground(BATTLE_MAPS.OBSIDIAN_THRONE);

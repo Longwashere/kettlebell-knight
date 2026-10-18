@@ -576,7 +576,8 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
 
                     {/* Mastered / Unlocked Ribbon */}
                     {item.isUnlocked && offset === 0 && (
-                      <div className="absolute top-2 right-2 bg-[#00EB88] text-[#0F0E17] text-[8px] font-pixel px-2 py-0.5 rounded border border-black shadow-pixel-box z-40">
+                      <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-[#00EB88] text-[#0F0E17] text-[7px] leading-none font-pixel px-2 py-1 rounded-sm border border-black shadow-pixel-box z-40 flex items-center gap-1 whitespace-nowrap">
+                        <CheckCircle2 className="w-2.5 h-2.5" />
                         MASTERED
                       </div>
                     )}
@@ -620,13 +621,13 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
           {/* BOTTOM SECTION: 32-BIT PEDESTAL DAIS + CODEX DOSSIER PANEL     */}
           {/* ============================================================== */}
           {activeItem && (
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-3 min-h-0 overflow-y-auto">
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-12 md:[grid-template-rows:minmax(0,1fr)] gap-3 min-h-0 overflow-y-auto">
               {/* ============================================================ */}
               {/* LEFT SIDE PANEL: 32-BIT CHIAROSCURO ENTITY PEDESTAL (4 COLS)  */}
               {/* ============================================================ */}
-              <div className="md:col-span-4 bg-[#0A0910] border-2 border-[#2D2A42] p-3 rounded flex flex-col justify-between relative overflow-hidden shadow-pixel-box">
+              <div className="md:col-span-4 bg-[#0A0910] border-2 border-[#2D2A42] p-3 rounded flex flex-col relative overflow-hidden shadow-pixel-box">
                 {/* Chiaroscuro Atmospheric Spotlight Beam */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-44 bg-gradient-to-b from-[#F4B41A]/20 via-[#38B6FF]/10 to-transparent pointer-events-none blur-sm" />
+                <div className="absolute top-0 left-[19%] -translate-x-1/2 w-28 h-full bg-gradient-to-b from-[#F4B41A]/20 via-[#38B6FF]/10 to-transparent pointer-events-none blur-sm" />
 
                 {/* Pedestal Header Tag */}
                 <div className="relative z-10 flex items-center justify-between border-b border-[#2D2A42] pb-1.5 mb-1.5">
@@ -638,65 +639,44 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
                   </span>
                 </div>
 
-                {/* Chiaroscuro Stage & Character / Monster Sprite */}
-                <div className="relative z-10 flex-1 flex flex-col items-center justify-center py-1">
-                  <div className="relative w-full h-[155px] flex items-center justify-center">
-                    {/* Shadow / dais circle */}
-                    <div className="absolute bottom-1 w-28 h-6 bg-black/60 rounded-full border border-[#2D2A42] blur-[1px]" />
-                    <div className="absolute bottom-2 w-20 h-3 bg-[#F4B41A]/20 rounded-full blur-xs" />
-
-                    {/* The 32-Bit Entity Sprite */}
-                    {entityInfo?.type === 'KNIGHT' ? (
-                      <img
-                        src={entityInfo.url}
-                        alt="Citadel Adventurer"
-                        className="h-[148px] w-auto object-contain relative z-10 filter drop-shadow-[0_8px_12px_rgba(0,0,0,0.85)] pixelated"
-                        style={{ imageRendering: 'pixelated' }}
-                      />
-                    ) : entityInfo?.type === 'MONSTER' ? (
-                      <div className="relative z-10 flex flex-col items-center">
-                        <img
-                          src={entityInfo.url}
-                          alt={entityInfo.name}
-                          className="max-h-[120px] max-w-[130px] object-contain filter drop-shadow-[0_6px_10px_rgba(0,0,0,0.9)] pixelated animate-float"
-                          style={{ imageRendering: 'pixelated' }}
-                          onError={(e) => {
-                            // Fallback to Adventurer if monster image fails to load
-                            (e.target as HTMLImageElement).src = '/assets/codex/adventurer.png';
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      /* Weapon Relic Display */
-                      <div className="relative z-10 flex flex-col items-center">
+                {/* Portrait on its lit dais beside the nameplate: sized to the panel so it is never cropped */}
+                <div className="relative z-10 flex-1 min-h-0 flex items-stretch gap-3">
+                  <div className="relative w-[38%] max-w-[120px] min-h-[64px] flex items-end justify-center">
+                    <div className="absolute bottom-0 w-[85%] h-3 bg-black/70 rounded-[50%] border border-[#2D2A42]" />
+                    <div className="absolute bottom-0.5 w-[60%] h-1.5 bg-[#F4B41A]/25 rounded-[50%] blur-[1px]" />
+                    {(() => {
+                      const isKnight = entityInfo?.type === 'KNIGHT';
+                      const isMonster = entityInfo?.type === 'MONSTER';
+                      const fallback = isKnight || isMonster ? '/assets/codex/adventurer.png' : '/assets/codex/weapons/kettlebell_iron.png';
+                      return (
                         <img
                           src={entityInfo?.url}
-                          alt={entityInfo?.name}
-                          className="h-[80px] w-auto object-contain filter drop-shadow-[0_0_12px_rgba(244,180,26,0.6)] pixelated animate-pulse"
+                          alt={entityInfo?.name ?? 'Citadel Adventurer'}
+                          className={`relative z-10 max-h-full max-w-full object-contain object-bottom mb-1 ${
+                            isKnight || isMonster
+                              ? 'drop-shadow-[0_6px_8px_rgba(0,0,0,0.85)]'
+                              : 'max-h-[70%] self-center drop-shadow-[0_0_10px_rgba(244,180,26,0.6)]'
+                          } ${isMonster ? 'animate-float' : ''}`}
                           style={{ imageRendering: 'pixelated' }}
                           onError={(e) => {
-                            (e.target as HTMLImageElement).src = '/assets/codex/weapons/kettlebell_iron.png';
+                            (e.target as HTMLImageElement).src = fallback;
                           }}
                         />
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
 
-                  {/* Entity Nameplate & Sub-Title */}
-                  <div className="text-center mt-1 z-10 w-full">
-                    <div className="font-pixel text-[11px] text-[#F4B41A] tracking-wider truncate">
+                  <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+                    <div className="font-pixel text-[10px] text-[#F4B41A] tracking-wider leading-tight">
                       {entityInfo?.name}
                     </div>
-                    <div className="text-[8.5px] font-mono text-[#A7A9BE] italic mt-0.5 line-clamp-2 px-1">
+                    <div className="text-[9px] font-mono text-[#A7A9BE] italic leading-snug line-clamp-2">
                       {entityInfo?.desc}
                     </div>
+                    <div className="text-[8px] font-mono text-[#A7A9BE] leading-snug">
+                      {activeItem.card.element ? `${ELEMENT_INFO[activeItem.card.element].icon} ${ELEMENT_INFO[activeItem.card.element].label}` : 'PHYSICAL'} • SPELL LV {activeItem.card.level ?? 1}
+                    </div>
                   </div>
-                </div>
-
-                {/* Footer Entity Metas */}
-                <div className="relative z-10 pt-1.5 border-t border-[#2D2A42] flex justify-between text-[8px] font-mono text-[#A7A9BE]">
-                  <span>ELEMENT: {activeItem.card.element ? `${ELEMENT_INFO[activeItem.card.element].icon} ${ELEMENT_INFO[activeItem.card.element].label}` : 'PHYSICAL'} • SPELL LV {activeItem.card.level ?? 1}</span>
-                  <span className="text-[#38B6FF]">FORM: {activeItem.card.exercise.replace(/_/g, ' ')}</span>
                 </div>
               </div>
 

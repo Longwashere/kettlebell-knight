@@ -33,7 +33,7 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
   weaponCasts,
 }) => {
   return (
-    <div className="bg-[#1A1926]/95 border-4 border-[#F4B41A] p-6 max-w-2xl w-full mx-auto rounded shadow-pixel-box-gold backdrop-blur-md">
+    <div className="bg-[#1A1926]/95 border-4 border-[#F4B41A] p-5 w-[min(640px,52vw)] ml-auto rounded shadow-pixel-box-gold backdrop-blur-md">
       {/* Shop Header */}
       <div className="flex items-center justify-between border-b-2 border-[#2E2B44] pb-3 mb-4">
         <div className="flex items-center space-x-3">
@@ -45,7 +45,7 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
               BLACKSMITH'S FORGE
             </h2>
             <p className="text-[10px] text-[#A7A9BE] font-mono">
-              Hover/Select item to preview live on Knight Skeleton
+              ◀ Select gear to try it on thy knight
             </p>
           </div>
         </div>

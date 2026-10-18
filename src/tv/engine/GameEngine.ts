@@ -78,6 +78,8 @@ const KNIGHT_ATLAS_KEY = '/assets/spine/knight/HulkForm2.atlas';
 const KNIGHT_FX_SLOTS = ['sword', 'Normal_Slash', 'Light', 'PunchFx_Skill3', 'Dash_Mash'];
 const KNIGHT_SCALE = 0.15;
 const KNIGHT_HOME = { x: 130, y: 168 }; // knight feet at rest (battlefield coords)
+/** Knight feet and scale in the blacksmith's fitting room (left of the docked shop panel). */
+const SHOWCASE_KNIGHT = { x: 100, y: 192, scale: 1.28 };
 const MONSTER_OUTLINE_COLOR = 0x0F0E17; // retro.dark
 // Battle arena background textures (clean 1:1 retro canvas match): ./battleMaps.ts
 export { BATTLE_MAPS, MAP_BATTLE_MUSIC, getMapBattleMusic };
@@ -1230,6 +1232,8 @@ export class GameEngine {
 
   // Secret stage: the Enchanted Stone of Excalibell (excalibellStone.ts)
   private excalibellStone: ExcalibellStone | null = null;
+  private showcaseLight: Graphics | null = null;
+  private showcaseHidden: Container[] = [];
   private excalibellTexture: Texture | null = null;
 
   // Dev automation (window.__kk): ready once init() finishes; loadsInFlight counts pending asset loads
@@ -1575,14 +1579,21 @@ export class GameEngine {
 
   /**
    * Shows or removes the Enchanted Stone of Excalibell: a full-screen hero shot over the dimmed backdrop, with
-   * the knight off stage. The bell is the knight atlas's own `excalibell` region, so it costs no extra VRAM.
+   * the knight staged beside the stone at the scene's zoom (borrowed from the battlefield and handed back on
+   * removal). The bell is the knight atlas's own `excalibell` region, so it costs no extra VRAM.
    */
   public showExcalibellStone(visible: boolean): void {
+    const actor = this.excalibellStone?.detachActor();
+    if (actor && this.gameLayer && !actor.destroyed) {
+      this.gameLayer.addChild(actor);
+      actor.position.set(KNIGHT_HOME.x, KNIGHT_HOME.y);
+      actor.scale.set(1);
+      this.playExcalibellPose('IDLE', true);
+    }
     this.excalibellStone?.destroy();
     this.excalibellStone = null;
     this.excalibellTexture?.destroy(false);
     this.excalibellTexture = null;
-    if (this.knightContainer) this.knightContainer.visible = !visible;
     if (!visible || !this.app || !this.uiLayer) return;
     try {
       const region = Assets.get<TextureAtlas>(KNIGHT_ATLAS_KEY)?.findRegion('excalibell');
@@ -1593,26 +1604,88 @@ export class GameEngine {
     } catch (err) {
       console.warn('[GameEngine] Excalibell art unavailable:', err);
     }
-    this.excalibellStone = new ExcalibellStone(this.excalibellTexture, this.app.ticker, { shake: (n) => this.moveShake(n) });
-    this.uiLayer.addChildAt(this.excalibellStone.view, 0);
+    const stone: ExcalibellStone = new ExcalibellStone(this.excalibellTexture, this.app.ticker, {
+      shake: (n) => this.moveShake(n),
+      handPoint: (): { x: number; y: number } | null => this.knightHandIn(stone.view),
+    });
+    this.excalibellStone = stone;
+    this.uiLayer.addChildAt(stone.view, 0);
+    if (this.knightContainer) {
+      this.knightContainer.visible = true;
+      stone.attachActor(this.knightContainer);
+      this.playExcalibellPose('IDLE', true);
+    }
   }
 
-  /** A trial squat: the stone loosens. `progress` = squats done / needed. */
+  /** The knight's weapon hand (the grip bone of the weapon slot) in `space`'s coordinates. */
+  private knightHandIn(space: Container): { x: number; y: number } | null {
+    const spine = this.knightSpine;
+    const bone = spine?.skeleton.findSlot('sword')?.bone;
+    if (!spine || spine.destroyed || !bone) return null;
+    return space.toLocal(spine.toGlobal({ x: bone.worldX, y: bone.worldY }));
+  }
+
+  /** Plays a knight animation during the trial, returning to the idle loop after one-shots. */
+  private playExcalibellPose(anim: string, loop = false, then = 'IDLE'): void {
+    const spine = this.knightSpine;
+    if (!spine || spine.destroyed || !spine.skeleton.data.findAnimation(anim)) return;
+    spine.state.setAnimation(0, anim, loop);
+    if (!loop) spine.state.addAnimation(0, then, true, 0);
+  }
+
+  /** A trial squat: the stone loosens and the knight braces against it. `progress` = squats done / needed. */
   public excalibellRep(progress: number): void {
     this.excalibellStone?.setProgress(progress);
     this.excalibellStone?.rep();
+    this.playExcalibellPose('DEFENSE');
   }
 
-  /** Trial won: the bell tears free and rises; the knight now wields it. */
+  /** Trial won: the knight strains, the bell tears free and rises, then settles into his hand. */
   public excalibellPull(): void {
+    this.playExcalibellPose('SKILL2TULUC');
     this.excalibellStone?.pull(() => {
-      if (!this.isDestroyed) this.skeleton.setAttachment('weapon', 'excalibell');
+      if (this.isDestroyed) return;
+      this.skeleton.setAttachment('weapon', 'excalibell');
+      this.playExcalibellPose('LEVEL_UP', false, 'WIN');
     });
   }
 
-  /** Trial failed: the stone seals. */
+  /** Trial failed: the stone seals and throws the knight back. */
   public excalibellReject(): void {
     this.excalibellStone?.reject();
+    this.playExcalibellPose('HIT2');
+  }
+
+  /**
+   * Blacksmith fitting room: the knight steps forward into a pool of forge light on the left (clear of the shop
+   * panel docked on the right) at a larger scale so previewed gear reads, and any monsters left on stage are hidden.
+   */
+  public setShowcase(on: boolean): void {
+    const knight = this.knightContainer;
+    if (!knight || !this.gameLayer || on === !!this.showcaseLight) return;
+    if (on) {
+      this.showcaseHidden = [...this.monsterSlots.map((s) => s.container), this.enemyDummy, this.targetReticle]
+        .filter((c): c is Container => !!c && c.visible);
+      this.showcaseHidden.forEach((c) => (c.visible = false));
+      const light = new Graphics();
+      light.ellipse(0, 0, 46, 10).fill({ color: 0xF59E0B, alpha: 0.16 });
+      light.ellipse(0, 0, 30, 6).fill({ color: 0xFDE68A, alpha: 0.18 });
+      light.poly([-20, -150, 20, -150, 44, 0, -44, 0]).fill({ color: 0xFDE68A, alpha: 0.06 });
+      light.blendMode = 'add';
+      light.position.set(SHOWCASE_KNIGHT.x, SHOWCASE_KNIGHT.y);
+      light.zIndex = -200;
+      this.gameLayer.addChild(light);
+      this.showcaseLight = light;
+      knight.position.set(SHOWCASE_KNIGHT.x, SHOWCASE_KNIGHT.y);
+      knight.scale.set(SHOWCASE_KNIGHT.scale);
+    } else {
+      this.showcaseHidden.forEach((c) => (c.visible = true));
+      this.showcaseHidden = [];
+      this.showcaseLight?.destroy();
+      this.showcaseLight = null;
+      knight.position.set(KNIGHT_HOME.x, KNIGHT_HOME.y);
+      knight.scale.set(1);
+    }
   }
 
   /** Clears victory/defeat lock and returns the knight to IDLE (new battle). */

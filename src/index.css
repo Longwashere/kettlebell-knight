@@ -1351,3 +1351,76 @@ canvas,
   border-radius: 6px;
 }
 
+
+/* Monster nameplate: a slim HUD card per foe, short enough that the squad below stays in view */
+.kk-hud-plate {
+  width: min(200px, 15.5vw);
+  padding: 6px 7px 7px;
+  transition: transform 150ms ease-out, opacity 150ms;
+}
+.kk-hud-plate.kk-hud-card--targeted {
+  transform: translateY(2px);
+}
+.kk-hud-plate.kk-hud-card--dead {
+  opacity: 0.45;
+}
+.kk-hud-plate__flag {
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 5px;
+  background: #F4B41A;
+  color: #0F0E17;
+  border: 1px solid #000;
+  border-radius: 2px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 6px;
+  line-height: 8px;
+  box-shadow: 1px 1px 0 #000, 0 0 6px rgba(244, 180, 26, 0.6);
+  z-index: 1;
+}
+.kk-hud-plate__chip {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 13px;
+  height: 13px;
+  border: 1px solid;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.55);
+  font-size: 8px;
+  line-height: 1;
+}
+.kk-hud-plate__affix {
+  position: absolute;
+  bottom: -6px;
+  right: 8px;
+  padding: 0 4px;
+  border: 1px solid;
+  border-radius: 2px;
+  background: #0F0E17;
+  font-family: "Press Start 2P", monospace;
+  font-size: 6px;
+  line-height: 9px;
+  text-transform: uppercase;
+}
+.kk-hud-gem--sm {
+  width: 18px;
+  height: 20px;
+}
+.kk-hud-gem--sm span {
+  width: 15px;
+  height: 17px;
+  font-size: 6px;
+}
+.kk-hud-vial__label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: "Press Start 2P", monospace;
+  font-size: 6px;
+  color: #fff;
+  text-shadow: 1px 0 0 #000, -1px 0 0 #000, 0 1px 0 #000, 0 -1px 0 #000;
+}

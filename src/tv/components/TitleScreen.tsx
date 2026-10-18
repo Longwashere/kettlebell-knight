@@ -586,24 +586,22 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
       {/* ────────────────────────────────────────────────────────────────────── */}
       {/* BOTTOM CONTROLS HINT BAR */}
       {/* ────────────────────────────────────────────────────────────────────── */}
-      <footer className="border-t-4 border-[#2E2B44] bg-[#1A1926]/90 p-2.5 rounded shadow-pixel-box w-full max-w-xl flex items-center justify-between text-[9px] font-mono text-[#A7A9BE] backdrop-blur-sm">
-        <div className="flex items-center space-x-3">
-          <span className="flex items-center gap-1 text-white font-pixel text-[8px]">
-            <span className="bg-[#2E2B44] px-1.5 py-0.5 border border-[#F4B41A] text-[#F4B41A]">D-PAD</span>
-            <span>MOVE</span>
-          </span>
-          <span className="flex items-center gap-1 text-white font-pixel text-[8px]">
-            <span className="bg-[#2E2B44] px-1.5 py-0.5 border border-[#F4B41A] text-[#F4B41A]">ENTER</span>
-            <span>CONFIRM</span>
-          </span>
-          <span className="flex items-center gap-1 text-white font-pixel text-[8px]">
-            <span className="bg-[#2E2B44] px-1.5 py-0.5 border border-[#F4B41A] text-[#F4B41A]">ESC / BACK</span>
-            <span>BACK</span>
-          </span>
+      <footer className="border-t-4 border-[#2E2B44] bg-[#1A1926]/90 px-4 py-2.5 rounded shadow-pixel-box flex items-center gap-5 whitespace-nowrap backdrop-blur-sm">
+        <div className="flex items-center gap-4">
+          {[
+            ['D-PAD', 'MOVE'],
+            ['ENTER', 'CONFIRM'],
+            ['ESC / BACK', 'BACK'],
+          ].map(([key, action]) => (
+            <span key={key} className="flex items-center gap-1.5 text-white font-pixel text-[8px]">
+              <span className="bg-[#2E2B44] px-1.5 py-0.5 border border-[#F4B41A] text-[#F4B41A]">{key}</span>
+              <span>{action}</span>
+            </span>
+          ))}
         </div>
 
-        <div className="text-[#F4B41A] font-pixel text-[8px]">
-          FIRE TV 10-FOOT INTERFACE
+        <div className="border-l-2 border-[#2E2B44] pl-5 text-[#A7A9BE] font-pixel text-[7px] tracking-wider">
+          FIRE TV • 10-FOOT UI
         </div>
       </footer>
     </div>

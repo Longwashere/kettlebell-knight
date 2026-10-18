@@ -177,9 +177,9 @@ export const ExcalibellTrial: React.FC<ExcalibellTrialProps> = ({ engineRef, isE
         <h1 className="font-pixel text-sm text-[#F4B41A] mt-1">THE ENCHANTED STONE OF EXCALIBELL</h1>
       </div>
 
-      {/* The sword holds the centre of the screen: the HUD keeps to the sides */}
+      {/* The stone holds the centre and the knight its left: the HUD keeps to the right */}
       {phase === 'INTRO' && (
-        <div className="absolute left-6 top-1/2 -translate-y-1/2 w-[30%] max-w-sm bg-[#1A1926]/85 border-4 border-[#F4B41A] p-4 rounded shadow-pixel-box-gold">
+        <div className="absolute right-6 top-1/2 -translate-y-1/2 w-[30%] max-w-sm bg-[#1A1926]/85 border-4 border-[#F4B41A] p-4 rounded shadow-pixel-box-gold">
           <p className="font-mono text-xs text-[#E6E4EE] leading-snug">
             A golden light led thee to a forgotten glade. Here sleeps <span className="text-[#F4B41A]">Excalibell</span>,
             and the stone yields only to a knight who completes
@@ -191,8 +191,8 @@ export const ExcalibellTrial: React.FC<ExcalibellTrialProps> = ({ engineRef, isE
       )}
 
       {phase !== 'INTRO' && !showResult && (
-        <>
-          <div className="absolute left-6 top-1/2 -translate-y-1/2 w-[24%] max-w-xs bg-[#1A1926]/85 border-4 border-[#F4B41A] p-3 rounded shadow-pixel-box-gold font-pixel">
+        <div className="absolute right-6 top-1/2 -translate-y-1/2 w-[24%] max-w-xs flex flex-col gap-3">
+          <div className="bg-[#1A1926]/85 border-4 border-[#F4B41A] p-3 rounded shadow-pixel-box-gold font-pixel">
             <span className="text-[8px] text-[#A7A9BE] block tracking-wider">GOBLET SQUATS</span>
             <span className="text-3xl text-[#F4B41A]">{reps}</span>
             <span className="text-sm text-[#A7A9BE]"> / {GOAL}</span>
@@ -203,7 +203,7 @@ export const ExcalibellTrial: React.FC<ExcalibellTrialProps> = ({ engineRef, isE
               {wrongMove ? 'ONLY GOBLET SQUATS LOOSEN THE STONE!' : 'HIPS BELOW KNEES • DRIVE UP'}
             </p>
           </div>
-          <div className="absolute right-6 top-1/2 -translate-y-1/2 w-[24%] max-w-xs bg-[#1A1926]/85 border-4 border-[#38B6FF] p-3 rounded shadow-pixel-box font-pixel text-right">
+          <div className="bg-[#1A1926]/85 border-4 border-[#38B6FF] p-3 rounded shadow-pixel-box font-pixel text-right">
             <span className="text-[8px] text-[#A7A9BE] block tracking-wider">SANDS</span>
             <span ref={clockRef} className="text-3xl text-[#38B6FF]">{LIMIT.toFixed(1)}</span>
             <span className="text-sm text-[#A7A9BE]">s</span>
@@ -212,7 +212,7 @@ export const ExcalibellTrial: React.FC<ExcalibellTrialProps> = ({ engineRef, isE
             </div>
             <p className="text-[8px] mt-2 text-[#A7A9BE] leading-relaxed">THE STONE IS LISTENING</p>
           </div>
-        </>
+        </div>
       )}
 
       {showResult && (

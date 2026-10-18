@@ -34,7 +34,6 @@ import {
   Skull, 
   RotateCcw,
   Zap,
-  Target,
   Users
 } from 'lucide-react';
 
@@ -973,7 +972,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       {/* TOP COMBAT HUD: PLAYER (LEFT) VS MONSTER (RIGHT) */}
       <div className="flex items-start justify-between w-full">
         {/* PLAYER STATUS (LEFT) */}
-        <div className="kk-hud-card kk-hud-card--player p-3 max-w-sm w-full">
+        <div className="kk-hud-card kk-hud-card--player p-3 w-[min(384px,34vw)] flex-shrink-0">
           {/* Header row: Gem (Level) + Engraved Banner (Name & Block) */}
           <div className="flex items-center gap-2 mb-2">
             <div className="kk-hud-gem" title={`Knight Level ${knightLevel}`}>
@@ -1008,165 +1007,97 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           </div>
         </div>
 
-        {/* COMBAT LOG BANNER (CENTER) */}
-        <div className="hidden lg:block kk-hud-dispatch px-4 py-2 max-w-md text-center">
-          <span className="font-pixel text-[8px] text-[#A7A9BE] block mb-0.5 tracking-wider">✦ BATTLE DISPATCH ✦</span>
-          <p className="font-mono text-xs text-[#F4B41A] truncate">{recentCombatLog}</p>
-        </div>
-
-        {/* MULTI-MONSTER STATUS & REAL-TIME INTENT SQUAD (RIGHT) */}
-        <div className="flex flex-col gap-2 max-w-sm w-full">
-          {/* Header indicator */}
-          <div className="flex items-center justify-between px-1">
-            <span className="font-pixel text-[9px] text-[#A7A9BE] flex items-center gap-1.5">
-              <Users className="w-3 h-3 text-[#FF3366]" />
-              {isExpeditionMode ? (
-                <>
-                  <span className="text-[#F4B41A] font-bold">
-                    [{currentMap.replace(/_/g, ' ')} • LVL {currentLevel}]
-                  </span>
-                  <span className="text-white font-bold">
-                    BATTLE {expeditionStep + 1}/{expeditionEncounters.length}
-                  </span>
-                </>
-              ) : (
-                <>
-                  {ENCOUNTERS[currentEncounterIndex]?.map && (
-                    <span className="text-[#FF3366] font-bold">
-                      [{ENCOUNTERS[currentEncounterIndex].map!.replace(/_/g, ' ')}]
-                    </span>
-                  )}
-                  {ENCOUNTERS[currentEncounterIndex]?.name.toUpperCase() || 'ENCOUNTER'} ({monsters.filter(m => m.currentHp > 0).length}/{monsters.length})
-                </>
-              )}
-            </span>
-            {monsters.filter(m => m.currentHp > 0).length > 1 && (
-              <span className="font-pixel text-[8px] text-[#F4B41A] flex items-center gap-1">
-                <Target className="w-2.5 h-2.5" /> [▲/▼] TARGET
-              </span>
-            )}
-          </div>
-
-          {/* Monster Cards List */}
+        {/* MONSTER NAMEPLATES (TOP RIGHT): one slim plate per foe, left-to-right in formation order, kept
+            short so the squad standing below them stays in view */}
+        <div className="flex items-start justify-end gap-2 flex-1 min-w-0 pl-4">
           {monsters.map((m, idx) => {
             const isTargeted = idx === targetedMonsterIndex;
             const isDead = m.currentHp <= 0;
-
-            const cardClass = isDead
-              ? 'kk-hud-card--dead'
-              : isTargeted
-              ? 'kk-hud-card--targeted'
-              : 'kk-hud-card--monster';
-
+            const cardClass = isDead ? 'kk-hud-card--dead' : isTargeted ? 'kk-hud-card--targeted' : 'kk-hud-card--monster';
             const intentCritical = m.intent.remainingSeconds < 1.2;
             const intentProgress = Math.max(0, Math.min(100, (1 - m.intent.remainingSeconds / m.intent.durationSeconds) * 100));
+            const affixColor = m.outlineColor ? `#${m.outlineColor.toString(16).padStart(6, '0')}` : '#F4B41A';
 
             return (
               <div
                 key={m.instanceId || idx}
                 onClick={() => !isDead && setTargetedMonsterIndex(idx)}
-                className={`kk-hud-card ${cardClass} p-2.5 transition-all duration-150 cursor-pointer ${
-                  isTargeted ? 'scale-102 z-10' : 'hover:scale-[1.01]'
-                }`}
+                className={`kk-hud-card kk-hud-plate ${cardClass} cursor-pointer`}
               >
-                {/* Name, Target Badge, Gem, & Block */}
-                <div className="flex items-center gap-2 mb-1.5">
-                  <div className="kk-hud-gem" title={`Level ${m.level}`}>
+                {isTargeted && !isDead && <span className="kk-hud-plate__flag">TARGET</span>}
+
+                {/* Level gem, name, element / affix and block */}
+                <div className="flex items-center gap-1.5">
+                  <div className="kk-hud-gem kk-hud-gem--sm" title={`Level ${m.level}`}>
                     <span>{m.level}</span>
                   </div>
-
-                  <div className="kk-hud-banner">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      {isTargeted && !isDead && (
-                        <span className="bg-[#F4B41A] text-[#0F0E17] font-pixel text-[7px] px-1 py-0.2 rounded font-bold animate-pulse flex-shrink-0">
-                          TARGET
-                        </span>
-                      )}
-                      <span className={`font-pixel text-[9px] truncate ${isTargeted ? 'text-[#F4B41A]' : 'text-white'}`}>
-                        {m.name}
-                      </span>
-                      {m.element && !isDead && (
-                        <span
-                          className="font-pixel text-[7px] px-1 py-0.2 rounded border font-bold flex-shrink-0"
-                          style={{ borderColor: ELEMENT_INFO[m.element].color, color: ELEMENT_INFO[m.element].color, backgroundColor: 'rgba(0,0,0,0.5)' }}
-                          title={`${ELEMENT_INFO[m.element].label} monster`}
-                        >
-                          {ELEMENT_INFO[m.element].icon} {ELEMENT_INFO[m.element].label}
-                        </span>
-                      )}
-                      {m.affix && !isDead && (
-                        <span
-                          className="font-pixel text-[7px] px-1 py-0.2 rounded border uppercase font-bold flex-shrink-0"
-                          style={{
-                            borderColor: m.outlineColor ? `#${m.outlineColor.toString(16).padStart(6, '0')}` : '#F4B41A',
-                            color: m.outlineColor ? `#${m.outlineColor.toString(16).padStart(6, '0')}` : '#F4B41A',
-                            backgroundColor: 'rgba(0,0,0,0.5)',
-                          }}
-                        >
-                          {m.affix}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      {m.block > 0 && !isDead && (
-                        <div className="flex items-center space-x-1 bg-[#38B6FF] text-[#0F0E17] px-1.5 py-0.2 rounded font-pixel text-[8px] font-bold shadow-sm">
-                          <Shield className="w-2.5 h-2.5" />
-                          <span>{m.block}</span>
-                        </div>
-                      )}
-
-                      {isDead && (
-                        <span className="font-pixel text-[8px] text-[#A7A9BE] flex items-center gap-1">
-                          <Skull className="w-2.5 h-2.5 text-[#A7A9BE]" /> SLAIN
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  <span className={`font-pixel text-[8px] leading-tight truncate flex-1 min-w-0 ${isTargeted && !isDead ? 'text-[#F4B41A]' : 'text-white'}`}>
+                    {m.name}
+                  </span>
+                  {m.element && !isDead && (
+                    <span
+                      className="kk-hud-plate__chip"
+                      style={{ borderColor: ELEMENT_INFO[m.element].color, color: ELEMENT_INFO[m.element].color }}
+                      title={`${ELEMENT_INFO[m.element].label} monster`}
+                    >
+                      {ELEMENT_INFO[m.element].icon}
+                    </span>
+                  )}
+                  {m.block > 0 && !isDead && (
+                    <span className="flex items-center gap-0.5 bg-[#38B6FF] text-[#0F0E17] px-1 rounded font-pixel text-[7px] font-bold flex-shrink-0">
+                      <Shield className="w-2 h-2" />
+                      {m.block}
+                    </span>
+                  )}
+                  {isDead && (
+                    <span className="font-pixel text-[7px] text-[#A7A9BE] flex items-center gap-1 flex-shrink-0">
+                      <Skull className="w-2.5 h-2.5" /> SLAIN
+                    </span>
+                  )}
                 </div>
 
-                {/* HP Bar Vial */}
                 {!isDead && (
-                  <div className="space-y-0.5 mb-1.5">
-                    <div className="flex justify-between text-[8px] font-mono text-[#A7A9BE] px-0.5">
-                      <span className="font-pixel text-[7px] text-[#FF3366] tracking-wider">HP</span>
-                      <span className="font-bold text-white">{m.currentHp} / {m.maxHp}</span>
-                    </div>
-                    <div className="kk-hud-vial h-2.5">
+                  <>
+                    {/* HP vial with the numbers set into it */}
+                    <div className="kk-hud-vial h-[11px] mt-1">
                       <div
                         className="kk-hud-vial__bar kk-hud-vial__bar--monster"
                         style={{ width: `${Math.max(0, Math.min(100, (m.currentHp / m.maxHp) * 100))}%` }}
                       />
-                    </div>
-                  </div>
-                )}
-
-                {/* Intent Plaque & Countdown Bar */}
-                {!isDead && (
-                  <div className="kk-hud-intent">
-                    <div className="flex items-center justify-between text-[8px] font-pixel text-[#E6E4EE] mb-1">
-                      <span className="flex items-center gap-1.5 truncate max-w-[170px]">
-                        {m.intent.type === 'DEFEND' ? (
-                          <Shield className="w-2.5 h-2.5 text-[#38B6FF] flex-shrink-0" />
-                        ) : m.intent.type === 'BUFF' ? (
-                          <span className="text-[#F4B41A] text-[9px] flex-shrink-0">✦</span>
-                        ) : (
-                          <span className="text-[#FF3366] text-[9px] flex-shrink-0">⚔</span>
-                        )}
-                        <span className="truncate">{m.intent.name}</span>
-                      </span>
-                      <span className="font-bold text-[#F4B41A] flex-shrink-0">
-                        {m.intent.type === 'DEFEND' ? `+${m.intent.block ?? 25} SHIELD` : `${m.intent.damage} DMG`}
-                      </span>
+                      <span className="kk-hud-vial__label">{m.currentHp} / {m.maxHp}</span>
                     </div>
 
-                    <div className="kk-hud-intent__charge">
-                      <div
-                        className={`kk-hud-intent__bar ${intentCritical ? 'kk-hud-intent__bar--critical' : ''}`}
-                        style={{ width: `${intentProgress}%` }}
-                      />
+                    {/* Intent: what lands when the charge bar fills */}
+                    <div className="kk-hud-intent mt-1">
+                      <div className="flex items-center justify-between gap-1 text-[7px] font-pixel text-[#E6E4EE] mb-0.5">
+                        <span className="flex items-center gap-1 min-w-0">
+                          {m.intent.type === 'DEFEND' ? (
+                            <Shield className="w-2.5 h-2.5 text-[#38B6FF] flex-shrink-0" />
+                          ) : m.intent.type === 'BUFF' ? (
+                            <span className="text-[#F4B41A] flex-shrink-0">✦</span>
+                          ) : (
+                            <span className="text-[#FF3366] flex-shrink-0">⚔</span>
+                          )}
+                          <span className="truncate">{m.intent.name}</span>
+                        </span>
+                        <span className={`font-bold flex-shrink-0 ${m.intent.type === 'DEFEND' ? 'text-[#38B6FF]' : 'text-[#F4B41A]'}`}>
+                          {m.intent.type === 'DEFEND' ? `+${m.intent.block ?? 25}` : m.intent.damage}
+                        </span>
+                      </div>
+                      <div className="kk-hud-intent__charge">
+                        <div
+                          className={`kk-hud-intent__bar ${intentCritical ? 'kk-hud-intent__bar--critical' : ''}`}
+                          style={{ width: `${intentProgress}%` }}
+                        />
+                      </div>
                     </div>
-                  </div>
+
+                    {m.affix && (
+                      <span className="kk-hud-plate__affix" style={{ borderColor: affixColor, color: affixColor }}>
+                        {m.affix}
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
             );
@@ -1360,8 +1291,31 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
       {/* BOTTOM SLAY THE SPIRE 5-CARD HAND */}
       <div className="w-full mx-auto">
-        <div className="flex justify-end px-2 -mb-3">
-          <span className="font-pixel text-[9px] text-[#38B6FF] bg-[#0F0E17]/80 px-2 py-1 border border-[#2E2B44]">
+        <div className="flex items-end justify-between gap-4 px-2 -mb-3">
+          {/* BATTLE DISPATCH: where we are and what just happened */}
+          <div className="kk-hud-dispatch px-3 py-1.5 min-w-0 max-w-[45%]">
+            <span className="font-pixel text-[7px] text-[#A7A9BE] flex items-center gap-1.5 mb-0.5 truncate">
+              <Users className="w-2.5 h-2.5 text-[#FF3366] flex-shrink-0" />
+              {isExpeditionMode ? (
+                <>
+                  <span className="text-[#F4B41A]">{currentMap.replace(/_/g, ' ')} • LVL {currentLevel}</span>
+                  <span className="text-white">BATTLE {expeditionStep + 1}/{expeditionEncounters.length}</span>
+                </>
+              ) : (
+                <>
+                  {ENCOUNTERS[currentEncounterIndex]?.map && (
+                    <span className="text-[#FF3366]">{ENCOUNTERS[currentEncounterIndex].map!.replace(/_/g, ' ')}</span>
+                  )}
+                  <span className="text-white truncate">
+                    {ENCOUNTERS[currentEncounterIndex]?.name.toUpperCase() || 'ENCOUNTER'} ({monsters.filter(m => m.currentHp > 0).length}/{monsters.length})
+                  </span>
+                </>
+              )}
+            </span>
+            <p className="font-mono text-[11px] leading-tight text-[#F4B41A] truncate">{recentCombatLog}</p>
+          </div>
+          <span className="font-pixel text-[9px] text-[#38B6FF] bg-[#0F0E17]/80 px-2 py-1 border border-[#2E2B44] flex-shrink-0">
+            {monsters.filter(m => m.currentHp > 0).length > 1 && <>[▲ / ▼] TARGET • </>}
             [◀ / ▶] SELECT • [ENTER] HOW TO • [SPACE] DEMO REP
           </span>
         </div>
