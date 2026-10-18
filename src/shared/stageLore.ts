@@ -111,6 +111,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Peace reigned so long as the sacred iron carillon anchored the night.',
         ],
         mood: 'former_glory',
+        image: '/assets/cinematics/dark_forest/chapter1_glory.jpg',
       },
       {
         chapter: 'THE ROT: STRANGLING NIGHT',
@@ -121,6 +122,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'The celestial stags withered into skeletal nightmares with rotting antlers.',
         ],
         mood: 'ruin',
+        image: '/assets/cinematics/dark_forest/chapter2_ruin.jpg',
       },
       {
         chapter: 'THE APEX: ANCIENT TREANT',
@@ -131,6 +133,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'It weeps tears of boiling amber, crushing intruders into fertilizer for the dark.',
         ],
         mood: 'apex_terror',
+        image: '/assets/cinematics/dark_forest/chapter3_apex.jpg',
       },
       {
         chapter: 'THE SACRAMENT: FIRE OF THE SOUL',
@@ -140,6 +143,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'No vine can hold a spirit tempered in holy iron.',
         ],
         mood: 'iron_vow',
+        image: '/assets/cinematics/dark_forest/chapter4_sacrament.jpg',
       },
     ],
   },
@@ -168,6 +172,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Oakhaven was the jewel of the realm, proud and welcoming.',
         ],
         mood: 'former_glory',
+        image: '/assets/cinematics/town_square/chapter1_glory.jpg',
       },
       {
         chapter: 'ABANDONMENT: THE CLOSED GATES',
@@ -178,6 +183,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Minstrels went mad, tavern brawlers formed rabid gangs, and escaped beasts claimed the streets.',
         ],
         mood: 'ruin',
+        image: '/assets/cinematics/town_square/chapter2_ruin.jpg',
       },
       {
         chapter: 'THE APEX: CARNIVAL OF CARNAGE',
@@ -188,6 +194,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'The music will not stop until their reign of madness is broken.',
         ],
         mood: 'apex_terror',
+        image: '/assets/cinematics/town_square/chapter3_apex.jpg',
       },
       {
         chapter: 'THE SACRAMENT: RECLAIM THE STREETS',
@@ -197,6 +204,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Silence the discordant strings with the clean ring of tempered steel.',
         ],
         mood: 'iron_vow',
+        image: '/assets/cinematics/town_square/chapter4_sacrament.jpg',
       },
     ],
   },
@@ -261,6 +269,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'The cistern was the kingdom’s lifegiving pulse, silent and dependable.',
         ],
         mood: 'former_glory',
+        image: '/assets/cinematics/sunken_cistern/chapter1_glory.jpg',
       },
       {
         chapter: 'THE FLOOD: RIFT FROM THE TRENCH',
@@ -271,6 +280,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Armored dredge-crabs and bioluminescent horrors nested in the stagnant sluices.',
         ],
         mood: 'ruin',
+        image: '/assets/cinematics/sunken_cistern/chapter2_ruin.jpg',
       },
       {
         chapter: 'THE APEX: TERROR OF THE DEEP',
@@ -281,6 +291,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'It will drown the world above if its coils are not severed.',
         ],
         mood: 'apex_terror',
+        image: '/assets/cinematics/sunken_cistern/chapter3_apex.jpg',
       },
       {
         chapter: 'THE SACRAMENT: STAND AGAINST THE TIDE',
@@ -290,6 +301,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Rise with the strength of the mountains that carved this stone.',
         ],
         mood: 'iron_vow',
+        image: '/assets/cinematics/sunken_cistern/chapter4_sacrament.jpg',
       },
     ],
   },
@@ -318,6 +330,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'For centuries, holy incantations kept the shadows at bay.',
         ],
         mood: 'former_glory',
+        image: '/assets/cinematics/cathedral_crypt/chapter1_glory.jpg',
       },
       {
         chapter: 'DESECRATION: THE BROKEN SEALS',
@@ -328,6 +341,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Now the martyrs weep as they strike at the living with rusted broadswords.',
         ],
         mood: 'ruin',
+        image: '/assets/cinematics/cathedral_crypt/chapter2_ruin.jpg',
       },
       {
         chapter: 'THE APEX: ARCHMAGE OF ASH',
@@ -338,6 +352,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'His sorcery feeds upon fear and hesitation.',
         ],
         mood: 'apex_terror',
+        image: '/assets/cinematics/cathedral_crypt/chapter3_apex.jpg',
       },
       {
         chapter: 'THE SACRAMENT: DELIVER THE LIGHT',
@@ -347,6 +362,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Let the thunder of your iron crack their false immortality.',
         ],
         mood: 'iron_vow',
+        image: '/assets/cinematics/cathedral_crypt/chapter4_sacrament.jpg',
       },
     ],
   },
@@ -375,6 +391,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Death was dignified, quiet, and sacred.',
         ],
         mood: 'former_glory',
+        image: '/assets/cinematics/blood_cemetery/chapter1_glory.jpg',
       },
       {
         chapter: 'THE BLEEDING: THE CRIMSON MOON',
@@ -385,6 +402,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Grave dust and rotten marrow fused under an unnatural, malignant hunger.',
         ],
         mood: 'ruin',
+        image: '/assets/cinematics/blood_cemetery/chapter2_ruin.jpg',
       },
       {
         chapter: 'THE APEX: THE GRAVE COLOSSUS',
@@ -395,6 +413,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'It seeks to drag all living breath beneath its crushing bulk.',
         ],
         mood: 'apex_terror',
+        image: '/assets/cinematics/blood_cemetery/chapter3_apex.jpg',
       },
       {
         chapter: 'THE SACRAMENT: HEAVY AND UNBOWED',
@@ -404,6 +423,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'You carry the grief of a kingdom. Do not let it bend your spine.',
         ],
         mood: 'iron_vow',
+        image: '/assets/cinematics/blood_cemetery/chapter4_sacrament.jpg',
       },
     ],
   },
@@ -432,6 +452,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'The ramparts were the shield of the kingdom, proud and unassailable.',
         ],
         mood: 'former_glory',
+        image: '/assets/cinematics/belfry_ramparts/chapter1_glory.jpg',
       },
       {
         chapter: 'THE SILENCE: THE BELLS CAST DOWN',
@@ -442,6 +463,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Gargoyles broke from their perches, ravenous for the flesh of the faithful.',
         ],
         mood: 'ruin',
+        image: '/assets/cinematics/belfry_ramparts/chapter2_ruin.jpg',
       },
       {
         chapter: 'THE APEX: THE STORM VANGUARD',
@@ -452,6 +474,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'He fights with the fury of a hurricane that knows neither mercy nor fatigue.',
         ],
         mood: 'apex_terror',
+        image: '/assets/cinematics/belfry_ramparts/chapter3_apex.jpg',
       },
       {
         chapter: 'THE SACRAMENT: DEFY THE TEMPEST',
@@ -461,6 +484,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Each rep calls down your own thunder. Break the vanguard’s wings.',
         ],
         mood: 'iron_vow',
+        image: '/assets/cinematics/belfry_ramparts/chapter4_sacrament.jpg',
       },
     ],
   },
@@ -489,6 +513,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'They stood as silent, noble protectors of the kingdom’s greatest treasures.',
         ],
         mood: 'former_glory',
+        image: '/assets/cinematics/cathedral_vault/chapter1_glory.jpg',
       },
       {
         chapter: 'THE PARANOIA: THE LOCKED TOMB',
@@ -499,6 +524,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Now razor gears turn eternally, turning bone to powder in the golden halls.',
         ],
         mood: 'ruin',
+        image: '/assets/cinematics/cathedral_vault/chapter2_ruin.jpg',
       },
       {
         chapter: 'THE APEX: AUTOMATON OVERLORD',
@@ -509,6 +535,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'It knows no pain, no fear, and no exhaustion.',
         ],
         mood: 'apex_terror',
+        image: '/assets/cinematics/cathedral_vault/chapter3_apex.jpg',
       },
       {
         chapter: 'THE SACRAMENT: BONE OVER BRASS',
@@ -518,6 +545,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Swing the bell until their springs shatter and their gears fly free.',
         ],
         mood: 'iron_vow',
+        image: '/assets/cinematics/cathedral_vault/chapter4_sacrament.jpg',
       },
     ],
   },
@@ -546,6 +574,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Every swing of the hammer was a prayer; every quench a baptism of strength.',
         ],
         mood: 'former_glory',
+        image: '/assets/cinematics/volcanic_forge/chapter1_glory.jpg',
       },
       {
         chapter: 'THE CATACLYSM: THE CALDERA BURSTS',
@@ -556,6 +585,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'From the magma depths crawled cinder imps and hellhounds to dance in the ashes.',
         ],
         mood: 'ruin',
+        image: '/assets/cinematics/volcanic_forge/chapter2_ruin.jpg',
       },
       {
         chapter: 'THE APEX: MAGMA DRAGON',
@@ -566,6 +596,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'It guards the descent to the cosmic void with incinerating fury.',
         ],
         mood: 'apex_terror',
+        image: '/assets/cinematics/volcanic_forge/chapter3_apex.jpg',
       },
       {
         chapter: 'THE SACRAMENT: TEMPER THE SOUL',
@@ -575,6 +606,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Drive through the heat. Lift until your sweat boils. Slay the wyrm.',
         ],
         mood: 'iron_vow',
+        image: '/assets/cinematics/volcanic_forge/chapter4_sacrament.jpg',
       },
     ],
   },
@@ -603,6 +635,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'The altar was a place of radiant truth and supreme enlightenment.',
         ],
         mood: 'former_glory',
+        image: '/assets/cinematics/eldritch_altar/chapter1_glory.jpg',
       },
       {
         chapter: 'THE TEAR: THE EYES IN THE DARK',
@@ -613,6 +646,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Monstrous cosmic geometry bled into reality, driving the clergy insane.',
         ],
         mood: 'ruin',
+        image: '/assets/cinematics/eldritch_altar/chapter2_ruin.jpg',
       },
       {
         chapter: 'THE APEX: THE ELDRITCH HORROR',
@@ -623,6 +657,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'To look upon it is to invite madness; to fight it requires pure physical conviction.',
         ],
         mood: 'apex_terror',
+        image: '/assets/cinematics/eldritch_altar/chapter3_apex.jpg',
       },
       {
         chapter: 'THE SACRAMENT: THE ANCHOR OF FLESH',
@@ -632,6 +667,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Every rep proves you exist. Every swing carves a scar into the abyss.',
         ],
         mood: 'iron_vow',
+        image: '/assets/cinematics/eldritch_altar/chapter4_sacrament.jpg',
       },
     ],
   },
@@ -660,6 +696,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Under his watchful gaze, the realm prospered for a thousand winters.',
         ],
         mood: 'former_glory',
+        image: '/assets/cinematics/obsidian_throne/chapter1_glory.jpg',
       },
       {
         chapter: 'THE BETRAYAL: THE UNBURDENING',
@@ -670,6 +707,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'In doing so, he cursed the world to atrophy — a realm where nothing grows and nothing dies.',
         ],
         mood: 'ruin',
+        image: '/assets/cinematics/obsidian_throne/chapter2_ruin.jpg',
       },
       {
         chapter: 'THE SOVEREIGN: THE DARK EMPEROR',
@@ -680,6 +718,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'He believes effort is meaningless and that all things must surrender to rot.',
         ],
         mood: 'apex_terror',
+        image: '/assets/cinematics/obsidian_throne/chapter3_apex.jpg',
       },
       {
         chapter: 'THE SACRAMENT: THE FINAL BURDEN',
@@ -690,6 +729,7 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Break his throne. Cleanse the kingdom.',
         ],
         mood: 'iron_vow',
+        image: '/assets/cinematics/obsidian_throne/chapter4_sacrament.jpg',
       },
     ],
   },
