@@ -133,6 +133,11 @@ class AudioManager {
     }
   }
 
+  /** Whether this track is the one playing now. */
+  public isBgmTrackPlaying(url: string): boolean {
+    return Boolean(this.bgmAudio && this.isBgmPlaying() && (this.bgmAudio.src === url || this.bgmAudio.src.endsWith(url)));
+  }
+
   public isBgmPlaying(): boolean {
     return Boolean(this.bgmAudio && !this.bgmAudio.paused && !this.bgmAudio.ended);
   }

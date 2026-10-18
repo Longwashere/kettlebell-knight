@@ -14,12 +14,15 @@ import { audioManager } from '../../shared/AudioManager';
 import { GameEngine, BATTLE_MAPS, getMapBattleMusic } from '../engine/GameEngine';
 import { useTVRemote } from '../hooks/useTVRemote';
 import { registerDebug } from '../debug/agentBridge';
-import { getMapConfig, getExpeditionEncounters, getNextCampaignMap } from '../../shared/expeditionEngine';
+import { getMapConfig, getExpeditionEncounters, getNextCampaignMap, mapTier } from '../../shared/expeditionEngine';
 import { profileManager, loadoutFor, type LevelUpEvent, type MasteryLevelUp } from '../../shared/ProfileManager';
 import { SHOP_ITEMS } from '../../shared/shopItems';
 import { CardUnlockCelebration } from './CardUnlockCelebration';
 import { MasteryCelebration } from './MasteryCelebration';
 import { PauseMenu } from './PauseMenu';
+import { BattleIntro, introTimeline, introHudClass, type IntroStep } from './BattleIntro';
+import { BATTLE_QUOTES, nextBattleQuote, quoteHoldMs, type BattleQuote } from './battleQuotes';
+import { STAGE_LORE } from '../../shared/stageLore';
 import type { CardUnlockDef } from '../../shared/cardUnlocks';
 import { CombatCardView } from './CombatCardView';
 import { rollSecretTrial, type SecretTrialId } from '../../shared/secretTrials';
@@ -179,6 +182,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     }
     return [ENCOUNTERS[safeEncounterIndex]];
   }, [isExpeditionMode, currentMap, currentLevel, safeEncounterIndex]);
+  /** The apex fight: the last encounter of a map's level 5. */
+  const isBossEncounter = (step: number) => isExpeditionMode && currentLevel >= 5 && step === expeditionEncounters.length - 1;
 
   // Sync state when expedition props change
   useEffect(() => {
@@ -200,10 +205,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         setFightGold(0);
         setBattleStatus('FIGHTING');
         battleStatusRef.current = 'FIGHTING';
-        if (engineRef.current) {
-          const customBg = first.background ?? (first.map ? BATTLE_MAPS[first.map] : undefined);
-          engineRef.current.setMonsters(newMonsters, customBg);
-        }
+        const customBg = first.background ?? (first.map ? BATTLE_MAPS[first.map] : undefined);
+        const loaded = engineRef.current?.setMonsters(newMonsters, customBg);
+        // A new expedition on a battle screen that's already up (the first one opens from the mount effect)
+        if (hasInitializedRef.current) beginIntro(false, false, loaded);
       }
     }
   }, [expeditionMapId, expeditionLevel]);
@@ -242,6 +247,78 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   pausedRef.current = paused;
   const victoryFallbackTimerRef = useRef<number | null>(null);
 
+  // Opening of each fight (BattleIntro): the monster clock and reps hold until FIGHT!, and the first rep,
+  // Enter or Back skips straight to it. Starts hidden so the HUD doesn't flash in before the engine is ready.
+  const [intro, setIntro] = useState<{ step: IntroStep; short: boolean; boss: boolean; quote?: BattleQuote }>({ step: 'scene', short: false, boss: false });
+  const introRef = useRef(intro);
+  introRef.current = intro;
+  const introLockedRef = useRef<boolean>(true);
+  const introTimersRef = useRef<number[]>([]);
+  const clearIntroTimers = () => {
+    introTimersRef.current.forEach((t) => clearTimeout(t));
+    introTimersRef.current = [];
+  };
+  const setIntroStep = useCallback((step: IntroStep) => {
+    introLockedRef.current = step === 'scene' || step === 'quote' || step === 'title' || step === 'hud';
+    setIntro((prev) => ({ ...prev, step }));
+    if (step === 'title') {
+      audioManager.play('charge_long', { vol: 0.45 });
+      // Push in toward the foes as they're named, kept inside the backdrop
+      if (!introRef.current.short) engineRef.current?.triggerCameraZoom(1.1, 232, 128, 110);
+    }
+    if (step === 'fight') {
+      audioManager.play('impact_heavy', { vol: 0.8 });
+      audioManager.play('slash_heavy', { vol: 0.6, delay: 0.04 });
+    }
+  }, [engineRef]);
+  const runIntroTimeline = useCallback((steps: [IntroStep, number][]) => {
+    clearIntroTimers();
+    for (const [step, at] of steps) introTimersRef.current.push(window.setTimeout(() => setIntroStep(step), at));
+  }, [setIntroStep]);
+  const introTokenRef = useRef(0);
+  /**
+   * Plays the opening: full for a new fight, short (no HUD re-entry) between an expedition's encounters.
+   * `loaded` is the engine's setMonsters: the timeline waits for the rigs, so a slow load doesn't eat it.
+   */
+  const beginIntro = useCallback(async (short: boolean, boss = false, loaded?: Promise<unknown>) => {
+    clearIntroTimers();
+    introLockedRef.current = true;
+    const token = ++introTokenRef.current;
+    // A full opening reads out a knightly maxim before the title (battleQuotes.ts)
+    const quote = short ? undefined : nextBattleQuote();
+    setIntro({ step: short ? 'title' : 'scene', short, boss, quote });
+    await loaded?.catch(() => undefined);
+    if (token !== introTokenRef.current || !introLockedRef.current) return; // replaced or skipped meanwhile
+    if (!short) {
+      audioManager.play('rune', { vol: 0.5 });
+      if (boss) audioManager.play('roar', { vol: 0.7, delay: 0.6 + (quote ? quoteHoldMs(quote) / 1000 : 0) });
+    } else {
+      audioManager.play('charge', { vol: 0.4 });
+    }
+    runIntroTimeline(introTimeline(short, quote ? quoteHoldMs(quote) : 0));
+  }, [runIntroTimeline]);
+  /** Enter / Back during the quote: on to the title plate (the rest of the opening plays as usual). */
+  const skipQuote = useCallback(() => {
+    introTokenRef.current++;
+    runIntroTimeline(introTimeline(false, 1, 'title'));
+  }, [runIntroTimeline]);
+  /** Jumps to FIGHT! (and on to play) from anywhere in the opening. */
+  const skipIntro = useCallback(() => {
+    if (!introLockedRef.current) return;
+    clearIntroTimers();
+    introTokenRef.current++;
+    setIntroStep('fight');
+    introTimersRef.current.push(window.setTimeout(() => setIntroStep('done'), 700));
+  }, [setIntroStep]);
+  /** No opening (dev bridge encounters): straight to play. */
+  const endIntro = useCallback(() => {
+    clearIntroTimers();
+    introTokenRef.current++;
+    introLockedRef.current = false;
+    setIntro((prev) => ({ ...prev, step: 'done' }));
+  }, []);
+  useEffect(() => clearIntroTimers, []);
+
   const hasInitializedRef = useRef<boolean>(false);
 
   // Initialize Battle on mount & Sync with Engine (subsequent transitions are handled by their action functions)
@@ -260,8 +337,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       : ENCOUNTERS[currentEncounterIndex];
     const customBg = curEnc?.background ?? (curEnc?.map ? BATTLE_MAPS[curEnc.map] : undefined);
     engineRef.current.resetKnight?.();
-    engineRef.current.setMonsters(monsters, customBg);
-    audioManager.play('level_up');
+    beginIntro(false, isBossEncounter(expeditionStep), engineRef.current.setMonsters(monsters, customBg));
   }, [isEngineReady, engineRef]);
 
   // Leaving battle: remove monsters from the stage and free their rigs
@@ -293,11 +369,19 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
   // Background Music: Signature instrumental battle soundtrack for the current map.
   // Kept playing continuously through encounters, victories, defeats, and map select
-  // until the player returns to the Town Hub.
+  // until the player returns to the Town Hub. The first fight on a map opens in silence (any other track is
+  // stopped) and its track starts on FIGHT!, so the intro and its quote play without music under them.
+  const bgmStartedRef = useRef<string | null>(null);
   useEffect(() => {
     const musicUrl = getMapBattleMusic(currentMap);
-    audioManager.playBgm(musicUrl, 0.65);
-  }, [currentMap]);
+    if (bgmStartedRef.current === musicUrl) return;
+    if (audioManager.isBgmTrackPlaying(musicUrl) || intro.step === 'fight' || intro.step === 'done') {
+      audioManager.playBgm(musicUrl, 0.65);
+      bgmStartedRef.current = musicUrl;
+    } else {
+      audioManager.stopBgm();
+    }
+  }, [currentMap, intro.step]);
 
   // Real-Time Multi-Monster Attack ATB Timer Loop
   useEffect(() => {
@@ -310,7 +394,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       const now = performance.now();
       const dt = (now - lastTime) / 1000;
       lastTime = now;
-      if (atbFrozenRef.current || pausedRef.current) return;
+      if (atbFrozenRef.current || pausedRef.current || introLockedRef.current) return;
 
       // Advance every attack timer from the latest state; attacks fire outside the state update so
       // they run exactly once (React may replay updater functions)
@@ -471,6 +555,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
    * If the card reaches required reps, it activates and damages monster / grants block!
    */
   const handleApplyRep = useCallback((exercise: ExerciseType, power: number = 80, form: number = 1.0) => {
+    // A rep during the opening skips it and counts
+    if (introLockedRef.current && battleStatusRef.current === 'FIGHTING') skipIntro();
     if (battleStatusRef.current !== 'FIGHTING' || isAwaitingVictoryRef.current || pausedRef.current) return;
 
     // Record rep progression toward card unlocks
@@ -657,7 +743,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
     // The deck's own hand: a level-up during this rep may have rebound the cards
     setHand(deckManagerRef.current.getHand());
-  }, [engineRef, isExpeditionMode, expeditionStep, expeditionEncounters, currentMap, currentLevel, totalLevelReps, grantXp, announceMastery, onSecretTrial]);
+  }, [engineRef, isExpeditionMode, expeditionStep, expeditionEncounters, currentMap, currentLevel, totalLevelReps, grantXp, announceMastery, onSecretTrial, skipIntro]);
 
   // Expose rep callback for NetworkManager telemetry
   useEffect(() => {
@@ -686,11 +772,12 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       battleStatusRef.current = 'FIGHTING';
       engineRef.current?.resetKnight?.();
       const customBg = nextTemplate.background ?? (nextTemplate.map ? BATTLE_MAPS[nextTemplate.map] : undefined);
-      engineRef.current?.setMonsters(newMonsters, customBg);
+      const loaded = engineRef.current?.setMonsters(newMonsters, customBg);
       deckManagerRef.current.initDeck(weaponIdRef.current, cardIdsRef.current);
       setHand(deckManagerRef.current.dealInitialHand());
       setRecentCombatLog(`Encounter ${nextStep + 1} of ${expeditionEncounters.length} commenced!`);
-      audioManager.play('level_up');
+      if (isBossEncounter(nextStep)) beginIntro(false, true, loaded);
+      else beginIntro(true, false, loaded);
     }
   };
 
@@ -713,11 +800,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     battleStatusRef.current = 'FIGHTING';
     engineRef.current?.resetKnight?.();
     const customBg = firstTemplate.background ?? (firstTemplate.map ? BATTLE_MAPS[firstTemplate.map] : undefined);
-    engineRef.current?.setMonsters(newMonsters, customBg);
+    const loaded = engineRef.current?.setMonsters(newMonsters, customBg);
     deckManagerRef.current.initDeck(weaponIdRef.current, cardIdsRef.current);
     setHand(deckManagerRef.current.dealInitialHand());
     setRecentCombatLog('Expedition restarted! Ready thy bell.');
-    audioManager.play('level_up');
+    beginIntro(false, isBossEncounter(0), loaded);
   };
 
   // Advance to next Level after conquering current level
@@ -743,11 +830,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       battleStatusRef.current = 'FIGHTING';
       engineRef.current?.resetKnight?.();
       const customBg = firstTemplate.background ?? (firstTemplate.map ? BATTLE_MAPS[firstTemplate.map] : undefined);
-      engineRef.current?.setMonsters(newMonsters, customBg);
+      const loaded = engineRef.current?.setMonsters(newMonsters, customBg);
       deckManagerRef.current.initDeck(weaponIdRef.current, cardIdsRef.current);
       setHand(deckManagerRef.current.dealInitialHand());
       setRecentCombatLog(`Level ${nextLvl} Expedition commenced!`);
-      audioManager.play('level_up');
+      beginIntro(false, false, loaded);
     } else {
       onExitBattle();
     }
@@ -759,7 +846,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     startEncounter(ENCOUNTERS[nextIdx], nextIdx);
   };
 
-  const startEncounter = (template: EncounterTemplate, index: number) => {
+  const startEncounter = (template: EncounterTemplate, index: number, withIntro = true) => {
     isAwaitingVictoryRef.current = false;
     if (victoryFallbackTimerRef.current) {
       clearTimeout(victoryFallbackTimerRef.current);
@@ -777,10 +864,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     battleStatusRef.current = 'FIGHTING';
     engineRef.current?.resetKnight?.();
     const customBg = template.background ?? (template.map ? BATTLE_MAPS[template.map] : undefined);
-    engineRef.current?.setMonsters(newMonsters, customBg);
+    const loaded = engineRef.current?.setMonsters(newMonsters, customBg);
     deckManagerRef.current.initDeck(weaponIdRef.current, cardIdsRef.current);
     setHand(deckManagerRef.current.dealInitialHand());
-    audioManager.play('level_up');
+    if (withIntro) beginIntro(false, false, loaded);
+    else endIntro();
   };
 
   const toggleFlip = useCallback((cardId: string | undefined) => {
@@ -847,6 +935,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             currentReps: hand[actionCardIndex].currentReps, requiredReps: hand[actionCardIndex].requiredReps }
         : null,
       frozen: atbFrozenRef.current,
+      intro: intro.step,
       paused,
       flippedCard: flippedCardId,
       rewardStep,
@@ -866,19 +955,19 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             return cat.id;
           });
           const template: EncounterTemplate = { id: 'debug', name: 'Debug Encounter', description: '', monsterIds };
-          startEncounter(template, currentEncounterIndex);
+          startEncounter(template, currentEncounterIndex, false);
           return;
         }
         // A single monster id (e.g. 'kraken') that isn't an encounter id starts a solo fight with it
         if (typeof which === 'string' && !ENCOUNTERS.some((e) => e.id === which) && MONSTER_CATALOG.some((c) => c.id === which || c.spriteType === which.toUpperCase())) {
           const cat = MONSTER_CATALOG.find((c) => c.id === which || c.spriteType === which.toUpperCase())!;
           const template: EncounterTemplate = { id: 'debug', name: 'Debug Encounter', description: '', monsterIds: [cat.id] };
-          startEncounter(template, currentEncounterIndex);
+          startEncounter(template, currentEncounterIndex, false);
           return;
         }
         const index = typeof which === 'number' ? which : ENCOUNTERS.findIndex((e) => e.id === which);
         if (!ENCOUNTERS[index]) throw new Error(`Unknown encounter "${which}". Known: ${ENCOUNTERS.map((e) => e.id).join(', ')}`);
-        startEncounter(ENCOUNTERS[index], index);
+        startEncounter(ENCOUNTERS[index], index, false);
       },
       // Plays a monster's move now, by move id or name (e.g. attack(0, 'wolf_phantom_pack'))
       attack: (slotIndex: number, move: string) => {
@@ -892,6 +981,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       moves: (slotIndex: number) => (MOVESETS[monstersRef.current[slotIndex]?.id] ?? []).map((t) => t.move),
       freeze: (on: boolean) => { atbFrozenRef.current = on; },
       pause: (on: boolean) => setPaused(on),
+      // Replays the fight opening: intro() full, intro(true) between-encounter, intro(false, true) boss
+      intro: (short = false, boss = false) => beginIntro(short, boss),
+      skipIntro: () => skipIntro(),
+      // Holds the opening on one step (no timers), for screenshots: introStep('fight')
+      introStep: (step: IntroStep) => { clearIntroTimers(); setIntroStep(step); },
+      // Every maxim (battleQuotes.ts), for checking how each one wraps
+      quote: (index: number) => setIntro((prev) => ({ ...prev, quote: BATTLE_QUOTES[index] })),
       // Drops every living foe to 1 HP, so the next hit wins the fight (victory screens, secret trial calls)
       weaken: () => commitMonsters((prev) => prev.map((m) => (m.currentHp > 0 ? { ...m, currentHp: 1 } : m))),
       focusCard: (index: number) => setFocusedCardIndex(Math.max(0, Math.min(hand.length - 1, index))),
@@ -955,6 +1051,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       setFocusedCardIndex((prev) => Math.min(hand.length - 1, prev + 1));
     },
     onSelect: () => {
+      if (introLockedRef.current && battleStatus === 'FIGHTING') {
+        if (intro.step === 'quote') skipQuote();
+        else skipIntro();
+        return;
+      }
       if (battleStatus !== 'FIGHTING') {
         if (battleStatus === 'ENCOUNTER_CLEARED') {
           continueReward(handleNextExpeditionEncounter);
@@ -971,7 +1072,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       }
     },
     onBack: () => {
-      if (battleStatus === 'EXPEDITION_VICTORY' && secretCall && onSecretTrial) continueReward(() => onSecretTrial(secretCall));
+      if (introLockedRef.current && battleStatus === 'FIGHTING') {
+        if (intro.step === 'quote') skipQuote();
+        else skipIntro();
+      }
+      else if (battleStatus === 'EXPEDITION_VICTORY' && secretCall && onSecretTrial) continueReward(() => onSecretTrial(secretCall));
       else if (battleStatus !== 'FIGHTING') continueReward(onExitBattle);
       else if (!isAwaitingVictoryRef.current) setPaused(true);
     },
@@ -994,12 +1099,15 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   }, [paused, engineRef]);
   useEffect(() => () => engineRef.current?.setPaused(false), [engineRef]);
 
+  // Stage whose colours and name the opening wears (a standalone encounter brings its own map)
+  const introMap: BattleMapId = isExpeditionMode ? currentMap : (ENCOUNTERS[currentEncounterIndex]?.map ?? currentMap);
+
   return (
     <div className="absolute inset-0 z-20 flex flex-col justify-between p-6 pointer-events-auto select-none">
       {/* TOP COMBAT HUD: PLAYER (LEFT) VS MONSTER (RIGHT) */}
       <div className="flex items-start justify-between w-full">
         {/* PLAYER STATUS (LEFT) */}
-        <div className="kk-hud-card kk-hud-card--player p-3 w-[min(384px,34vw)] flex-shrink-0">
+        <div className={`kk-hud-card kk-hud-card--player p-3 w-[min(384px,34vw)] flex-shrink-0 ${introHudClass(intro.step, intro.short, 'left')}`}>
           {/* Header row: Gem (Level) + Engraved Banner (Name & Block) */}
           <div className="flex items-center gap-2 mb-2">
             <div className="kk-hud-gem" title={`Knight Level ${knightLevel}`}>
@@ -1049,7 +1157,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
               <div
                 key={m.instanceId || idx}
                 onClick={() => !isDead && setTargetedMonsterIndex(idx)}
-                className={`kk-hud-card kk-hud-plate ${cardClass} cursor-pointer`}
+                className={`kk-hud-card kk-hud-plate ${cardClass} cursor-pointer ${introHudClass(intro.step, intro.short, 'right')}`}
+                style={{ '--intro-delay': `${120 + idx * 90}ms` } as React.CSSProperties}
               >
                 {isTargeted && !isDead && <span className="kk-hud-plate__flag">TARGET</span>}
 
@@ -1317,6 +1426,27 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         </div>
       )}
 
+      {battleStatus === 'FIGHTING' && (
+        <BattleIntro
+          step={intro.step}
+          short={intro.short}
+          map={introMap}
+          kicker={isExpeditionMode
+            ? (intro.short ? `BATTLE ${expeditionStep + 1} / ${expeditionEncounters.length}` : `LEVEL ${currentLevel} • ${(getMapConfig(currentMap).levels.find((l) => l.level === currentLevel)?.title ?? '').toUpperCase()}`)
+            : (ENCOUNTERS[currentEncounterIndex]?.name ?? 'SKIRMISH').toUpperCase()}
+          stageName={STAGE_LORE[introMap]?.stageName ?? introMap.replace(/_/g, ' ')}
+          epithet={STAGE_LORE[introMap]?.epithet}
+          quote={intro.quote}
+          chapter={[STAGE_LORE[introMap]?.actRoman, isExpeditionMode ? `STAGE ${mapTier(introMap) + 1}` : ''].filter(Boolean).join(' • ')}
+          levelLine={isExpeditionMode
+            ? `LEVEL ${currentLevel} • ${(getMapConfig(currentMap).levels.find((l) => l.level === currentLevel)?.title ?? '').toUpperCase()}`
+            : (ENCOUNTERS[currentEncounterIndex]?.name ?? '').toUpperCase()}
+          bossName={intro.boss
+            ? getMapConfig(currentMap).levels.find((l) => l.level === 5)?.title.replace(/^[^:]*:\s*/, '').toUpperCase()
+            : undefined}
+        />
+      )}
+
       {paused && (
         <PauseMenu
           fightGold={fightGold}
@@ -1339,7 +1469,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
       {/* BOTTOM SLAY THE SPIRE 5-CARD HAND */}
       <div className="w-full mx-auto">
-        <div className="flex items-end justify-between gap-4 px-2 -mb-3">
+        <div className={`flex items-end justify-between gap-4 px-2 -mb-3 ${introHudClass(intro.step, intro.short, 'up')}`}>
           {/* BATTLE DISPATCH: where we are and what just happened */}
           <div className="kk-hud-dispatch px-3 py-1.5 min-w-0 max-w-[45%]">
             <span className="font-pixel text-[7px] text-[#A7A9BE] flex items-center gap-1.5 mb-0.5 truncate">
@@ -1370,7 +1500,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
         {/* Hand of cards (CombatCardView), fanned; the focused card lifts */}
         <div className="kk-hand">
-          {hand.map((card, index) => (
+          {/* Not mounted until the HUD enters, so the hand deals in then */}
+          {introHudClass(intro.step, intro.short, 'up') !== 'kk-intro-hidden' && hand.map((card, index) => (
             <CombatCardView
               key={card.id}
               card={card}
