@@ -1594,6 +1594,7 @@ export class GameEngine {
       this.gameLayer.addChild(actor);
       actor.position.set(KNIGHT_HOME.x, KNIGHT_HOME.y);
       actor.scale.set(1);
+      actor.visible = true;
       this.playTrialPose('IDLE', true);
     }
     this.trialScene?.destroy();
@@ -3915,6 +3916,14 @@ export class GameEngine {
     if (slot && att) slot.setAttachment(att);
     this.equippedSlots.weapon = weaponId;
     this.equippedSlots.sword = weaponId;
+  }
+
+  /** Hides the knight in the open secret-trial scene (for capturing the empty set, e.g. cinematic art). */
+  public debugTrialActor(visible: boolean) {
+    const actor = this.trialScene?.detachActor();
+    if (!actor) return;
+    actor.visible = visible;
+    this.trialScene?.attachActor(actor);
   }
 
   public debugKnightWeapon(name: string) {

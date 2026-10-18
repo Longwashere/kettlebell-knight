@@ -4,7 +4,7 @@ export interface CinematicScene {
   chapter: string;
   subtitle: string;
   text: string[];
-  mood: 'former_glory' | 'ruin' | 'apex_terror' | 'iron_vow';
+  mood: 'former_glory' | 'ruin' | 'apex_terror' | 'legend' | 'iron_vow';
   image?: string;
 }
 
@@ -75,6 +75,17 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
         image: '/assets/cinematics/verdant_forest/chapter3_apex.jpg',
       },
       {
+        chapter: 'THE LEGEND: THE SWORD IN THE STONE',
+        subtitle: 'What the Old Pines Remember',
+        text: [
+          'Deep in the green, a bell-hilted blade sleeps in mossy granite. No arm has ever drawn it.',
+          'The druids say the stone was never listening for arms. It listens for legs.',
+          'Sink low and rise again beneath these pines, a hundred times and a hundred more, and one dusk the stone will rise from the moss to meet you.',
+        ],
+        mood: 'legend',
+        image: '/assets/cinematics/verdant_forest/chapter5_legend.jpg',
+      },
+      {
         chapter: 'THE SACRAMENT: CLEANSING IRON',
         subtitle: 'The Knight’s Burden',
         text: [
@@ -134,6 +145,17 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
         ],
         mood: 'apex_terror',
         image: '/assets/cinematics/dark_forest/chapter3_apex.jpg',
+      },
+      {
+        chapter: 'THE LEGEND: THE BLADE THAT WAITS',
+        subtitle: 'Whispers Among the Briars',
+        text: [
+          'The briars have not swallowed everything. Somewhere in the gloom, a sword of pale light still stands in its stone.',
+          'A king who could no longer rise from his throne set it there, for those who still could.',
+          'Squat deep in these woods, again and again. The stone is listening for knees that refuse to quit.',
+        ],
+        mood: 'legend',
+        image: '/assets/cinematics/dark_forest/chapter5_legend.jpg',
       },
       {
         chapter: 'THE SACRAMENT: FIRE OF THE SOUL',
@@ -197,6 +219,17 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
         image: '/assets/cinematics/town_square/chapter3_apex.jpg',
       },
       {
+        chapter: 'THE LEGEND: THE HIGH STRIKER',
+        subtitle: 'A Carnival Game for Giants',
+        text: [
+          'When the fair still came to Oakhaven, a striker stood in the square, and the mallet beside it was no toy.',
+          'Only one swing in a hundred ever rang its bell. The showman never sold that mallet; he said it picks its owner.',
+          'Swing hard in these streets, and swing often. Some night the lanterns will relight, and the bell will be waiting.',
+        ],
+        mood: 'legend',
+        image: '/assets/cinematics/town_square/chapter5_legend.jpg',
+      },
+      {
         chapter: 'THE SACRAMENT: RECLAIM THE STREETS',
         subtitle: 'The Knight’s Retribution',
         text: [
@@ -232,6 +265,17 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
           'Only the glowing eyes of rabid strays and the cold gleam of burglar knives.',
         ],
         mood: 'ruin',
+      },
+      {
+        chapter: 'THE LEGEND: THE STRIKER AT MIDNIGHT',
+        subtitle: 'When the Lanterns Relight',
+        text: [
+          'On certain nights a phantom fair returns to the square: striped tents, a painted pole, a brass bell at its peak.',
+          'It comes only for knights whose swings are heard across the rooftops.',
+          'So swing like you mean to wake the dead. The louder the iron, the sooner the music starts.',
+        ],
+        mood: 'legend',
+        image: '/assets/cinematics/town_square/chapter5_legend.jpg',
       },
       {
         chapter: 'THE TRIAL: PIERCE THE SHADOWS',
@@ -292,6 +336,17 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
         ],
         mood: 'apex_terror',
         image: '/assets/cinematics/sunken_cistern/chapter3_apex.jpg',
+      },
+      {
+        chapter: 'THE LEGEND: THE DROWNED ANCHOR',
+        subtitle: 'Chained Beneath the Black Water',
+        text: [
+          'The first kings sank an anchor at the heart of the cistern to hold the waters still. Its chain still hangs from the vault above.',
+          'The tide drags it ever downward, and the tide never tires.',
+          'Row the iron here, low and hard, until your back burns. Haul enough, and one day the chain will drift within your reach.',
+        ],
+        mood: 'legend',
+        image: '/assets/cinematics/sunken_cistern/chapter5_legend.jpg',
       },
       {
         chapter: 'THE SACRAMENT: STAND AGAINST THE TIDE',
@@ -355,6 +410,17 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
         image: '/assets/cinematics/cathedral_crypt/chapter3_apex.jpg',
       },
       {
+        chapter: 'THE LEGEND: THE LAST VIGIL',
+        subtitle: 'The Censer That Never Went Out',
+        text: [
+          'In the deepest chapel one censer still swings above a ring of candles that must never go dark.',
+          'Through the Lich’s winter, the martyrs kept them lit by circling iron around their heads, hour upon hour.',
+          'Trace the halo in these halls, round and round. The candles remember the motion, and they will call you to keep the vigil.',
+        ],
+        mood: 'legend',
+        image: '/assets/cinematics/cathedral_crypt/chapter5_legend.jpg',
+      },
+      {
         chapter: 'THE SACRAMENT: DELIVER THE LIGHT',
         subtitle: 'Lay the Martyrs to Rest',
         text: [
@@ -414,6 +480,17 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
         ],
         mood: 'apex_terror',
         image: '/assets/cinematics/blood_cemetery/chapter3_apex.jpg',
+      },
+      {
+        chapter: 'THE LEGEND: THE PALLBEARER’S GRAVE',
+        subtitle: 'A Coffin No Six Could Carry',
+        text: [
+          'Beneath the red moon lies a coffin too heavy for six pallbearers. They buried it with its weapon still inside.',
+          'The gravediggers swear it stirs for whoever lifts the most from the earth, back straight, hips driving, again and again.',
+          'Pull the dead weight up from this soil. When the eclipse comes, the grave will open for you. Only once.',
+        ],
+        mood: 'legend',
+        image: '/assets/cinematics/blood_cemetery/chapter5_legend.jpg',
       },
       {
         chapter: 'THE SACRAMENT: HEAVY AND UNBOWED',
@@ -477,6 +554,17 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
         image: '/assets/cinematics/belfry_ramparts/chapter3_apex.jpg',
       },
       {
+        chapter: 'THE LEGEND: THE GREAT BELL',
+        subtitle: 'It Tolls With the Storm',
+        text: [
+          'The greatest bell of Aethelgard was never cast down. It hangs alone above the ramparts, and only thunder rings it.',
+          'The old bell-wardens learned to snatch their iron skyward in time with the lightning.',
+          'Snatch the bell here, high and fast, rep after rep. The storm will hear your rhythm, and then it will test it.',
+        ],
+        mood: 'legend',
+        image: '/assets/cinematics/belfry_ramparts/chapter5_legend.jpg',
+      },
+      {
         chapter: 'THE SACRAMENT: DEFY THE TEMPEST',
         subtitle: 'Stand Tall on the Precipice',
         text: [
@@ -536,6 +624,17 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
         ],
         mood: 'apex_terror',
         image: '/assets/cinematics/cathedral_vault/chapter3_apex.jpg',
+      },
+      {
+        chapter: 'THE LEGEND: THE GILDED VAULT',
+        subtitle: 'The Artificer’s Last Lock',
+        text: [
+          'Behind the foundry lies a door with no keyhole, only a gauge of hissing steam.',
+          'The artificer swore it would open for a body that could squat and press in a single breath, faster than the pressure fades.',
+          'Drive the iron overhead in these halls, thrust upon thrust. Build the steam, and the door may finally show you its gold.',
+        ],
+        mood: 'legend',
+        image: '/assets/cinematics/cathedral_vault/chapter5_legend.jpg',
       },
       {
         chapter: 'THE SACRAMENT: BONE OVER BRASS',
@@ -599,6 +698,17 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
         image: '/assets/cinematics/volcanic_forge/chapter3_apex.jpg',
       },
       {
+        chapter: 'THE LEGEND: THE TITAN’S ANVIL',
+        subtitle: 'A Blade Left Unfinished',
+        text: [
+          'On the oldest anvil lies a blade the first smiths never finished. After a thousand years, it still glows.',
+          'It wants no hammer. It hardens under hands that clean the iron to the chest and press it to the sky.',
+          'Clean and press in the heat of the forge until it becomes your heartbeat. Then the anvil will call, before the metal cools.',
+        ],
+        mood: 'legend',
+        image: '/assets/cinematics/volcanic_forge/chapter5_legend.jpg',
+      },
+      {
         chapter: 'THE SACRAMENT: TEMPER THE SOUL',
         subtitle: 'Become Unbreakable',
         text: [
@@ -660,6 +770,17 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
         image: '/assets/cinematics/eldritch_altar/chapter3_apex.jpg',
       },
       {
+        chapter: 'THE LEGEND: THE HOLLOW CHOIR',
+        subtitle: 'A Bell That Rings Inside Your Skull',
+        text: [
+          'Within the rift hangs a bell with an eye where its clapper should be. Its choir sings things that are not true.',
+          'Only the balanced hear past the lies: one foot rooted, the body hinged and steady, the mind still.',
+          'Hinge on one leg before this altar, over and over. When the rift opens, trust your count, not your eyes.',
+        ],
+        mood: 'legend',
+        image: '/assets/cinematics/eldritch_altar/chapter5_legend.jpg',
+      },
+      {
         chapter: 'THE SACRAMENT: THE ANCHOR OF FLESH',
         subtitle: 'Defeat the Void with True Weight',
         text: [
@@ -719,6 +840,17 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
         ],
         mood: 'apex_terror',
         image: '/assets/cinematics/obsidian_throne/chapter3_apex.jpg',
+      },
+      {
+        chapter: 'THE LEGEND: THE THIRTEEN LABOURS',
+        subtitle: 'The Blade That Answers Excalibell',
+        text: [
+          'Behind the Sovereign’s seat stands a second sword in a second stone: the dark twin of the forest blade.',
+          'It will not stir for a stranger. It wakes only for the knight who already bears Excalibell.',
+          'Every rep laid down in this hall is heard. Master all thirteen labours of the iron, and the twin blade will name its trial.',
+        ],
+        mood: 'legend',
+        image: '/assets/cinematics/obsidian_throne/chapter5_legend.jpg',
       },
       {
         chapter: 'THE SACRAMENT: THE FINAL BURDEN',

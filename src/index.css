@@ -1424,3 +1424,83 @@ canvas,
   color: #fff;
   text-shadow: 1px 0 0 #000, -1px 0 0 #000, 0 1px 0 #000, 0 -1px 0 #000;
 }
+
+/* ---------- Stage cinematic (StageCinematic.tsx) ---------- */
+.kk-cine-art {
+  position: absolute;
+  inset: -6%;
+  background-size: cover;
+  background-position: center;
+  image-rendering: pixelated;
+  will-change: transform, opacity;
+  animation: kkCineDriftA 22s ease-in-out infinite alternate, kkCineFadeIn 1.2s ease-out both;
+}
+.kk-cine-art--b {
+  animation-name: kkCineDriftB, kkCineFadeIn;
+}
+.kk-cine-art--after {
+  /* chapter change: wait for the old art to fade to black first */
+  animation-delay: 0s, 0.75s;
+}
+.kk-cine-art--out {
+  animation: kkCineFadeOut 0.8s ease-in both;
+}
+@keyframes kkCineDriftA {
+  from { transform: scale(1.02) translate(-1.2%, 0.6%); }
+  to { transform: scale(1.1) translate(1.2%, -0.8%); }
+}
+@keyframes kkCineDriftB {
+  from { transform: scale(1.1) translate(1%, -1%); }
+  to { transform: scale(1.03) translate(-1.2%, 0.5%); }
+}
+@keyframes kkCineFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes kkCineFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+.kk-cine-word {
+  opacity: 0;
+  filter: blur(3px);
+  transition: opacity 0.5s ease-out, filter 0.5s ease-out;
+}
+.kk-cine-word--in {
+  opacity: 1;
+  filter: blur(0);
+}
+.kk-cine-rise {
+  animation: kkCineRise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes kkCineRise {
+  from { opacity: 0; transform: translateY(10px); letter-spacing: 0.5em; }
+  to { opacity: 1; transform: translateY(0); }
+}
+.kk-cine-prompt {
+  animation: kkCinePrompt 1.6s ease-in-out infinite;
+}
+@keyframes kkCinePrompt {
+  0%, 100% { opacity: 0.45; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(3px); }
+}
+.kk-cine-hold {
+  animation: kkCineHold linear both;
+}
+@keyframes kkCineHold {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+.kk-cine-ember {
+  position: absolute;
+  bottom: -10px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  animation: kkCineEmber linear infinite;
+}
+@keyframes kkCineEmber {
+  0% { transform: translate(0, 0); opacity: 0; }
+  10% { opacity: 0.9; }
+  100% { transform: translate(40px, -75vh); opacity: 0; }
+}

@@ -442,6 +442,7 @@ export const MapSelectScreen: React.FC<MapSelectScreenProps> = ({
       {/* 64-BIT DARK FANTASY STAGE CINEMATIC MODAL */}
       {showCinematic && (
         <StageCinematic
+          key={currentMapId}
           mapId={currentMapId}
           onClose={() => {
             setShowCinematic(false);

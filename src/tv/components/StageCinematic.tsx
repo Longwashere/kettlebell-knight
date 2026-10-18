@@ -1,19 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BattleMapId } from '../../types/battle';
 import { getStageLore, StageLore, CinematicScene } from '../../shared/stageLore';
-import { BATTLE_MAPS, getMapBattleMusic } from '../engine/battleMaps';
+import { BATTLE_MAPS } from '../engine/battleMaps';
 import { audioManager } from '../../shared/AudioManager';
 import { useTVRemote } from '../hooks/useTVRemote';
-import {
-  Sparkles,
-  Skull,
-  Shield,
-  Swords,
-  ChevronRight,
-  X,
-  Volume2,
-  VolumeX,
-} from 'lucide-react';
 
 interface StageCinematicProps {
   mapId: BattleMapId;
@@ -21,114 +11,140 @@ interface StageCinematicProps {
   onEmbark?: () => void;
 }
 
-export const StageCinematic: React.FC<StageCinematicProps> = ({
-  mapId,
-  onClose,
-  onEmbark,
-}) => {
+type Mood = CinematicScene['mood'];
+
+/** Accent colour and label per scene mood: aged gold, dried blood, void violet, spectral teal, cold steel. */
+const MOOD: Record<Mood, { accent: string; glow: string; label: string }> = {
+  former_glory: { accent: '#D9B45A', glow: 'rgba(217, 180, 90, 0.35)', label: 'Ancient Glory' },
+  ruin: { accent: '#C2483E', glow: 'rgba(194, 72, 62, 0.35)', label: 'The Ruin & Rot' },
+  apex_terror: { accent: '#A77BE0', glow: 'rgba(167, 123, 224, 0.35)', label: 'Apex Terror' },
+  legend: { accent: '#7FD8C8', glow: 'rgba(127, 216, 200, 0.3)', label: 'Whispered Legend' },
+  iron_vow: { accent: '#93B7D6', glow: 'rgba(147, 183, 214, 0.35)', label: 'Sacrament of Iron' },
+};
+
+const PARCHMENT = '#ECE2CA';
+const PARCHMENT_DIM = '#A99F88';
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+const WORD_MS = 55;
+/** Hands-off pacing: after the text is in, hold long enough to read it, then turn the page. */
+const HOLD_PER_WORD_S = 0.3;
+const HOLD_EPIGRAPH_S = 3;
+const HOLD_MIN_S = 5;
+const HOLD_MAX_S = 15;
+const TEXT_SHADOW = '0 2px 14px rgba(0,0,0,0.95), 0 0 3px rgba(0,0,0,0.9)';
+
+const EMBERS = Array.from({ length: 10 }, (_, i) => ({
+  left: `${(i * 37 + 11) % 100}%`,
+  duration: `${9 + ((i * 7) % 8)}s`,
+  delay: `${-((i * 3.7) % 14)}s`,
+  size: i % 3 === 0 ? 4 : 2,
+}));
+
+/** "PROLOGUE: THE WEARY BOUGHS" → kicker "Prologue", title "The Weary Boughs". */
+function splitChapter(chapter: string): { kicker: string; title: string } {
+  const at = chapter.indexOf(':');
+  if (at < 0) return { kicker: '', title: chapter };
+  return { kicker: chapter.slice(0, at).trim(), title: chapter.slice(at + 1).trim() };
+}
+
+const Ornament: React.FC<{ color: string; flip?: boolean }> = ({ color, flip }) => (
+  <svg
+    width="120"
+    height="10"
+    viewBox="0 0 120 10"
+    className="shrink-0"
+    style={{ transform: flip ? 'scaleX(-1)' : undefined }}
+    aria-hidden
+  >
+    <line x1="0" y1="5" x2="104" y2="5" stroke={color} strokeOpacity="0.55" strokeWidth="1" />
+    <line x1="60" y1="5" x2="104" y2="5" stroke={color} strokeWidth="1" />
+    <rect x="108" y="1.5" width="7" height="7" transform="rotate(45 111.5 5)" fill="none" stroke={color} strokeWidth="1" />
+    <circle cx="111.5" cy="5" r="1.2" fill={color} />
+  </svg>
+);
+
+export const StageCinematic: React.FC<StageCinematicProps> = ({ mapId, onClose, onEmbark }) => {
   const lore: StageLore = getStageLore(mapId);
   const [sceneIndex, setSceneIndex] = useState<number>(0);
-  const [displayedChars, setDisplayedChars] = useState<number>(0);
-  const [isTypingComplete, setIsTypingComplete] = useState<boolean>(false);
-  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [shownWords, setShownWords] = useState<number>(0);
+  const [prevArt, setPrevArt] = useState<{ src: string; key: number } | null>(null);
+  const [changedChapter, setChangedChapter] = useState<boolean>(false);
+  const timerRef = useRef<number | null>(null);
 
-  const currentScene: CinematicScene = lore.scenes[sceneIndex] || lore.scenes[0];
-  const bgImage = currentScene.image || BATTLE_MAPS[mapId] || BATTLE_MAPS.VERDANT_FOREST;
-  const fullSceneText = currentScene.text.join(' ');
-  const typewriterTimerRef = useRef<number | null>(null);
+  const scene: CinematicScene = lore.scenes[sceneIndex] || lore.scenes[0];
+  const mood = MOOD[scene.mood];
+  const art = scene.image || BATTLE_MAPS[mapId] || BATTLE_MAPS.VERDANT_FOREST;
+  const words = scene.text.join(' ').split(/\s+/);
+  const isTypingComplete = shownWords >= words.length;
+  const isFinalScene = sceneIndex === lore.scenes.length - 1;
+  const { kicker, title } = splitChapter(scene.chapter);
 
-  // Play BGM on mount
+  const stopTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
   useEffect(() => {
-    const musicUrl = '/assets/music/cinematic_prologue.mp3';
-    audioManager.playBgm(musicUrl, 0.75);
+    audioManager.playBgm('/assets/music/cinematic_prologue.mp3', 0.75);
     audioManager.play('ui_select');
-
-    return () => {
-      if (typewriterTimerRef.current) {
-        clearInterval(typewriterTimerRef.current);
-      }
-    };
+    return stopTimer;
   }, [mapId]);
 
-  // Typewriter effect
+  // Ink-in narration: words fade up one at a time, without reflowing the paragraph
   useEffect(() => {
-    setDisplayedChars(0);
-    setIsTypingComplete(false);
+    setShownWords(0);
+    stopTimer();
+    let n = 0;
+    const total = words.length;
+    timerRef.current = window.setInterval(() => {
+      n += 1;
+      setShownWords(n);
+      if (n % 4 === 0) audioManager.play('ui_move', { vol: 0.07, rate: 0.8 });
+      if (n >= total) stopTimer();
+    }, WORD_MS);
+    return stopTimer;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sceneIndex, mapId]);
 
-    if (typewriterTimerRef.current) {
-      clearInterval(typewriterTimerRef.current);
-    }
-
-    let charCount = 0;
-    const totalChars = fullSceneText.length;
-
-    typewriterTimerRef.current = window.setInterval(() => {
-      charCount += 2;
-      if (charCount >= totalChars) {
-        charCount = totalChars;
-        setIsTypingComplete(true);
-        if (typewriterTimerRef.current) {
-          clearInterval(typewriterTimerRef.current);
-          typewriterTimerRef.current = null;
-        }
-      }
-      setDisplayedChars(charCount);
-
-      // Subtle audio feedback every 6 characters
-      if (charCount % 6 === 0 && !isMuted) {
-        audioManager.play('ui_move', { vol: 0.12, rate: 1.2 });
-      }
-    }, 28);
-
-    return () => {
-      if (typewriterTimerRef.current) {
-        clearInterval(typewriterTimerRef.current);
-      }
-    };
-  }, [sceneIndex, fullSceneText, isMuted]);
+  const goTo = (idx: number) => {
+    if (idx === sceneIndex || idx < 0 || idx >= lore.scenes.length) return;
+    setPrevArt({ src: art, key: sceneIndex });
+    setChangedChapter(true);
+    setSceneIndex(idx);
+  };
 
   const handleNext = () => {
     if (!isTypingComplete) {
-      // Fast-forward text
-      if (typewriterTimerRef.current) {
-        clearInterval(typewriterTimerRef.current);
-        typewriterTimerRef.current = null;
-      }
-      setDisplayedChars(fullSceneText.length);
-      setIsTypingComplete(true);
+      stopTimer();
+      setShownWords(words.length);
       audioManager.play('ui_select');
       return;
     }
-
-    if (sceneIndex < lore.scenes.length - 1) {
-      setSceneIndex((prev) => prev + 1);
+    if (!isFinalScene) {
+      goTo(sceneIndex + 1);
       audioManager.play('card');
     } else {
-      // Completed all scenes
       audioManager.play('equip');
-      if (onEmbark) {
-        onEmbark();
-      } else {
-        onClose();
-      }
+      (onEmbark ?? onClose)();
     }
   };
 
   const handlePrev = () => {
     if (sceneIndex > 0) {
-      setSceneIndex((prev) => prev - 1);
+      goTo(sceneIndex - 1);
       audioManager.play('ui_move');
     }
   };
 
   const handleNextChapter = () => {
-    if (sceneIndex < lore.scenes.length - 1) {
-      setSceneIndex((prev) => prev + 1);
+    if (!isFinalScene) {
+      goTo(sceneIndex + 1);
       audioManager.play('card');
     }
   };
 
-  // Remote controls
   useTVRemote({
     onSelect: handleNext,
     onBack: onClose,
@@ -136,224 +152,219 @@ export const StageCinematic: React.FC<StageCinematicProps> = ({
     onLeft: handlePrev,
   });
 
-  const getMoodBadge = (mood: CinematicScene['mood']) => {
-    switch (mood) {
-      case 'former_glory':
-        return (
-          <span className="flex items-center gap-1 text-[10px] font-pixel text-[#F4B41A] bg-[#F4B41A]/10 border border-[#F4B41A]/40 px-2 py-0.5 rounded tracking-wider">
-            <Sparkles className="w-3 h-3 text-[#F4B41A]" /> ANCIENT GLORY
-          </span>
-        );
-      case 'ruin':
-        return (
-          <span className="flex items-center gap-1 text-[10px] font-pixel text-[#FF3366] bg-[#FF3366]/10 border border-[#FF3366]/40 px-2 py-0.5 rounded tracking-wider">
-            <Skull className="w-3 h-3 text-[#FF3366]" /> THE RUIN & ROT
-          </span>
-        );
-      case 'apex_terror':
-        return (
-          <span className="flex items-center gap-1 text-[10px] font-pixel text-[#C084FC] bg-[#C084FC]/10 border border-[#C084FC]/40 px-2 py-0.5 rounded tracking-wider">
-            <Swords className="w-3 h-3 text-[#C084FC]" /> APEX TERROR
-          </span>
-        );
-      case 'iron_vow':
-        return (
-          <span className="flex items-center gap-1 text-[10px] font-pixel text-[#38B6FF] bg-[#38B6FF]/10 border border-[#38B6FF]/40 px-2 py-0.5 rounded tracking-wider">
-            <Shield className="w-3 h-3 text-[#38B6FF]" /> SACRAMENT OF IRON
-          </span>
-        );
-    }
-  };
+  const epigraph =
+    scene.mood === 'apex_terror' ? lore.apexTerror : scene.mood === 'iron_vow' ? `“${lore.penanceVow}”` : null;
 
-  const isFinalScene = sceneIndex === lore.scenes.length - 1;
+  const holdSeconds = Math.min(
+    HOLD_MAX_S,
+    Math.max(HOLD_MIN_S, words.length * HOLD_PER_WORD_S + (epigraph ? HOLD_EPIGRAPH_S : 0)),
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-between bg-black select-none overflow-hidden text-white font-mono">
-      {/* 64-BIT PIXEL ART BACKGROUND WITH CINEMATIC KEN BURNS PAN/ZOOM */}
+    <div
+      className="fixed inset-0 z-50 bg-black select-none overflow-hidden cursor-pointer"
+      onClick={handleNext}
+    >
+      {/* ART: slow drift, crossfading between chapters */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {prevArt && (
+          <div
+            key={`prev-${prevArt.key}`}
+            className="kk-cine-art kk-cine-art--out"
+            style={{ backgroundImage: `url(${prevArt.src})` }}
+            onAnimationEnd={() => setPrevArt(null)}
+          />
+        )}
         <div
-          key={bgImage}
-          className="absolute inset-[-8%] w-[116%] h-[116%] bg-cover bg-center transition-all duration-700 ease-in-out will-change-transform"
-          style={{
-            backgroundImage: `url(${bgImage})`,
-            imageRendering: 'pixelated',
-            transform: `scale(${1.06 + (sceneIndex % 2) * 0.04}) translate(${
-              sceneIndex % 2 === 0 ? '-1.5%' : '1.5%'
-            }, ${(sceneIndex % 2) * -1.2}%)`,
-          }}
-        />
-        {/* Dark Vignette & Atmospheric Fog Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black pointer-events-none" />
-        <div className="absolute inset-0 bg-radial-vignette opacity-80 pointer-events-none" />
-
-        {/* CRT Scanline & Pixel Grain Filter */}
-        <div
-          className="absolute inset-0 pointer-events-none opacity-25 mix-blend-overlay"
-          style={{
-            backgroundImage:
-              'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.7) 3px)',
-          }}
+          key={`art-${sceneIndex}`}
+          className={`kk-cine-art ${sceneIndex % 2 ? 'kk-cine-art--b' : ''} ${changedChapter ? 'kk-cine-art--after' : ''}`}
+          style={{ backgroundImage: `url(${art})` }}
         />
 
-        {/* Floating Atmospheric Motes */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-30">
-          <div className="absolute top-1/4 left-1/3 w-1.5 h-1.5 bg-[#F4B41A] rounded-full blur-[0.5px] animate-pulse" />
-          <div className="absolute top-2/3 right-1/4 w-1 h-1 bg-[#38B6FF] rounded-full blur-[0.5px] animate-ping" />
-          <div className="absolute bottom-1/3 left-1/5 w-2 h-2 bg-[#FF3366] rounded-full blur-[1px] animate-pulse" />
-        </div>
+        {/* Shade: heavy floor of darkness for the text, lighter crown, vignette, mood-tinted underglow */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(to top, rgba(0,0,0,0.97) 0%, rgba(0,0,0,0.88) 22%, rgba(0,0,0,0.45) 44%, rgba(0,0,0,0) 62%),' +
+              'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 26%)',
+          }}
+        />
+        <div
+          className="absolute inset-0"
+          style={{ background: 'radial-gradient(ellipse at 50% 40%, rgba(0,0,0,0) 45%, rgba(0,0,0,0.75) 100%)' }}
+        />
+        <div
+          className="absolute inset-0 transition-[background] duration-1000"
+          style={{ background: `radial-gradient(ellipse 70% 40% at 50% 100%, ${mood.glow}, rgba(0,0,0,0) 70%)` }}
+        />
+
+        {/* Drifting embers */}
+        {EMBERS.map((e, i) => (
+          <span
+            key={i}
+            className="kk-cine-ember"
+            style={{
+              left: e.left,
+              width: e.size,
+              height: e.size,
+              background: mood.accent,
+              boxShadow: `0 0 6px ${mood.accent}`,
+              animationDuration: e.duration,
+              animationDelay: e.delay,
+            }}
+          />
+        ))}
+
+        {/* Film grain via scanlines, kept faint */}
+        <div
+          className="absolute inset-0 opacity-[0.12]"
+          style={{
+            backgroundImage: 'repeating-linear-gradient(0deg, transparent 0 2px, rgba(0,0,0,0.8) 2px 3px)',
+          }}
+        />
       </div>
 
-      {/* TOP ANAMORPHIC LETTERBOX BAR */}
-      <div className="relative z-10 w-full h-[14vh] bg-[#0A0912] border-b-2 border-[#2E2B44] flex items-center justify-between px-8 shadow-2xl">
-        <div className="flex items-center gap-4">
-          <span className="font-pixel text-xs text-[#F4B41A] tracking-widest bg-[#1A1926] px-3 py-1 border border-[#F4B41A]/50 rounded">
-            {lore.actRoman}
-          </span>
-          <div>
-            <h1 className="font-pixel text-base text-white tracking-wider flex items-center gap-2">
-              <span>{lore.stageName}</span>
-              <span className="text-[#A7A9BE] text-xs font-mono font-normal">
-                • {lore.epithet}
-              </span>
-            </h1>
-            <p className="text-[10px] font-mono text-[#F4B41A] uppercase tracking-widest">
-              {lore.actTitle}
-            </p>
-          </div>
-        </div>
+      {/* LETTERBOX */}
+      <div className="absolute top-0 inset-x-0 h-[5.5vh] bg-black" />
+      <div className="absolute bottom-0 inset-x-0 h-[6.5vh] bg-black flex items-center justify-center gap-[3vw] font-gothic text-[clamp(9px,0.85vw,14px)] tracking-[0.25em] uppercase" style={{ color: '#6F6758' }}>
+        <span>
+          <span style={{ color: PARCHMENT_DIM }}>Select</span> &nbsp;{isTypingComplete ? (isFinalScene ? (onEmbark ? 'Embark' : 'Close') : 'Continue') : 'Reveal'}
+        </span>
+        <span style={{ color: '#3A352C' }}>◆</span>
+        <span>
+          <span style={{ color: PARCHMENT_DIM }}>◀ ▶</span> &nbsp;Chapters
+        </span>
+        <span style={{ color: '#3A352C' }}>◆</span>
+        <span>
+          <span style={{ color: PARCHMENT_DIM }}>Back</span> &nbsp;Skip
+        </span>
+        <span style={{ color: '#3A352C' }}>◆</span>
+        <span>Auto</span>
+      </div>
 
-        {/* Progress Dots & Close Button */}
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            {lore.scenes.map((_, idx) => (
-              <div
-                key={idx}
-                className={`transition-all duration-300 rounded-full cursor-pointer ${
-                  idx === sceneIndex
-                    ? 'w-6 h-2 bg-[#F4B41A] ring-2 ring-[#F4B41A]/60'
-                    : idx < sceneIndex
-                    ? 'w-2 h-2 bg-[#38B6FF]'
-                    : 'w-2 h-2 bg-[#2E2B44]'
-                }`}
-                onClick={() => {
-                  setSceneIndex(idx);
-                  audioManager.play('ui_select');
+      {/* ACT HEADER */}
+      <div className="absolute top-[8.5vh] left-[4.5vw] pointer-events-none" style={{ textShadow: TEXT_SHADOW }}>
+        <div className="flex items-center gap-3 font-gothic font-bold text-[clamp(9px,0.9vw,15px)] tracking-[0.45em]" style={{ color: '#C9A45C' }}>
+          <span>{lore.actRoman}</span>
+          <span className="h-px w-[3vw]" style={{ background: 'linear-gradient(to right, #C9A45C, transparent)' }} />
+        </div>
+        <h1
+          className="font-gothic font-bold uppercase leading-none mt-[0.8vh] text-[clamp(18px,2.4vw,40px)] tracking-[0.12em]"
+          style={{ color: PARCHMENT }}
+        >
+          {lore.stageName}
+        </h1>
+        <p className="font-tome italic text-[clamp(12px,1.25vw,22px)] mt-[0.5vh]" style={{ color: PARCHMENT_DIM }}>
+          {lore.epithet}
+        </p>
+      </div>
+
+      {/* CHAPTER TRACKER */}
+      <div className="absolute top-[8.5vh] right-[4.5vw] flex items-center gap-[1.4vw] font-gothic font-bold text-[clamp(10px,1vw,17px)] tracking-[0.15em] pointer-events-none" style={{ textShadow: TEXT_SHADOW }}>
+        {lore.scenes.map((s, idx) => {
+          const active = idx === sceneIndex;
+          return (
+            <div key={idx} className="flex flex-col items-center gap-[0.6vh]">
+              <span
+                className="transition-colors duration-500"
+                style={{ color: active ? MOOD[s.mood].accent : idx < sceneIndex ? PARCHMENT_DIM : '#4A443A' }}
+              >
+                {ROMAN[idx] ?? idx + 1}
+              </span>
+              <span
+                className="w-[5px] h-[5px] rotate-45 transition-all duration-500"
+                style={{
+                  background: active ? MOOD[s.mood].accent : 'transparent',
+                  border: `1px solid ${active ? MOOD[s.mood].accent : '#4A443A'}`,
+                  boxShadow: active ? `0 0 8px ${MOOD[s.mood].accent}` : 'none',
                 }}
               />
-            ))}
-          </div>
-
-          <button
-            onClick={() => {
-              const muted = audioManager.toggleMute();
-              setIsMuted(muted);
-            }}
-            className="p-1.5 bg-[#1A1926] border border-[#2E2B44] hover:border-[#F4B41A] text-[#A7A9BE] hover:text-white rounded"
-            title="Toggle Sound"
-          >
-            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-          </button>
-
-          <button
-            onClick={onClose}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1A1926] border border-[#2E2B44] hover:border-[#FF3366] text-[#A7A9BE] hover:text-[#FF3366] font-pixel text-xs rounded transition-colors"
-          >
-            <X className="w-3.5 h-3.5" />
-            <span>[ESC] SKIP</span>
-          </button>
-        </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* CENTER NARRATIVE CARD: DRAMATIC PIXEL LETTERBOX DIALOGUE */}
-      <div className="relative z-10 max-w-4xl mx-auto my-auto px-6 w-full">
-        <div className="bg-[#0A0912]/92 border-4 border-[#2E2B44] shadow-pixel-box rounded p-6 backdrop-blur-md relative overflow-hidden transition-all duration-500">
-          {/* Subtle Golden/Crimson Corner Accents */}
-          <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-[#F4B41A]" />
-          <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-[#F4B41A]" />
-          <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-[#F4B41A]" />
-          <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-[#F4B41A]" />
-
-          {/* Chapter Header */}
-          <div className="flex items-center justify-between border-b border-[#2E2B44] pb-3 mb-4">
-            <div className="flex items-center gap-3">
-              {getMoodBadge(currentScene.mood)}
-              <span className="font-pixel text-xs text-[#E0E2EC] tracking-wider">
-                {currentScene.chapter}
-              </span>
-            </div>
-            <span className="text-[10px] font-mono text-[#A7A9BE]">
-              {sceneIndex + 1} / {lore.scenes.length}
-            </span>
-          </div>
-
-          <h2 className="font-pixel text-sm text-[#F4B41A] mb-3 tracking-wide">
-            {currentScene.subtitle}
-          </h2>
-
-          {/* Typewriter Narrative Text */}
-          <div className="min-h-[90px] flex items-center">
-            <p className="font-mono text-sm leading-relaxed text-[#D1D5DB] tracking-wide whitespace-pre-line">
-              {fullSceneText.slice(0, displayedChars)}
-              {!isTypingComplete && (
-                <span className="inline-block w-2 h-4 bg-[#F4B41A] ml-1 animate-pulse" />
-              )}
-            </p>
-          </div>
-
-          {/* Stage Lore Details at bottom of card */}
-          {currentScene.mood === 'apex_terror' && (
-            <div className="mt-4 p-3 bg-red-950/40 border border-[#FF3366]/40 rounded text-xs font-mono text-[#FCA5A5] flex items-center gap-2">
-              <Skull className="w-4 h-4 text-[#FF3366] shrink-0" />
-              <span>{lore.apexTerror}</span>
-            </div>
-          )}
-
-          {currentScene.mood === 'iron_vow' && (
-            <div className="mt-4 p-3 bg-cyan-950/40 border border-[#38B6FF]/40 rounded text-xs font-mono text-[#7DD3FC] flex items-center gap-2">
-              <Shield className="w-4 h-4 text-[#38B6FF] shrink-0" />
-              <span>"{lore.penanceVow}"</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* BOTTOM ANAMORPHIC LETTERBOX BAR & ACTION CONTROLS */}
-      <div className="relative z-10 w-full h-[14vh] bg-[#0A0912] border-t-2 border-[#2E2B44] flex items-center justify-between px-8 shadow-2xl">
-        <div className="flex items-center gap-6 text-[10px] font-pixel text-[#A7A9BE]">
-          <span>[SELECT / ENTER / SPACE] ADVANCE</span>
-          <span>[◀ / ▶] CHAPTERS</span>
-          <span>[BACK / ESC] RETURN</span>
-        </div>
-
-        <div className="flex items-center gap-4">
-          {sceneIndex > 0 && (
-            <button
-              onClick={handlePrev}
-              className="px-4 py-2 bg-[#1A1926] border border-[#2E2B44] hover:border-[#A7A9BE] text-[#A7A9BE] hover:text-white font-pixel text-xs rounded transition-colors"
+      {/* NARRATION */}
+      <div className="absolute inset-x-0 bottom-[9.5vh] flex justify-center px-[6vw] pointer-events-none">
+        <div key={sceneIndex} className="w-full max-w-[68vw] text-center" style={{ textShadow: TEXT_SHADOW }}>
+          <div className="kk-cine-rise flex items-center justify-center gap-4">
+            <Ornament color={mood.accent} />
+            <span
+              className="font-gothic font-bold uppercase text-[clamp(9px,0.9vw,15px)] tracking-[0.4em] whitespace-nowrap"
+              style={{ color: mood.accent }}
             >
-              ◀ PREV
-            </button>
+              {kicker || mood.label}
+              {kicker && <span style={{ color: PARCHMENT_DIM }}> &nbsp;·&nbsp; {mood.label}</span>}
+            </span>
+            <Ornament color={mood.accent} flip />
+          </div>
+
+          <h2
+            className="kk-cine-rise font-gothic font-bold uppercase mt-[1.6vh] text-[clamp(18px,2.3vw,40px)] tracking-[0.08em] leading-tight"
+            style={{ color: PARCHMENT, animationDelay: '0.12s', textShadow: `${TEXT_SHADOW}, 0 0 24px ${mood.glow}` }}
+          >
+            {title}
+          </h2>
+          <p
+            className="kk-cine-rise font-tome italic font-medium mt-[0.6vh] text-[clamp(14px,1.45vw,26px)]"
+            style={{ color: mood.accent, animationDelay: '0.22s' }}
+          >
+            {scene.subtitle}
+          </p>
+
+          <p
+            className="font-tome font-medium mt-[2.4vh] text-[clamp(16px,1.75vw,30px)] leading-[1.55] tracking-[0.01em]"
+            style={{ color: PARCHMENT }}
+          >
+            {words.map((w, i) => (
+              <span key={i} className={`kk-cine-word ${i < shownWords ? 'kk-cine-word--in' : ''}`}>
+                {w}{' '}
+              </span>
+            ))}
+          </p>
+
+          {epigraph && (
+            <p
+              className={`font-tome italic mt-[2vh] text-[clamp(13px,1.3vw,23px)] leading-snug transition-opacity duration-700 ${isTypingComplete ? 'opacity-100' : 'opacity-0'}`}
+              style={{ color: mood.accent }}
+            >
+              {epigraph}
+            </p>
           )}
 
-          <button
-            onClick={handleNext}
-            className={`px-6 py-2.5 rounded font-pixel text-xs flex items-center gap-2 border-2 shadow-pixel-box transition-all cursor-pointer ${
-              isFinalScene
-                ? 'bg-[#00EB88] hover:bg-[#5affb8] text-black border-black shadow-pixel-box-green'
-                : 'bg-[#F4B41A] hover:bg-[#ffe175] text-black border-black shadow-pixel-box-gold'
-            }`}
-          >
-            <span>
-              {isFinalScene
-                ? onEmbark
-                  ? 'EMBARK EXPEDITION'
-                  : 'FINISH CHRONICLE'
-                : isTypingComplete
-                ? 'NEXT CHAPTER'
-                : 'REVEAL TEXT'}
-            </span>
-            <ChevronRight className="w-4 h-4" />
-          </button>
+          {/* Continue mark */}
+          <div className={`mt-[2vh] h-[2.2vh] flex justify-center transition-opacity duration-500 ${isTypingComplete ? 'opacity-100' : 'opacity-0'}`}>
+            {isFinalScene ? (
+              <span
+                className="kk-cine-prompt font-gothic font-bold uppercase text-[clamp(10px,1vw,17px)] tracking-[0.5em]"
+                style={{ color: mood.accent }}
+              >
+                ◆ {onEmbark ? 'Take up the iron' : 'The chronicle ends'} ◆
+              </span>
+            ) : (
+              <svg className="kk-cine-prompt" width="18" height="12" viewBox="0 0 18 12" aria-hidden>
+                <path d="M1 1 L9 10 L17 1" fill="none" stroke={mood.accent} strokeWidth="2" />
+              </svg>
+            )}
+          </div>
+
+          {/* Auto-advance: a hairline burns down while the page is held; when it runs out, the chapter turns
+              (on the last chapter, the expedition begins) */}
+          <div className="mt-[1vh] mx-auto w-[14vw] h-px" style={{ background: 'rgba(255,255,255,0.08)' }}>
+            {isTypingComplete && (
+              <div
+                key={sceneIndex}
+                className="kk-cine-hold h-full mx-auto"
+                style={{
+                  background: mood.accent,
+                  boxShadow: `0 0 6px ${mood.accent}`,
+                  animationDuration: `${holdSeconds}s`,
+                }}
+                onAnimationEnd={handleNext}
+              />
+            )}
+          </div>
         </div>
       </div>
     </div>

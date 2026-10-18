@@ -23,6 +23,8 @@ export default {
         pixel: ['"Press Start 2P"', '"Courier New"', 'monospace'],
         display: ['"Silkscreen"', '"Press Start 2P"', 'monospace'],
         retro: ['"VT323"', 'monospace'],
+        gothic: ['"Cinzel"', 'Georgia', 'serif'],
+        tome: ['"Cormorant Garamond"', 'Georgia', 'serif'],
       },
       boxShadow: {
         'pixel-gold': '0 0 0 3px #0F0E17, 0 0 0 6px #F4B41A',
