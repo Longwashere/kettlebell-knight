@@ -1,7 +1,8 @@
-import type { Texture, Ticker } from 'pixi.js';
+import type { Sprite, Texture, Ticker } from 'pixi.js';
 import { audioManager } from '../../../shared/AudioManager';
 import type { StoneHost } from '../excalibellStone';
 import { TrialStage, CX, FOOT, W, H, hash, type Frame, type WeaponPose } from '../trialStage';
+import { LitCanvas, ramp, type Lighting } from './litArt';
 
 /**
  * The Hollow Choir (`hollow_bell`, Eldritch Altar): a rift hangs open over the altar, tentacles feeling at its
@@ -15,13 +16,37 @@ const VOID = 0x07020F;
 const EDGE = 0xA855F7;
 const SICK = 0x4ADE80;
 const SINGERS = 5;
+const ALTAR_OX = RX - 40;
+const ALTAR_OY = FOOT - 34;
+const VOIDLIGHT: Lighting = { key: [-0.3, -0.8, 0.5], keyColor: 0x6A5A8A, keyPower: 0.3, ambient: 0.05 };
 
 export class HollowChoir extends TrialStage {
   private glitchT = 0;
   private shut = 0; // rift slammed shut on the win
+  private singers: Sprite[] = [];
 
   constructor(weapon: Texture | null, ticker: Ticker, host: StoneHost) {
     super(weapon, ticker, host, { night: 0x07030F, dangerNight: 0x0B0215, dim: 0.78, glow: EDGE, core: 0xF3E8FF, mist: 0x5B3F7A, cold: 0x7A6A9A, warm: 0xE9D5FF });
+    this.shadow(RX, FOOT, 48, 5, 0.6);
+    this.art(this.bake(altarArt(), { ...VOIDLIGHT, rim: { dx: 0, dy: -1, color: EDGE, power: 0.8 }, lights: [{ x: 40, y: RY - ALTAR_OY, z: 20, color: EDGE, radius: 130, power: 0.9 }] }), this.backArt, ALTAR_OX, ALTAR_OY);
+    // Each singer lit by the rift from where it kneels
+    const robe = singerArt();
+    for (let i = 0; i < SINGERS; i++) {
+      const { x, y } = this.singerAt(i);
+      const lx = RX - x + 11;
+      const ly = RY - y + 31;
+      this.shadow(x, y, 11, 2, 0.6);
+      this.singers.push(this.art(this.bake(robe, {
+        ...VOIDLIGHT, tint: 1,
+        rim: { dx: Math.sign(RX - x), dy: -1, color: EDGE, power: 0.7 },
+        lights: [{ x: lx, y: ly, z: 16, color: EDGE, radius: 160, power: 0.9 }],
+      }), this.setArt, x, y, 11, 31));
+    }
+  }
+
+  private singerAt(i: number): { x: number; y: number } {
+    const u = i / (SINGERS - 1);
+    return { x: Math.round(RX - 96 + u * 192), y: Math.round(FOOT - 2 - Math.sin(u * Math.PI) * 14) };
   }
 
   protected restPose(): WeaponPose {
@@ -78,7 +103,14 @@ export class HollowChoir extends TrialStage {
       pts.push(RX + jx - half, RY - tall / 2 + u * tall);
     }
     for (let i = 4; i >= 1; i--) bg.ellipse(RX + jx, RY, width + i * 10, tall / 2 + i * 6).fill({ color: EDGE, alpha: 0.05 });
-    b.poly(pts).fill({ color: VOID }).stroke({ width: 2, color: EDGE });
+    // The void in nested bands, blackest at its heart; a hot edge with a white-violet core
+    const scaled = (k: number) => pts.map((v, i) => (i % 2 ? RY + (v - RY) * (0.6 + k * 0.4) : RX + jx + (v - RX - jx) * k));
+    b.poly(pts).fill({ color: 0x3B0F66 });
+    b.poly(scaled(0.8)).fill({ color: 0x1A0533 });
+    b.poly(scaled(0.55)).fill({ color: VOID });
+    b.poly(scaled(0.3)).fill({ color: 0x000000 });
+    b.poly(pts).stroke({ width: 3, color: EDGE, alpha: 0.55 });
+    b.poly(pts).stroke({ width: 1, color: 0xF3E8FF, alpha: 0.9 });
     // Stars inside the void
     for (let i = 0; i < 14; i++) {
       const x = RX + jx + (hash(i, 1) - 0.5) * width * 1.2;
@@ -93,19 +125,28 @@ export class HollowChoir extends TrialStage {
         const y0 = RY - 40 + k * 16;
         const sway = Math.sin(this.t * 1.6 + k) * 10;
         const x0 = RX + jx + side * width * 0.8;
-        b.moveTo(x0, y0).quadraticCurveTo(x0 + side * reach * 0.5, y0 + sway, x0 + side * reach, y0 + sway * 1.6).stroke({ width: 3, color: 0x3B0764 });
-        b.moveTo(x0, y0).quadraticCurveTo(x0 + side * reach * 0.5, y0 + sway, x0 + side * reach, y0 + sway * 1.6).stroke({ width: 1, color: EDGE, alpha: 0.6 });
+        // Tapered: thick at the rift, a lit upper edge, pale suckers underneath
+        const n = Math.max(6, Math.round(reach));
+        for (let j = 0; j <= n; j++) {
+          const u = j / n;
+          const x = (1 - u) ** 2 * x0 + 2 * (1 - u) * u * (x0 + side * reach * 0.5) + u * u * (x0 + side * reach);
+          const y = (1 - u) ** 2 * y0 + 2 * (1 - u) * u * (y0 + sway) + u * u * (y0 + sway * 1.6) + Math.sin(this.t * 3 + k + u * 6) * u * 2;
+          const r = Math.max(0.6, 2.8 * (1 - u));
+          b.circle(x, y, r + 0.8).fill({ color: 0x12031F });
+          b.circle(x, y, r).fill({ color: 0x4C1D7A });
+          b.rect(Math.round(x - r * 0.5), Math.round(y - r), 1, 1).fill({ color: 0xC4A5F5 });
+          if (j % 4 === 2 && r > 1.4) b.rect(Math.round(x), Math.round(y + r - 1), 1, 1).fill({ color: 0xE9D5FF, alpha: 0.7 });
+        }
       }
     }
     // The choir: hooded singers kneeling in an arc, mouths open
+    const gone = this.burstDone && this.shut > 0.6;
     for (let i = 0; i < SINGERS; i++) {
-      if (this.burstDone && this.shut > 0.6) break;
-      const u = i / (SINGERS - 1);
-      const x = RX - 96 + u * 192;
-      const y = FOOT - 2 - Math.sin(u * Math.PI) * 14;
+      this.singers[i].visible = !gone;
+      if (gone) continue;
+      const { x, y } = this.singerAt(i);
       const sway = Math.round(Math.sin(this.t * 2 + i) * 1);
-      s.poly([x - 9 + sway, y, x - 6 + sway, y - 20, x + sway, y - 28, x + 6 + sway, y - 20, x + 9 + sway, y]).fill({ color: 0x1E1033 }).stroke({ width: 1, color: 0x0A0414 });
-      s.ellipse(x + sway, y - 20, 3.5, 4).fill({ color: VOID });
+      this.singers[i].x = x + sway;
       const mouth = 1 + Math.abs(Math.sin(this.t * 5 + i * 1.3)) * 2;
       const eye = this.glitchT > 0 ? 0xFFFFFF : SICK;
       s.rect(x + sway - 2, y - 22, 1, 1).fill({ color: eye });
@@ -121,4 +162,41 @@ export class HollowChoir extends TrialStage {
       }
     }
   }
+}
+
+// --- Art ----------------------------------------------------------------------------------------------------
+
+const ROBE_M = { ramp: ramp(0x34224E, 6, 0x05020C, 0xE8D8FF, 0.6), grain: 0.04, gx: 1.5, gy: 8 };
+const ALTAR_M = { ramp: ramp(0x3A3446, 6, 0x05020C, 0xE0D0F0), grain: 0.06, gx: 3, gy: 2 };
+
+/** A kneeling singer: a pointed hood over a robe that spills wide on the floor, folds down its length. Anchor (11, 31). */
+function singerArt(): LitCanvas {
+  const c = new LitCanvas(22, 32);
+  const robe = c.material(ROBE_M);
+  const hollow = c.material({ ramp: ramp(0x0A0612, 3, 0x010003) });
+  c.lathe(11, 1, 31, (y) => (y < 1 ? 0 : y < 11 ? 1 + Math.sqrt((y - 1) / 10) * 5.5 : y < 15 ? 6.5 + (y - 11) * 0.5 : 8.5 + ((y - 15) / 16) ** 1.5 * 2.5), robe);
+  for (const x of [7, 11, 15]) c.carve(x, 17, x + (x - 11) * 0.2, 30, 0.2);
+  c.ellipse(11, 9, 3.5, 4, hollow, -0.5);
+  return c;
+}
+
+/** The altar under the rift: a cracked slab on two squat pillars, its face cut with runes that glow sickly green. */
+function altarArt(): LitCanvas {
+  const c = new LitCanvas(80, FOOT - ALTAR_OY);
+  const stone = c.material(ALTAR_M);
+  const ax = 40;
+  const b = c.h;
+  c.box(ax - 30, b - 18, 12, 18, stone, 2);
+  c.box(ax + 18, b - 18, 12, 18, stone, 2);
+  c.box(ax - 38, b - 26, 76, 8, stone, 2);
+  c.carve(ax + 6, b - 26, ax + 2, b - 22);
+  c.carve(ax + 2, b - 22, ax + 5, b - 18);
+  for (let k = 0; k < 7; k++) {
+    const x = ax - 31 + k * 10;
+    c.glow(x, b - 23, SICK);
+    c.glow(x + 1, b - 22, SICK);
+    c.glow(x, b - 21, SICK);
+    if (k % 2) c.glow(x + 2, b - 23, 0x86EFAC);
+  }
+  return c;
 }

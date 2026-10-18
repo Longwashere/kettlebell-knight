@@ -1,6 +1,7 @@
 import { Container, Graphics, Sprite, Texture, type Ticker } from 'pixi.js';
 import type { StoneHost } from './excalibellStone';
 import type { TrialRepResult } from '../../shared/secretTrials';
+import type { LitCanvas, Lighting } from './trials/litArt';
 
 /**
  * Shared stage for the secret-trial hero shots (trialScenes.ts): the backdrop dimmed to night, mist, motes, rings,
@@ -59,10 +60,16 @@ export interface Frame { dt: number; charge: number; surge: number; sealed: numb
 export abstract class TrialStage {
   readonly view = new Container();
   protected dim = new Graphics();
+  /** Under the backdrop Graphics: contact shadows and light pools on the floor. */
+  protected floor = new Graphics();
+  /** Behind the knight: baked lit sprites of the scene's backdrop pieces (see `art()`). */
+  protected backArt = new Container();
   /** Behind the knight: the scene's backdrop pieces. */
   protected back = new Graphics();
   /** Additive glow behind the knight. */
   protected backGlow = new Graphics();
+  /** In front of the knight: baked lit sprites of the centrepiece. */
+  protected setArt = new Container();
   /** In front of the knight: the centrepiece. */
   protected set = new Graphics();
   /** Additive glow over the centrepiece. */
@@ -106,6 +113,7 @@ export abstract class TrialStage {
   private flashAlpha = 0;
   private flashColor = 0xFFFFFF;
   private onPulled: (() => void) | null = null;
+  private baked: Texture[] = [];
   private readonly tick = (ticker: Ticker) => this.update(Math.min(0.05, ticker.deltaMS / 1000));
 
   constructor(weaponTexture: Texture | null, private readonly ticker: Ticker, protected readonly host: StoneHost, protected readonly look: StageLook) {
@@ -118,7 +126,7 @@ export abstract class TrialStage {
         v: (Math.random() < 0.5 ? -1 : 1) * (3 + Math.random() * 6), a: 0.04 + Math.random() * 0.05, front: i % 3 === 0,
       });
     }
-    this.view.addChild(this.dim, this.back, this.backGlow, this.fogBack, this.halo);
+    this.view.addChild(this.dim, this.floor, this.backArt, this.back, this.backGlow, this.fogBack, this.halo);
     if (weaponTexture) {
       this.weapon = new Sprite(weaponTexture);
       this.weapon.anchor.set(0.5);
@@ -130,7 +138,7 @@ export abstract class TrialStage {
       }
       this.view.addChild(this.weapon);
     }
-    this.view.addChild(this.actorLayer, this.set, this.glow, this.rubble, this.fogFront, this.sparks, this.rings, this.over, this.vignette, this.flashG);
+    this.view.addChild(this.actorLayer, this.setArt, this.set, this.glow, this.rubble, this.fogFront, this.sparks, this.rings, this.over, this.vignette, this.flashG);
     this.ticker.add(this.tick);
   }
 
@@ -233,6 +241,36 @@ export abstract class TrialStage {
     this.ticker.remove(this.tick);
     this.detachActor();
     this.view.destroy({ children: true });
+    for (const t of this.baked) t.destroy(true);
+    this.baked = [];
+  }
+
+  // --- Lit art -------------------------------------------------------------------------------------------
+
+  /** Bakes `c` under `light` into a texture owned (and freed) by the stage. */
+  protected bake(c: LitCanvas, light: Lighting): Texture {
+    const tex = c.texture(light);
+    this.baked.push(tex);
+    return tex;
+  }
+
+  /** A baked sprite on `layer` with its top-left at (x, y), or anchored at (ax, ay) canvas pixels. */
+  protected art(tex: Texture, layer: Container, x: number, y: number, ax = 0, ay = 0): Sprite {
+    const s = new Sprite(tex);
+    s.anchor.set(ax / tex.width, ay / tex.height);
+    s.position.set(x, y);
+    layer.addChild(s);
+    return s;
+  }
+
+  /** A soft contact shadow on the floor: stepped, darkest at the centre. */
+  protected shadow(x: number, y: number, rx: number, ry = Math.max(2, rx * 0.16), alpha = 0.55): void {
+    for (let i = 3; i >= 1; i--) this.floor.ellipse(x, y, (rx * (i + 1)) / 4, (ry * (i + 1)) / 4).fill({ color: 0x000000, alpha: alpha / 3 });
+  }
+
+  /** Light in posterized bands (pixel-art falloff instead of a smooth gradient). */
+  protected pool(g: Graphics, x: number, y: number, rx: number, ry: number, color: number, alpha: number, bands = 4): void {
+    for (let i = bands; i >= 1; i--) g.ellipse(x, y, (rx * i) / bands, (ry * i) / bands).fill({ color, alpha: alpha / bands });
   }
 
   // --- Effects for scenes --------------------------------------------------------------------------------

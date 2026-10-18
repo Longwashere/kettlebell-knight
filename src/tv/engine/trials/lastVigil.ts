@@ -1,7 +1,8 @@
-import type { Texture, Ticker } from 'pixi.js';
+import type { Sprite, Texture, Ticker } from 'pixi.js';
 import { audioManager } from '../../../shared/AudioManager';
 import type { StoneHost } from '../excalibellStone';
 import { TrialStage, CX, FOOT, W, H, hash, type Frame, type WeaponPose } from '../trialStage';
+import { LitCanvas, ramp, type Lighting, type PointLight } from './litArt';
 
 /**
  * The Last Vigil (`everburning_censer`, Cathedral Crypt): a dead cleric's censer hangs on its chain over a bier,
@@ -18,14 +19,33 @@ const FLAME = 0xFDE68A;
 const HOLY = 0x7DD3FC;
 const WAX = 0xE7E0CF;
 const STONE = [0x14161C, 0x262A33, 0x3A404B, 0x555C68];
+const BIER_OX = PX - 56;
+const BIER_OY = FOOT - 50;
+const CANDLE_OX = PX - 100;
+const CANDLE_OY = FOOT - 30;
+const DARK: Lighting = { key: [-0.4, -0.8, 0.45], keyColor: 0x7080A8, keyPower: 0.4, ambient: 0.05 };
 
 export class LastVigil extends TrialStage {
   private swing = 0.05; // pendulum amplitude
   private angle = 0;
   private puffs: { x: number; y: number; life: number }[] = [];
+  private bierLit: Sprite;
+  private candlesLit: Sprite;
 
   constructor(weapon: Texture | null, ticker: Ticker, host: StoneHost) {
     super(weapon, ticker, host, { night: 0x070A12, dangerNight: 0x010103, dim: 0.78, glow: HOLY, core: 0xE0F2FE, mist: 0x7A8BA3, cold: 0x5D6E8C, warm: 0xFFF3D6, turn: Math.PI / 2 });
+    this.shadow(PX, FOOT, 52, 5, 0.7);
+    // Every candle a small warm light, low in front of the bier
+    const flames = (ox: number, oy: number): PointLight[] => Array.from({ length: CANDLES }, (_, i) => {
+      const c = this.candle(i);
+      return { x: c.x - ox, y: c.y - c.h - 4 - oy, z: 10, color: 0xFF9A40, radius: 44, power: 0.28 };
+    });
+    const bier = bierArt();
+    this.art(this.bake(bier, DARK), this.backArt, BIER_OX, BIER_OY);
+    this.bierLit = this.art(this.bake(bier, { ...DARK, keyPower: 0.25, tint: 1.1, lights: flames(BIER_OX, BIER_OY) }), this.backArt, BIER_OX, BIER_OY);
+    const candles = candleArt((i) => this.candle(i));
+    this.art(this.bake(candles, DARK), this.setArt, CANDLE_OX, CANDLE_OY);
+    this.candlesLit = this.art(this.bake(candles, { ...DARK, keyPower: 0.25, tint: 1.1, lights: flames(CANDLE_OX, CANDLE_OY) }), this.setArt, CANDLE_OX, CANDLE_OY);
   }
 
   /** The end of the chain, where the censer's handle hangs. */
@@ -98,39 +118,41 @@ export class LastVigil extends TrialStage {
     const b = this.back.clear();
     const s = this.set.clear();
     const glow = this.glow.clear();
-    // The bier
-    b.rect(PX - 34, FOOT - 22, 68, 22).fill({ color: STONE[1] }).stroke({ width: 1, color: STONE[0] });
-    b.rect(PX - 38, FOOT - 26, 76, 5).fill({ color: STONE[3] });
-    b.rect(PX - 6, FOOT - 20, 12, 18).fill({ color: 0x3B4A6B });
-    b.rect(PX - 1, FOOT - 18, 2, 12).fill({ color: 0xC7D2FE });
-    b.rect(PX - 4, FOOT - 14, 8, 2).fill({ color: 0xC7D2FE });
+    // The bier and the candles, warm while the flames last
+    const flare = this.phase === 'pulling' || this.phase === 'claiming' || this.phase === 'held' ? 1 : 0;
+    this.bierLit.alpha = this.candlesLit.alpha = Math.max(flare, this.lit() / CANDLES);
     // The chain from the vault to the censer's ring
     if (!this.burstDone) {
       const { x: tx, y: ty } = this.chainEnd();
       const n = Math.floor(Math.hypot(tx - PX, ty) / 4);
       for (let i = 0; i < n; i++) {
         const u = i / n;
-        b.rect(Math.round(PX + (tx - PX) * u) - 1, Math.round(ty * u), i % 2 ? 2 : 3, 3).fill({ color: i % 2 ? 0x57534E : 0xA8A29E });
+        const x = Math.round(PX + (tx - PX) * u) - 1;
+        const y = Math.round(ty * u);
+        if (i % 2) b.rect(x, y, 2, 3).fill({ color: 0x3A3632 });
+        else {
+          b.rect(x, y, 3, 3).fill({ color: 0x57534E });
+          b.rect(x, y, 1, 2).fill({ color: 0xC8C2B8 });
+        }
       }
     }
     // Candles: wax, wick, and a flame while lit
     const lit = this.lit();
-    const flare = this.phase === 'pulling' || this.phase === 'claiming' || this.phase === 'held' ? 1 : 0;
     for (let i = 0; i < CANDLES; i++) {
       const c = this.candle(i);
-      s.rect(c.x - 2, c.y - c.h, 4, c.h).fill({ color: WAX }).stroke({ width: 1, color: 0x1C1917 });
-      s.rect(c.x - 2, c.y - c.h, 1, c.h).fill({ color: 0xFFFFFF, alpha: 0.4 });
       const on = i < lit || flare;
       const fy = c.y - c.h - 2;
       if (on) {
-        const fl = Math.sin(this.t * 13 + i * 2) * 0.8;
-        const tall = flare ? 18 + Math.sin(this.t * 9 + i) * 4 : 4;
-        s.poly([c.x - 1.5, fy, c.x + fl, fy - tall, c.x + 1.5, fy]).fill({ color: FLAME });
+        // A flame in three tones: an orange skin, a yellow body, a white heart at the wick
+        const fl = Math.round(Math.sin(this.t * 13 + i * 2) * 0.8);
+        const tall = flare ? 18 + Math.sin(this.t * 9 + i) * 4 : 5 + Math.round(Math.sin(this.t * 7 + i * 3));
+        s.poly([c.x - 2, fy + 1, c.x + fl, fy - tall, c.x + 2, fy + 1]).fill({ color: 0xF97316 });
+        s.poly([c.x - 1, fy, c.x + fl, fy - tall + 2, c.x + 1, fy]).fill({ color: FLAME });
         s.rect(c.x, fy - 2, 1, 2).fill({ color: 0xFFFFFF });
-        glow.circle(c.x, fy - 2, 4 + (flare ? 8 : 0)).fill({ color: FLAME, alpha: 0.14 });
+        this.pool(glow, c.x, fy - 2, 6 + (flare ? 8 : 0), 6 + (flare ? 8 : 0), FLAME, 0.22, 3);
         if (flare) glow.rect(c.x - 3, 0, 6, fy).fill({ color: 0xFFFBEB, alpha: 0.06 });
       } else {
-        s.rect(c.x, fy, 1, 2).fill({ color: 0x292524 });
+        s.rect(c.x, fy + 1, 1, 1).fill({ color: 0x292524 });
         if (Math.random() < dt * 2) this.mote(c.x, fy - 2, (Math.random() - 0.5) * 4, -10, 1.2, 0x6B7280);
       }
     }
@@ -181,4 +203,67 @@ export class LastVigil extends TrialStage {
       }
     }
   }
+}
+
+// --- Art ----------------------------------------------------------------------------------------------------
+
+const TOMB_M = { ramp: ramp(0x4A4E58, 7, 0x05040C, 0xFFF0D8), grain: 0.05, gx: 3, gy: 2 };
+const EFFIGY_M = { ramp: ramp(0x6A6A70, 7, 0x05040C, 0xFFF4E0), grain: 0.03, gx: 2, gy: 2 };
+const SILVER_M = { ramp: ramp(0x9AA4B8, 6, 0x0A0A20, 0xFFFFFF), shine: 1 };
+const ENAMEL_M = { ramp: ramp(0x1E3A8A, 5, 0x02041A, 0x9BC4FF) };
+const WAX_M = { ramp: ramp(0xD8CCB0, 6, 0x201420, 0xFFFBEE, 0.6), lum: 0.08 };
+const IRON_M = { ramp: ramp(0x34343C, 5, 0x05040C, 0xC8C8D0), shine: 0.5 };
+
+/** The dead cleric's tomb: a stepped plinth, a panelled chest with an enamelled silver cross, his effigy on the lid. */
+function bierArt(): LitCanvas {
+  const c = new LitCanvas(112, FOOT - BIER_OY);
+  const stone = c.material(TOMB_M);
+  const step = c.material({ ...TOMB_M, ramp: ramp(0x3A3E48, 7, 0x05040C, 0xFFF0D8) });
+  const effigy = c.material(EFFIGY_M);
+  const silver = c.material(SILVER_M);
+  const enamel = c.material(ENAMEL_M);
+  const px = PX - BIER_OX;
+  const bottom = c.h;
+  c.box(px - 56, bottom - 5, 112, 5, step, 1);
+  c.box(px - 50, bottom - 10, 100, 6, step, 2);
+  c.box(px - 44, bottom - 32, 88, 23, stone, 1);
+  for (const x0 of [px - 40, px + 12]) {
+    c.carve(x0, bottom - 28, x0 + 28, bottom - 28);
+    c.carve(x0, bottom - 13, x0 + 28, bottom - 13);
+    c.carve(x0, bottom - 28, x0, bottom - 13);
+    c.carve(x0 + 28, bottom - 28, x0 + 28, bottom - 13);
+    c.carve(x0 + 14, bottom - 25, x0 + 14, bottom - 16, 0.2); // a carved lancet in each panel
+  }
+  c.box(px - 9, bottom - 30, 18, 19, enamel, 1);
+  c.box(px - 1, bottom - 29, 3, 17, silver, 0);
+  c.box(px - 6, bottom - 25, 13, 3, silver, 0);
+  c.box(px - 48, bottom - 38, 96, 7, stone, 2);
+  // The effigy: hands folded on the breast, a sword along the body, feet on a hound
+  const ly = bottom - 42;
+  c.cylH(px - 32, ly - 2, 60, 7, effigy);
+  c.ellipse(px - 36, ly + 1, 4.5, 4, effigy, 1);
+  c.sphere(px - 8, ly - 2, 2.6, effigy);
+  c.ellipse(px + 32, ly + 1, 5, 3.5, effigy, 0.8);
+  c.carve(px - 26, ly + 3, px + 24, ly + 3, 0.25);
+  return c;
+}
+
+/** Twelve wax candles with drips, each on an iron pricket dish. The flames are drawn live over them. */
+function candleArt(at: (i: number) => { x: number; y: number; h: number }): LitCanvas {
+  const c = new LitCanvas(200, FOOT - CANDLE_OY + 1);
+  const wax = c.material(WAX_M);
+  const iron = c.material(IRON_M);
+  for (let i = 0; i < CANDLES; i++) {
+    const p = at(i);
+    const x = p.x - CANDLE_OX;
+    const y = p.y - CANDLE_OY;
+    c.cylV(x - 2, y - p.h, 5, p.h, wax);
+    // Drips down the sides, a pool round the foot
+    c.ellipse(x, y - p.h, 2.5, 1, wax, 0.5);
+    if (hash(i, 6) > 0.4) c.cylV(x - 3, y - p.h, 2, 2 + Math.floor(hash(i, 7) * 4), wax);
+    if (hash(i, 8) > 0.5) c.cylV(x + 2, y - p.h + 1, 2, 2 + Math.floor(hash(i, 9) * 3), wax);
+    c.ellipse(x, y, 4, 1.5, iron, 0.6);
+    c.glow(x, y - p.h - 1, 0x1A1410); // the wick
+  }
+  return c;
 }

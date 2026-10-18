@@ -1,8 +1,9 @@
-import type { Texture, Ticker } from 'pixi.js';
+import type { Sprite, Texture, Ticker } from 'pixi.js';
 import { audioManager } from '../../../shared/AudioManager';
 import type { StoneHost } from '../excalibellStone';
 import type { TrialRepResult } from '../../../shared/secretTrials';
 import { TrialStage, CX, FOOT, W, hash, mix, type Frame, type WeaponPose } from '../trialStage';
+import { LitCanvas, ramp, type Lighting } from './litArt';
 
 /**
  * The High Striker (`bellringer_mallet`, Town Square by night): the Circus Bear's carnival has pitched its big top
@@ -21,6 +22,14 @@ const RED = 0xDC2626;
 const CREAM = 0xFDF4E3;
 const INK = 0x120A0E;
 const LIGHTS = [0xF87171, 0xFBBF24, 0x34D399, 0x60A5FA, 0xF472B6];
+const TENT_X = W - 66; // the big top's pole
+const TENT_OX = TENT_X - 73;
+const TENT_OY = 52;
+// Cold moonlight from the upper left, the carnival's string lights warming everything from above
+const NIGHT: Lighting = {
+  key: [-0.5, -0.7, 0.5], keyColor: 0x8C9CC8, keyPower: 0.5, ambient: 0.08,
+  lights: [{ x: 60, y: -40, z: 30, color: 0xFFC070, radius: 230, power: 0.45 }],
+};
 
 export class HighStriker extends TrialStage {
   private puckY = BASE;
@@ -29,9 +38,15 @@ export class HighStriker extends TrialStage {
   private rang = 0; // bell shake after a ring
   private dings = 0; // counted rings of the bell (lit bulbs)
   private dark = 0; // lights out on a fail
+  private bell: Sprite;
 
   constructor(weapon: Texture | null, ticker: Ticker, host: StoneHost) {
     super(weapon, ticker, host, { night: 0x0B0716, dangerNight: 0x050308, dim: 0.72, glow: GOLD, core: 0xFFF7D6, mist: 0x6B5A7A, cold: 0x8079A0, warm: 0xFFE8C2 });
+    this.shadow(TENT_X, FOOT - 4, 80, 6, 0.5);
+    this.shadow(TX, FOOT, 34, 4, 0.7);
+    this.art(this.bake(tentArt(), { ...NIGHT, keyPower: 0.4, focus: { x: 60, y: 120, r: 110, min: 0.3 }, lights: [...NIGHT.lights!, { x: 73, y: 146, z: 14, color: 0xFFB050, radius: 70, power: 0.9 }] }), this.backArt, TENT_OX, TENT_OY);
+    this.art(this.bake(towerArt(), { ...NIGHT, lights: [{ x: 20, y: -20, z: 20, color: 0xFFD080, radius: 200, power: 0.5 }] }), this.setArt, TX - 26, TOP - 2);
+    this.bell = this.art(this.bake(bellArt(), NIGHT), this.setArt, TX, TOP, 12, 13);
   }
 
   protected restPose(): WeaponPose {
@@ -115,16 +130,12 @@ export class HighStriker extends TrialStage {
   private paintBack(f: Frame): void {
     const g = this.back.clear();
     const glow = this.backGlow.clear();
-    // Big top: striped cone with a pennant
-    const bx = W - 66;
-    for (let i = 0; i < 8; i++) {
-      const x0 = bx - 70 + i * 17.5;
-      g.poly([bx, 70, x0, FOOT - 30, x0 + 17.5, FOOT - 30]).fill({ color: i % 2 ? RED : CREAM, alpha: 0.85 });
-    }
-    g.poly([bx - 70, FOOT - 30, bx + 70, FOOT - 30, bx + 70, FOOT - 6, bx - 70, FOOT - 6]).fill({ color: 0x7F1D1D });
-    g.poly([bx - 12, FOOT - 6, bx, FOOT - 28, bx + 12, FOOT - 6]).fill({ color: INK });
-    g.moveTo(bx, 70).lineTo(bx, 56).stroke({ width: 1, color: CREAM });
+    // The big top (baked): its pennant snaps in the wind, and the doorway flickers with lamplight inside
+    const bx = TENT_X;
     g.poly([bx, 56, bx + 10 + Math.sin(this.t * 4) * 2, 59, bx, 62]).fill({ color: GOLD });
+    g.rect(bx, 54, 1, 16).fill({ color: 0x3A2A1A });
+    const flick = 0.5 + 0.5 * Math.sin(this.t * 7) * Math.sin(this.t * 3.1);
+    this.pool(glow, bx, FOOT - 14, 14, 10, 0xFFB050, (0.2 + flick * 0.12) * (1 - this.dark));
     // String lights from corner to corner
     const lit = 1 - this.dangerShown * 0.9 - this.dark;
     for (const [x0, x1, y0, sag] of [[0, W, 22, 26], [-20, 230, 40, 18]] as [number, number, number, number][]) {
@@ -151,19 +162,8 @@ export class HighStriker extends TrialStage {
     const g = this.set.clear();
     const glow = this.glow.clear();
     const shake = Math.round(Math.sin(this.t * 50) * this.jolt);
-    // Base box
-    g.rect(TX - 24, FOOT - 14, 48, 14).fill({ color: 0x5B2A12 }).stroke({ width: 1, color: INK });
-    g.rect(TX - 24, FOOT - 14, 48, 3).fill({ color: 0x8A4A22 });
-    for (let x = TX - 20; x < TX + 22; x += 8) g.rect(x, FOOT - 10, 1, 9).fill({ color: 0x3B1A0B });
-    // Strike pad
-    g.rect(TX - 20 + shake, BASE - 4, 16, 4).fill({ color: 0x9CA3AF }).stroke({ width: 1, color: INK });
-    // Pole with red/cream bands and marks
-    g.rect(TX - 5, TOP + 8, 10, BASE - TOP - 8).fill({ color: INK });
-    for (let y = TOP + 9; y < BASE; y += 10) {
-      g.rect(TX - 4, y, 8, 5).fill({ color: RED });
-      g.rect(TX - 4, y + 5, 8, 5).fill({ color: CREAM });
-    }
-    g.rect(TX - 2, TOP + 9, 1, BASE - TOP - 9).fill({ color: 0xFFFFFF, alpha: 0.25 });
+    // The strike pad dips when the puck flies
+    if (shake) g.rect(TX - 20 + shake, BASE - 4, 16, 1).fill({ color: 0xFFFFFF, alpha: 0.3 });
     // Bulbs up both sides: one lit per ring, from the bottom
     const lit = this.dings;
     const lightsOn = this.dark < 0.5;
@@ -179,19 +179,122 @@ export class HighStriker extends TrialStage {
       if (on && blink) glow.circle(x, y, 4).fill({ color: GOLD, alpha: 0.35 });
     }
     // The bell (gone once it blows off)
+    this.bell.visible = !this.burstDone;
     if (!this.burstDone) {
       const bs = Math.round(Math.sin(this.t * 60) * this.rang * 2);
-      g.circle(TX + bs, TOP, 10).fill({ color: INK });
-      g.circle(TX + bs, TOP, 9).fill({ color: 0xB45309 });
-      g.circle(TX + bs - 2, TOP - 2, 6).fill({ color: GOLD });
-      g.circle(TX + bs - 4, TOP - 4, 2).fill({ color: 0xFFF7D6 });
-      g.rect(TX - 2, TOP - 14, 4, 4).fill({ color: 0x78716C });
-      glow.circle(TX, TOP, 14 + this.rang * 14).fill({ color: GOLD, alpha: 0.12 + this.rang * 0.3 });
+      this.bell.x = TX + bs;
+      this.pool(glow, TX, TOP, 14 + this.rang * 14, 14 + this.rang * 14, GOLD, 0.12 + this.rang * 0.3, 3);
     }
     // The puck on its rail
     const py = Math.round(this.puckY);
+    const puck = mix(0xB8BEC8, GOLD, this.rang);
     g.rect(TX - 7, py - 3, 14, 6).fill({ color: INK });
-    g.rect(TX - 6, py - 2, 12, 4).fill({ color: mix(0xE5E7EB, GOLD, this.rang) });
+    g.rect(TX - 6, py - 2, 12, 4).fill({ color: mix(puck, 0x1A1424, 0.45) });
+    g.rect(TX - 6, py - 2, 12, 2).fill({ color: puck });
+    g.rect(TX - 5, py - 2, 3, 1).fill({ color: 0xFFFFFF });
     if (this.puckV < -100) glow.rect(TX - 3, py + 3, 6, Math.min(40, -this.puckV / 12)).fill({ color: CREAM, alpha: 0.25 });
   }
+}
+
+// --- Art ----------------------------------------------------------------------------------------------------
+
+const RED_M = { ramp: ramp(0x962028, 6, 0x14040F, 0xFFD0B0, 0.55), grain: 0.06, gx: 4, gy: 7 };
+const CREAM_M = { ramp: ramp(0xB4A88E, 6, 0x1A1024, 0xFFF4DC, 0.55), grain: 0.06, gx: 4, gy: 7 };
+const WOOD_M = { ramp: ramp(0x6A3A1C, 6, 0x10060E, 0xFFD8A8), grain: 0.06, gx: 9, gy: 1.5 };
+const IRON_M = { ramp: ramp(0x484C58, 6, 0x08060E, 0xF0F0F8), shine: 0.7 };
+const BRASS_M = { ramp: ramp(0xB07A24, 7, 0x20080C, 0xFFF4C8, 0.9), shine: 1 };
+
+/** The big top: a striped cone with soft folds, a scalloped valance, striped walls and a lamplit doorway. */
+function tentArt(): LitCanvas {
+  const c = new LitCanvas(146, FOOT - TENT_OY - 4);
+  const red = c.material(RED_M);
+  const cream = c.material(CREAM_M);
+  const pole = c.material(WOOD_M);
+  const ax = 73;
+  const ay = 18;
+  const eave = 112; // where the cone meets the valance
+  const wall = 124;
+  const cone = (want: number) => (x: number, y: number): [number, number, number] | null => {
+    if (y < ay || y > eave + 4) return null;
+    const hw = 70 * ((y - ay) / (eave - ay));
+    const u = (x - ax) / Math.max(1, hw);
+    if (Math.abs(u) > 1) return null;
+    const k = (u + 1) * 4; // eight panels
+    if ((Math.floor(k) % 2) !== want) return null;
+    const fold = Math.cos((k % 1) * Math.PI * 2) * 0.25; // each panel sags between its seams
+    return [u * 0.85 + fold * 0.3, -0.5, Math.sqrt(Math.max(0.05, 1 - u * u)) * 0.7];
+  };
+  c.group(() => {
+    c.shape(0, ay, 146, eave + 4, red, cone(0));
+    c.shape(0, ay, 146, eave + 4, cream, cone(1));
+  });
+  // Walls: wider vertical stripes on a drum
+  const drum = (want: number) => (x: number): [number, number, number] | null => {
+    const u = (x - ax) / 66;
+    if (Math.abs(u) > 1) return null;
+    if (Math.floor((u + 1) * 7) % 2 !== want) return null;
+    return [u * 0.9, 0, Math.sqrt(Math.max(0.05, 1 - u * u))];
+  };
+  c.group(() => {
+    c.shape(ax - 66, wall, ax + 67, c.h, red, drum(0));
+    c.shape(ax - 66, wall, ax + 67, c.h, cream, drum(1));
+  });
+  // Valance: a red band round the eave with a scalloped hem
+  c.shape(ax - 72, eave, ax + 73, wall + 6, red, (x, y) => {
+    const u = (x - ax) / 72;
+    if (Math.abs(u) > 1) return null;
+    const hem = wall + 1 + Math.abs(Math.sin(((x - ax) / 9) * Math.PI)) * 4;
+    if (y > hem) return null;
+    const v = (y - eave) / (hem - eave);
+    return [u * 0.8, v * 0.6 - 0.3, Math.sqrt(Math.max(0.05, 1 - u * u)) * 0.8];
+  });
+  for (let x = ax - 66; x < ax + 67; x += 9) c.sphere(x, eave + 4, 1.3, cream);
+  // The doorway: flaps tied back on a warm, lamplit inside
+  const top = wall - 2;
+  c.poly([ax - 13, c.h, ax, top, ax + 13, c.h], red, [0, 0, 1], -0.5);
+  for (let y = top + 3; y < c.h; y++) {
+    const hw = ((y - top) / (c.h - top)) * 9;
+    for (let x = Math.ceil(ax - hw); x <= ax + hw; x++) c.glow(x, y, y > c.h - 6 ? 0xFFD08A : y > c.h - 14 ? 0xF0A050 : 0xB86030);
+  }
+  c.tube(ax, 2, ax, ay + 2, 2, pole);
+  return c;
+}
+
+/** The striker's tower: a planked base box with iron corners, a strike pad, and a barber-striped pole. */
+function towerArt(): LitCanvas {
+  const c = new LitCanvas(52, FOOT - TOP + 2);
+  const wood = c.material(WOOD_M);
+  const iron = c.material(IRON_M);
+  const red = c.material({ ...RED_M, shine: 0.4, grain: 0 });
+  const cream = c.material({ ...CREAM_M, shine: 0.4, grain: 0 });
+  const tx = 26;
+  const base = FOOT - TOP + 2 - 14;
+  const top = 10;
+  const stripe = (want: number) => (x: number, y: number): [number, number, number] | null => {
+    const u = ((x - tx + 5) / 10) * 2 - 1;
+    if (Math.abs(u) > 1) return null;
+    if (Math.floor((y + u * 4) / 6) % 2 !== want) return null;
+    return [u * 0.95, 0, Math.sqrt(Math.max(0.05, 1 - u * u))];
+  };
+  c.group(() => {
+    c.shape(tx - 5, top, tx + 5, base, red, stripe(0));
+    c.shape(tx - 5, top, tx + 5, base, cream, stripe(1));
+  });
+  c.cylV(tx - 6, top - 2, 12, 3, iron);
+  c.box(tx - 24, base, 48, 14, wood, 1);
+  for (let x = tx - 24; x < tx + 24; x += 8) c.carve(x, base + 3, x, base + 13, 0.3);
+  for (const x of [tx - 24, tx + 20]) c.box(x, base, 4, 14, iron, 1);
+  c.box(tx - 20, base - 4, 16, 4, iron, 1);
+  return c;
+}
+
+/** The brass bell atop the striker: a squat dome with a lip, on its bracket. Anchor (12, 13). */
+function bellArt(): LitCanvas {
+  const c = new LitCanvas(24, 26);
+  const brass = c.material(BRASS_M);
+  const iron = c.material(IRON_M);
+  c.box(10, 0, 4, 5, iron, 1);
+  c.lathe(12, 4, 22, (y) => (y < 4 ? 0 : y < 19 ? 4 + Math.sqrt(Math.max(0, (y - 4) / 15)) * 6 : 10.5), brass);
+  c.sphere(12, 23, 2, iron);
+  return c;
 }
