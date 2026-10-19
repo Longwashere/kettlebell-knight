@@ -718,16 +718,16 @@ export const CARD_UNLOCK_REGISTRY: Record<string, CardUnlockDef> = {
     },
   },
 
-  // --- HALO ---
+  // --- AROUND-THE-BODY PASS ---
   halo_barrier: {
     cardId: 'halo_barrier',
     name: 'Celestial Barrier',
     category: 'MARTIAL_DISCIPLINE',
-    lore: 'Weaving a continuous orbital ring of light around the skull, creating an impenetrable defensive field.',
-    requirementText: 'Complete 25 total Halos in battle',
+    lore: 'Weaving a continuous orbital pass around the waist, creating an impenetrable defensive field.',
+    requirementText: 'Complete 25 total Around-the-Body Passes in battle',
     condition: {
       type: 'EXERCISE_REPS',
-      exercise: 'HALO',
+      exercise: 'AROUND_THE_BODY',
       requiredReps: 25,
     },
   },
@@ -736,11 +736,11 @@ export const CARD_UNLOCK_REGISTRY: Record<string, CardUnlockDef> = {
     cardId: 'halo_vortex',
     name: 'Astral Vortex',
     category: 'MARTIAL_DISCIPLINE',
-    lore: 'Spinning an atmospheric gravitational vortex that warps airflow, disorienting and slowing all enemies.',
-    requirementText: 'Perform 15 Halos on Belfry Ramparts or Eldritch Altar',
+    lore: 'Spinning an atmospheric gravitational vortex around the torso that warps airflow, disorienting and slowing all enemies.',
+    requirementText: 'Perform 15 Around-the-Body Passes on Belfry Ramparts or Eldritch Altar',
     condition: {
       type: 'MAP_EXERCISE',
-      exercise: 'HALO',
+      exercise: 'AROUND_THE_BODY',
       mapIds: ['BELFRY_RAMPARTS', 'ELDRITCH_ALTAR'],
       mapNames: 'Belfry Ramparts or Eldritch Altar',
       requiredReps: 15,

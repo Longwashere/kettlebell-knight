@@ -13,7 +13,7 @@ export type ExerciseType =
   | 'OVERHEAD_PRESS'
   | 'THRUSTER'
   | 'GORILLA_ROW'
-  | 'HALO'
+  | 'AROUND_THE_BODY'
   | 'SINGLE_LEG_RDL'
   | 'CLEAN'
   | 'LUNGE';
@@ -102,13 +102,13 @@ export const EXERCISE_SKILLS: Record<ExerciseType, ExerciseSkillConfig> = {
     colorHex: '#84CC16',
     targetMetric: 'Elbow Row Drive',
   },
-  HALO: {
-    type: 'HALO',
+  AROUND_THE_BODY: {
+    type: 'AROUND_THE_BODY',
     skillName: 'CELESTIAL WARD',
-    description: 'Rotational 360-degree orbit around the head generating an impenetrable shield.',
+    description: 'Rotational 360-degree pass around the waist generating a swirling kinetic barrier.',
     rpgElement: 'LIGHTNING',
     colorHex: '#818CF8',
-    targetMetric: 'Orbit Smoothness',
+    targetMetric: 'Orbit Cadence',
   },
   SINGLE_LEG_RDL: {
     type: 'SINGLE_LEG_RDL',

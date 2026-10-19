@@ -574,15 +574,15 @@ export const PhoneView: React.FC = () => {
       ctx.fillStyle = '#84CC16';
       ctx.fillText('RIB CONTRACTION', 20, hipY - 22);
 
-    } else if (activeExercise === 'HALO') {
-      // Halo HUD: Head crown orbit ellipse
+    } else if (activeExercise === 'AROUND_THE_BODY') {
+      // Around-the-Body Pass HUD: Waist / Hip Orbit Ellipse
       ctx.strokeStyle = '#818CF8';
       ctx.setLineDash([6, 4]);
       ctx.beginPath();
-      ctx.ellipse(noseX, noseY, 65, 45, 0, 0, Math.PI * 2);
+      ctx.ellipse(w * 0.5, hipY, 80, 28, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.fillStyle = '#818CF8';
-      ctx.fillText('CROWN ORBIT', noseX - 45, noseY - 55);
+      ctx.fillText('WAIST ORBIT', w * 0.5 - 45, hipY - 35);
 
     } else if (activeExercise === 'SINGLE_LEG_RDL') {
       // Single-Leg RDL HUD: Planted knee depth and horizontal trail leg line

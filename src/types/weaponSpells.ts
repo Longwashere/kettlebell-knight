@@ -24,7 +24,7 @@ export const WEAPON_SPELLS: Record<string, CardTemplate[]> = {
     spell('spider_morningstar', { templateId: 'spell_brood_sac', name: 'Brood Sac Hurl', exercise: 'SNATCH', reps: 5, rarity: 'rare', target: 'CHAIN', hits: 3, element: 'NATURE', colorHex: '#A855F7', icon: '🕷️' }),
   ],
   crypt_morningstar: [
-    spell('crypt_morningstar', { templateId: 'spell_requiem_censer', name: 'Requiem Censer', exercise: 'HALO', reps: 5, rarity: 'rare', target: 'SINGLE', healShare: 0.3, element: 'HOLY', colorHex: '#38BDF8', icon: '🕯️' }),
+    spell('crypt_morningstar', { templateId: 'spell_requiem_censer', name: 'Requiem Censer', exercise: 'AROUND_THE_BODY', reps: 5, rarity: 'rare', target: 'SINGLE', healShare: 0.3, element: 'HOLY', colorHex: '#38BDF8', icon: '🕯️' }),
   ],
   hellhound_morningstar: [
     spell('hellhound_morningstar', { templateId: 'spell_brimstone_comet', name: 'Brimstone Comet', exercise: 'SNATCH', reps: 5, rarity: 'epic', target: 'BACK', element: 'FIRE', colorHex: '#EF4444', icon: '☄️' }),
@@ -37,17 +37,17 @@ export const WEAPON_SPELLS: Record<string, CardTemplate[]> = {
   ],
   kraken_morningstar: [
     spell('kraken_morningstar', { templateId: 'spell_abyssal_anchor', name: 'Abyssal Anchor', exercise: 'CLEAN_AND_PRESS', reps: 5, rarity: 'legendary', target: 'SINGLE', shatter: true, element: 'FROST', colorHex: '#14B8A6', icon: '⚓' }),
-    spell('kraken_morningstar', { templateId: 'spell_maelstrom', name: "Kraken's Maelstrom", exercise: 'HALO', reps: 6, rarity: 'legendary', target: 'ALL', stagger: 1, element: 'STORM', colorHex: '#0D9488', icon: '🐙' }),
+    spell('kraken_morningstar', { templateId: 'spell_maelstrom', name: "Kraken's Maelstrom", exercise: 'AROUND_THE_BODY', reps: 6, rarity: 'legendary', target: 'ALL', stagger: 1, element: 'STORM', colorHex: '#0D9488', icon: '🐙' }),
   ],
   excalibur_morningstar: [
-    spell('excalibur_morningstar', { templateId: 'spell_sunflare', name: 'Sunflare Pendulum', exercise: 'HALO', reps: 5, rarity: 'epic', target: 'ALL', element: 'HOLY', colorHex: '#FBBF24', icon: '☀️' }),
+    spell('excalibur_morningstar', { templateId: 'spell_sunflare', name: 'Sunflare Pendulum', exercise: 'AROUND_THE_BODY', reps: 5, rarity: 'epic', target: 'ALL', element: 'HOLY', colorHex: '#FBBF24', icon: '☀️' }),
   ],
   dragon_morningstar: [
     spell('dragon_morningstar', { templateId: 'spell_wyrmchain', name: 'Wyrmchain Inferno', exercise: 'SWING', reps: 6, rarity: 'legendary', target: 'ALL', element: 'FIRE', colorHex: '#EF4444', icon: '🐉' }),
     spell('dragon_morningstar', { templateId: 'spell_molten_meteor', name: 'Molten Meteor', exercise: 'SNATCH', reps: 5, rarity: 'legendary', target: 'SINGLE', shatter: true, element: 'FIRE', colorHex: '#F97316', icon: '🌋' }),
   ],
   void_morningstar: [
-    spell('void_morningstar', { templateId: 'spell_event_horizon', name: 'Event Horizon', exercise: 'HALO', reps: 6, rarity: 'legendary', target: 'ALL', stagger: 1, element: 'VOID', colorHex: '#C084FC', icon: '🕳️' }),
+    spell('void_morningstar', { templateId: 'spell_event_horizon', name: 'Event Horizon', exercise: 'AROUND_THE_BODY', reps: 6, rarity: 'legendary', target: 'ALL', stagger: 1, element: 'VOID', colorHex: '#C084FC', icon: '🕳️' }),
     spell('void_morningstar', { templateId: 'spell_gravity_well', name: 'Gravity Well', exercise: 'CLEAN_AND_PRESS', reps: 5, rarity: 'legendary', target: 'SINGLE', shatter: true, element: 'VOID', colorHex: '#7C3AED', icon: '🌀' }),
   ],
 
@@ -113,7 +113,7 @@ export const WEAPON_SPELLS: Record<string, CardTemplate[]> = {
     spell('leviathan_anchor', { templateId: 'spell_leviathans_maw', name: "Leviathan's Maw", exercise: 'SNATCH', reps: 5, rarity: 'legendary', target: 'SINGLE', shatter: true, element: 'FROST', colorHex: '#0E7490', icon: '🐋' }),
   ],
   everburning_censer: [
-    spell('everburning_censer', { templateId: 'spell_sanctified_smoke', name: 'Sanctified Smoke', exercise: 'HALO', reps: 5, rarity: 'legendary', target: 'SINGLE', blockShare: 0.35, element: 'HOLY', colorHex: '#7DD3FC', icon: '💨' }),
+    spell('everburning_censer', { templateId: 'spell_sanctified_smoke', name: 'Sanctified Smoke', exercise: 'AROUND_THE_BODY', reps: 5, rarity: 'legendary', target: 'SINGLE', blockShare: 0.35, element: 'HOLY', colorHex: '#7DD3FC', icon: '💨' }),
     spell('everburning_censer', { templateId: 'spell_candlemass', name: 'Candlemass', exercise: 'SWING', reps: 6, rarity: 'legendary', target: 'ALL', element: 'HOLY', colorHex: '#FDE68A', icon: '🕯️' }),
   ],
   tolling_thunder: [
@@ -130,7 +130,7 @@ export const WEAPON_SPELLS: Record<string, CardTemplate[]> = {
   ],
   hollow_bell: [
     spell('hollow_bell', { templateId: 'spell_stare_back', name: 'Stare Back', exercise: 'SINGLE_LEG_RDL', reps: 5, rarity: 'legendary', target: 'SINGLE', shatter: true, element: 'VOID', colorHex: '#C084FC', icon: '👁️' }),
-    spell('hollow_bell', { templateId: 'spell_rift_hymn', name: 'Rift Hymn', exercise: 'HALO', reps: 6, rarity: 'legendary', target: 'ALL', stagger: 1, element: 'VOID', colorHex: '#4ADE80', icon: '🎶' }),
+    spell('hollow_bell', { templateId: 'spell_rift_hymn', name: 'Rift Hymn', exercise: 'AROUND_THE_BODY', reps: 6, rarity: 'legendary', target: 'ALL', stagger: 1, element: 'VOID', colorHex: '#4ADE80', icon: '🎶' }),
   ],
   excalibane: [
     spell('excalibane', { templateId: 'spell_eclipse_edge', name: 'Eclipse Edge', exercise: 'SNATCH', reps: 5, rarity: 'legendary', target: 'PIERCE', element: 'VOID', colorHex: '#A78BFA', icon: '🌑' }),

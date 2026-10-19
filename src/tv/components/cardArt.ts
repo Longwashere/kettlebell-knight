@@ -1161,7 +1161,7 @@ const SCENES: Record<string, Scene> = {
     },
   },
 
-  // HALO
+  // AROUND-THE-BODY PASS
   halo_barrier: {
     sky: 'holy', horizon: 'hills', stars: 10,
     motif: (m) => {

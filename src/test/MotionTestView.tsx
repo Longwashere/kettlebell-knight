@@ -54,7 +54,7 @@ const ALL_EXERCISES: ExerciseType[] = [
   'OVERHEAD_PRESS',
   'THRUSTER',
   'GORILLA_ROW',
-  'HALO',
+  'AROUND_THE_BODY',
   'SINGLE_LEG_RDL',
 ];
 
@@ -68,7 +68,7 @@ const EXERCISE_ICONS: Record<ExerciseType, string> = {
   OVERHEAD_PRESS: '☀️',
   THRUSTER: '☄️',
   GORILLA_ROW: '🦍',
-  HALO: '💫',
+  AROUND_THE_BODY: '💫',
   SINGLE_LEG_RDL: '🕊️',
   CLEAN: '💥',
   LUNGE: '🗡️',
@@ -120,10 +120,10 @@ const EXERCISE_TIPS: Record<ExerciseType, { instruction: string; criteria: strin
     criteria: 'Torso hinged forward; working elbow drives past the back plane above hips.',
     powerTip: 'Hold peak contraction at rib cage for 150ms before lowering.',
   },
-  HALO: {
-    instruction: 'Hold kettlebell by horns at chest. Circle smoothly 360° around the crown of your head.',
-    criteria: 'Wrists orbit from chest center past ear, behind neck, past opposite ear, back to chest.',
-    powerTip: 'Keep circle tight and shoulders down without swaying hips.',
+  AROUND_THE_BODY: {
+    instruction: 'Stand tall. Pass the kettlebell in a smooth 360° circle around your waist from hand to hand.',
+    criteria: 'Wrists pass laterally around waist, transferring behind hips and returning across opposite side to front.',
+    powerTip: 'Keep your core braced and torso upright with minimal hip swaying.',
   },
   SINGLE_LEG_RDL: {
     instruction: 'Stand on one leg with soft knee. Hinge forward while kicking trail leg straight back horizontally.',
@@ -645,14 +645,14 @@ export const MotionTestView: React.FC = () => {
       ctx.stroke();
       ctx.fillStyle = '#84CC16';
       ctx.fillText('RIB CONTRACTION LINE', 20, hipY - 22);
-    } else if (selectedExercise === 'HALO') {
+    } else if (selectedExercise === 'AROUND_THE_BODY') {
       ctx.strokeStyle = '#818CF8';
       ctx.setLineDash([6, 4]);
       ctx.beginPath();
-      ctx.ellipse(noseX, noseY, 65, 45, 0, 0, Math.PI * 2);
+      ctx.ellipse(w * 0.5, hipY, 80, 28, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.fillStyle = '#818CF8';
-      ctx.fillText('CROWN ORBIT', noseX - 45, noseY - 55);
+      ctx.fillText('WAIST ORBIT', w * 0.5 - 45, hipY - 35);
     } else if (selectedExercise === 'SINGLE_LEG_RDL') {
       ctx.strokeStyle = '#EC4899';
       ctx.setLineDash([8, 6]);

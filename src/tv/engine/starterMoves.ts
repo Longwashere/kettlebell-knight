@@ -534,39 +534,39 @@ function hipPop(h: KnightMoveHost, tl: Timeline) {
   tl.end(POP + 26);
 }
 
-/** Second Wind: close on the knight circling the bell round his head, a deep breath, then a light jab. */
+/** Second Wind: close on the knight passing the bell round his waist, a deep breath, then a light jab. */
 function secondWind(h: KnightMoveHost, tl: Timeline) {
   const t0 = h.target;
   const c = chest(t0);
-  const HALO = 30;
-  const JAB = HALO + 14; // ATTACK3 thrust peak
+  const PASS = 30;
+  const JAB = PASS + 14; // ATTACK3 thrust peak
   tl.at(0, () => {
     h.anim('BUFF');
     h.weaponShown(false); // the bell orbits on its own
-    h.camera(1.45, h.home.x + 4, h.home.y - 40, HALO);
+    h.camera(1.45, h.home.x + 4, h.home.y - 30, PASS);
   });
-  // The halo: a small kettlebell orbiting the helmet with a faint motion ring
-  drawSpan(h, tl, 0, HALO, (g, t, f) => {
+  // The pass: a kettlebell orbiting the waist with a faint motion ring
+  drawSpan(h, tl, 0, PASS, (g, t, f) => {
     const p = h.pos();
     const cx = p.x + 2;
-    const cy = p.y - 52;
+    const cy = p.y - 24;
     const a = f * 0.32;
-    g.ellipse(cx, cy, 15, 5).stroke({ width: 1, color: 0xE2E8F0, alpha: 0.35 * arc(t) });
-    crescent(g, cx, cy, 15, a - 1.4, a, 2, P_IRON, 0.5 * arc(t));
-    kettlebell(g, cx + Math.cos(a) * 15, cy + Math.sin(a) * 5, 4, a, 0xE2E8F0);
+    g.ellipse(cx, cy, 18, 6).stroke({ width: 1, color: 0xE2E8F0, alpha: 0.35 * arc(t) });
+    crescent(g, cx, cy, 18, a - 1.4, a, 2, P_IRON, 0.5 * arc(t));
+    kettlebell(g, cx + Math.cos(a) * 18, cy + Math.sin(a) * 6, 4, a, 0xE2E8F0);
   });
-  tl.every(0, HALO, 10, (i) => h.sound('whoosh', { vol: 0.35, rate: 1 + i * 0.12 }));
-  tl.at(HALO - 6, () => {
+  tl.every(0, PASS, 10, (i) => h.sound('whoosh', { vol: 0.35, rate: 1 + i * 0.12 }));
+  tl.at(PASS - 6, () => {
     breath(h, 6);
-    h.emit(h.pos().x, h.pos().y - 30, { count: 8, colors: [0xF8FAFC, 0xE5E7EB, 0xBBF7D0], speed: [0.3, 0.8], angle: -Math.PI / 2, spread: 0.6, gravity: -0.02, size: 2, life: [18, 28] });
+    h.emit(h.pos().x, h.pos().y - 20, { count: 8, colors: [0xF8FAFC, 0xE5E7EB, 0xBBF7D0], speed: [0.3, 0.8], angle: -Math.PI / 2, spread: 0.6, gravity: -0.02, size: 2, life: [18, 28] });
   });
-  tl.at(HALO, () => {
+  tl.at(PASS, () => {
     h.weaponShown(true);
     h.anim('ATTACK3');
     h.sound('dash', { vol: 0.45 });
     h.camera(1.14, between(h, t0, 0.6).x, c.y, 12);
   });
-  travel(h, tl, HALO + 2, JAB, HOME, strikeSpot(h, t0, 46), easeIn);
+  travel(h, tl, PASS + 2, JAB, HOME, strikeSpot(h, t0, 46), easeIn);
   hitFx(h, tl, JAB, c, P_STEEL, 10, SPARKS);
   tl.at(JAB, () => {
     land(h, 0, { scale: 0.8, tint: 0xE2E8F0 });

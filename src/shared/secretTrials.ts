@@ -62,7 +62,7 @@ export interface SecretTrialSpec {
 
 const ALL_EXERCISES: ExerciseType[] = [
   'SWING', 'SQUAT', 'CLEAN_AND_PRESS', 'SNATCH', 'WINDMILL', 'DEADLIFT', 'OVERHEAD_PRESS', 'THRUSTER',
-  'GORILLA_ROW', 'HALO', 'SINGLE_LEG_RDL', 'CLEAN', 'LUNGE',
+  'GORILLA_ROW', 'AROUND_THE_BODY', 'SINGLE_LEG_RDL', 'CLEAN', 'LUNGE',
 ];
 
 const trial = (spec: Omit<SecretTrialSpec, 'baseChance' | 'chancePerRep'> & Partial<SecretTrialSpec>): SecretTrialSpec => ({
@@ -85,7 +85,7 @@ export const SECRET_TRIALS: Record<SecretTrialId, SecretTrialSpec> = {
     maps: ['SUNKEN_CISTERN'], guaranteed: { mapId: 'SUNKEN_CISTERN', level: 2 },
   }),
   everburning_censer: trial({
-    id: 'everburning_censer', exercise: 'HALO', reps: 40, seconds: 90, mechanic: { kind: 'drain', fill: 1 / 30, push: 0.045 },
+    id: 'everburning_censer', exercise: 'AROUND_THE_BODY', reps: 40, seconds: 90, mechanic: { kind: 'drain', fill: 1 / 30, push: 0.045 },
     maps: ['CATHEDRAL_CRYPT'], guaranteed: { mapId: 'CATHEDRAL_CRYPT', level: 2 },
   }),
   dead_weight: trial({

@@ -358,10 +358,10 @@ function rattleBack(h: KnightMoveHost, tl: Timeline) {
 function wispLure(h: KnightMoveHost, tl: Timeline) {
   const t0 = h.target;
   const c = chest(t0);
-  const HALO = 26;
-  const ARRIVE = HALO + 44;
+  const PASS = 26;
+  const ARRIVE = PASS + 44;
   const POP = ARRIVE + 14;
-  const head = (): P => ({ x: h.pos().x + 2, y: h.pos().y - 52 });
+  const waist = (): P => ({ x: h.pos().x + 2, y: h.pos().y - 24 });
   const px = moveSprites(h, () => ({ wisp: AS.wisps() }));
   let spirit: Sprite | null = null;
   let wx = 0;
@@ -369,16 +369,16 @@ function wispLure(h: KnightMoveHost, tl: Timeline) {
   tl.at(0, () => {
     h.anim('BUFF');
     h.weaponShown(false);
-    h.camera(1.45, h.home.x + 4, h.home.y - 40, HALO);
+    h.camera(1.45, h.home.x + 4, h.home.y - 30, PASS);
     h.sound('magic', { vol: 0.4, rate: 1.4 });
   });
-  // The halo leaves a ring of light; a wisp gathers in its wake
-  drawSpan(h, tl, 0, HALO, (g, t, f) => {
-    const p = head();
+  // The pass leaves a ring of light; a wisp gathers in its wake
+  drawSpan(h, tl, 0, PASS, (g, t, f) => {
+    const p = waist();
     const a = f * 0.34;
-    g.ellipse(p.x, p.y, 15, 5).stroke({ width: 1.5, color: 0x67E8F9, alpha: 0.5 * t });
-    crescent(g, p.x, p.y, 15, a - 1.6, a, 2.5, P_WISP, 0.7);
-    kettlebell(g, p.x + Math.cos(a) * 15, p.y + Math.sin(a) * 5, 4, a, 0x67E8F9);
+    g.ellipse(p.x, p.y, 18, 6).stroke({ width: 1.5, color: 0x67E8F9, alpha: 0.5 * t });
+    crescent(g, p.x, p.y, 18, a - 1.6, a, 2.5, P_WISP, 0.7);
+    kettlebell(g, p.x + Math.cos(a) * 18, p.y + Math.sin(a) * 6, 4, a, 0x67E8F9);
     if (t > 0.5) {
       g.circle(p.x, p.y - 14, 10).fill({ color: 0x67E8F9, alpha: 0.2 * (t - 0.5) * 2 });
       spirit ??= px.sprite('wisp', 0, { ax: 12, ay: 17 });
@@ -387,22 +387,22 @@ function wispLure(h: KnightMoveHost, tl: Timeline) {
       px.show(spirit, 'wisp', f / 4);
     }
   });
-  tl.every(0, HALO, 9, (i) => h.sound('whoosh', { vol: 0.35, rate: 1.1 + i * 0.12 }));
-  tl.at(HALO, () => {
+  tl.every(0, PASS, 9, (i) => h.sound('whoosh', { vol: 0.35, rate: 1.1 + i * 0.12 }));
+  tl.at(PASS, () => {
     h.weaponShown(true);
     h.anim('DEFENSE');
     h.sound('heal', { vol: 0.4, rate: 1.8 });
   });
   // Its flight: a lazy, bobbing, curious drift; it peeks back at the knight once
-  drawSpan(h, tl, HALO, POP, (g, _t, f) => {
-    const k = Math.min(1, f / (ARRIVE - HALO));
-    const s0 = { x: h.home.x + 2, y: h.home.y - 66 };
+  drawSpan(h, tl, PASS, POP, (g, _t, f) => {
+    const k = Math.min(1, f / (ARRIVE - PASS));
+    const s0 = { x: h.home.x + 2, y: h.home.y - 38 };
     const e0 = { x: c.x - 18, y: c.y - 4 };
     wx = lerp(s0.x, e0.x, easeInOut(k)) + Math.sin(f * 0.2) * 6 * (1 - k);
     wy = lerp(s0.y, e0.y, easeInOut(k)) - arc(k) * 26 + Math.sin(f * 0.35) * 3;
     const look = f > 14 && f < 22 ? -1 : 1;
-    const blink = f > POP - HALO - 10 && f < POP - HALO - 6;
-    const swell = f > ARRIVE - HALO ? (f - (ARRIVE - HALO)) / (POP - ARRIVE) : 0;
+    const blink = f > POP - PASS - 10 && f < POP - PASS - 6;
+    const swell = f > ARRIVE - PASS ? (f - (ARRIVE - PASS)) / (POP - ARRIVE) : 0;
     g.circle(wx, wy, 14 + 10 * swell).fill({ color: 0x67E8F9, alpha: 0.12 + 0.12 * swell });
     g.circle(wx, wy, 9 + 5 * swell).fill({ color: 0x67E8F9, alpha: 0.2 });
     if (spirit) {
@@ -413,9 +413,9 @@ function wispLure(h: KnightMoveHost, tl: Timeline) {
     }
   });
   tl.at(POP, () => spirit && (spirit.visible = false));
-  tl.every(HALO, POP, 3, () => h.emit(wx, wy + 4, { count: 1, colors: [0xA5F3FC, 0xFFFFFF], speed: [0.1, 0.4], angle: Math.PI / 2, spread: 1, gravity: 0.01, size: 2, life: [14, 22] }));
-  tl.at(HALO + 6, () => h.sound('whistle', { vol: 0.3, rate: 1.8 }));
-  follow(h, tl, HALO + 4, ARRIVE, 1.2, () => ({ x: wx, y: wy + 10 }), 6);
+  tl.every(PASS, POP, 3, () => h.emit(wx, wy + 4, { count: 1, colors: [0xA5F3FC, 0xFFFFFF], speed: [0.1, 0.4], angle: Math.PI / 2, spread: 1, gravity: 0.01, size: 2, life: [14, 22] }));
+  tl.at(PASS + 6, () => h.sound('whistle', { vol: 0.3, rate: 1.8 }));
+  follow(h, tl, PASS + 4, ARRIVE, 1.2, () => ({ x: wx, y: wy + 10 }), 6);
   tl.at(ARRIVE, () => {
     h.camera(1.48, c.x - 14, c.y - 4, POP - ARRIVE + 4);
     h.sound('ui_move', { vol: 0.4, rate: 2 }); // a curious chirp

@@ -39,7 +39,7 @@ export const EXERCISE_PROFILE: Record<ExerciseType, { label: string; repSeconds:
   GORILLA_ROW: { label: 'GORILLA ROWS', repSeconds: 2.5, intensity: 1.0 },
   SINGLE_LEG_RDL: { label: 'SINGLE-LEG RDL', repSeconds: 3.5, intensity: 0.9 },
   WINDMILL: { label: 'KETTLEBELL WINDMILLS', repSeconds: 4.5, intensity: 0.85 },
-  HALO: { label: 'KETTLEBELL HALOS', repSeconds: 3.0, intensity: 0.8 },
+  AROUND_THE_BODY: { label: 'AROUND-THE-BODY PASS', repSeconds: 2.8, intensity: 0.85 },
 };
 
 export const BALANCE = {

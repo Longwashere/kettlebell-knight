@@ -1256,9 +1256,9 @@ function shadowRipper(h: KnightMoveHost, tl: Timeline) {
 }
 
 // =============================================================================================
-// HALO: mobility, protection
+// AROUND-THE-BODY PASS: mobility, protection
 
-/** Celestial Barrier: a halo kindles over the knight, drops into a dome, and fires a light lance. */
+/** Celestial Barrier: kinetic energy kindles around the knight's waist, expands into a protective ward, and fires a light lance. */
 function celestialBarrier(h: KnightMoveHost, tl: Timeline) {
   const c = chest(h.target);
   const DROP = 22;
@@ -1269,17 +1269,17 @@ function celestialBarrier(h: KnightMoveHost, tl: Timeline) {
   });
   drawSpan(h, tl, 0, DROP + 8, (g, _t, f) => {
     const p = h.pos();
-    const y = f < DROP ? p.y - 56 : lerp(p.y - 56, p.y - 24, easeIn((f - DROP) / 8));
-    const r = f < DROP ? 10 + 2 * Math.sin(f * 0.4) : lerp(12, 34, easeOut((f - DROP) / 8));
-    g.ellipse(p.x + 2, y, r, r * 0.3).stroke({ width: 4, color: INK, alpha: 0.5 });
-    g.ellipse(p.x + 2, y, r, r * 0.3).stroke({ width: 2, color: 0x818CF8 });
-    g.ellipse(p.x + 2, y, r, r * 0.3).stroke({ width: 1, color: 0xEEF2FF });
+    const y = p.y - 24;
+    const r = f < DROP ? 14 + 3 * Math.sin(f * 0.4) : lerp(17, 34, easeOut((f - DROP) / 8));
+    g.ellipse(p.x + 2, y, r, r * 0.35).stroke({ width: 4, color: INK, alpha: 0.5 });
+    g.ellipse(p.x + 2, y, r, r * 0.35).stroke({ width: 2, color: 0x818CF8 });
+    g.ellipse(p.x + 2, y, r, r * 0.35).stroke({ width: 1, color: 0xEEF2FF });
     for (let k = 0; k < 4; k++) {
       const a = f * 0.2 + (k * Math.PI) / 2;
-      g.rect(p.x + 2 + Math.cos(a) * r - 1, y + Math.sin(a) * r * 0.3 - 1, 2, 2).fill({ color: 0xFFFFFF });
+      g.rect(p.x + 2 + Math.cos(a) * r - 1, y + Math.sin(a) * r * 0.35 - 1, 2, 2).fill({ color: 0xFFFFFF });
     }
   });
-  motesFx(h, tl, 4, DROP, () => ({ x: h.pos().x, y: h.pos().y - 50 }), [0x818CF8, 0xEEF2FF], 3, 8);
+  motesFx(h, tl, 4, DROP, () => ({ x: h.pos().x, y: h.pos().y - 24 }), [0x818CF8, 0xEEF2FF], 3, 8);
   tl.at(DROP + 8, () => {
     h.anim('DEFENSE');
     h.guard(0x818CF8);

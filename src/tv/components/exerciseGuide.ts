@@ -129,15 +129,15 @@ export const EXERCISE_GUIDES: Record<ExerciseType, ExerciseGuide> = {
     ],
     cues: ['Wide stance, hinge, flat back', 'Row the bell to your hip', 'Alternate sides without twisting'],
   },
-  HALO: {
-    name: 'Halo',
-    tempoMs: 600,
+  AROUND_THE_BODY: {
+    name: 'Around-the-Body Pass',
+    tempoMs: 650,
     frames: [
-      { label: 'CHEST', shin: 0, thigh: 0, torso: 0, arm: [15, 165], bell: { x: 2.5, y: -1.5 } },
-      { label: 'SIDE', shin: 0, thigh: 0, torso: 0, arm: [160, 120], bell: { x: 1, y: -2.5 } },
-      { label: 'BEHIND', shin: 0, thigh: 0, torso: 0, arm: [170, 250], bell: { x: -2, y: 1 } },
+      { label: 'FRONT', shin: 0, thigh: 0, torso: 0, arm: [20, 45], bell: { x: 2, y: 1 } },
+      { label: 'SIDE', shin: 0, thigh: 0, torso: 0, arm: [45, 30], bell: { x: 4, y: 1 } },
+      { label: 'BEHIND', shin: 0, thigh: 0, torso: 0, arm: [-25, 20], bell: { x: -3, y: 1 } },
     ],
-    cues: ['Hold the bell by the horns, upside down', 'Circle it close around your head', 'Ribs down: only the arms move'],
+    cues: ['Stand tall with core braced', 'Pass the bell smoothly around your waist', 'Switch hands behind the back without swaying'],
   },
   SINGLE_LEG_RDL: {
     name: 'Single-Leg RDL',

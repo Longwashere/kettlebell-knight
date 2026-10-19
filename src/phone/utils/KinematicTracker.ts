@@ -105,7 +105,7 @@ export function calculateAngle(
  *    - OVERHEAD_PRESS
  *    - THRUSTER
  *    - GORILLA_ROW
- *    - HALO
+ *    - AROUND_THE_BODY
  *    - SINGLE_LEG_RDL
  * 
  * 2. Smart Hand Router:
@@ -114,7 +114,7 @@ export function calculateAngle(
  */
 export class KinematicTracker {
   private activeExercise: ExerciseType = 'SWING';
-  private allowedExercises: ExerciseType[] = ['SWING', 'SQUAT', 'OVERHEAD_PRESS', 'CLEAN_AND_PRESS', 'HALO'];
+  private allowedExercises: ExerciseType[] = ['SWING', 'SQUAT', 'OVERHEAD_PRESS', 'CLEAN_AND_PRESS', 'AROUND_THE_BODY'];
   private autoRouteEnabled: boolean = true;
 
   private currentState: SwingState = 0;
@@ -130,8 +130,7 @@ export class KinematicTracker {
 
   // Multi-phase tracking variables
   private cleanStageCompleted: boolean = false;
-  private haloAngleAccumulator: number = 0;
-  private lastHaloQuadrant: number = 0;
+  private aroundBodyDirection: 'CLOCKWISE' | 'COUNTER_CLOCKWISE' | 'NONE' = 'NONE';
   private rdlWorkingLeg: 'LEFT' | 'RIGHT' = 'LEFT';
 
   private requireFullBody: boolean = true;
@@ -190,8 +189,7 @@ export class KinematicTracker {
     this.maxSquatDepth = 0;
     this.lastRepTimestamp = 0;
     this.cleanStageCompleted = false;
-    this.haloAngleAccumulator = 0;
-    this.lastHaloQuadrant = 0;
+    this.aroundBodyDirection = 'NONE';
     this.consecutiveFullBodyFrames = 0;
   }
 
@@ -379,8 +377,8 @@ export class KinematicTracker {
         return this.processThruster(landmarks, timestampMs);
       case 'GORILLA_ROW':
         return this.processGorillaRow(landmarks, timestampMs);
-      case 'HALO':
-        return this.processHalo(landmarks, timestampMs);
+      case 'AROUND_THE_BODY':
+        return this.processAroundTheBody(landmarks, timestampMs);
       case 'SINGLE_LEG_RDL':
         return this.processSingleLegRDL(landmarks, timestampMs);
       case 'LUNGE':
@@ -412,18 +410,22 @@ export class KinematicTracker {
     const shoulderY = (lShoulder.y + rShoulder.y) / 2;
     const hipY = (lHip.y + rHip.y) / 2;
     const kneeY = (lKnee.y + rKnee.y) / 2;
+    const torsoHeight = Math.abs(shoulderY - hipY);
 
     const topWristY = Math.min(lWrist.y, rWrist.y);
     const bottomWristY = Math.max(lWrist.y, rWrist.y);
 
-    // 1. Halo Signature: Wrists orbiting near head/face level
+    // 1. Around-the-Body Pass Signature: Torso upright, wrists orbiting laterally around waist/hip level
+    const hipX = (lHip.x + rHip.x) / 2;
     if (
-      this.allowedExercises.includes('HALO') &&
-      wristY >= nose.y - 0.15 &&
-      wristY <= shoulderY + 0.12 &&
-      (Math.abs(lWrist.x - nose.x) > 0.14 || Math.abs(rWrist.x - nose.x) > 0.14)
+      this.allowedExercises.includes('AROUND_THE_BODY') &&
+      torsoHeight > 0.22 &&
+      hipY < kneeY - 0.10 &&
+      wristY >= shoulderY + 0.10 &&
+      wristY <= hipY + 0.20 &&
+      (Math.abs(lWrist.x - hipX) > 0.14 || Math.abs(rWrist.x - hipX) > 0.14)
     ) {
-      return 'HALO';
+      return 'AROUND_THE_BODY';
     }
 
     // 2. Windmill Signature: One arm held high overhead, torso tilting sideways
@@ -453,7 +455,6 @@ export class KinematicTracker {
     // 4. Gorilla Row Signature: Bent-over torso, one elbow pulling high past hip
     const lElbow = landmarks[POSE_INDEX.LEFT_ELBOW];
     const rElbow = landmarks[POSE_INDEX.RIGHT_ELBOW];
-    const torsoHeight = Math.abs(shoulderY - hipY);
     if (
       this.allowedExercises.includes('GORILLA_ROW') &&
       torsoHeight < 0.22 &&
@@ -1334,94 +1335,92 @@ export class KinematicTracker {
   }
 
   // =========================================================================
-  // EXERCISE 10: KETTLEBELL HALO ("CELESTIAL WARD")
-  // Continuous 360-degree orbit around the crown of the head
+  // EXERCISE 10: KETTLEBELL AROUND-THE-BODY PASS ("CELESTIAL WARD")
+  // Smooth 360-degree hand-to-hand pass around the waist and hips
   // =========================================================================
-  private processHalo(landmarks: NormalizedLandmark[], timestampMs: number): KinematicStateUpdate {
+  private processAroundTheBody(landmarks: NormalizedLandmark[], timestampMs: number): KinematicStateUpdate {
     const lWrist = landmarks[POSE_INDEX.LEFT_WRIST];
     const rWrist = landmarks[POSE_INDEX.RIGHT_WRIST];
+    const lHip = landmarks[POSE_INDEX.LEFT_HIP];
+    const rHip = landmarks[POSE_INDEX.RIGHT_HIP];
     const lShoulder = landmarks[POSE_INDEX.LEFT_SHOULDER];
     const rShoulder = landmarks[POSE_INDEX.RIGHT_SHOULDER];
-    const nose = landmarks[POSE_INDEX.NOSE];
 
-    const wristX = (lWrist.x + rWrist.x) / 2;
-    const wristY = (lWrist.y + rWrist.y) / 2;
+    const hipX = (lHip.x + rHip.x) / 2;
+    const hipY = (lHip.y + rHip.y) / 2;
     const shoulderY = (lShoulder.y + rShoulder.y) / 2;
 
-    const dx = wristX - nose.x;
-    const dy = wristY - nose.y;
-    const angle = Math.atan2(dy, dx); // [-PI, PI]
+    const lDist = lWrist.x - hipX;
+    const rDist = rWrist.x - hipX;
+    const activeWrist = Math.abs(lDist) > Math.abs(rDist) ? lWrist : rWrist;
+    const wristRelX = activeWrist.x - hipX;
+    const wristY = (lWrist.y + rWrist.y) / 2;
 
     let emittedTelemetry: RepTelemetry | undefined = undefined;
 
-    // Detect quadrant: 1 (Chest), 2 (Left ear), 3 (Behind head), 4 (Right ear)
-    let quadrant = 1;
-    if (wristY > shoulderY - 0.02) {
-      quadrant = 1; // Chest/Front
-    } else if (wristX < nose.x - 0.08) {
-      quadrant = 2; // Left of head
-    } else if (wristY <= nose.y) {
-      quadrant = 3; // Crown / Behind
-    } else if (wristX > nose.x + 0.08) {
-      quadrant = 4; // Right of head
-    }
-
     switch (this.currentState) {
-      case 0: { // CHEST CENTER
-        if (quadrant === 1) {
-          this.haloAngleAccumulator = 0;
-          this.lastHaloQuadrant = 1;
+      case 0: { // FRONT_CENTER
+        if (Math.abs(wristRelX) < 0.12 && wristY >= shoulderY && wristY <= hipY + 0.22) {
+          this.aroundBodyDirection = 'NONE';
         }
-        if (quadrant === 2 || quadrant === 4) {
+        if (Math.abs(wristRelX) >= 0.14 && wristY >= shoulderY && wristY <= hipY + 0.22) {
+          this.aroundBodyDirection = wristRelX > 0 ? 'CLOCKWISE' : 'COUNTER_CLOCKWISE';
           this.currentState = 1;
-          this.lastHaloQuadrant = quadrant;
         }
         break;
       }
-      case 1: { // ORBITING PAST EAR / BEHIND HEAD
-        if (quadrant === 3) {
-          this.currentState = 2; // Halfway behind
+      case 1: { // LATERAL PASS -> BEHIND BACK
+        const expectedSign = this.aroundBodyDirection === 'CLOCKWISE' ? 1 : -1;
+        if (wristRelX * expectedSign < -0.04) {
+          this.currentState = 2;
         }
         break;
       }
-      case 2: { // COMPLETING ORBIT BACK TO CHEST
-        if (quadrant === 1 && timestampMs - this.lastRepTimestamp >= this.minRepIntervalMs) {
-          this.repCount++;
-          this.lastRepTimestamp = timestampMs;
+      case 2: { // OPPOSITE FLANK -> FRONT RETURN
+        if (Math.abs(wristRelX) < 0.11 && wristY >= shoulderY && wristY <= hipY + 0.22) {
+          if (timestampMs - this.lastRepTimestamp >= this.minRepIntervalMs) {
+            this.repCount++;
+            this.lastRepTimestamp = timestampMs;
 
-          emittedTelemetry = {
-            event: 'REP_TRIGGER',
-            exercise: 'HALO',
-            skillName: EXERCISE_SKILLS.HALO.skillName,
-            power: 82,
-            form: 0.98,
-            repCount: this.repCount,
-            state: 2,
-            timestamp: timestampMs,
-          };
-          this.onRepCompleted?.(emittedTelemetry);
+            const torsoTilt = Math.abs(lShoulder.y - rShoulder.y);
+            const formScore = Math.max(0.7, Number((1.0 - torsoTilt * 2.5).toFixed(2)));
+            const powerScore = 80;
 
-          this.currentState = 0;
+            emittedTelemetry = {
+              event: 'REP_TRIGGER',
+              exercise: 'AROUND_THE_BODY',
+              skillName: EXERCISE_SKILLS.AROUND_THE_BODY.skillName,
+              power: powerScore,
+              form: formScore,
+              repCount: this.repCount,
+              state: 2,
+              timestamp: timestampMs,
+            };
+            this.onRepCompleted?.(emittedTelemetry);
+
+            this.currentState = 0;
+            this.aroundBodyDirection = 'NONE';
+          }
         }
         break;
       }
     }
 
-    this.lastMetricX = wristX;
+    this.lastMetricX = activeWrist.x;
     this.lastMetricY = wristY;
     this.lastTimestamp = timestampMs;
 
-    const names = ['CHEST CENTER', 'ORBITING', 'FULL ORBIT'];
+    const names = ['FRONT CENTER', 'LATERAL PASS', 'ORBIT COMPLETE'];
     const update: KinematicStateUpdate = {
-      exercise: 'HALO',
+      exercise: 'AROUND_THE_BODY',
       state: this.currentState,
       stateName: names[this.currentState],
       repCount: this.repCount,
       power: emittedTelemetry?.power || 75,
       form: emittedTelemetry?.form || 1.0,
       primaryY: wristY,
-      referenceY: nose.y,
-      velocity: Math.abs(angle),
+      referenceY: hipY,
+      velocity: Math.abs(wristRelX),
       telemetry: emittedTelemetry,
     };
     this.onStateChange?.(update);

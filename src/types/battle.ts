@@ -309,13 +309,13 @@ export const CARD_CATALOG: CardTemplate[] = [
   designCard({ templateId: 'starter_stance', name: 'Steady Stance', exercise: 'DEADLIFT', reps: 5, rarity: 'common', target: 'SINGLE', blockShare: 0.5, healShare: 0.15, colorHex: '#A3A3A3', icon: '🦶' }),
   designCard({ templateId: 'starter_haul', name: 'Haul', exercise: 'GORILLA_ROW', reps: 5, rarity: 'common', target: 'CHAIN', hits: 2, colorHex: '#9CA3AF', icon: '✊' }),
   designCard({ templateId: 'starter_hippop', name: 'Hip Pop', exercise: 'CLEAN', reps: 4, rarity: 'common', target: 'SINGLE', blockShare: 0.3, colorHex: '#CBD5E1', icon: '👊' }),
-  designCard({ templateId: 'starter_wind', name: 'Second Wind', exercise: 'HALO', reps: 4, rarity: 'common', target: 'SINGLE', blockShare: 0.4, healShare: 0.3, colorHex: '#E5E7EB', icon: '💨' }),
+  designCard({ templateId: 'starter_wind', name: 'Second Wind', exercise: 'AROUND_THE_BODY', reps: 4, rarity: 'common', target: 'SINGLE', blockShare: 0.4, healShare: 0.3, colorHex: '#E5E7EB', icon: '💨' }),
 
   // MONSTER ARTS: techniques learned from the bestiary (choreography in src/tv/engine/monsterArts.ts).
   designCard({ templateId: 'art_echo_shriek', name: 'Echo Shriek', exercise: 'DEADLIFT', reps: 5, rarity: 'common', target: 'ALL', stagger: 0.5, element: 'VOID', colorHex: '#A78BFA', icon: '🦇' }),
   designCard({ templateId: 'art_dirty_trick', name: 'Dirty Trick', exercise: 'OVERHEAD_PRESS', reps: 4, rarity: 'common', target: 'SINGLE', stagger: 1, colorHex: '#A16207', icon: '🥾' }),
   designCard({ templateId: 'art_rattle_back', name: 'Rattle Back', exercise: 'SQUAT', reps: 4, rarity: 'common', target: 'SINGLE', blockShare: 0.75, healShare: 0.25, element: 'VOID', colorHex: '#E2E8F0', icon: '💀' }),
-  designCard({ templateId: 'art_wisp_lure', name: "Will-o'-Lure", exercise: 'HALO', reps: 4, rarity: 'common', target: 'BACK', element: 'HOLY', colorHex: '#67E8F9', icon: '🏮' }),
+  designCard({ templateId: 'art_wisp_lure', name: "Will-o'-Lure", exercise: 'AROUND_THE_BODY', reps: 4, rarity: 'common', target: 'BACK', element: 'HOLY', colorHex: '#67E8F9', icon: '🏮' }),
   designCard({ templateId: 'art_banshee_step', name: 'Banshee Step', exercise: 'WINDMILL', reps: 5, rarity: 'rare', target: 'BACK', element: 'VOID', colorHex: '#7DD3FC', icon: '👻' }),
   designCard({ templateId: 'art_bone_volley', name: 'Bone Volley', exercise: 'OVERHEAD_PRESS', reps: 5, rarity: 'rare', target: 'CHAIN', hits: 3, element: 'VOID', colorHex: '#F1F5F9', icon: '🏹' }),
   designCard({ templateId: 'art_carapace_roll', name: 'Carapace Roll', exercise: 'SWING', reps: 5, rarity: 'rare', target: 'PIERCE', blockShare: 0.3, element: 'EARTH', colorHex: '#4D7C0F', icon: '🪲' }),
@@ -372,9 +372,9 @@ export const CARD_CATALOG: CardTemplate[] = [
   designCard({ templateId: 'row_beast_maw', name: 'Beast Maw', exercise: 'GORILLA_ROW', reps: 5, rarity: 'common', target: 'SINGLE', blockShare: 0.2, colorHex: '#84CC16', icon: '🦍' }),
   designCard({ templateId: 'row_shadow_ripper', name: 'Shadow Ripper', exercise: 'GORILLA_ROW', reps: 8, rarity: 'rare', target: 'CHAIN', hits: 4, element: 'VOID', colorHex: '#65A30D', icon: '🗡️' }),
 
-  // HALO: mobility. Protection, healing, and a vortex that slows every foe.
-  designCard({ templateId: 'halo_barrier', name: 'Celestial Barrier', exercise: 'HALO', reps: 4, rarity: 'rare', target: 'SINGLE', blockShare: 0.75, healShare: 0.25, element: 'HOLY', colorHex: '#818CF8', icon: '💫' }),
-  designCard({ templateId: 'halo_vortex', name: 'Astral Vortex', exercise: 'HALO', reps: 5, rarity: 'epic', target: 'ALL', stagger: 1, blockShare: 0.3, element: 'STORM', colorHex: '#C084FC', icon: '🌀' }),
+  // AROUND-THE-BODY PASS: mobility. Protection, healing, and a vortex that slows every foe.
+  designCard({ templateId: 'halo_barrier', name: 'Celestial Barrier', exercise: 'AROUND_THE_BODY', reps: 4, rarity: 'rare', target: 'SINGLE', blockShare: 0.75, healShare: 0.25, element: 'HOLY', colorHex: '#818CF8', icon: '💫' }),
+  designCard({ templateId: 'halo_vortex', name: 'Astral Vortex', exercise: 'AROUND_THE_BODY', reps: 5, rarity: 'epic', target: 'ALL', stagger: 1, blockShare: 0.3, element: 'STORM', colorHex: '#C084FC', icon: '🌀' }),
 
   // SINGLE-LEG RDL: balance and precision. Guarded strikes and a precise armor-piercing reach.
   designCard({ templateId: 'rdl_valkyrie', name: 'Valkyrie Balance', exercise: 'SINGLE_LEG_RDL', reps: 4, rarity: 'rare', target: 'SINGLE', blockShare: 0.55, element: 'HOLY', colorHex: '#EC4899', icon: '🕊️' }),
