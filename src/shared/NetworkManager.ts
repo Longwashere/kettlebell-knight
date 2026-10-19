@@ -1,10 +1,12 @@
 import Peer, { DataConnection } from 'peerjs';
-import { PeerMessage, RepTelemetry } from '../types/game';
+import { HandSyncPayload, PeerMessage, RepTelemetry } from '../types/game';
+import type { CombatCard } from '../types/battle';
 
 export type NetworkConnectionState = 'DISCONNECTED' | 'INITIALIZING' | 'WAITING_FOR_PEER' | 'CONNECTED' | 'ERROR';
 
 export type TelemetryCallback = (telemetry: RepTelemetry) => void;
 export type StateChangeCallback = (state: NetworkConnectionState, info?: string) => void;
+export type HandCallback = (cards: CombatCard[] | null) => void;
 
 /**
  * WebRTC Network Manager using PeerJS with Google STUN fallbacks.
@@ -18,6 +20,9 @@ export class NetworkManager {
   private state: NetworkConnectionState = 'DISCONNECTED';
   private telemetryCallbacks: Set<TelemetryCallback> = new Set();
   private stateCallbacks: Set<StateChangeCallback> = new Set();
+  private handCallbacks: Set<HandCallback> = new Set();
+  /** Latest battle hand: sent by the TV (resent when a phone pairs), received by the phone. */
+  private hand: CombatCard[] | null = null;
   private isHost: boolean = false;
 
   private constructor() {}
@@ -49,6 +54,13 @@ export class NetworkManager {
   /** Delivers telemetry to local listeners as if it arrived from a phone (dev agent bridge / simulators). */
   public injectTelemetry(telemetry: RepTelemetry): void {
     this.telemetryCallbacks.forEach((cb) => cb(telemetry));
+  }
+
+  /** Phone: the TV's battle hand, now and on every change (null outside battle). */
+  public onHand(cb: HandCallback): () => void {
+    this.handCallbacks.add(cb);
+    cb(this.hand);
+    return () => this.handCallbacks.delete(cb);
   }
 
   public onStateChange(cb: StateChangeCallback): () => void {
@@ -214,7 +226,23 @@ export class NetworkManager {
           payload: { status: 'READY', device: 'FIRE_TV' },
           timestamp: Date.now(),
         });
+        this.sendHand(this.hand);
       }
+    } else if (data.type === 'HAND_SYNC' && data.payload) {
+      this.hand = (data.payload as HandSyncPayload).cards;
+      this.handCallbacks.forEach((cb) => cb(this.hand));
+    }
+  }
+
+  /** TV: tells the phone which cards are in hand so it only shows and tracks those exercises. */
+  public sendHand(cards: CombatCard[] | null): void {
+    this.hand = cards;
+    if (!this.connection || !this.connection.open) return;
+    const payload: HandSyncPayload = { cards };
+    try {
+      this.connection.send({ type: 'HAND_SYNC', payload, timestamp: Date.now() } satisfies PeerMessage);
+    } catch (err) {
+      console.warn('[NetworkManager] Failed to send hand:', err);
     }
   }
 
@@ -249,6 +277,7 @@ export class NetworkManager {
   }
 
   public cleanup(): void {
+    this.hand = null;
     if (this.connection) {
       try {
         this.connection.close();

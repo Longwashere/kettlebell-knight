@@ -1,5 +1,6 @@
 // 32-Bit Retro Fitness RPG Core Types
 import type { Element } from '../shared/elements';
+import type { CombatCard } from './battle';
 
 export type RepEvent = 'REP_TRIGGER' | 'REP_UPDATE' | 'CALIBRATION' | 'HIKE_ENTER' | 'DRIVE_ENTER';
 
@@ -158,10 +159,15 @@ export interface RepTelemetry {
 export type NetworkRole = 'tv' | 'phone';
 
 export interface PeerMessage {
-  type: 'TELEMETRY' | 'HANDSHAKE' | 'CALIBRATE' | 'ACK' | 'PING' | 'PONG' | 'SELECT_SKILL';
+  type: 'TELEMETRY' | 'HANDSHAKE' | 'CALIBRATE' | 'ACK' | 'PING' | 'PONG' | 'SELECT_SKILL' | 'HAND_SYNC';
   payload: any;
   senderId?: string;
   timestamp: number;
+}
+
+/** TV → phone: the battle's current hand, or null outside battle (the phone then tracks every exercise). */
+export interface HandSyncPayload {
+  cards: CombatCard[] | null;
 }
 
 export type EquipmentSlot = 'weapon' | 'shield' | 'armor' | 'helmet';

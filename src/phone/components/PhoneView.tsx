@@ -5,7 +5,6 @@ import { KinematicTracker, KinematicStateUpdate, NormalizedLandmark, POSE_INDEX 
 import { networkManager, NetworkConnectionState } from '../../shared/NetworkManager';
 import { RepTelemetry, ExerciseType, EXERCISE_SKILLS } from '../../types/game';
 import { CombatCard } from '../../types/battle';
-import { CardDeckManager } from '../../shared/CardDeckManager';
 import { audioManager } from '../../shared/AudioManager';
 import { KnightArmorRenderer } from '../utils/KnightArmorRenderer';
 import { discoveryManager, DiscoveredTV } from '../../shared/DiscoveryManager';
@@ -43,9 +42,9 @@ export const PhoneView: React.FC = () => {
   const [modelReady, setModelReady] = useState<boolean>(false);
   const [activeExercise, setActiveExercise] = useState<ExerciseType>('SWING');
 
-  // Slay the Spire 5-Card Hand State
-  const deckManagerRef = useRef<CardDeckManager>(new CardDeckManager());
-  const [handCards, setHandCards] = useState<CombatCard[]>(() => deckManagerRef.current.getHand());
+  // The TV battle's hand (HAND_SYNC); null outside battle, when every exercise is tracked
+  const [handCards, setHandCards] = useState<CombatCard[] | null>(null);
+  useEffect(() => networkManager.onHand(setHandCards), []);
 
   // Camera Overlay Mode: AR Knight Armor (default) | Neon Skeleton | Off (battery saver)
   const [overlayMode, setOverlayMode] = useState<PhoneOverlayMode>('ARMOR');
@@ -154,7 +153,9 @@ export const PhoneView: React.FC = () => {
 
   // Setup tracker callback to broadcast telemetry to TV & sync allowed hand exercises
   useEffect(() => {
-    trackerRef.current.setAllowedExercises(handCards.map((c) => c.exercise));
+    trackerRef.current.setAllowedExercises(
+      handCards ? handCards.map((c) => c.exercise) : (Object.keys(EXERCISE_SKILLS) as ExerciseType[])
+    );
 
     trackerRef.current.onExerciseAutoSwitched = (newEx: ExerciseType) => {
       setActiveExercise(newEx);
@@ -164,11 +165,7 @@ export const PhoneView: React.FC = () => {
 
     trackerRef.current.onRepCompleted = (telemetry: RepTelemetry) => {
       const exercise = telemetry.exercise || activeExercise;
-      const cardResult = deckManagerRef.current.recordRep(exercise, telemetry.power, telemetry.form);
-      setHandCards(cardResult.hand);
-      trackerRef.current.setAllowedExercises(cardResult.hand.map((c) => c.exercise));
-
-      audioManager.play(cardResult.activated ? 'crit' : 'hit');
+      audioManager.play('hit');
 
       setRepCount((prev) => prev + 1);
       setLastPower(telemetry.power);
@@ -179,11 +176,7 @@ export const PhoneView: React.FC = () => {
       setTimeout(() => setRepFlash(null), 900);
 
       // Transmit to TV via reliable WebRTC DataChannel
-      networkManager.sendTelemetry({
-        ...telemetry,
-        exercise,
-        skillName: cardResult.activated && cardResult.card ? cardResult.card.name : undefined,
-      });
+      networkManager.sendTelemetry({ ...telemetry, exercise });
     };
 
     trackerRef.current.onStateChange = (update: KinematicStateUpdate) => {
@@ -742,13 +735,10 @@ export const PhoneView: React.FC = () => {
     const simulatedForm = Number((0.92 + Math.random() * 0.08).toFixed(2));
     const nextCount = repCount + 1;
 
-    const cardResult = deckManagerRef.current.recordRep(activeExercise, simulatedPower, simulatedForm);
-    setHandCards(cardResult.hand);
-
     setRepCount(nextCount);
     setLastPower(simulatedPower);
     setLastForm(simulatedForm);
-    audioManager.play(cardResult.activated ? 'crit' : 'hit');
+    audioManager.play('hit');
 
     setRepFlash({ show: true, power: simulatedPower, rep: nextCount });
     setTimeout(() => setRepFlash(null), 900);
@@ -756,7 +746,7 @@ export const PhoneView: React.FC = () => {
     const telemetry: RepTelemetry = {
       event: 'REP_TRIGGER',
       exercise: activeExercise,
-      skillName: cardResult.activated && cardResult.card ? cardResult.card.name : EXERCISE_SKILLS[activeExercise]?.skillName,
+      skillName: EXERCISE_SKILLS[activeExercise]?.skillName,
       power: simulatedPower,
       form: simulatedForm,
       repCount: nextCount,
@@ -932,7 +922,8 @@ export const PhoneView: React.FC = () => {
         ) : (
           /* Live Camera Viewfinder & Pose HUD */
           <div className="space-y-4">
-            {/* Slay the Spire 5-Card Combat Hand */}
+            {/* The TV battle's hand: only these exercises are tracked */}
+            {handCards ? (
             <div className="space-y-1">
               <div className="flex items-center justify-between text-[8px] font-pixel text-[#F4B41A]">
                 <span>🎴 CARDS IN HAND (5 UNIQUE EXERCISES)</span>
@@ -991,6 +982,14 @@ export const PhoneView: React.FC = () => {
                 })}
               </div>
             </div>
+            ) : (
+              <div className="bg-[#1A1926] border-2 border-[#2E2B44] p-3 text-center space-y-1">
+                <div className="text-[8px] font-pixel text-[#F4B41A]">🎴 NO BATTLE IN PROGRESS</div>
+                <div className="text-[9px] font-mono text-[#A7A9BE]">
+                  Start a fight on the TV — your hand appears here and only those exercises are tracked.
+                </div>
+              </div>
+            )}
 
             <div className="relative bg-black border-4 border-[#38B6FF] aspect-[4/3] overflow-hidden shadow-pixel-box">
               {/* Hidden raw video element */}

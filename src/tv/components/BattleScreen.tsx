@@ -9,6 +9,7 @@ import { ELEMENT_INFO } from '../../shared/elements';
 import type { ImpactResult } from '../engine/monsterMoves';
 import { ExerciseType, RepTelemetry } from '../../types/game';
 import { CardDeckManager } from '../../shared/CardDeckManager';
+import { networkManager } from '../../shared/NetworkManager';
 import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { audioManager } from '../../shared/AudioManager';
 import { GameEngine, BATTLE_MAPS, getMapBattleMusic } from '../engine/GameEngine';
@@ -366,6 +367,12 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       playerBlock,
     });
   }, [hand, monsters, targetedMonsterIndex, playerHp, playerBlock, onBattleStateSync]);
+
+  // The phone shows and tracks only the exercises in hand; leaving battle frees it to track any
+  useEffect(() => {
+    if (hand.length > 0) networkManager.sendHand(hand);
+  }, [hand]);
+  useEffect(() => () => networkManager.sendHand(null), []);
 
   // Background Music: Signature instrumental battle soundtrack for the current map.
   // Kept playing continuously through encounters, victories, defeats, and map select
