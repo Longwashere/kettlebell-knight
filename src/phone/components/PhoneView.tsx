@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
-import { KinematicTracker, KinematicStateUpdate, NormalizedLandmark, POSE_INDEX } from '../utils/KinematicTracker';
+import { NormalizedLandmark, POSE_INDEX } from '../utils/KinematicTracker';
+import { HandTracker, ExercisePhase } from '../utils/HandTracker';
+import { TrackingTestPanel, TestRepEntry, ALL_EXERCISES, REP_GROUP_MS, exerciseLabel } from './TrackingTestPanel';
 import { networkManager, NetworkConnectionState } from '../../shared/NetworkManager';
 import { RepTelemetry, ExerciseType, EXERCISE_SKILLS } from '../../types/game';
 import { CombatCard } from '../../types/battle';
@@ -40,7 +42,9 @@ export const PhoneView: React.FC = () => {
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [modelLoading, setModelLoading] = useState<boolean>(false);
   const [modelReady, setModelReady] = useState<boolean>(false);
+  // The exercise of the latest rep (HUD guides, armor colour, simulate button); every hand exercise is tracked
   const [activeExercise, setActiveExercise] = useState<ExerciseType>('SWING');
+  const [phases, setPhases] = useState<Map<ExerciseType, ExercisePhase>>(new Map());
 
   // The TV battle's hand (HAND_SYNC); null outside battle, when every exercise is tracked
   const [handCards, setHandCards] = useState<CombatCard[] | null>(null);
@@ -71,6 +75,7 @@ export const PhoneView: React.FC = () => {
 
   // Live telemetry display
   const [repCount, setRepCount] = useState<number>(0);
+  const repTotalRef = useRef<number>(0);
   const [lastPower, setLastPower] = useState<number>(0);
   const [lastForm, setLastForm] = useState<number>(1.0);
   const [currentStateName, setCurrentStateName] = useState<string>('IDLE');
@@ -80,7 +85,7 @@ export const PhoneView: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
-  const trackerRef = useRef<KinematicTracker>(new KinematicTracker());
+  const trackerRef = useRef<HandTracker>(new HandTracker());
   const wakeLockRef = useRef<any>(null);
   const animFrameRef = useRef<number | null>(null);
   const lastVideoTimeRef = useRef<number>(-1);
@@ -149,45 +154,128 @@ export const PhoneView: React.FC = () => {
   };
 
   // Visual rep flash banner state
-  const [repFlash, setRepFlash] = useState<{ show: boolean; power: number; rep: number } | null>(null);
+  const [repFlash, setRepFlash] = useState<{ show: boolean; power: number; rep: number; label?: string } | null>(null);
+  const repFlashTimerRef = useRef<number | null>(null);
+  const showRepFlash = (flash: { power: number; rep: number; label?: string }) => {
+    setRepFlash({ show: true, ...flash });
+    if (repFlashTimerRef.current) clearTimeout(repFlashTimerRef.current);
+    repFlashTimerRef.current = window.setTimeout(() => setRepFlash(null), 900);
+  };
 
-  // Setup tracker callback to broadcast telemetry to TV & sync allowed hand exercises
+  // Tracking test mode: run any set of exercises in parallel and log which ones count each rep
+  const [testMode, setTestMode] = useState<boolean>(false);
+  const [testExercises, setTestExercises] = useState<ExerciseType[]>(ALL_EXERCISES);
+  const [testCounts, setTestCounts] = useState<Partial<Record<ExerciseType, number>>>({});
+  const [testLog, setTestLog] = useState<TestRepEntry[]>([]);
+  const [testFlashing, setTestFlashing] = useState<ExerciseType[]>([]);
+  const [testSendToTv, setTestSendToTv] = useState<boolean>(false);
+  const [testSpeak, setTestSpeak] = useState<boolean>(true);
+  const testModeRef = useRef(testMode);
+  testModeRef.current = testMode;
+  const testSendToTvRef = useRef(testSendToTv);
+  testSendToTvRef.current = testSendToTv;
+  const testSpeakRef = useRef(testSpeak);
+  testSpeakRef.current = testSpeak;
+  const testGroupRef = useRef<TestRepEntry | null>(null);
+  const testGroupTimerRef = useRef<number | null>(null);
+
+  /** Logs a test-mode rep, folding reps that land together into one compound movement. */
+  const recordTestRep = (exercise: ExerciseType, power: number, form: number) => {
+    const now = Date.now();
+    setTestCounts((prev) => ({ ...prev, [exercise]: (prev[exercise] ?? 0) + 1 }));
+    setTestFlashing((prev) => (prev.includes(exercise) ? prev : [...prev, exercise]));
+    window.setTimeout(() => setTestFlashing((prev) => prev.filter((e) => e !== exercise)), 700);
+
+    const group = testGroupRef.current;
+    let entry: TestRepEntry;
+    if (group && now - group.at < REP_GROUP_MS) {
+      entry = {
+        ...group,
+        exercises: group.exercises.includes(exercise) ? group.exercises : [...group.exercises, exercise],
+        power: Math.max(group.power, power),
+        form: Math.max(group.form, form),
+      };
+      setTestLog((prev) => prev.map((e) => (e.id === entry.id ? entry : e)));
+    } else {
+      entry = { id: now + Math.random(), at: now, exercises: [exercise], power, form };
+      setTestLog((prev) => [entry, ...prev].slice(0, 50));
+      // Call the movement out once its group closes, so a compound rep is one phrase
+      if (testGroupTimerRef.current) clearTimeout(testGroupTimerRef.current);
+      testGroupTimerRef.current = window.setTimeout(() => {
+        const done = testGroupRef.current;
+        if (!done || !testSpeakRef.current || !('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(new SpeechSynthesisUtterance(done.exercises.map(exerciseLabel).join(' and ')));
+      }, REP_GROUP_MS);
+    }
+    testGroupRef.current = entry;
+    return entry;
+  };
+
+  const resetTest = () => {
+    setTestCounts({});
+    setTestLog([]);
+    setTestFlashing([]);
+    testGroupRef.current = null;
+    repTotalRef.current = 0;
+    setRepCount(0);
+    audioManager.play('ui_move');
+  };
+
+  const toggleTestExercise = (ex: ExerciseType) => {
+    setTestExercises((prev) => (prev.includes(ex) ? prev.filter((e) => e !== ex) : [...prev, ex]));
+    audioManager.play('ui_move');
+  };
+
+  const startTestMode = async () => {
+    setTestMode(true);
+    if (!workoutStarted) await handleBeginWorkout();
+  };
+
+  // Track every exercise in the TV's hand at once (all of them outside battle) and stream each rep to the TV
   useEffect(() => {
-    trackerRef.current.setAllowedExercises(
-      handCards ? handCards.map((c) => c.exercise) : (Object.keys(EXERCISE_SKILLS) as ExerciseType[])
-    );
+    if (testMode) trackerRef.current.setExercises(testExercises);
+    else trackerRef.current.setExercises(handCards ? handCards.map((c) => c.exercise) : null);
+  }, [handCards, testMode, testExercises]);
 
-    trackerRef.current.onExerciseAutoSwitched = (newEx: ExerciseType) => {
-      setActiveExercise(newEx);
-      activeExerciseRef.current = newEx;
-      audioManager.play('ui_select');
-    };
-
-    trackerRef.current.onRepCompleted = (telemetry: RepTelemetry) => {
-      const exercise = telemetry.exercise || activeExercise;
+  useEffect(() => {
+    const tracker = trackerRef.current;
+    tracker.onRepCompleted = (telemetry: RepTelemetry) => {
+      const exercise = telemetry.exercise || activeExerciseRef.current;
       audioManager.play('hit');
 
-      setRepCount((prev) => prev + 1);
+      setActiveExercise(exercise);
+      activeExerciseRef.current = exercise;
+      repTotalRef.current += 1;
+      setRepCount(repTotalRef.current);
+      const testEntry = testModeRef.current ? recordTestRep(exercise, telemetry.power, telemetry.form) : null;
+      showRepFlash({
+        power: telemetry.power,
+        rep: repTotalRef.current,
+        label: testEntry ? testEntry.exercises.map(exerciseLabel).join(' + ') : undefined,
+      });
       setLastPower(telemetry.power);
       lastPowerRef.current = telemetry.power;
       setLastForm(telemetry.form);
 
-      setRepFlash({ show: true, power: telemetry.power, rep: (telemetry.repCount || 0) + 1 });
-      setTimeout(() => setRepFlash(null), 900);
-
-      // Transmit to TV via reliable WebRTC DataChannel
-      networkManager.sendTelemetry({ ...telemetry, exercise });
+      // Transmit to TV via reliable WebRTC DataChannel (test mode only when asked)
+      if (!testModeRef.current || testSendToTvRef.current) networkManager.sendTelemetry({ ...telemetry, exercise });
     };
 
-    trackerRef.current.onStateChange = (update: KinematicStateUpdate) => {
-      setCurrentStateName(update.stateName);
-      currentStateRef.current = update.stateName;
-      const fullVisible = update.isFullBodyVisible ?? true;
-      setIsFullBodyVisible(fullVisible);
-      isFullBodyVisibleRef.current = fullVisible;
-      setMissingBodyParts(update.missingBodyParts ?? []);
+    tracker.onPhasesChange = (next) => {
+      setPhases(next);
+      const latest = [...next.values()].find((p) => p.state > 0) ?? [...next.values()][0];
+      setCurrentStateName(latest?.stateName ?? 'IDLE');
     };
-  }, [activeExercise, handCards]);
+    tracker.onMidRepChange = (midRep) => {
+      currentStateRef.current = midRep ? 'DRIVE' : 'IDLE';
+    };
+    tracker.onVisibilityChange = (visible, missing) => {
+      setIsFullBodyVisible(visible);
+      isFullBodyVisibleRef.current = visible;
+      setMissingBodyParts(missing);
+    };
+  }, []);
 
   // Initialize MediaPipe PoseLandmarker
   const initPoseLandmarker = async () => {
@@ -357,12 +445,6 @@ export const PhoneView: React.FC = () => {
   }, [workoutStarted, processFrame]);
 
   // Draw 32-bit retro kinematic HUD overlay
-  const handleSelectExercise = (ex: ExerciseType) => {
-    trackerRef.current.setExercise(ex);
-    setActiveExercise(ex);
-    activeExerciseRef.current = ex;
-    audioManager.play('ui_select');
-  };
 
   // Draw 32-bit retro kinematic HUD overlay adapted to current exercise
   const drawKinematicHUD = (
@@ -399,7 +481,7 @@ export const PhoneView: React.FC = () => {
     ctx.lineWidth = 3;
     ctx.font = '10px "Press Start 2P", monospace';
 
-    if (activeExercise === 'SQUAT') {
+    if (activeExerciseRef.current === 'SQUAT') {
       // Squat HUD: Track Hip relative to Knee
       ctx.strokeStyle = '#FF3366';
       ctx.setLineDash([8, 6]);
@@ -419,7 +501,7 @@ export const PhoneView: React.FC = () => {
       ctx.fill();
       ctx.stroke();
 
-    } else if (activeExercise === 'OVERHEAD_PRESS') {
+    } else if (activeExerciseRef.current === 'OVERHEAD_PRESS') {
       // Press HUD: Track Wrists from Shoulder Rack to Overhead Reach
       const overheadY = Math.max(20, shoulderY - (hipY - shoulderY) * 0.6);
 
@@ -449,7 +531,7 @@ export const PhoneView: React.FC = () => {
       ctx.fill();
       ctx.stroke();
 
-    } else if (activeExercise === 'CLEAN_AND_PRESS') {
+    } else if (activeExerciseRef.current === 'CLEAN_AND_PRESS') {
       // Clean and Press: Hang, Rack, and Overhead
       const overheadY = Math.max(20, shoulderY - (hipY - shoulderY) * 0.6);
 
@@ -478,7 +560,7 @@ export const PhoneView: React.FC = () => {
       ctx.fillStyle = '#FF3366';
       ctx.fillText('HANG CLEAN', 20, hipY + 18);
 
-    } else if (activeExercise === 'SNATCH') {
+    } else if (activeExerciseRef.current === 'SNATCH') {
       // Snatch HUD: Hike and continuous overhead punch-through
       const overheadY = Math.max(20, shoulderY - (hipY - shoulderY) * 0.65);
 
@@ -499,7 +581,7 @@ export const PhoneView: React.FC = () => {
       ctx.fillStyle = '#F4B41A';
       ctx.fillText('BACKSWING HIKE', 20, hipY + 18);
 
-    } else if (activeExercise === 'WINDMILL') {
+    } else if (activeExerciseRef.current === 'WINDMILL') {
       // Windmill HUD: Overhead locked arm and floor ankle touch target
       ctx.strokeStyle = '#00EB88';
       ctx.setLineDash([8, 6]);
@@ -516,7 +598,7 @@ export const PhoneView: React.FC = () => {
       ctx.arc(wristX, wristY, 10, 0, Math.PI * 2);
       ctx.fill();
 
-    } else if (activeExercise === 'DEADLIFT') {
+    } else if (activeExerciseRef.current === 'DEADLIFT') {
       // Deadlift HUD: Shin floor pickup and Hip Lockout (Keep below shoulders!)
       ctx.strokeStyle = '#D97706';
       ctx.setLineDash([8, 6]);
@@ -535,7 +617,7 @@ export const PhoneView: React.FC = () => {
       ctx.fillStyle = '#84CC16';
       ctx.fillText('SHIN SETUP', 20, kneeY + 40);
 
-    } else if (activeExercise === 'THRUSTER') {
+    } else if (activeExerciseRef.current === 'THRUSTER') {
       // Thruster HUD: Deep Squat + Overhead Lockout
       const overheadY = Math.max(20, shoulderY - (hipY - shoulderY) * 0.6);
 
@@ -556,7 +638,7 @@ export const PhoneView: React.FC = () => {
       ctx.fillStyle = '#FF3366';
       ctx.fillText('SQUAT HOLE', 20, kneeY - 22);
 
-    } else if (activeExercise === 'GORILLA_ROW') {
+    } else if (activeExerciseRef.current === 'GORILLA_ROW') {
       // Gorilla Row HUD: Hinged pull to rib line
       ctx.strokeStyle = '#84CC16';
       ctx.setLineDash([8, 6]);
@@ -567,7 +649,7 @@ export const PhoneView: React.FC = () => {
       ctx.fillStyle = '#84CC16';
       ctx.fillText('RIB CONTRACTION', 20, hipY - 22);
 
-    } else if (activeExercise === 'AROUND_THE_BODY') {
+    } else if (activeExerciseRef.current === 'AROUND_THE_BODY') {
       // Around-the-Body Pass HUD: Waist / Hip Orbit Ellipse
       ctx.strokeStyle = '#818CF8';
       ctx.setLineDash([6, 4]);
@@ -577,7 +659,7 @@ export const PhoneView: React.FC = () => {
       ctx.fillStyle = '#818CF8';
       ctx.fillText('WAIST ORBIT', w * 0.5 - 45, hipY - 35);
 
-    } else if (activeExercise === 'SINGLE_LEG_RDL') {
+    } else if (activeExerciseRef.current === 'SINGLE_LEG_RDL') {
       // Single-Leg RDL HUD: Planted knee depth and horizontal trail leg line
       ctx.strokeStyle = '#EC4899';
       ctx.setLineDash([8, 6]);
@@ -733,20 +815,23 @@ export const PhoneView: React.FC = () => {
   const handleSimulateSwing = () => {
     const simulatedPower = Math.floor(75 + Math.random() * 35);
     const simulatedForm = Number((0.92 + Math.random() * 0.08).toFixed(2));
-    const nextCount = repCount + 1;
+    const exercise = handCards ? handCards[Math.floor(Math.random() * handCards.length)].exercise : activeExercise;
+    repTotalRef.current += 1;
+    const nextCount = repTotalRef.current;
 
+    setActiveExercise(exercise);
+    activeExerciseRef.current = exercise;
     setRepCount(nextCount);
     setLastPower(simulatedPower);
     setLastForm(simulatedForm);
     audioManager.play('hit');
 
-    setRepFlash({ show: true, power: simulatedPower, rep: nextCount });
-    setTimeout(() => setRepFlash(null), 900);
+    showRepFlash({ power: simulatedPower, rep: nextCount });
 
     const telemetry: RepTelemetry = {
       event: 'REP_TRIGGER',
-      exercise: activeExercise,
-      skillName: EXERCISE_SKILLS[activeExercise]?.skillName,
+      exercise,
+      skillName: EXERCISE_SKILLS[exercise]?.skillName,
       power: simulatedPower,
       form: simulatedForm,
       repCount: nextCount,
@@ -915,6 +1000,12 @@ export const PhoneView: React.FC = () => {
             >
               ⚡ BEGIN WORKOUT
             </button>
+            <button
+              onClick={startTestMode}
+              className="w-full bg-[#2E2B44] hover:bg-[#3E3B5E] text-[#FF3366] font-pixel text-[10px] py-3 px-6 border-4 border-black shadow-pixel-box transition-all transform active:translate-x-1 active:translate-y-1"
+            >
+              🧪 TEST TRACKING
+            </button>
             <p className="text-[9px] text-[#A7A9BE] font-mono">
               Requests Screen WakeLock & Camera Vision • Pose Skeleton enabled (toggleable to save battery)
             </p>
@@ -922,30 +1013,28 @@ export const PhoneView: React.FC = () => {
         ) : (
           /* Live Camera Viewfinder & Pose HUD */
           <div className="space-y-4">
-            {/* The TV battle's hand: only these exercises are tracked */}
-            {handCards ? (
+            {/* Test mode, else the TV battle's hand: only these exercises are tracked */}
+            {testMode ? null : handCards ? (
             <div className="space-y-1">
               <div className="flex items-center justify-between text-[8px] font-pixel text-[#F4B41A]">
-                <span>🎴 CARDS IN HAND (5 UNIQUE EXERCISES)</span>
-                <span className="text-[#38B6FF]">TAP CARD TO FOCUS</span>
+                <span>🎴 CARDS IN HAND</span>
+                <span className="text-[#38B6FF]">ALL TRACKED • HANDS FREE</span>
               </div>
 
               <div className="grid grid-cols-5 gap-1">
                 {handCards.map((card) => {
-                  const isSelected = activeExercise === card.exercise;
+                  const phase = phases.get(card.exercise);
+                  const isMoving = (phase?.state ?? 0) > 0;
                   const progress = Math.min(100, (card.currentReps / card.requiredReps) * 100);
 
                   return (
-                    <button
+                    <div
                       key={card.id}
-                      onClick={() => handleSelectExercise(card.exercise)}
                       className={`p-1 rounded border-2 transition-all flex flex-col justify-between text-left h-24 ${
-                        isSelected
-                          ? 'bg-[#242138] border-[#F4B41A] shadow-pixel-box scale-102 z-10'
-                          : 'bg-[#0F0E17] border-[#2E2B44] hover:border-[#38B6FF]'
+                        isMoving ? 'bg-[#242138] shadow-pixel-box' : 'bg-[#0F0E17]'
                       }`}
                       style={{
-                        borderColor: isSelected ? '#F4B41A' : card.colorHex,
+                        borderColor: isMoving ? '#F4B41A' : card.colorHex,
                       }}
                     >
                       <div>
@@ -960,6 +1049,9 @@ export const PhoneView: React.FC = () => {
                         </div>
                         <div className="text-[6px] font-mono uppercase text-[#A7A9BE] truncate">
                           {card.exercise}
+                        </div>
+                        <div className={`text-[6px] font-mono uppercase truncate ${isMoving ? 'text-[#F4B41A]' : 'text-[#2E2B44]'}`}>
+                          {phase?.stateName ?? '—'}
                         </div>
                       </div>
 
@@ -977,7 +1069,7 @@ export const PhoneView: React.FC = () => {
                           />
                         </div>
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -986,8 +1078,14 @@ export const PhoneView: React.FC = () => {
               <div className="bg-[#1A1926] border-2 border-[#2E2B44] p-3 text-center space-y-1">
                 <div className="text-[8px] font-pixel text-[#F4B41A]">🎴 NO BATTLE IN PROGRESS</div>
                 <div className="text-[9px] font-mono text-[#A7A9BE]">
-                  Start a fight on the TV — your hand appears here and only those exercises are tracked.
+                  Start a fight on the TV — your hand appears here and all of its exercises are tracked at once.
                 </div>
+                <button
+                  onClick={() => setTestMode(true)}
+                  className="mt-1 bg-[#2E2B44] text-[#FF3366] font-pixel text-[8px] px-3 py-2 border-2 border-black shadow-pixel-box"
+                >
+                  🧪 TEST TRACKING
+                </button>
               </div>
             )}
 
@@ -1067,6 +1165,9 @@ export const PhoneView: React.FC = () => {
                 <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center bg-[#00EB88]/20 border-4 border-[#00EB88]">
                   <div className="bg-[#0F0E17]/95 border-4 border-[#F4B41A] px-5 py-3 text-center rounded shadow-pixel-box-gold">
                     <div className="font-pixel text-[9px] text-[#00EB88] tracking-widest">REP DETECTED!</div>
+                    {repFlash.label && (
+                      <div className="font-pixel text-base text-white my-1 leading-relaxed">{repFlash.label}</div>
+                    )}
                     <div className="font-pixel text-xl text-[#F4B41A] my-1">REP #{repFlash.rep}</div>
                     <div className="font-pixel text-[11px] text-[#38B6FF]">+{repFlash.power} POWER</div>
                   </div>
@@ -1092,24 +1193,24 @@ export const PhoneView: React.FC = () => {
               </div>
             </div>
 
-            {/* Swing State Progress Indicator */}
-            <div className="bg-[#1A1926] border-2 border-[#2E2B44] p-3 flex items-center justify-between text-center">
-              <div className={`flex-1 p-1 ${currentStateName === 'HIKE' ? 'bg-[#FF3366] text-black font-bold' : 'text-[#A7A9BE]'}`}>
-                <div className="text-[8px] font-pixel">STATE 0</div>
-                <div className="text-[10px] font-mono">HIKE (Hips)</div>
-              </div>
-              <div className="text-[#A7A9BE] px-1">➔</div>
-              <div className={`flex-1 p-1 ${currentStateName === 'DRIVE' ? 'bg-[#F4B41A] text-black font-bold' : 'text-[#A7A9BE]'}`}>
-                <div className="text-[8px] font-pixel">STATE 1</div>
-                <div className="text-[10px] font-mono">DRIVE (Snap)</div>
-              </div>
-              <div className="text-[#A7A9BE] px-1">➔</div>
-              <div className={`flex-1 p-1 ${currentStateName === 'PEAK_LOCKOUT' ? 'bg-[#38B6FF] text-black font-bold' : 'text-[#A7A9BE]'}`}>
-                <div className="text-[8px] font-pixel">STATE 2</div>
-                <div className="text-[10px] font-mono">LOCKOUT</div>
-              </div>
-            </div>
-
+            {testMode ? (
+              <TrackingTestPanel
+                tracked={testExercises}
+                onToggleExercise={toggleTestExercise}
+                onSetTracked={setTestExercises}
+                counts={testCounts}
+                phases={phases}
+                flashing={testFlashing}
+                log={testLog}
+                sendToTv={testSendToTv}
+                onToggleSendToTv={() => setTestSendToTv((v) => !v)}
+                speak={testSpeak}
+                onToggleSpeak={() => setTestSpeak((v) => !v)}
+                onReset={resetTest}
+                onExit={() => setTestMode(false)}
+              />
+            ) : (
+              <>
             {/* Quick Swing Simulation Button for Desktop/Testing */}
             <div className="flex gap-2">
               <button
@@ -1117,9 +1218,11 @@ export const PhoneView: React.FC = () => {
                 className="flex-1 bg-[#2E2B44] hover:bg-[#3E3B5E] text-[#F4B41A] font-pixel text-[10px] py-3 border-2 border-black shadow-pixel-box flex items-center justify-center gap-2 active:translate-x-0.5 active:translate-y-0.5"
               >
                 <Zap className="w-3.5 h-3.5" />
-                TRIGGER {EXERCISE_SKILLS[activeExercise].skillName}
+                {handCards ? 'SIMULATE A HAND REP' : `TRIGGER ${EXERCISE_SKILLS[activeExercise].skillName}`}
               </button>
             </div>
+              </>
+            )}
           </div>
         )}
       </main>

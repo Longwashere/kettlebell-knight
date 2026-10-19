@@ -463,7 +463,8 @@ for (let i = 0; i < 100; i++) {
   if (hasBridge || (i > 20 && (await evaluate('document.readyState').catch(() => '')) === 'complete')) break;
   await sleep(100);
 }
-if (hasBridge) await kk('__kk.ready()');
+// Other routes (e.g. /phone) can register the bridge for shared systems, but have no engine to wait for
+if (hasBridge && opts.route.startsWith('/tv')) await kk('__kk.ready()');
 else console.log('· window.__kk not found; only shot/wait/key/eval steps will work');
 
 let failed = false;
