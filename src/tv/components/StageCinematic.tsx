@@ -3,6 +3,7 @@ import { BattleMapId } from '../../types/battle';
 import { getStageLore, StageLore, CinematicScene } from '../../shared/stageLore';
 import { BATTLE_MAPS } from '../engine/battleMaps';
 import { audioManager } from '../../shared/AudioManager';
+import { networkManager } from '../../shared/NetworkManager';
 import { useTVRemote } from '../hooks/useTVRemote';
 
 interface StageCinematicProps {
@@ -175,6 +176,39 @@ export const StageCinematic: React.FC<StageCinematicProps> = ({ mapId, onClose, 
     }
   };
 
+  const lastSquatAtRef = useRef<number>(0);
+  const handleSquatProceed = () => {
+    if (Date.now() - lastSquatAtRef.current < 750) return;
+    lastSquatAtRef.current = Date.now();
+    if (!isTypingComplete) {
+      stopTimer();
+      setShownWords(words.length);
+    }
+    if (!isFinalScene) {
+      goTo(sceneIndex + 1);
+      audioManager.play('card');
+    } else {
+      audioManager.play('equip');
+      (onEmbark ?? onClose)();
+    }
+  };
+
+  const handleSquatProceedRef = useRef(handleSquatProceed);
+  handleSquatProceedRef.current = handleSquatProceed;
+
+  useEffect(() => {
+    networkManager.sendHand(null, 'CINEMATIC');
+    const unsub = networkManager.onTelemetry((telemetry) => {
+      if (telemetry.event === 'REP_TRIGGER' && telemetry.exercise === 'SQUAT') {
+        handleSquatProceedRef.current();
+      }
+    });
+    return () => {
+      unsub();
+      networkManager.sendHand(null);
+    };
+  }, []);
+
   useTVRemote({
     onSelect: handleNext,
     onBack: onClose,
@@ -261,7 +295,7 @@ export const StageCinematic: React.FC<StageCinematicProps> = ({ mapId, onClose, 
       <div className="absolute top-0 inset-x-0 h-[5.5vh] bg-black" />
       <div className="absolute bottom-0 inset-x-0 h-[6.5vh] bg-black flex items-center justify-center gap-[3vw] font-gothic text-[clamp(9px,0.85vw,14px)] tracking-[0.25em] uppercase" style={{ color: '#6F6758' }}>
         <span>
-          <span style={{ color: PARCHMENT_DIM }}>Select</span> &nbsp;{isTypingComplete ? (isFinalScene ? (onEmbark ? 'Embark' : 'Close') : 'Continue') : 'Reveal'}
+          <span style={{ color: PARCHMENT_DIM }}>[SELECT] or [SQUAT]</span> &nbsp;{isTypingComplete ? (isFinalScene ? (onEmbark ? 'Embark' : 'Close') : 'Continue') : 'Advance'}
         </span>
         <span style={{ color: '#3A352C' }}>◆</span>
         <span>
@@ -369,15 +403,20 @@ export const StageCinematic: React.FC<StageCinematicProps> = ({ mapId, onClose, 
           <div className={`mt-[2vh] h-[2.2vh] flex justify-center transition-opacity duration-500 ${isTypingComplete ? 'opacity-100' : 'opacity-0'}`}>
             {isFinalScene ? (
               <span
-                className="kk-cine-prompt font-gothic font-bold uppercase text-[clamp(10px,1vw,17px)] tracking-[0.5em]"
+                className="kk-cine-prompt font-gothic font-bold uppercase text-[clamp(10px,1vw,17px)] tracking-[0.4em]"
                 style={{ color: mood.accent }}
               >
-                ◆ {onEmbark ? 'Take up the iron' : 'The chronicle ends'} ◆
+                ◆ {onEmbark ? 'Take up the iron' : 'The chronicle ends'} • Squat or Select ◆
               </span>
             ) : (
-              <svg className="kk-cine-prompt" width="18" height="12" viewBox="0 0 18 12" aria-hidden>
-                <path d="M1 1 L9 10 L17 1" fill="none" stroke={mood.accent} strokeWidth="2" />
-              </svg>
+              <div className="flex items-center gap-2 kk-cine-prompt">
+                <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden>
+                  <path d="M1 1 L9 10 L17 1" fill="none" stroke={mood.accent} strokeWidth="2" />
+                </svg>
+                <span className="font-gothic text-[clamp(8px,0.8vw,13px)] tracking-[0.25em] uppercase" style={{ color: mood.accent }}>
+                  Squat or Select
+                </span>
+              </div>
             )}
           </div>
 

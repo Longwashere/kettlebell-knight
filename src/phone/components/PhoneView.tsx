@@ -6,7 +6,7 @@ import { HandTracker, ExercisePhase } from '../utils/HandTracker';
 import { StageLog, StageAttempt } from '../utils/stageLog';
 import { TrackingTestPanel, TestRepEntry, ALL_EXERCISES, REP_GROUP_MS, exerciseLabel } from './TrackingTestPanel';
 import { networkManager, NetworkConnectionState } from '../../shared/NetworkManager';
-import { RepTelemetry, ExerciseType, EXERCISE_SKILLS } from '../../types/game';
+import { RepTelemetry, ExerciseType, EXERCISE_SKILLS, HandSyncMode } from '../../types/game';
 import { CombatCard } from '../../types/battle';
 import { audioManager } from '../../shared/AudioManager';
 import { KnightArmorRenderer } from '../utils/KnightArmorRenderer';
@@ -33,7 +33,11 @@ export const PhoneView: React.FC = () => {
 
   // The TV battle's hand (HAND_SYNC); null outside battle, when every exercise is tracked
   const [handCards, setHandCards] = useState<CombatCard[] | null>(null);
-  useEffect(() => networkManager.onHand(setHandCards), []);
+  const [handMode, setHandMode] = useState<HandSyncMode | undefined>(undefined);
+  useEffect(() => networkManager.onHand((cards, mode) => {
+    setHandCards(cards);
+    setHandMode(mode);
+  }), []);
 
   // Camera Overlay Mode: AR Knight Armor (default) | Neon Skeleton | Off (battery saver)
   const [overlayMode, setOverlayMode] = useState<PhoneOverlayMode>('ARMOR');
@@ -241,11 +245,17 @@ export const PhoneView: React.FC = () => {
     };
   }, []);
 
-  // Track every exercise in the TV's hand at once (all of them outside battle) and stream each rep to the TV
+  // Track every exercise in the TV's hand at once (or dedicated SQUAT on victory/cinematic, or all outside battle) and stream each rep to the TV
   useEffect(() => {
-    if (testMode) trackerRef.current.setExercises(testExercises);
-    else trackerRef.current.setExercises(handCards ? handCards.map((c) => c.exercise) : null);
-  }, [handCards, testMode, testExercises]);
+    if (testMode) {
+      trackerRef.current.setExercises(testExercises);
+    } else if (handMode === 'VICTORY' || handMode === 'CINEMATIC') {
+      trackerRef.current.setExercises(['SQUAT']);
+      setActiveExercise('SQUAT');
+    } else {
+      trackerRef.current.setExercises(handCards ? handCards.map((c) => c.exercise) : null);
+    }
+  }, [handCards, handMode, testMode, testExercises]);
 
   useEffect(() => {
     const tracker = trackerRef.current;
@@ -975,6 +985,10 @@ export const PhoneView: React.FC = () => {
   // ---------------------------------------------------------------------------
   const tracking = testMode
     ? `TEST • ${testExercises.length} WATCHED`
+    : handMode === 'VICTORY'
+    ? 'VICTORY • SQUAT TO PROCEED'
+    : handMode === 'CINEMATIC'
+    ? 'CHRONICLE • SQUAT TO ADVANCE'
     : handCards
     ? `IN BATTLE • ${handCards.length} EXERCISES WATCHED`
     : 'NO BATTLE • ALL EXERCISES WATCHED';

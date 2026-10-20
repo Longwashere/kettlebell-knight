@@ -82,6 +82,9 @@ export const GameScreen: React.FC = () => {
 
   // Dark fantasy stage cinematic state (for prologue when embarking on Level 1 via Quick Play)
   const [showCinematic, setShowCinematic] = useState<boolean>(false);
+  const showCinematicRef = useRef<boolean>(false);
+  showCinematicRef.current = showCinematic;
+  const cinematicMapIdRef = useRef<BattleMapId>('VERDANT_FOREST');
   const [cinematicMapId, setCinematicMapId] = useState<BattleMapId>('VERDANT_FOREST');
 
   // RPG Progression state
@@ -156,7 +159,7 @@ export const GameScreen: React.FC = () => {
         // Direct zero-overhead pass-through to PixiJS WebGL loop. In battle the attack animation
         // plays when a card is cast (BattleScreen), with the real damage, not on every rep; a secret
         // trial plays its own rep beat.
-        if (engineRef.current && currentViewRef.current !== 'COMBAT' && currentViewRef.current !== 'TRIAL') {
+        if (engineRef.current && currentViewRef.current !== 'COMBAT' && currentViewRef.current !== 'TRIAL' && !showCinematicRef.current) {
           engineRef.current.onRepCompleted(
             telemetry.power, 
             telemetry.form, 

@@ -3,6 +3,7 @@ import { CardUnlockDef } from '../../shared/cardUnlocks';
 import { CARD_CATALOG } from '../../types/battle';
 import { CardFront, cardStyleVars } from './CombatCardView';
 import { audioManager } from '../../shared/AudioManager';
+import { networkManager } from '../../shared/NetworkManager';
 import { useTVRemote } from '../hooks/useTVRemote';
 import { Sparkles, Trophy } from 'lucide-react';
 
@@ -36,6 +37,21 @@ export const CardUnlockCelebration: React.FC<CardUnlockCelebrationProps> = ({
       onDismiss();
     }
   };
+
+  const handleNextRef = React.useRef(handleNext);
+  handleNextRef.current = handleNext;
+  const lastSquatAtRef = React.useRef<number>(0);
+
+  useEffect(() => {
+    const unsub = networkManager.onTelemetry((telemetry) => {
+      if (telemetry.event === 'REP_TRIGGER' && telemetry.exercise === 'SQUAT') {
+        if (Date.now() - lastSquatAtRef.current < 750) return;
+        lastSquatAtRef.current = Date.now();
+        handleNextRef.current();
+      }
+    });
+    return unsub;
+  }, []);
 
   useTVRemote(
     {
@@ -95,7 +111,7 @@ export const CardUnlockCelebration: React.FC<CardUnlockCelebrationProps> = ({
               onClick={handleNext}
               className="w-full bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box flex items-center justify-center gap-2"
             >
-              <span>[ENTER]</span>
+              <span>[ENTER / SQUAT]</span>
               <span>{isLast ? 'ADD TO BATTLE DECK ▶' : 'NEXT CARD ▶'}</span>
             </button>
           </div>

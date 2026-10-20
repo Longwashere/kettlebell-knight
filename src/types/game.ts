@@ -165,9 +165,12 @@ export interface PeerMessage {
   timestamp: number;
 }
 
+export type HandSyncMode = 'BATTLE' | 'VICTORY' | 'CINEMATIC';
+
 /** TV → phone: the battle's current hand, or null outside battle (the phone then tracks every exercise). */
 export interface HandSyncPayload {
   cards: CombatCard[] | null;
+  mode?: HandSyncMode;
 }
 
 export type EquipmentSlot = 'weapon' | 'shield' | 'armor' | 'helmet';

@@ -11,6 +11,7 @@ import {
 } from '../../shared/progression';
 import { CardFront, cardStyleVars } from './CombatCardView';
 import { audioManager } from '../../shared/AudioManager';
+import { networkManager } from '../../shared/NetworkManager';
 import { useTVRemote } from '../hooks/useTVRemote';
 import { Sparkles, TrendingUp } from 'lucide-react';
 
@@ -171,6 +172,18 @@ export const MasteryCelebration: React.FC<MasteryCelebrationProps> = ({ levelUps
     }
   };
 
+  const handleNextRef = React.useRef(handleNext);
+  handleNextRef.current = handleNext;
+
+  useEffect(() => {
+    const unsub = networkManager.onTelemetry((telemetry) => {
+      if (telemetry.event === 'REP_TRIGGER' && telemetry.exercise === 'SQUAT') {
+        handleNextRef.current();
+      }
+    });
+    return unsub;
+  }, []);
+
   useTVRemote({ onSelect: handleNext, onBack: handleNext }, { enabled: Boolean(page) });
 
   // A level-up for something no longer in the catalog can't be shown: skip past it
@@ -268,7 +281,7 @@ export const MasteryCelebration: React.FC<MasteryCelebrationProps> = ({ levelUps
               onClick={handleNext}
               className="w-full bg-[#00EB88] hover:bg-[#5dffb8] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box flex items-center justify-center gap-2"
             >
-              <span>[ENTER]</span>
+              <span>[ENTER / SQUAT]</span>
               <span>{isLast ? 'CONTINUE ▶' : 'NEXT ▶'}</span>
             </button>
           </div>

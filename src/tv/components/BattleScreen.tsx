@@ -377,10 +377,12 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     });
   }, [hand, monsters, targetedMonsterIndex, playerHp, playerBlock, onBattleStateSync]);
 
-  // The phone shows and tracks only the exercises in hand; leaving battle frees it to track any
+  // The phone shows and tracks only the exercises in hand; leaving battle or reaching victory frees it to track any / squat
   useEffect(() => {
-    if (hand.length > 0) networkManager.sendHand(hand);
-  }, [hand]);
+    if (hand.length > 0 && battleStatus === 'FIGHTING') {
+      networkManager.sendHand(hand, 'BATTLE');
+    }
+  }, [hand, battleStatus]);
   useEffect(() => () => networkManager.sendHand(null), []);
 
   // Background Music: Signature instrumental battle soundtrack for the current map.
@@ -566,6 +568,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     }
   }, [engineRef]);
 
+  const handleVictorySquatRef = useRef<(() => void) | null>(null);
+  const victoryModalOpenedAtRef = useRef<number>(0);
+  const lastSquatProceedAtRef = useRef<number>(0);
+
   /**
    * Applies an exercise repetition to the matching card in hand.
    * If the card reaches required reps, it activates and damages monster / grants block!
@@ -573,7 +579,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const handleApplyRep = useCallback((exercise: ExerciseType, power: number = 80, form: number = 1.0) => {
     // A rep during the opening skips it and counts
     if (introLockedRef.current && battleStatusRef.current === 'FIGHTING') skipIntro();
-    if (battleStatusRef.current !== 'FIGHTING' || isAwaitingVictoryRef.current || pausedRef.current) return;
+    if (battleStatusRef.current !== 'FIGHTING') {
+      if (exercise === 'SQUAT') {
+        handleVictorySquatRef.current?.();
+      }
+      return;
+    }
+    if (isAwaitingVictoryRef.current || pausedRef.current) return;
 
     // Record rep progression toward card unlocks
     const repUnlocks = profileManager.recordRepStats(exercise, power, form, currentMap);
@@ -637,6 +649,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           isAwaitingVictoryRef.current = false;
           if (battleStatusRef.current !== 'FIGHTING') return; // already displayed
           settleFightGold(true);
+          victoryModalOpenedAtRef.current = Date.now();
+          networkManager.sendHand(null, 'VICTORY');
           if (victoryFallbackTimerRef.current) {
             clearTimeout(victoryFallbackTimerRef.current);
             victoryFallbackTimerRef.current = null;
@@ -893,6 +907,26 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     const nextIdx = (currentEncounterIndex + 1) % ENCOUNTERS.length;
     startEncounter(ENCOUNTERS[nextIdx], nextIdx);
   };
+
+  const handleVictorySquat = () => {
+    if (pausedRef.current || showingUnlocks) return;
+    // 750ms lockout after modal appears prevents the finishing blow's rep from instantly dismissing the victory screen
+    if (Date.now() - victoryModalOpenedAtRef.current < 750) return;
+    if (Date.now() - lastSquatProceedAtRef.current < 800) return;
+    lastSquatProceedAtRef.current = Date.now();
+    const status = battleStatusRef.current;
+    if (status === 'ENCOUNTER_CLEARED') {
+      audioManager.play('ui_select');
+      continueReward(handleNextExpeditionEncounter);
+    } else if (status === 'EXPEDITION_VICTORY') {
+      audioManager.play('ui_select');
+      continueReward(secretCall && onSecretTrial ? () => onSecretTrial(secretCall) : currentLevel < 5 ? handleNextLevelExpedition : onExitBattle);
+    } else if (status === 'VICTORY') {
+      audioManager.play('ui_select');
+      continueReward(handleNextEncounter);
+    }
+  };
+  handleVictorySquatRef.current = handleVictorySquat;
 
   const startEncounter = (template: EncounterTemplate, index: number, withIntro = true) => {
     isAwaitingVictoryRef.current = false;
@@ -1338,9 +1372,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                 <div className="flex gap-3">
                   <button
                     onClick={() => continueReward(handleNextExpeditionEncounter)}
-                    className="flex-1 bg-[#00EB88] hover:bg-[#55ffaa] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
+                    className="flex-1 bg-[#00EB88] hover:bg-[#55ffaa] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box flex items-center justify-center gap-1.5"
                   >
-                    NEXT BATTLE ▶
+                    <span>NEXT BATTLE ▶</span>
+                    <span className="text-[9px] opacity-80">(OR SQUAT)</span>
                   </button>
                   <button
                     onClick={() => continueReward(onExitBattle)}
@@ -1386,10 +1421,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                     </div>
                     <button
                       onClick={() => continueReward(() => onSecretTrial(secretCall))}
-                      className="w-full hover:brightness-110 text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
+                      className="w-full hover:brightness-110 text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box flex items-center justify-center gap-1.5"
                       style={{ background: SECRET_TRIAL_COPY[secretCall].bar[1] }}
                     >
-                      {SECRET_TRIAL_COPY[secretCall].callButton}
+                      <span>{SECRET_TRIAL_COPY[secretCall].callButton}</span>
+                      <span className="text-[9px] opacity-80">(OR SQUAT)</span>
                     </button>
                   </>
                 ) : (
@@ -1397,16 +1433,18 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                   {currentLevel < 5 ? (
                     <button
                       onClick={() => continueReward(handleNextLevelExpedition)}
-                      className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
+                      className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box flex items-center justify-center gap-1.5"
                     >
-                      LEVEL {currentLevel + 1} ▶
+                      <span>LEVEL {currentLevel + 1} ▶</span>
+                      <span className="text-[9px] opacity-80">(OR SQUAT)</span>
                     </button>
                   ) : (
                     <button
                       onClick={() => continueReward(onExitBattle)}
-                      className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
+                      className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box flex items-center justify-center gap-1.5"
                     >
-                      WORLD MAP ▶
+                      <span>WORLD MAP ▶</span>
+                      <span className="text-[9px] opacity-80">(OR SQUAT)</span>
                     </button>
                   )}
                   <button
@@ -1432,9 +1470,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                 <div className="flex gap-3">
                   <button
                     onClick={() => continueReward(handleNextEncounter)}
-                    className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
+                    className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box flex items-center justify-center gap-1.5"
                   >
-                    NEXT BATTLE ▶
+                    <span>NEXT BATTLE ▶</span>
+                    <span className="text-[9px] opacity-80">(OR SQUAT)</span>
                   </button>
                   <button
                     onClick={() => continueReward(onExitBattle)}
@@ -1481,7 +1520,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
             {/* 10-foot remote button prompt */}
             <div className="mt-4 pt-2.5 border-t border-[#2E2B44] flex items-center justify-center gap-4 text-[9px] font-pixel text-[#A7A9BE]">
-              <span className="text-[#F4B41A]">[ENTER] {battleStatus === 'DEFEAT' ? 'RETRY' : 'CONTINUE'}</span>
+              <span className="text-[#F4B41A]">{battleStatus === 'DEFEAT' ? '[ENTER] RETRY' : '[ENTER] or [SQUAT] CONTINUE'}</span>
               <span>•</span>
               <span className="text-white">[BACK / ESC] TOWN HUB</span>
             </div>

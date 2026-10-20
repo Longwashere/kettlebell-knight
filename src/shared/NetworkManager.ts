@@ -1,12 +1,12 @@
 import Peer, { DataConnection } from 'peerjs';
-import { HandSyncPayload, PeerMessage, RepTelemetry } from '../types/game';
+import { HandSyncMode, HandSyncPayload, PeerMessage, RepTelemetry } from '../types/game';
 import type { CombatCard } from '../types/battle';
 
 export type NetworkConnectionState = 'DISCONNECTED' | 'INITIALIZING' | 'WAITING_FOR_PEER' | 'CONNECTED' | 'ERROR';
 
 export type TelemetryCallback = (telemetry: RepTelemetry) => void;
 export type StateChangeCallback = (state: NetworkConnectionState, info?: string) => void;
-export type HandCallback = (cards: CombatCard[] | null) => void;
+export type HandCallback = (cards: CombatCard[] | null, mode?: HandSyncMode) => void;
 
 /**
  * WebRTC Network Manager using PeerJS with Google STUN fallbacks.
@@ -23,6 +23,7 @@ export class NetworkManager {
   private handCallbacks: Set<HandCallback> = new Set();
   /** Latest battle hand: sent by the TV (resent when a phone pairs), received by the phone. */
   private hand: CombatCard[] | null = null;
+  private handMode?: HandSyncMode;
   private isHost: boolean = false;
 
   private constructor() {}
@@ -59,7 +60,7 @@ export class NetworkManager {
   /** Phone: the TV's battle hand, now and on every change (null outside battle). */
   public onHand(cb: HandCallback): () => void {
     this.handCallbacks.add(cb);
-    cb(this.hand);
+    cb(this.hand, this.handMode);
     return () => this.handCallbacks.delete(cb);
   }
 
@@ -226,19 +227,22 @@ export class NetworkManager {
           payload: { status: 'READY', device: 'FIRE_TV' },
           timestamp: Date.now(),
         });
-        this.sendHand(this.hand);
+        this.sendHand(this.hand, this.handMode);
       }
     } else if (data.type === 'HAND_SYNC' && data.payload) {
-      this.hand = (data.payload as HandSyncPayload).cards;
-      this.handCallbacks.forEach((cb) => cb(this.hand));
+      const payload = data.payload as HandSyncPayload;
+      this.hand = payload.cards;
+      this.handMode = payload.mode;
+      this.handCallbacks.forEach((cb) => cb(this.hand, this.handMode));
     }
   }
 
   /** TV: tells the phone which cards are in hand so it only shows and tracks those exercises. */
-  public sendHand(cards: CombatCard[] | null): void {
+  public sendHand(cards: CombatCard[] | null, mode?: HandSyncMode): void {
     this.hand = cards;
+    this.handMode = mode;
     if (!this.connection || !this.connection.open) return;
-    const payload: HandSyncPayload = { cards };
+    const payload: HandSyncPayload = { cards, mode };
     try {
       this.connection.send({ type: 'HAND_SYNC', payload, timestamp: Date.now() } satisfies PeerMessage);
     } catch (err) {
