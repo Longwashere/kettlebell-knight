@@ -65,7 +65,7 @@ export class KnightArmorRenderer {
     img.onload = () => {
       this.sheetReady = true;
     };
-    img.src = '/assets/phone/knight-armor.png';
+    img.src = `${import.meta.env.BASE_URL}assets/phone/knight-armor.png`;
     this.sheet = img;
   }
 

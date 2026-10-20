@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Smartphone, X, CheckCircle, Wifi, Copy, ExternalLink } from 'lucide-react';
+import { phonePairUrl } from '../../shared/deployConfig';
 
 interface QRCodeModalProps {
   roomId: string;
@@ -27,7 +28,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
 
   if (!isOpen) return null;
 
-  const phoneUrl = `${window.location.origin}/phone?room=${roomId}`;
+  const phoneUrl = phonePairUrl(roomId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">

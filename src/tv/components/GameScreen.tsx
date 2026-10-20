@@ -3,6 +3,8 @@ import { GameEngine } from '../engine/GameEngine';
 import { useTVRemote } from '../hooks/useTVRemote';
 import { networkManager, NetworkConnectionState } from '../../shared/NetworkManager';
 import { discoveryManager } from '../../shared/DiscoveryManager';
+import { phonePairUrl } from '../../shared/deployConfig';
+import { exitApp } from '../native';
 import { HubMenu, HUB_NODES } from './HubMenu';
 import { BlacksmithShop, SHOP_ITEMS } from './BlacksmithShop';
 import { BattleScreen } from './BattleScreen';
@@ -556,6 +558,8 @@ export const GameScreen: React.FC = () => {
         setHubFocusArea('CAROUSEL');
       } else if (currentView !== 'HUB') {
         setCurrentView('HUB');
+      } else {
+        exitApp();
       }
     },
   }, { enabled: !showCinematic && currentView !== 'COMBAT' && currentView !== 'TITLE' && currentView !== 'TRIAL' && currentView !== 'MAP_SELECT' && currentView !== 'SANCTUARY' });
@@ -777,7 +781,7 @@ export const GameScreen: React.FC = () => {
             {/* High-Contrast QR Code for scanning from across the room */}
             <div className="p-1.5 bg-white border-2 border-black rounded">
               <QRCodeSVG
-                value={`${window.location.origin}/phone?room=${roomId}`}
+                value={phonePairUrl(roomId)}
                 size={84}
                 level="M"
               />

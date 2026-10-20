@@ -1,6 +1,7 @@
 import Peer, { DataConnection } from 'peerjs';
 import { HandSyncMode, HandSyncPayload, PeerMessage, RepTelemetry } from '../types/game';
 import type { CombatCard } from '../types/battle';
+import { peerOptions } from './deployConfig';
 
 export type NetworkConnectionState = 'DISCONNECTED' | 'INITIALIZING' | 'WAITING_FOR_PEER' | 'CONNECTED' | 'ERROR';
 
@@ -9,7 +10,7 @@ export type StateChangeCallback = (state: NetworkConnectionState, info?: string)
 export type HandCallback = (cards: CombatCard[] | null, mode?: HandSyncMode) => void;
 
 /**
- * WebRTC Network Manager using PeerJS with Google STUN fallbacks.
+ * WebRTC Network Manager using PeerJS (signalling and STUN/TURN servers configured in deployConfig).
  * Enables zero-latency reliable RTCDataChannel telemetry streaming from Phone to Fire TV.
  */
 export class NetworkManager {
@@ -90,24 +91,17 @@ export class NetworkManager {
   /**
    * Initializes TV host peer listening for incoming phone connections
    */
-  public initHost(customRoomId?: string): Promise<string> {
+  public async initHost(customRoomId?: string): Promise<string> {
     this.isHost = true;
     this.roomId = customRoomId || NetworkManager.generateRoomCode();
     this.setState('INITIALIZING', `Setting up room ${this.roomId}...`);
+    const options = await peerOptions();
 
     return new Promise((resolve, reject) => {
       this.cleanup();
 
-      // PeerJS with reliable WebRTC DataChannel & Google STUN fallback
-      this.peer = new Peer(this.roomId, {
-        debug: 1,
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-          ],
-        },
-      });
+      // PeerJS with reliable WebRTC DataChannel; signalling server and STUN/TURN from deployConfig
+      this.peer = new Peer(this.roomId, options);
 
       this.peer.on('open', (id) => {
         this.roomId = id;
@@ -136,10 +130,11 @@ export class NetworkManager {
   /**
    * Connects phone client to the TV's room
    */
-  public connectToHost(roomId: string): Promise<void> {
+  public async connectToHost(roomId: string): Promise<void> {
     this.isHost = false;
     this.roomId = roomId;
     this.setState('INITIALIZING', `Connecting to ${roomId}...`);
+    const options = await peerOptions();
 
     return new Promise((resolve, reject) => {
       this.cleanup();
@@ -147,15 +142,7 @@ export class NetworkManager {
       // Unique random peer ID for the phone client
       const clientPeerId = `PHONE-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-      this.peer = new Peer(clientPeerId, {
-        debug: 1,
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-          ],
-        },
-      });
+      this.peer = new Peer(clientPeerId, options);
 
       this.peer.on('open', () => {
         if (!this.peer) return;

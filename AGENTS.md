@@ -25,6 +25,9 @@ npm run vfx:shrink            # TV-sized copies of the Spine VFX: public/assets/
 npm run sfx [-- ids]          # render the procedural sound bank to work/sfx/*.wav + index.html to audition
 npm run music                 # render the Electric Pow Wow workout soundtrack & stems to work/music/ + web asset
 python3 scripts/build_phone_armor.py  # cut the knight's armour parts from the Spine atlas for the phone AR overlay
+npm run build:pages  # phone-only GitHub Pages build (see Deploy)
+npm run tv:sync    # build + copy dist/ into the Capacitor Android (Fire TV) project in android/
+npm run tv:open    # open android/ in Android Studio to build the APK
 ```
 
 Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test` (alias `/lab`) motion-detection lab.
@@ -53,6 +56,19 @@ Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test
   `parts/`, `preview.html`). `images` is a symlink to `parts`.
 - `work/` — scratch space for asset-generation scripts (untracked).
 - `.agents/skills/` — project skills (PixiJS v8 collection + `spine-animation`). `.claude/skills` symlinks here.
+
+## Deploy
+
+- The phone companion is on GitHub Pages (https://longwashere.github.io/kettlebell-knight/phone), deployed by
+  `.github/workflows/pages.yml` on every push to `main`. `npm run build:pages` (Vite mode `pages`, `.env.pages`) serves
+  only `/phone` and `/test`, under base `/kettlebell-knight/`, without the TV assets; use `import.meta.env.BASE_URL`
+  for any asset the phone loads. The Fire TV app is a Capacitor Android shell (`capacitor.config.ts`, `android/`) bundling `dist/`
+  (or loading `CAP_SERVER_URL`); `src/tv/native.ts` bridges the remote's Back key and exits from the title menu / hub.
+- Release settings are `VITE_*` env vars read in `src/shared/deployConfig.ts` (see `.env.example`): `VITE_PHONE_URL`
+  for the pairing QR code (set in `.env.production`; required in the APK, whose origin is `https://localhost`),
+  PeerServer host, TURN (for Pages: repo Actions variables).
+  Build peers with `peerOptions()`, never inline `new Peer()` options.
+- LAN discovery (`/api/discovery`) is dev/preview only (`LAN_DISCOVERY`); production pairs by QR code or room code.
 
 ## Hard constraints (Fire TV)
 

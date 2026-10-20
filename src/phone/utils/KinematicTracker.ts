@@ -114,6 +114,28 @@ const WINDMILL = {
 };
 
 /**
+ * Around-the-body pass. Each orbit is: hands meet in front, bell out to one flank, behind the back, out on the other
+ * flank, hands meet again. Distances are shoulder widths from the hip centre; arms hanging still never bring the hands
+ * together, so they can't count a rep however much the landmarks jitter.
+ */
+const AROUND = {
+  /**
+   * Hands passing the bell: wrists at most this far apart, centred within this of the hips. Loose, because the hand
+   * hidden behind the other one is tracked badly; arms hanging at the sides are still ~1.2 apart.
+   */
+  together: 0.85,
+  frontReach: 0.8,
+  /** Bell out on a flank: the outer wrist at least this far from the hip centre. */
+  flank: 0.5,
+  /** Height band (torso lengths): from this far above the shoulder line to this far below the hips (~knees). */
+  aboveShoulder: 0.3,
+  belowHip: 1.2,
+  /** A stage not reached within this resets the orbit. */
+  stepMs: 4000,
+  cooldownMs: 900,
+};
+
+/**
  * Deadlift vs gorilla row. Both start hinged with the bells hanging low, so they're told apart by what moves: a
  * deadlift stands up (the shoulders rise with both hands together), a row keeps the shoulders put while one hand
  * rises past the other. Distances are standing-torso lengths; hinge is torso height vs standing (1 = upright).
@@ -336,7 +358,13 @@ export class KinematicTracker {
 
   // Multi-phase tracking variables
   private cleanStageCompleted: boolean = false;
-  private aroundBodyDirection: 'CLOCKWISE' | 'COUNTER_CLOCKWISE' | 'NONE' = 'NONE';
+  /**
+   * Around-the-body: hands have met in front (an orbit can start), the flank the bell first went out on
+   * (-1 / 1, 0 = not yet), and when the last stage was reached.
+   */
+  private aroundArmed: boolean = false;
+  private aroundSide: number = 0;
+  private aroundStepAt: number = 0;
   private rdlWorkingLeg: 'LEFT' | 'RIGHT' = 'LEFT';
 
   // Working arm: the hand that moves is the one with the bell; a raised but still free arm is ignored
@@ -460,7 +488,9 @@ export class KinematicTracker {
     this.rowHangShoulder = 0;
     this.rowLastElbows = null;
     this.rowReady = { l: true, r: true };
-    this.aroundBodyDirection = 'NONE';
+    this.aroundArmed = false;
+    this.aroundSide = 0;
+    this.aroundStepAt = 0;
     this.consecutiveFullBodyFrames = 0;
   }
 
@@ -758,8 +788,8 @@ export class KinematicTracker {
       }
     }
 
-    // 2. Smart Hand Auto-Routing
-    if (this.autoRouteEnabled && this.currentState === 0) {
+    // 2. Smart Hand Auto-Routing (not mid-orbit: reaching behind the back bends an elbow up like a row)
+    if (this.autoRouteEnabled && this.currentState === 0 && !this.aroundArmed) {
       const detected = this.detectExerciseSignature(landmarks, timestampMs);
       if (detected && detected !== this.activeExercise && this.allowedExercises.includes(detected)) {
         this.activeExercise = detected;
@@ -884,11 +914,17 @@ export class KinematicTracker {
     }
 
     // 5. Gorilla Row Signature: Bent-over torso, an elbow rowed up beside the shoulder with its forearm hanging
-    // (a deadlift's straight arms keep the elbows a full upper arm below the shoulders)
+    // (a deadlift's straight arms keep the elbows a full upper arm below the shoulders). Hunched over by the shin-based
+    // posture too: standing tall, a row can't count anyway, and an arm reaching behind the back looks rowed up.
     const torsoRef = Math.max(0.12, this.standingTorso);
     const hinge = torsoHeight / torsoRef;
     const wristSplit = (bottomWristY - topWristY) / torsoRef;
-    if (this.allowedExercises.includes('GORILLA_ROW') && hinge <= ROW.routeHinge && this.elbowRowedUp(landmarks)) {
+    if (
+      this.allowedExercises.includes('GORILLA_ROW') &&
+      hinge <= ROW.routeHinge &&
+      this.posture <= ROW.maxPosture &&
+      this.elbowRowedUp(landmarks)
+    ) {
       return 'GORILLA_ROW';
     }
 
@@ -2022,58 +2058,76 @@ export class KinematicTracker {
     const hipX = (lHip.x + rHip.x) / 2;
     const hipY = (lHip.y + rHip.y) / 2;
     const shoulderY = (lShoulder.y + rShoulder.y) / 2;
+    const torso = Math.max(0.05, hipY - shoulderY);
+    const unit = Math.max(0.05, Math.abs(lShoulder.x - rShoulder.x));
 
-    const lDist = lWrist.x - hipX;
-    const rDist = rWrist.x - hipX;
-    const activeWrist = Math.abs(lDist) > Math.abs(rDist) ? lWrist : rWrist;
-    const wristRelX = activeWrist.x - hipX;
+    // Wrist offsets from the hip centre in shoulder widths; the bell is in the hand held farther out
+    const lRel = (lWrist.x - hipX) / unit;
+    const rRel = (rWrist.x - hipX) / unit;
+    const activeWrist = Math.abs(lRel) > Math.abs(rRel) ? lWrist : rWrist;
+    const wristRelX = Math.abs(lRel) > Math.abs(rRel) ? lRel : rRel;
     const wristY = (lWrist.y + rWrist.y) / 2;
+
+    // Orbits run anywhere from chest to knee height; the free hand's height doesn't matter once the bell is out
+    const inBand = (y: number) => y >= shoulderY - torso * AROUND.aboveShoulder && y <= hipY + torso * AROUND.belowHip;
+    const handsTogether =
+      inBand(wristY) && Math.abs(lRel - rRel) <= AROUND.together && Math.abs((lRel + rRel) / 2) <= AROUND.frontReach;
+    const flank = inBand(activeWrist.y) && Math.abs(wristRelX) >= AROUND.flank ? Math.sign(wristRelX) : 0;
+
+    // A stage that stalls (arms resting at the sides) drops the orbit; the hands must meet in front again
+    if ((this.aroundArmed || this.currentState > 0) && timestampMs - this.aroundStepAt > AROUND.stepMs) {
+      this.currentState = 0;
+      this.aroundArmed = false;
+      this.aroundSide = 0;
+    }
 
     let emittedTelemetry: RepTelemetry | undefined = undefined;
 
     switch (this.currentState) {
-      case 0: { // FRONT_CENTER
-        if (Math.abs(wristRelX) < 0.12 && wristY >= shoulderY && wristY <= hipY + 0.22) {
-          this.aroundBodyDirection = 'NONE';
-        }
-        if (Math.abs(wristRelX) >= 0.14 && wristY >= shoulderY && wristY <= hipY + 0.22) {
-          this.aroundBodyDirection = wristRelX > 0 ? 'CLOCKWISE' : 'COUNTER_CLOCKWISE';
+      case 0: { // HANDS MEET in front to pass the bell, then it goes out to one flank
+        if (handsTogether) {
+          this.aroundArmed = true;
+          this.aroundStepAt = timestampMs;
+        } else if (this.aroundArmed && flank !== 0) {
+          this.aroundSide = flank;
           this.currentState = 1;
+          this.aroundStepAt = timestampMs;
         }
         break;
       }
-      case 1: { // LATERAL PASS -> BEHIND BACK
-        const expectedSign = this.aroundBodyDirection === 'CLOCKWISE' ? 1 : -1;
-        if (wristRelX * expectedSign < -0.04) {
+      case 1: { // BEHIND THE BACK -> BELL OUT ON THE OTHER FLANK
+        if (flank === -this.aroundSide) {
           this.currentState = 2;
+          this.aroundStepAt = timestampMs;
         }
         break;
       }
-      case 2: { // OPPOSITE FLANK -> FRONT RETURN
-        if (Math.abs(wristRelX) < 0.11 && wristY >= shoulderY && wristY <= hipY + 0.22) {
-          if (timestampMs - this.lastRepTimestamp >= this.minRepIntervalMs) {
-            this.repCount++;
-            this.lastRepTimestamp = timestampMs;
+      case 2: { // BACK TO THE FRONT: hands meet to pass it again
+        if (handsTogether && timestampMs - this.lastRepTimestamp >= AROUND.cooldownMs) {
+          this.repCount++;
+          this.lastRepTimestamp = timestampMs;
 
-            const torsoTilt = Math.abs(lShoulder.y - rShoulder.y);
-            const formScore = Math.max(0.7, Number((1.0 - torsoTilt * 2.5).toFixed(2)));
-            const powerScore = 80;
+          const torsoTilt = Math.abs(lShoulder.y - rShoulder.y);
+          const formScore = Math.max(0.7, Number((1.0 - torsoTilt * 2.5).toFixed(2)));
+          const powerScore = 80;
 
-            emittedTelemetry = {
-              event: 'REP_TRIGGER',
-              exercise: 'AROUND_THE_BODY',
-              skillName: EXERCISE_SKILLS.AROUND_THE_BODY.skillName,
-              power: powerScore,
-              form: formScore,
-              repCount: this.repCount,
-              state: 2,
-              timestamp: timestampMs,
-            };
-            this.onRepCompleted?.(emittedTelemetry);
+          emittedTelemetry = {
+            event: 'REP_TRIGGER',
+            exercise: 'AROUND_THE_BODY',
+            skillName: EXERCISE_SKILLS.AROUND_THE_BODY.skillName,
+            power: powerScore,
+            form: formScore,
+            repCount: this.repCount,
+            state: 2,
+            timestamp: timestampMs,
+          };
+          this.onRepCompleted?.(emittedTelemetry);
 
-            this.currentState = 0;
-            this.aroundBodyDirection = 'NONE';
-          }
+          // The hands are together, which already starts the next orbit
+          this.currentState = 0;
+          this.aroundArmed = true;
+          this.aroundSide = 0;
+          this.aroundStepAt = timestampMs;
         }
         break;
       }
@@ -2083,7 +2137,7 @@ export class KinematicTracker {
     this.lastMetricY = wristY;
     this.lastTimestamp = timestampMs;
 
-    const names = ['FRONT CENTER', 'LATERAL PASS', 'ORBIT COMPLETE'];
+    const names = ['HANDS MEET', 'BEHIND BACK', 'ORBIT RETURN'];
     const update: KinematicStateUpdate = {
       exercise: 'AROUND_THE_BODY',
       state: this.currentState,
@@ -2096,6 +2150,7 @@ export class KinematicTracker {
       referenceY: hipY,
       velocity: Math.abs(wristRelX),
       telemetry: emittedTelemetry,
+      debugNotes: `bell ${wristRelX.toFixed(2)} gap ${Math.abs(lRel - rRel).toFixed(2)} side ${this.aroundSide}${this.aroundArmed ? ' armed' : ''}`,
     };
     this.onStateChange?.(update);
     return update;

@@ -10,7 +10,7 @@ import { RepTelemetry, ExerciseType, EXERCISE_SKILLS, HandSyncMode } from '../..
 import { CombatCard } from '../../types/battle';
 import { audioManager } from '../../shared/AudioManager';
 import { KnightArmorRenderer } from '../utils/KnightArmorRenderer';
-import { discoveryManager, DiscoveredTV } from '../../shared/DiscoveryManager';
+import { discoveryManager, DiscoveredTV, LAN_DISCOVERY } from '../../shared/DiscoveryManager';
 
 export type PhoneOverlayMode = 'ARMOR' | 'SKELETON' | 'OFF';
 import { Tv, Zap, Swords, Wifi } from 'lucide-react';
@@ -113,10 +113,10 @@ export const PhoneView: React.FC = () => {
       if (info) setStatusMessage(info);
     });
 
-    // Auto-connect if room is present in URL, otherwise scan local WiFi
+    // Auto-connect if room is present in URL, otherwise scan local WiFi (dev server only)
     if (roomFromQuery) {
       handleConnect(roomFromQuery);
-    } else {
+    } else if (LAN_DISCOVERY) {
       scanWifi();
     }
 
@@ -932,10 +932,12 @@ export const PhoneView: React.FC = () => {
                   <span className="kk-phone-btn kk-phone-btn--sm">BIND</span>
                 </button>
               ))}
-              <button onClick={scanWifi} disabled={isScanningWifi} className="kk-phone-btn kk-phone-btn--iron w-full">
-                <Wifi className={`w-4 h-4 ${isScanningWifi ? 'animate-pulse' : ''}`} />
-                {isScanningWifi ? 'SEARCHING THE WIFI…' : discoveredTVs.length ? 'SEARCH AGAIN' : 'SEARCH THE WIFI'}
-              </button>
+              {LAN_DISCOVERY && (
+                <button onClick={scanWifi} disabled={isScanningWifi} className="kk-phone-btn kk-phone-btn--iron w-full">
+                  <Wifi className={`w-4 h-4 ${isScanningWifi ? 'animate-pulse' : ''}`} />
+                  {isScanningWifi ? 'SEARCHING THE WIFI…' : discoveredTVs.length ? 'SEARCH AGAIN' : 'SEARCH THE WIFI'}
+                </button>
+              )}
             </div>
           )}
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTVRemote } from '../hooks/useTVRemote';
+import { exitApp } from '../native';
 import { audioManager } from '../../shared/AudioManager';
 import { profileManager, PlayerProfile, DEFAULT_KNIGHT_NAME, TOTAL_SAVE_SLOTS } from '../../shared/ProfileManager';
 import { 
@@ -282,6 +283,8 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
         setMode('MAIN_MENU');
         setPurgeConfirmSlot(null);
         audioManager.play('ui_select');
+      } else {
+        exitApp();
       }
     },
     onDemoSwing: () => {

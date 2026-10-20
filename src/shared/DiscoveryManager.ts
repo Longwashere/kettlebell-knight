@@ -12,10 +12,13 @@ export interface DiscoveredTV {
  * and pair with 1 tap (or zero-tap auto-pair) without having to manually type the room code.
  *
  * Employs a 3-tier discovery mechanism:
- * 1. Local Network HTTP Beacon: Registered via Vite LAN middleware /api/discovery
+ * 1. Local Network HTTP Beacon: Registered via Vite LAN middleware /api/discovery (dev/preview server only)
  * 2. Cross-Tab / Local Device BroadcastChannel: Zero-latency discovery across tabs on same device
  * 3. LocalStorage Beacon: Fallback persistence with timestamps
  */
+/** The /api/discovery middleware only exists on the Vite dev/preview server, not on a static host or in the TV app. */
+export const LAN_DISCOVERY = import.meta.env.DEV;
+
 export class DiscoveryManager {
   private static instance: DiscoveryManager;
   private broadcastChannel: BroadcastChannel | null = null;
@@ -85,13 +88,15 @@ export class DiscoveryManager {
     const payload = { roomId, name, timestamp: Date.now() };
 
     // A. Local API endpoint on LAN server (Vite middleware)
-    fetch('/api/discovery/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }).catch(() => {
-      // Server endpoint not available (e.g. static hosting)
-    });
+    if (LAN_DISCOVERY) {
+      fetch('/api/discovery/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).catch(() => {
+        // Server endpoint not available
+      });
+    }
 
     // B. Web BroadcastChannel (for same-device / multi-tab testing)
     if (this.broadcastChannel) {
@@ -118,27 +123,29 @@ export class DiscoveryManager {
     const now = Date.now();
 
     // 1. Query Local LAN Server endpoint
-    try {
-      const response = await fetch('/api/discovery/rooms', {
-        signal: AbortSignal.timeout(3000),
-      });
-      if (response.ok) {
-        const rooms = await response.json();
-        if (Array.isArray(rooms)) {
-          rooms.forEach((r: any) => {
-            if (r.roomId && now - r.timestamp < 25000) {
-              results.set(r.roomId, {
-                roomId: r.roomId,
-                name: r.name || 'Fire TV',
-                timestamp: r.timestamp,
-                source: 'WIFI_LAN',
-              });
-            }
-          });
+    if (LAN_DISCOVERY) {
+      try {
+        const response = await fetch('/api/discovery/rooms', {
+          signal: AbortSignal.timeout(3000),
+        });
+        if (response.ok) {
+          const rooms = await response.json();
+          if (Array.isArray(rooms)) {
+            rooms.forEach((r: any) => {
+              if (r.roomId && now - r.timestamp < 25000) {
+                results.set(r.roomId, {
+                  roomId: r.roomId,
+                  name: r.name || 'Fire TV',
+                  timestamp: r.timestamp,
+                  source: 'WIFI_LAN',
+                });
+              }
+            });
+          }
         }
+      } catch (e) {
+        // Local API endpoint timed out or offline
       }
-    } catch (e) {
-      // Local API endpoint timed out or offline
     }
 
     // 2. Query LocalStorage beacon (for local dev / same device)

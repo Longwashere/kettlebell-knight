@@ -12,9 +12,15 @@
     "vfx:shrink": "node scripts/shrink-vfx.mjs",
     "balance": "esbuild scripts/balance-sim.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/balance-sim.mjs && node node_modules/.cache/balance-sim.mjs",
     "sfx": "esbuild scripts/sfx-render.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/sfx-render.mjs && node node_modules/.cache/sfx-render.mjs",
-    "music": "python3 scripts/craft_map_soundtracks.py"
+    "music": "python3 scripts/craft_map_soundtracks.py",
+    "tv:sync": "npm run build && cap sync android",
+    "tv:open": "cap open android",
+    "build:pages": "tsc && vite build --mode pages"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.5.3",
     "@esotericsoftware/spine-pixi-v8": "~4.2.66",
     "@mediapipe/tasks-vision": "^0.10.18",
     "howler": "^2.2.4",
@@ -27,6 +33,7 @@
     "react-router-dom": "^7.2.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
     "@types/howler": "^2.2.12",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",

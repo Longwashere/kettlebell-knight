@@ -1,5 +1,6 @@
 import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
 import path from 'path';
 
 /**
@@ -64,9 +65,38 @@ function localDiscoveryPlugin(): Plugin {
   };
 }
 
+/**
+ * GitHub Pages build (`vite build --mode pages`): the site is only the phone companion.
+ * Drops the TV-only assets (~140 MB) and, since Pages has no SPA rewrites, copies index.html to each
+ * route's folder (so /phone?room=… loads with a 200) and to 404.html for anything else.
+ */
+function pagesSitePlugin(): Plugin {
+  const TV_ONLY_ASSETS = ['spine', 'music', 'cinematics', 'codex', 'backgrounds'];
+  const ROUTES = ['phone', 'test', 'lab'];
+  return {
+    name: 'phone-pages-site',
+    apply: 'build',
+    closeBundle() {
+      const dist = path.resolve(__dirname, 'dist');
+      for (const dir of TV_ONLY_ASSETS) {
+        fs.rmSync(path.join(dist, 'assets', dir), { recursive: true, force: true });
+      }
+      const index = path.join(dist, 'index.html');
+      for (const route of ROUTES) {
+        fs.mkdirSync(path.join(dist, route), { recursive: true });
+        fs.copyFileSync(index, path.join(dist, route, 'index.html'));
+      }
+      fs.copyFileSync(index, path.join(dist, '404.html'));
+      fs.writeFileSync(path.join(dist, '.nojekyll'), '');
+    },
+  };
+}
+
 // https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [react(), localDiscoveryPlugin()],
+export default defineConfig(({ mode }) => ({
+  // Project pages live under /<repo>/; set PAGES_BASE=/ when using a custom domain.
+  base: mode === 'pages' ? process.env.PAGES_BASE ?? '/kettlebell-knight/' : '/',
+  plugins: [react(), localDiscoveryPlugin(), ...(mode === 'pages' ? [pagesSitePlugin()] : [])],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -80,13 +110,18 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'pixi-vendor': ['pixi.js'],
-          'vision-vendor': ['@mediapipe/tasks-vision'],
-          'network-vendor': ['peerjs'],
+        // Function form, so Vite's dynamic-import preload helper isn't pulled into pixi-vendor (which
+        // made the phone page download PixiJS just for that helper).
+        manualChunks(id) {
+          if (id.includes('vite/preload-helper')) return 'preload-helper';
+          if (!id.includes('node_modules')) return undefined;
+          if (/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(id)) return 'react-vendor';
+          if (/node_modules\/(pixi\.js|@pixi)\//.test(id)) return 'pixi-vendor';
+          if (id.includes('node_modules/@mediapipe/tasks-vision/')) return 'vision-vendor';
+          if (/node_modules\/(peerjs|peerjs-js-binarypack)\//.test(id)) return 'network-vendor';
+          return undefined;
         },
       },
     },
   },
-});
+}));

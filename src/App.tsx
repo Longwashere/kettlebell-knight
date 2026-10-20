@@ -1,9 +1,15 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
-import { GameScreen } from './tv/components/GameScreen';
 import { PhoneView } from './phone/components/PhoneView';
 import { MotionTestView } from './test/MotionTestView';
+import { IS_NATIVE_APP } from './tv/native';
 import { Tv, Smartphone, Swords, Shield, Zap, Activity } from 'lucide-react';
+
+// Loaded on demand so phones never download PixiJS and the TV engine.
+const GameScreen = lazy(() => import('./tv/components/GameScreen').then((m) => ({ default: m.GameScreen })));
+
+/** GitHub Pages build (`npm run build:pages`): only the phone companion and the motion lab are served. */
+const PHONE_SITE = import.meta.env.VITE_PHONE_SITE === 'true';
 
 const RootLauncher: React.FC = () => {
   return (
@@ -97,11 +103,35 @@ const RootLauncher: React.FC = () => {
 };
 
 export const App: React.FC = () => {
+  // BASE_URL is '/kettlebell-knight/' on GitHub Pages, '/' everywhere else.
+  const basename = import.meta.env.BASE_URL.replace(/\/$/, '') || undefined;
+
+  if (PHONE_SITE) {
+    return (
+      <BrowserRouter basename={basename}>
+        <Routes>
+          <Route path="/phone" element={<PhoneView />} />
+          <Route path="/test" element={<MotionTestView />} />
+          <Route path="/lab" element={<MotionTestView />} />
+          <Route path="*" element={<Navigate to="/phone" replace />} />
+        </Routes>
+      </BrowserRouter>
+    );
+  }
+
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={basename}>
       <Routes>
-        <Route path="/" element={<RootLauncher />} />
-        <Route path="/tv" element={<GameScreen />} />
+        {/* The Fire TV app opens straight into the game; the launcher is for browsers. */}
+        <Route path="/" element={IS_NATIVE_APP ? <Navigate to="/tv" replace /> : <RootLauncher />} />
+        <Route
+          path="/tv"
+          element={
+            <Suspense fallback={<div className="w-screen h-screen bg-[#0F0E17]" />}>
+              <GameScreen />
+            </Suspense>
+          }
+        />
         <Route path="/phone" element={<PhoneView />} />
         <Route path="/test" element={<MotionTestView />} />
         <Route path="/lab" element={<MotionTestView />} />
