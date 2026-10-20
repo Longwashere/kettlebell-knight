@@ -8,6 +8,12 @@ export interface NormalizedLandmark {
   visibility?: number;
 }
 
+/** Posture calibration (see KinematicTracker.posture). */
+const POSTURE = {
+  /** A frame where the shin or torso-per-shin jumps more than this share is a landmark glitch and is skipped. */
+  glitch: 0.2,
+};
+
 /** Keeps the swing's body-relative bell height positive in lastMetricY, where 0 means "no previous frame". */
 const SWING_REL_OFFSET = 10;
 
@@ -20,17 +26,21 @@ const SWING = {
   hikeBell: 0.75,
   hikeElbow: 140,
   hikeForearm: 0.7,
-  /** Hike: hips hinged to at most this, knees not bent below this (deeper is a squat). */
+  /** Hike: posture (torso vs upright) at most this, knees not bent below this (deeper is a squat). */
   hikeHinge: 0.88,
   hikeKneeMin: 0.55,
   /** Drive starts when the bell rises at least this fast (torso lengths / s) relative to the shoulders. */
   driveSpeed: 1.2,
   /** Lockout line: the bell has to rise to this height (about the bottom of the chest). */
   lockoutBell: 0.65,
-  /** Lockout: standing tall again — hips at least this extended, or opened by lockoutHipOpen since the hike — and knees. */
-  lockoutHinge: 0.8,
-  lockoutHipOpen: 0.1,
+  /** Lockout: standing tall again, locked out straight — posture at least this upright, knees at least this straight. */
+  lockoutPosture: 0.9,
   lockoutKnee: 0.7,
+  /**
+   * Lockout: the shoulders risen at least this far (torso lengths) since the bottom of the hike. Standing up out of
+   * the hinge lifts them; a gorilla row pulls the bell just as high toward the hunched shoulders but leaves them put.
+   */
+  lockoutRise: 0.1,
   /** Standing tall and the bell crossing the line may be this far apart, in either order (the bell staying within lockoutSlack of the line). */
   lockoutGraceMs: 600,
   lockoutSlack: 0.25,
@@ -101,6 +111,58 @@ interface CleanPressArm {
 const WINDMILL = {
   /** After a rep, the tracker waits this long before a new descent can start (and between counted reps). */
   cooldownMs: 1200,
+};
+
+/**
+ * Deadlift vs gorilla row. Both start hinged with the bells hanging low, so they're told apart by what moves: a
+ * deadlift stands up (the shoulders rise with both hands together), a row keeps the shoulders put while one hand
+ * rises past the other. Distances are standing-torso lengths; hinge is torso height vs standing (1 = upright).
+ */
+const DEADLIFT = {
+  /** Lockout: shoulders risen at least this far since the bottom, and the torso back to at least this upright. */
+  shoulderRise: 0.2,
+  lockoutHinge: 0.8,
+  /** Lockout: the two wrists at most this far apart in height (a row has one hand up, one down). */
+  maxSplit: 0.3,
+  /** Router: standing with both hands low and level, at least this upright. */
+  routeHinge: 0.8,
+  /**
+   * A deadlift's bell stops at the hips; a swing's flies through them on its way to the chest. The rep counts once
+   * the bell has settled (rising slower than this, torso lengths / s), and a bell carried this far above the hip
+   * line is a swing: the pull is dropped.
+   */
+  settleSpeed: 0.6,
+  swingAboveHip: 0.25,
+};
+
+/**
+ * Gorilla row, with one bell or two. Each arm is measured against itself: its reach is the wrist's height below its
+ * own shoulder, and a row draws the wrist up toward the shoulder (the arm bends). A deadlift keeps the arms straight,
+ * so its reach never shrinks, and the free hand (hanging, or braced on a knee or thigh) holds still.
+ */
+const ROW = {
+  /** The pull starts once an arm's reach has shrunk this far from where it hung. */
+  startPull: 0.12,
+  /** The pull counts once the rowing arm's reach has shrunk at least this far. */
+  pull: 0.4,
+  /** ...and only hunched over: posture (torso vs upright) at most this. */
+  maxPosture: 0.85,
+  /**
+   * An arm whose reach changes slower than this (torso lengths / s, smoothed over ~0.5 s and signed, so camera
+   * jitter averages out while even a slow row keeps drifting one way) is resting: its hang reference settles there.
+   */
+  stillRate: 0.15,
+  settleSeconds: 1.5,
+  /**
+   * The lower shoulder rising more than this since the hang is standing up (a deadlift or a swing), not a row.
+   * Rowing twists the rowing shoulder up, so the other one is the one watched.
+   */
+  maxShoulderRise: 0.15,
+  /** In the hang, the shoulder reference relaxes upward this fast (torso lengths / s) to follow a change of stance. */
+  shoulderRelax: 0.1,
+  /** Router: torso hinged to at most this. An elbow within rowedElbow of its shoulder line has been rowed up. */
+  routeHinge: 0.88,
+  rowedElbow: 0.3,
 };
 
 const freshCleanPressArm = (): CleanPressArm =>
@@ -289,8 +351,9 @@ export class KinematicTracker {
   private swingLineAt: number = 0;
   /** When the knight last stood tall in this drive (0 = not yet). */
   private swingTallAt: number = 0;
-  /** Hip hinge at the start of this drive, and the best bell / hinge / knee the drive reached (for the miss note). */
-  private swingHikeHinge: number = 0;
+  /** The best bell / hinge / knee this drive reached (for the miss note). */
+  /** Lowest the shoulders got (largest y) in this hike, to measure standing up against. */
+  private swingHikeShoulder: number = 0;
   private swingBest = { bell: 9, hinge: 0, knee: 0 };
   /** When the clean's bell settled in the rack zone (0 = not settled). */
   private cleanRackAt: number = 0;
@@ -298,6 +361,24 @@ export class KinematicTracker {
   private cleanPressArms = { LEFT: freshCleanPressArm(), RIGHT: freshCleanPressArm() };
   /** Snatch: each wrist's height last frame (null = no reference yet). */
   private snatchLastWrists: { l: number; r: number } | null = null;
+  /** Deadlift: lowest shoulder line (largest y) in the setup, to measure the stand-up against (0 = none yet). */
+  private deadliftBottomShoulder: number = 0;
+  /** Gorilla row: shoulder line in the hang, and each elbow's height last frame (null = no reference yet). */
+  private rowHangShoulder: number = 0;
+  private rowLastElbows: { l: number; r: number } | null = null;
+  /**
+   * Each arm's reach (wrist below its own shoulder, torso lengths), where it last hung, and its smoothed rate of
+   * change (torso lengths / s). Body calibration like the standing torso, so it's kept across exercise switches and
+   * the row can count the very pull that switched to it.
+   */
+  private armReach = { l: 0, r: 0 };
+  private armHangReach: { l: number; r: number } | null = null;
+  private armReachRate = { l: 0, r: 0 };
+  private armReachAt: number = 0;
+  /** Gorilla row: whether the last counted rep was the left arm's, and which arms are back at the hang (a rowed arm
+   * has to lower before it counts again). */
+  private rowArmLeft: boolean = false;
+  private rowReady = { l: true, r: true };
   /**
    * Standing torso (shoulders→hips) and thigh (hips→knees) heights on screen. Facing the camera, a hip hinge
    * shortens the torso and a knee bend shortens the thigh, so each is read as a ratio of its standing length.
@@ -305,6 +386,16 @@ export class KinematicTracker {
    */
   private standingTorso: number = 0;
   private standingThigh: number = 0;
+  /**
+   * Posture: torso height on screen over shin height (1 = upright). Shins stay about the same length whether you
+   * stand, hinge, row or swing, and scale with distance just like the torso, so unlike standingTorso this never
+   * drifts while you stay bent over. torsoPerShin is smoothed over a few frames; uprightTorsoPerShin is the tallest
+   * it has been. Without ankles in view, posture falls back to the torso vs standingTorso.
+   */
+  private posture: number = 1;
+  private torsoPerShin: number = 0;
+  private uprightTorsoPerShin: number = 0;
+  private shinRef: number = 0;
 
   private requireFullBody: boolean = true;
   private consecutiveFullBodyFrames: number = 0;
@@ -365,6 +456,10 @@ export class KinematicTracker {
     this.cleanRackAt = 0;
     this.cleanPressArms = { LEFT: freshCleanPressArm(), RIGHT: freshCleanPressArm() };
     this.snatchLastWrists = null;
+    this.deadliftBottomShoulder = 0;
+    this.rowHangShoulder = 0;
+    this.rowLastElbows = null;
+    this.rowReady = { l: true, r: true };
     this.aroundBodyDirection = 'NONE';
     this.consecutiveFullBodyFrames = 0;
   }
@@ -412,8 +507,8 @@ export class KinematicTracker {
     this.armCandidate = candidate;
     if (candidate !== this.armSide && this.armCandidateFrames >= 6) {
       this.armSide = candidate;
-      // The snatch follows both wrists itself, so the hands parting mid-pull mustn't cost it the rep
-      if (this.activeExercise === 'SNATCH') return;
+      // The snatch and the row follow both wrists themselves, so the hands parting mid-pull mustn't cost them the rep
+      if (this.activeExercise === 'SNATCH' || this.activeExercise === 'GORILLA_ROW') return;
       // The tracked point moves: abandon any half rep and drop the velocity reference so the jump isn't read as motion
       this.currentState = 0;
       this.maxMovementVelocity = 0;
@@ -431,6 +526,72 @@ export class KinematicTracker {
     const kneeY = (landmarks[POSE_INDEX.LEFT_KNEE].y + landmarks[POSE_INDEX.RIGHT_KNEE].y) / 2;
     this.standingTorso = Math.max(this.standingTorso * 0.9985, hipY - shoulderY);
     this.standingThigh = Math.max(this.standingThigh * 0.9985, kneeY - hipY);
+    this.updatePosture(landmarks, hipY - shoulderY);
+  }
+
+  private updatePosture(landmarks: NormalizedLandmark[], torso: number): void {
+    // The longer shin (in a lunge the rear one lies flat), from ankles MediaPipe actually sees in frame
+    const shinOf = (knee: NormalizedLandmark, ankle: NormalizedLandmark | undefined) =>
+      ankle && (ankle.visibility ?? 1) >= 0.3 && ankle.y <= 0.99 ? ankle.y - knee.y : 0;
+    const shin = Math.max(
+      shinOf(landmarks[POSE_INDEX.LEFT_KNEE], landmarks[POSE_INDEX.LEFT_ANKLE]),
+      shinOf(landmarks[POSE_INDEX.RIGHT_KNEE], landmarks[POSE_INDEX.RIGHT_ANKLE]),
+    );
+    const fallback = torso / Math.max(0.12, this.standingTorso);
+    if (shin < 0.03) {
+      this.posture = fallback;
+      return;
+    }
+    this.shinRef = this.shinRef > 0 ? this.shinRef + (shin - this.shinRef) * 0.1 : shin;
+    const ratio = torso / shin;
+    // A landmark glitch (shin or torso jumping a fifth in one frame) must not become the upright reference
+    const glitch =
+      Math.abs(shin - this.shinRef) > POSTURE.glitch * this.shinRef ||
+      (this.torsoPerShin > 0 && Math.abs(ratio - this.torsoPerShin) > POSTURE.glitch * this.torsoPerShin);
+    if (!glitch) {
+      this.torsoPerShin = this.torsoPerShin > 0 ? this.torsoPerShin + (ratio - this.torsoPerShin) * 0.35 : ratio;
+      this.uprightTorsoPerShin = Math.max(this.uprightTorsoPerShin, this.torsoPerShin);
+    }
+    this.posture = this.uprightTorsoPerShin > 0 ? this.torsoPerShin / this.uprightTorsoPerShin : fallback;
+  }
+
+  /** An elbow drawn up beside its shoulder with the forearm hanging: a row. A deadlift's straight arms never do this. */
+  private elbowRowedUp(landmarks: NormalizedLandmark[]): boolean {
+    const torso = Math.max(0.12, this.standingTorso);
+    const rowed = (shoulder: NormalizedLandmark, elbow: NormalizedLandmark, wrist: NormalizedLandmark) =>
+      (elbow.y - shoulder.y) / torso <= ROW.rowedElbow && wrist.y > elbow.y;
+    return (
+      rowed(landmarks[POSE_INDEX.LEFT_SHOULDER], landmarks[POSE_INDEX.LEFT_ELBOW], landmarks[POSE_INDEX.LEFT_WRIST]) ||
+      rowed(landmarks[POSE_INDEX.RIGHT_SHOULDER], landmarks[POSE_INDEX.RIGHT_ELBOW], landmarks[POSE_INDEX.RIGHT_WRIST])
+    );
+  }
+
+  /**
+   * Tracks each arm's reach and where it hangs. The hang reference follows the lowest reach and settles wherever a
+   * resting hand stays, so a free hand braced on a knee or thigh doesn't read as rowed up.
+   */
+  private updateArmReach(landmarks: NormalizedLandmark[], timestampMs: number): void {
+    const torso = Math.max(0.12, this.standingTorso);
+    const reach = {
+      l: (landmarks[POSE_INDEX.LEFT_WRIST].y - landmarks[POSE_INDEX.LEFT_SHOULDER].y) / torso,
+      r: (landmarks[POSE_INDEX.RIGHT_WRIST].y - landmarks[POSE_INDEX.RIGHT_SHOULDER].y) / torso,
+    };
+    const hang = this.armHangReach;
+    if (!hang || timestampMs <= this.armReachAt) {
+      this.armHangReach ??= { ...reach };
+      this.armReach = reach;
+      this.armReachAt = timestampMs;
+      return;
+    }
+    const dt = Math.max(0.016, (timestampMs - this.armReachAt) / 1000);
+    const settle = Math.min(1, dt / ROW.settleSeconds);
+    for (const side of ['l', 'r'] as const) {
+      this.armReachRate[side] += ((reach[side] - this.armReach[side]) / dt - this.armReachRate[side]) * Math.min(1, dt / 0.5);
+      hang[side] = Math.max(hang[side], reach[side]);
+      if (Math.abs(this.armReachRate[side]) < ROW.stillRate) hang[side] += (reach[side] - hang[side]) * settle;
+    }
+    this.armReach = reach;
+    this.armReachAt = timestampMs;
   }
 
   /** The bell's wrist: the working arm's, or the midpoint of both hands on the handle. */
@@ -610,6 +771,7 @@ export class KinematicTracker {
     // Clean & press follows each wrist on its own and reports the bell arm itself
     if (this.activeExercise !== 'CLEAN_AND_PRESS') this.updateWorkingArm(landmarks, timestampMs);
     this.updateStandingRefs(landmarks);
+    this.updateArmReach(landmarks, timestampMs);
     const update = this.processExercise(landmarks, timestampMs);
     update.arm = this.armSide;
     update.armed = this.currentState === 0 && this.phaseStartTimestamp > 0;
@@ -721,15 +883,12 @@ export class KinematicTracker {
       return 'SINGLE_LEG_RDL';
     }
 
-    // 5. Gorilla Row Signature: Bent-over torso, one elbow pulling high past hip
-    const lElbow = landmarks[POSE_INDEX.LEFT_ELBOW];
-    const rElbow = landmarks[POSE_INDEX.RIGHT_ELBOW];
-    if (
-      this.allowedExercises.includes('GORILLA_ROW') &&
-      torsoHeight < 0.22 &&
-      (lElbow.y < hipY - 0.05 || rElbow.y < hipY - 0.05) &&
-      wristY > hipY
-    ) {
+    // 5. Gorilla Row Signature: Bent-over torso, an elbow rowed up beside the shoulder with its forearm hanging
+    // (a deadlift's straight arms keep the elbows a full upper arm below the shoulders)
+    const torsoRef = Math.max(0.12, this.standingTorso);
+    const hinge = torsoHeight / torsoRef;
+    const wristSplit = (bottomWristY - topWristY) / torsoRef;
+    if (this.allowedExercises.includes('GORILLA_ROW') && hinge <= ROW.routeHinge && this.elbowRowedUp(landmarks)) {
       return 'GORILLA_ROW';
     }
 
@@ -770,11 +929,15 @@ export class KinematicTracker {
     }
 
     // 10. Deadlift: Wrists pulling vertically from mid-shin to hip, never rising to shoulders
-    // Both hands stay low: a windmill (one arm overhead, the other at the shin) averages out to the same height
+    // Both hands stay low: a windmill (one arm overhead, the other at the shin) averages out to the same height.
+    // Read standing, bell hanging level in both hands above the knees: hinged over with the bells down is also a
+    // gorilla row's hang, and switching mid-way up would count standing up out of a row set as a deadlift.
     if (
       this.allowedExercises.includes('DEADLIFT') &&
       topWristY >= hipY - 0.05 &&
-      bottomWristY <= kneeY + 0.15
+      bottomWristY <= kneeY &&
+      wristSplit < DEADLIFT.maxSplit &&
+      hinge >= DEADLIFT.routeHinge
     ) {
       return 'DEADLIFT';
     }
@@ -816,13 +979,15 @@ export class KinematicTracker {
     // Bell height in standing-torso lengths below the shoulders (0 = shoulder line, 1 = hip line): body-relative,
     // so squatting or standing up doesn't move it
     const rel = (wrist.y - shoulderY) / torsoHeight;
-    // Hip hinge: torso height vs standing (1 = upright, lower = leaning forward). Knees: thigh height vs
-    // standing (1 = straight, ~0.9 = the swing's soft bend, under ~0.55 = squatting)
-    const hinge = (hipY - shoulderY) / torsoHeight;
+    // Hip hinge: posture (1 = upright, lower = leaning forward). Knees: thigh height vs standing (1 = straight,
+    // ~0.9 = the swing's soft bend, under ~0.55 = squatting)
+    const hinge = this.posture;
     const knee = this.standingThigh > 0.02 ? (kneeY - hipY) / this.standingThigh : 1;
     const hingedHike = hinge <= SWING.hikeHinge && knee >= SWING.hikeKneeMin;
-    const hipsOpen = hinge >= SWING.lockoutHinge || (this.swingHikeHinge > 0 && hinge - this.swingHikeHinge >= SWING.lockoutHipOpen);
-    const standingTall = hipsOpen && knee >= SWING.lockoutKnee;
+    // Locked out straight: upright, knees extended and the shoulders risen out of the hike (a gorilla row pulls
+    // the bell as high, hunched over)
+    const shoulderRise = this.swingHikeShoulder > 0 ? (this.swingHikeShoulder - shoulderY) / torsoHeight : 0;
+    const standingTall = hinge >= SWING.lockoutPosture && knee >= SWING.lockoutKnee && shoulderRise >= SWING.lockoutRise;
     let note: string | undefined;
     // Arm straightness and forearm direction (+1 hanging straight down, -1 standing straight up)
     const elbowAngle = calculateAngle(shoulder, elbow, wrist);
@@ -850,6 +1015,7 @@ export class KinematicTracker {
     switch (this.currentState) {
       case 0: { // HIKE: straight arms, forearms hanging, bell at or below the hips, hips hinged, soft knees
         if (rel >= SWING.hikeBell && elbowAngle >= SWING.hikeElbow && forearmDown >= SWING.hikeForearm && hingedHike) {
+          this.swingHikeShoulder = this.phaseStartTimestamp > 0 ? Math.max(this.swingHikeShoulder, shoulderY) : shoulderY;
           this.phaseStartTimestamp = timestampMs;
           this.maxMovementVelocity = 0;
           this.swingForearmRef = Math.max(this.swingForearmRef * 0.9, forearmLen);
@@ -859,7 +1025,6 @@ export class KinematicTracker {
           this.maxMovementVelocity = upwardVelocity;
           this.swingLineAt = 0;
           this.swingTallAt = 0;
-          this.swingHikeHinge = hinge;
           this.swingBest = { bell: rel, hinge, knee };
         }
         break;
@@ -868,6 +1033,7 @@ export class KinematicTracker {
         if (upwardVelocity > this.maxMovementVelocity) {
           this.maxMovementVelocity = upwardVelocity;
         }
+        this.swingHikeShoulder = Math.max(this.swingHikeShoulder, shoulderY);
         this.swingBest = {
           bell: Math.min(this.swingBest.bell, rel),
           hinge: Math.max(this.swingBest.hinge, hinge),
@@ -879,7 +1045,7 @@ export class KinematicTracker {
           const best = this.swingBest;
           note = curled
             ? `cancelled: forearm curled up (${forearmDown.toFixed(2)})`
-            : `missed lockout — best: bell ${best.bell.toFixed(2)} hinge ${best.hinge.toFixed(2)} knee ${best.knee.toFixed(2)}`;
+            : `missed lockout — best: bell ${best.bell.toFixed(2)} posture ${best.hinge.toFixed(2)} knee ${best.knee.toFixed(2)} rise ${shoulderRise.toFixed(2)}`;
           this.currentState = 0;
           this.maxMovementVelocity = 0;
           if (curled) this.phaseStartTimestamp = 0;
@@ -946,7 +1112,7 @@ export class KinematicTracker {
       referenceY: shoulderY,
       velocity: upwardVelocity,
       telemetry: emittedTelemetry,
-      debugNotes: note ?? `bell ${rel.toFixed(2)} hinge ${hinge.toFixed(2)} knee ${knee.toFixed(2)} elbow ${Math.round(elbowAngle)}°`,
+      debugNotes: note ?? `bell ${rel.toFixed(2)} posture ${hinge.toFixed(2)} knee ${knee.toFixed(2)} rise ${shoulderRise.toFixed(2)} elbow ${Math.round(elbowAngle)}°`,
     };
     this.onStateChange?.(update);
     return update;
@@ -1398,17 +1564,25 @@ export class KinematicTracker {
     const armsStraight = calculateAngle(shoulder, elbow, wrist) >= 145 && wrist.y > elbow.y;
     const hipY = (lHip.y + rHip.y) / 2;
     const kneeY = (lKnee.y + rKnee.y) / 2;
+    // A deadlift stands up with both hands level; a gorilla row keeps the shoulders down and pulls one hand past the other
+    const shoulderY = (lShoulder.y + rShoulder.y) / 2;
+    const torsoHeight = Math.max(0.12, this.standingTorso);
+    const hinge = (hipY - shoulderY) / torsoHeight;
+    const split = Math.abs(lWrist.y - rWrist.y) / torsoHeight;
+    const shoulderRise = this.deadliftBottomShoulder > 0 ? (this.deadliftBottomShoulder - shoulderY) / torsoHeight : 0;
 
     const dt = this.lastTimestamp > 0 ? Math.max(0.016, (timestampMs - this.lastTimestamp) / 1000) : 0.033;
     const pullVelocity = this.lastMetricY > 0 ? (this.lastMetricY - wristY) / dt : 0;
 
     let emittedTelemetry: RepTelemetry | undefined = undefined;
+    let note: string | undefined;
 
     switch (this.currentState) {
       case 0: { // FLOOR / SHIN SETUP
         if (wristY > kneeY && armsStraight) {
           this.phaseStartTimestamp = timestampMs;
           this.maxMovementVelocity = 0;
+          this.deadliftBottomShoulder = Math.max(this.deadliftBottomShoulder, shoulderY);
         }
         // Only a pull from below the knee: the bell has to start low
         if (this.phaseStartTimestamp > 0 && pullVelocity > 0.25 && wristY <= kneeY) {
@@ -1420,13 +1594,37 @@ export class KinematicTracker {
         if (pullVelocity > this.maxMovementVelocity) {
           this.maxMovementVelocity = pullVelocity;
         }
-        if (!armsStraight) {
+        // A bent arm (from the side), or an elbow rowed up beside the shoulder (from the front): not a deadlift
+        if (!armsStraight || this.elbowRowedUp(landmarks)) {
           this.currentState = 0;
           this.phaseStartTimestamp = 0;
+          this.deadliftBottomShoulder = 0;
           break;
         }
-        // Strict hip lockout (wrists at hip level, NOT swinging upward)
-        if (wristY <= hipY + 0.05) {
+        // Sank back to the shin without standing up (a row lowering, or a pull given up): set up again
+        if (wristY > kneeY + 0.03) {
+          this.currentState = 0;
+          break;
+        }
+        // Carried on up past the hips: a swing
+        if (wristY < hipY - DEADLIFT.swingAboveHip * torsoHeight) {
+          note = 'cancelled: bell swung past the hips';
+          this.currentState = 0;
+          this.phaseStartTimestamp = 0;
+          this.deadliftBottomShoulder = 0;
+          break;
+        }
+        // Strict hip lockout (wrists at hip level, NOT swinging upward), standing tall with both hands level,
+        // the bell settled there
+        if (wristY <= hipY + 0.05 && pullVelocity / torsoHeight < DEADLIFT.settleSpeed) {
+          if (split > DEADLIFT.maxSplit) {
+            note = `not counted: one hand up (split ${split.toFixed(2)}), a row?`;
+            break;
+          }
+          if (shoulderRise < DEADLIFT.shoulderRise || hinge < DEADLIFT.lockoutHinge) {
+            note = `stand tall — rise ${shoulderRise.toFixed(2)} hinge ${hinge.toFixed(2)}`;
+            break;
+          }
           if (timestampMs - this.lastRepTimestamp >= this.minRepIntervalMs) {
             this.currentState = 2;
             this.repCount++;
@@ -1453,6 +1651,7 @@ export class KinematicTracker {
           this.currentState = 0;
           this.maxMovementVelocity = 0;
           this.phaseStartTimestamp = 0;
+          this.deadliftBottomShoulder = 0;
         }
         break;
       }
@@ -1474,6 +1673,7 @@ export class KinematicTracker {
       referenceY: hipY,
       velocity: pullVelocity,
       telemetry: emittedTelemetry,
+      debugNotes: note ?? `rise ${shoulderRise.toFixed(2)} hinge ${hinge.toFixed(2)} split ${split.toFixed(2)}`,
     };
     this.onStateChange?.(update);
     return update;
@@ -1667,7 +1867,9 @@ export class KinematicTracker {
 
   // =========================================================================
   // EXERCISE 9: GORILLA ROW ("BEAST MAW")
-  // Hinged bent-over stance; elbow drives upward past rib cage
+  // Hinged bent-over stance; the elbow drives upward past the rib cage, drawing the wrist up toward its shoulder.
+  // One bell or two: the free hand may hang, rest on a knee or thigh, or row next. The shoulders stay put
+  // (standing up with the bell is a deadlift, whose straight arms never shorten the reach).
   // =========================================================================
   private processGorillaRow(landmarks: NormalizedLandmark[], timestampMs: number): KinematicStateUpdate {
     const lWrist = landmarks[POSE_INDEX.LEFT_WRIST];
@@ -1676,25 +1878,53 @@ export class KinematicTracker {
     const rElbow = landmarks[POSE_INDEX.RIGHT_ELBOW];
     const lHip = landmarks[POSE_INDEX.LEFT_HIP];
     const rHip = landmarks[POSE_INDEX.RIGHT_HIP];
+    const lShoulder = landmarks[POSE_INDEX.LEFT_SHOULDER];
+    const rShoulder = landmarks[POSE_INDEX.RIGHT_SHOULDER];
 
     const hipY = (lHip.y + rHip.y) / 2;
-    // Working arm: the moving one, else (hands together) whichever elbow is pulled highest
-    const isLeftArmActive = this.armSide === 'BOTH' ? lElbow.y < rElbow.y : this.armSide === 'LEFT';
+    // The lower shoulder: rowing twists the torso up on the rowing side, but only standing up lifts both
+    const shoulderY = Math.max(lShoulder.y, rShoulder.y);
+    const torsoHeight = Math.max(0.12, this.standingTorso);
+    const dt = this.lastTimestamp > 0 ? Math.max(0.016, (timestampMs - this.lastTimestamp) / 1000) : 0.033;
+
+    // How far each arm has drawn up from where it hung (see updateArmReach)
+    const hang = this.armHangReach ?? this.armReach;
+    const pull = { l: hang.l - this.armReach.l, r: hang.r - this.armReach.r };
+    if (pull.l < ROW.startPull) this.rowReady.l = true;
+    if (pull.r < ROW.startPull) this.rowReady.r = true;
+
+    // Working arm: in the hang, the one drawing up from its hang right now (a free hand resting on a thigh holds
+    // still); once a pull starts, that arm until the rep is done. Each elbow keeps its own velocity reference, so
+    // the arms alternating never reads as a jump
+    const rising = (side: 'l' | 'r') =>
+      this.rowReady[side] && pull[side] >= ROW.startPull && this.armReachRate[side] < -ROW.stillRate;
+    // A pull whose arm stalls before counting (a free hand being braced on a thigh) hands over to an arm that's rising
+    const stalled = this.currentState === 1 && this.armReachRate[this.rowArmLeft ? 'l' : 'r'] > -ROW.stillRate;
+    if ((this.currentState === 0 || stalled) && (rising('l') || rising('r'))) {
+      this.rowArmLeft = rising('l') && rising('r') ? pull.l >= pull.r : rising('l');
+    }
+    const isLeftArmActive = this.rowArmLeft;
+    const activePull = isLeftArmActive ? pull.l : pull.r;
+    const activeReady = isLeftArmActive ? this.rowReady.l : this.rowReady.r;
     const activeElbow = isLeftArmActive ? lElbow : rElbow;
     const activeWrist = isLeftArmActive ? lWrist : rWrist;
+    const shoulderRise = this.rowHangShoulder > 0 ? (this.rowHangShoulder - shoulderY) / torsoHeight : 0;
 
-    const dt = this.lastTimestamp > 0 ? Math.max(0.016, (timestampMs - this.lastTimestamp) / 1000) : 0.033;
-    const rowVelocity = this.lastMetricY > 0 ? (this.lastMetricY - activeElbow.y) / dt : 0;
+    const prev = this.rowLastElbows;
+    const rowVelocity = prev ? ((isLeftArmActive ? prev.l : prev.r) - activeElbow.y) / dt : 0;
 
     let emittedTelemetry: RepTelemetry | undefined = undefined;
+    let note: string | undefined;
 
     switch (this.currentState) {
       case 0: { // HANG SETUP
-        if (activeWrist.y > hipY + 0.10) {
-          this.phaseStartTimestamp = timestampMs;
-          this.maxMovementVelocity = 0;
-        }
-        if (rowVelocity > 0.3 && activeElbow.y <= hipY + 0.05) {
+        // Shoulder rise is measured from the lowest the shoulders have recently been, which relaxes slowly: a
+        // deadlift's quick stand-up can't creep past it, a slow change of stance between reps can
+        this.phaseStartTimestamp = timestampMs;
+        this.maxMovementVelocity = 0;
+        this.rowHangShoulder = Math.max(shoulderY, this.rowHangShoulder - ROW.shoulderRelax * torsoHeight * dt);
+        // The pull starts once an arm draws up from its hang, however slowly (speed only sets the power)
+        if (rising(isLeftArmActive ? 'l' : 'r') && activeElbow.y <= hipY + 0.05) {
           this.currentState = 1;
         }
         break;
@@ -1703,12 +1933,29 @@ export class KinematicTracker {
         if (rowVelocity > this.maxMovementVelocity) {
           this.maxMovementVelocity = rowVelocity;
         }
-        // Elbow drives past rib plane
-        if (activeElbow.y <= hipY - 0.06 && activeWrist.y <= hipY + 0.06) {
+        // Standing up with the bells is a deadlift or a swing
+        if (shoulderRise > ROW.maxShoulderRise) {
+          note = `cancelled: stood up (rise ${shoulderRise.toFixed(2)}), a deadlift or swing?`;
+          this.currentState = 0;
+          this.phaseStartTimestamp = 0;
+          break;
+        }
+        // Lowered again without finishing the row
+        if (activePull < ROW.startPull) {
+          this.currentState = 0;
+          break;
+        }
+        // Elbow drives past rib plane, the wrist drawn well up toward its shoulder
+        if (activeReady && activeElbow.y <= hipY - 0.06 && activeWrist.y <= hipY + 0.06 && activePull >= ROW.pull) {
+          if (this.posture > ROW.maxPosture) {
+            note = `not counted: stand hunched over (posture ${this.posture.toFixed(2)})`;
+            break;
+          }
           if (timestampMs - this.lastRepTimestamp >= this.minRepIntervalMs) {
             this.currentState = 2;
             this.repCount++;
             this.lastRepTimestamp = timestampMs;
+            this.rowReady[isLeftArmActive ? 'l' : 'r'] = false;
 
             const powerScore = Math.min(150, Math.max(55, Math.round(55 + this.maxMovementVelocity * 40)));
             emittedTelemetry = {
@@ -1727,15 +1974,18 @@ export class KinematicTracker {
         break;
       }
       case 2: { // CONTRACTION RETURN
-        if (activeWrist.y > hipY + 0.12) {
+        // Once the rowed arm lowers past the line; it can't count again until it's back at the hang, but the
+        // other arm may already be starting the next rep
+        if (activePull < ROW.pull) {
           this.currentState = 0;
           this.maxMovementVelocity = 0;
+          this.rowHangShoulder = shoulderY;
         }
         break;
       }
     }
 
-    this.lastMetricY = activeElbow.y;
+    this.rowLastElbows = { l: lElbow.y, r: rElbow.y };
     this.lastTimestamp = timestampMs;
 
     const names = ['HANG', 'ROW PULL', 'RIB CONTRACTION'];
@@ -1751,6 +2001,7 @@ export class KinematicTracker {
       referenceY: hipY - 0.06,
       velocity: rowVelocity,
       telemetry: emittedTelemetry,
+      debugNotes: note ?? `pull L ${pull.l.toFixed(2)} R ${pull.r.toFixed(2)} rise ${shoulderRise.toFixed(2)} posture ${this.posture.toFixed(2)}`,
     };
     this.onStateChange?.(update);
     return update;
