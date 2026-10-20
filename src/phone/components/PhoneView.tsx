@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import { NormalizedLandmark, POSE_INDEX } from '../utils/KinematicTracker';
 import { HandTracker, ExercisePhase } from '../utils/HandTracker';
+import { StageLog, StageAttempt } from '../utils/stageLog';
 import { TrackingTestPanel, TestRepEntry, ALL_EXERCISES, REP_GROUP_MS, exerciseLabel } from './TrackingTestPanel';
 import { networkManager, NetworkConnectionState } from '../../shared/NetworkManager';
 import { RepTelemetry, ExerciseType, EXERCISE_SKILLS } from '../../types/game';
@@ -12,23 +13,7 @@ import { KnightArmorRenderer } from '../utils/KnightArmorRenderer';
 import { discoveryManager, DiscoveredTV } from '../../shared/DiscoveryManager';
 
 export type PhoneOverlayMode = 'ARMOR' | 'SKELETON' | 'OFF';
-import { 
-  Camera, 
-  Smartphone, 
-  Tv, 
-  Flame, 
-  CheckCircle2, 
-  AlertCircle, 
-  Zap, 
-  ShieldAlert, 
-  Activity, 
-  RefreshCw,
-  Swords,
-  Shield,
-  ZapOff,
-  Wifi,
-  Radio
-} from 'lucide-react';
+import { Tv, Zap, Swords, Wifi } from 'lucide-react';
 
 export const PhoneView: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -177,6 +162,17 @@ export const PhoneView: React.FC = () => {
   const testSpeakRef = useRef(testSpeak);
   testSpeakRef.current = testSpeak;
   const testGroupRef = useRef<TestRepEntry | null>(null);
+  // Stage log: every attempt's stages, for review (test mode only); the screen catches up a few times a second
+  const stageLogRef = useRef(new StageLog());
+  const [stageAttempts, setStageAttempts] = useState<StageAttempt[]>([]);
+  const stageRenderTimerRef = useRef<number | null>(null);
+  const scheduleStageRender = () => {
+    if (stageRenderTimerRef.current) return;
+    stageRenderTimerRef.current = window.setTimeout(() => {
+      stageRenderTimerRef.current = null;
+      setStageAttempts([...stageLogRef.current.attempts]);
+    }, 250);
+  };
   const testGroupTimerRef = useRef<number | null>(null);
 
   /** Logs a test-mode rep, folding reps that land together into one compound movement. */
@@ -217,6 +213,8 @@ export const PhoneView: React.FC = () => {
     setTestLog([]);
     setTestFlashing([]);
     testGroupRef.current = null;
+    stageLogRef.current.clear();
+    setStageAttempts([]);
     repTotalRef.current = 0;
     setRepCount(0);
     audioManager.play('ui_move');
@@ -231,6 +229,17 @@ export const PhoneView: React.FC = () => {
     setTestMode(true);
     if (!workoutStarted) await handleBeginWorkout();
   };
+
+  // Dev: feed pose frames straight into the tracker (headless checks of tracking and the test panel)
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as any).__kkPhone = {
+      feed: (landmarks: NormalizedLandmark[], timestampMs: number) => trackerRef.current.processLandmarks(landmarks, timestampMs),
+    };
+    return () => {
+      delete (window as any).__kkPhone;
+    };
+  }, []);
 
   // Track every exercise in the TV's hand at once (all of them outside battle) and stream each rep to the TV
   useEffect(() => {
@@ -249,6 +258,10 @@ export const PhoneView: React.FC = () => {
       repTotalRef.current += 1;
       setRepCount(repTotalRef.current);
       const testEntry = testModeRef.current ? recordTestRep(exercise, telemetry.power, telemetry.form) : null;
+      if (testModeRef.current) {
+        stageLogRef.current.onRep(exercise, telemetry.power, telemetry.form, telemetry.timestamp ?? Date.now());
+        scheduleStageRender();
+      }
       showRepFlash({
         power: telemetry.power,
         rep: repTotalRef.current,
@@ -262,6 +275,11 @@ export const PhoneView: React.FC = () => {
       if (!testModeRef.current || testSendToTvRef.current) networkManager.sendTelemetry({ ...telemetry, exercise });
     };
 
+    tracker.onStageChange = (event) => {
+      if (!testModeRef.current) return;
+      stageLogRef.current.onStage(event);
+      scheduleStageRender();
+    };
     tracker.onPhasesChange = (next) => {
       setPhases(next);
       const latest = [...next.values()].find((p) => p.state > 0) ?? [...next.values()][0];
@@ -404,6 +422,24 @@ export const PhoneView: React.FC = () => {
 
                 // Draw retro kinematic guides on canvas
                 drawKinematicHUD(ctx, canvas.width, canvas.height, mirrored);
+
+                // Test mode: ring the hand being tracked as the one holding the bell
+                if (testModeRef.current) {
+                  const arm = trackerRef.current.getArm();
+                  const lw = mirrored[POSE_INDEX.LEFT_WRIST];
+                  const rw = mirrored[POSE_INDEX.RIGHT_WRIST];
+                  const at = arm === 'LEFT' ? lw : arm === 'RIGHT' ? rw : { x: (lw.x + rw.x) / 2, y: (lw.y + rw.y) / 2 };
+                  ctx.save();
+                  ctx.strokeStyle = '#38B6FF';
+                  ctx.lineWidth = 4;
+                  ctx.beginPath();
+                  ctx.arc(at.x * canvas.width, at.y * canvas.height, 26, 0, Math.PI * 2);
+                  ctx.stroke();
+                  ctx.fillStyle = '#38B6FF';
+                  ctx.font = '10px "Press Start 2P", monospace';
+                  ctx.fillText(arm === 'BOTH' ? 'BELL (2H)' : 'BELL', at.x * canvas.width - 22, at.y * canvas.height - 32);
+                  ctx.restore();
+                }
 
                 // Render AR Knight Armor or Workout Skeleton based on overlay mode
                 if (overlayModeRef.current === 'ARMOR') {
@@ -842,395 +878,217 @@ export const PhoneView: React.FC = () => {
     networkManager.sendTelemetry(telemetry);
   };
 
-  return (
-    <div className="min-h-screen bg-[#0F0E17] text-white flex flex-col font-sans select-none crt-overlay">
-      {/* Top Retro Header */}
-      <header className="border-b-4 border-[#2E2B44] bg-[#1A1926] px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded bg-[#F4B41A] text-[#0F0E17] flex items-center justify-center font-bold text-lg font-pixel shadow-pixel-box">
-            ⚔
-          </div>
-          <div>
-            <h1 className="text-xs font-pixel text-[#F4B41A] tracking-wider">KETTLEBELL KNIGHT</h1>
-            <p className="text-[10px] text-[#A7A9BE] font-mono">Mobile Vision Companion</p>
-          </div>
-        </div>
+  const linked = netState === 'CONNECTED';
+  const seeking = netState === 'WAITING_FOR_PEER' || netState === 'INITIALIZING';
 
-        {/* Pairing Status Pill */}
-        <div className="flex items-center space-x-2 text-xs font-mono">
-          <span
-            className={`w-3 h-3 rounded-full border-2 border-black ${
-              netState === 'CONNECTED'
-                ? 'bg-[#00EB88] animate-pulse'
-                : netState === 'WAITING_FOR_PEER' || netState === 'INITIALIZING'
-                ? 'bg-[#F4B41A] animate-ping'
-                : 'bg-[#FF3366]'
-            }`}
-          />
-          <span className="font-pixel text-[10px] text-[#A7A9BE]">
-            {netState === 'CONNECTED' ? 'PAIRED' : 'UNPAIRED'}
-          </span>
+  // ---------------------------------------------------------------------------
+  // Before the workout: pair with the TV, then take up the bell
+  // ---------------------------------------------------------------------------
+  if (!workoutStarted) {
+    return (
+      <div className="kk-phone crt-overlay relative flex flex-col items-center gap-6 px-4 pt-8 pb-10 select-none">
+        <div className="kk-phone-plate">
+          <span className="kk-phone-gem" />
+          KETTLEBELL KNIGHT
+          <span className="kk-phone-gem" />
         </div>
-      </header>
+        <p className="kk-phone-tome text-center max-w-xs -mt-2">
+          Thy phone is the knight&apos;s eye. Bind it to the TV, then stand before it with thy bell.
+        </p>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col p-4 max-w-md mx-auto w-full space-y-4">
-        {/* Pairing Setup Card: Local WiFi Discovery + Manual Code Backup */}
-        <section className="bg-[#1A1926] border-4 border-[#2E2B44] p-4 rounded shadow-pixel-box space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-pixel text-[#38B6FF] flex items-center gap-2">
-              <Tv className="w-4 h-4" /> TV ROOM PAIRING
+        {/* Pairing: TVs found on the local WiFi, or a room code */}
+        <section className="kk-phone-slab w-full max-w-md p-5 space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="kk-phone-heading text-[13px] text-[#F4D35E] flex items-center gap-2">
+              <Tv className="w-4 h-4" /> THE TV ROOM
+            </h2>
+            <span className={`kk-phone-chip ${linked ? 'kk-phone-chip--ok' : seeking ? 'kk-phone-chip--gold' : 'kk-phone-chip--bad'}`}>
+              {linked ? 'BOUND' : seeking ? 'SEEKING' : 'UNBOUND'}
             </span>
-            {netState === 'CONNECTED' ? (
-              <span className="text-[10px] bg-[#00EB88]/20 text-[#00EB88] px-2 py-0.5 font-pixel border border-[#00EB88] flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> LINK ACTIVE
-              </span>
-            ) : (
-              <button
-                onClick={scanWifi}
-                disabled={isScanningWifi}
-                className="text-[9px] font-pixel text-[#F4B41A] hover:text-white bg-[#0F0E17] border border-[#2E2B44] px-2 py-1 shadow-pixel-box flex items-center gap-1.5 transition-all active:translate-x-0.5 active:translate-y-0.5"
-                title="Scan local WiFi network for running TV"
-              >
-                <Wifi className={`w-3 h-3 ${isScanningWifi ? 'animate-ping text-[#00EB88]' : 'text-[#F4B41A]'}`} />
-                {isScanningWifi ? 'SCANNING...' : 'SCAN WIFI'}
-              </button>
-            )}
           </div>
 
-          {/* 1. DISCOVERED LOCAL WIFI TVS SECTION */}
-          {netState !== 'CONNECTED' && (
+          {!linked && (
             <div className="space-y-2">
-              {discoveredTVs.length > 0 ? (
-                <div className="space-y-1.5">
-                  <div className="text-[9px] font-pixel text-[#00EB88] flex items-center gap-1">
-                    <Radio className="w-3 h-3 animate-pulse text-[#00EB88]" />
-                    DISCOVERED ON LOCAL WIFI:
-                  </div>
-                  {discoveredTVs.map((tv) => (
-                    <div
-                      key={tv.roomId}
-                      className="bg-[#0F0E17] border-2 border-[#00EB88] p-2.5 rounded shadow-pixel-box flex items-center justify-between gap-2"
-                    >
-                      <div className="text-left">
-                        <div className="font-pixel text-[10px] text-white flex items-center gap-1.5">
-                          <Tv className="w-3.5 h-3.5 text-[#38B6FF]" />
-                          {tv.name}
-                        </div>
-                        <div className="text-[9px] font-mono text-[#F4B41A] font-bold tracking-wider mt-0.5">
-                          ROOM: {tv.roomId}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleConnect(tv.roomId)}
-                        className="bg-[#00EB88] hover:bg-[#00EB88]/80 text-[#0F0E17] font-pixel text-[10px] px-3 py-1.5 border-2 border-black shadow-pixel-box font-bold flex items-center gap-1 active:translate-x-0.5 active:translate-y-0.5"
-                      >
-                        <Zap className="w-3 h-3" />
-                        CONNECT
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="bg-[#0F0E17]/60 border border-[#2E2B44] p-2.5 rounded text-center">
-                  <p className="text-[10px] text-[#A7A9BE] font-mono flex items-center justify-center gap-1.5">
-                    {isScanningWifi ? (
-                      <>
-                        <Wifi className="w-3.5 h-3.5 text-[#38B6FF] animate-spin" />
-                        Scanning local WiFi for Fire TV...
-                      </>
-                    ) : (
-                      <>
-                        <Wifi className="w-3.5 h-3.5 text-[#F4B41A]" />
-                        Tap <strong className="text-[#F4B41A]">"SCAN WIFI"</strong> to auto-find Fire TV on your network.
-                      </>
-                    )}
-                  </p>
-                </div>
-              )}
+              {discoveredTVs.map((tv) => (
+                <button
+                  key={tv.roomId}
+                  onClick={() => handleConnect(tv.roomId)}
+                  className="w-full flex items-center justify-between gap-3 p-3 bg-[#0B0A10]/80 border-2 border-[#00EB88]/70 text-left active:translate-x-0.5 active:translate-y-0.5"
+                >
+                  <span>
+                    <span className="block font-pixel text-[9px] text-[#ECE2CA]">{tv.name}</span>
+                    <span className="block kk-phone-tome text-[#F4D35E]">{tv.roomId}</span>
+                  </span>
+                  <span className="kk-phone-btn kk-phone-btn--sm">BIND</span>
+                </button>
+              ))}
+              <button onClick={scanWifi} disabled={isScanningWifi} className="kk-phone-btn kk-phone-btn--iron w-full">
+                <Wifi className={`w-4 h-4 ${isScanningWifi ? 'animate-pulse' : ''}`} />
+                {isScanningWifi ? 'SEARCHING THE WIFI…' : discoveredTVs.length ? 'SEARCH AGAIN' : 'SEARCH THE WIFI'}
+              </button>
             </div>
           )}
 
-          {/* 2. MANUAL CODE INPUT BACKUP */}
-          <div className="pt-2 border-t border-[#2E2B44]/60">
-            <div className="text-[8px] font-pixel text-[#A7A9BE] mb-1.5 uppercase">
-              {discoveredTVs.length > 0 ? 'Or Enter Code Manually (Backup):' : 'Enter TV Room Code (Backup):'}
-            </div>
+          <div className="space-y-1.5">
+            <div className="font-pixel text-[8px] text-[#A7A9BE]">OR SPEAK THE ROOM CODE</div>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={roomId}
                 onChange={(e) => setRoomId(e.target.value.toUpperCase())}
-                placeholder="E.G. KNIGHT-42"
-                className="flex-1 bg-[#0F0E17] border-2 border-[#2E2B44] px-3 py-1.5 text-sm font-mono text-[#F4B41A] uppercase tracking-wider focus:outline-none focus:border-[#38B6FF]"
+                placeholder="KNIGHT-42"
+                className="kk-phone-input"
               />
               <button
                 onClick={() => handleConnect(roomId)}
-                disabled={netState === 'CONNECTED' || !roomId}
-                className="bg-[#38B6FF] hover:bg-[#38B6FF]/80 disabled:opacity-50 text-[#0F0E17] font-pixel text-[10px] px-4 py-1.5 border-2 border-black shadow-pixel-box active:translate-x-0.5 active:translate-y-0.5"
+                disabled={linked || !roomId}
+                className="kk-phone-btn kk-phone-btn--iron shrink-0"
               >
-                PAIR
+                BIND
               </button>
             </div>
           </div>
 
-          <p className="text-[10px] text-[#A7A9BE] font-mono flex items-center gap-1.5">
-            <Activity className="w-3.5 h-3.5 text-[#F4B41A]" />
-            {statusMessage}
-          </p>
+          <p className="kk-phone-tome text-[16px]">{statusMessage}</p>
         </section>
 
-        {/* Workout Controller & WakeLock Action */}
-        {!workoutStarted ? (
-          <div className="bg-[#1A1926] border-4 border-[#F4B41A] p-6 text-center space-y-4 shadow-pixel-box-gold">
-            <div className="w-16 h-16 mx-auto bg-[#F4B41A]/10 border-2 border-[#F4B41A] flex items-center justify-center rounded-full">
-              <Flame className="w-8 h-8 text-[#F4B41A] animate-bounce" />
-            </div>
-            <div>
-              <h2 className="font-pixel text-sm text-[#F4B41A]">PREPARE WORKOUT</h2>
-              <p className="text-xs text-[#A7A9BE] mt-1 font-mono">
-                Place phone upright on the floor facing you. Ensure full body is visible from head to hips.
-              </p>
-            </div>
+        {/* Begin: the wake lock must be requested inside this click */}
+        <section className="kk-phone-slab kk-phone-slab--gold w-full max-w-md p-5 text-center space-y-4">
+          <h2 className="kk-phone-heading text-[15px] text-[#F4D35E]">PREPARE FOR BATTLE</h2>
+          <p className="kk-phone-tome">
+            Stand the phone upright a few paces away, so it sees thee from head to knee — facing it or side-on.
+          </p>
+          <button onClick={handleBeginWorkout} className="kk-phone-btn w-full py-4 text-[12px]">
+            <Swords className="w-4 h-4" /> BEGIN WORKOUT
+          </button>
+          <button onClick={startTestMode} className="kk-phone-btn kk-phone-btn--iron w-full">
+            TEST TRACKING
+          </button>
+          <p className="kk-phone-tome text-[15px] text-[#8A8295]">Asks for the camera and keeps the screen awake.</p>
+        </section>
+      </div>
+    );
+  }
 
-            {/* CRITICAL: Begin Workout Button with WakeLock */}
-            <button
-              onClick={handleBeginWorkout}
-              className="w-full bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-4 px-6 border-4 border-black shadow-pixel-box transition-all transform active:translate-x-1 active:translate-y-1"
-            >
-              ⚡ BEGIN WORKOUT
+  // ---------------------------------------------------------------------------
+  // The workout: the camera fills the screen; the cards live on the TV
+  // ---------------------------------------------------------------------------
+  const tracking = testMode
+    ? `TEST • ${testExercises.length} WATCHED`
+    : handCards
+    ? `IN BATTLE • ${handCards.length} EXERCISES WATCHED`
+    : 'NO BATTLE • ALL EXERCISES WATCHED';
+
+  return (
+    <div className="kk-phone fixed inset-0 overflow-hidden bg-black select-none">
+      <video ref={videoRef} playsInline muted className="hidden" />
+      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-contain pixelated" />
+      <div className="absolute inset-0 kk-phone-vignette" />
+
+      {/* Top HUD: link, phase, body check, overlay */}
+      <div
+        className="absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-2 px-3"
+        style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}
+      >
+        <div className="flex flex-col items-start gap-1.5 min-w-0">
+          <span className={`kk-phone-chip ${linked ? 'kk-phone-chip--ok' : 'kk-phone-chip--bad'}`}>
+            <span className="kk-phone-gem" style={{ background: linked ? '#00EB88' : '#FF3366' }} />
+            {linked ? `BOUND ${roomId}` : 'NOT BOUND TO TV'}
+          </span>
+          <span className="kk-phone-chip kk-phone-chip--gold max-w-[60vw] truncate">{currentStateName}</span>
+        </div>
+        <div className="flex flex-col items-end gap-1.5">
+          <span className={`kk-phone-chip ${isFullBodyVisible ? 'kk-phone-chip--ok' : 'kk-phone-chip--bad animate-pulse'}`}>
+            {isFullBodyVisible ? 'IN SIGHT' : 'STEP BACK'}
+          </span>
+          <button onClick={cycleOverlayMode} className="kk-phone-chip">
+            {overlayMode === 'ARMOR' ? 'ARMOR' : overlayMode === 'SKELETON' ? 'BONES' : 'NO OVERLAY'}
+          </button>
+          {!testMode && !handCards && (
+            <button onClick={() => setTestMode(true)} className="kk-phone-chip kk-phone-chip--gold">
+              TEST TRACKING
             </button>
-            <button
-              onClick={startTestMode}
-              className="w-full bg-[#2E2B44] hover:bg-[#3E3B5E] text-[#FF3366] font-pixel text-[10px] py-3 px-6 border-4 border-black shadow-pixel-box transition-all transform active:translate-x-1 active:translate-y-1"
-            >
-              🧪 TEST TRACKING
+          )}
+          {import.meta.env.DEV && !testMode && (
+            <button onClick={handleSimulateSwing} className="kk-phone-chip" title="Dev: send a simulated rep">
+              <Zap className="w-3 h-3" /> SIM REP
             </button>
-            <p className="text-[9px] text-[#A7A9BE] font-mono">
-              Requests Screen WakeLock & Camera Vision • Pose Skeleton enabled (toggleable to save battery)
-            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Out of sight: say what the camera is missing */}
+      {!isFullBodyVisible && (
+        <div className="absolute inset-x-6 top-[22%] z-20 kk-phone-slab kk-phone-slab--glass p-4 text-center">
+          <div className="kk-phone-heading text-[13px] text-[#FF8FA8]">STEP BACK, KNIGHT</div>
+          <p className="kk-phone-tome mt-1">
+            The eye cannot see thy <span className="text-[#F4D35E]">{missingBodyParts.join(' & ').toLowerCase()}</span>.
+          </p>
+        </div>
+      )}
+
+      {/* Rep struck */}
+      {repFlash && (
+        <div key={repFlash.rep} className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
+          <div className="kk-phone-rep flex flex-col items-center gap-2">
+            <div className="kk-phone-plate">
+              <span className="kk-phone-gem" />
+              REP {repFlash.rep}
+              <span className="kk-phone-gem" />
+            </div>
+            {repFlash.label && <div className="kk-phone-heading text-[18px] text-white text-center px-6">{repFlash.label}</div>}
+            <div className="font-pixel text-[11px] text-[#38B6FF]" style={{ textShadow: '2px 2px 0 #000' }}>
+              +{repFlash.power} POWER
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* Bottom: the test drawer, or the knight's tally */}
+      <div
+        className="absolute inset-x-0 bottom-0 z-20 px-3"
+        style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
+      >
+        {testMode ? (
+          <TrackingTestPanel
+            tracked={testExercises}
+            onToggleExercise={toggleTestExercise}
+            onSetTracked={setTestExercises}
+            counts={testCounts}
+            phases={phases}
+            flashing={testFlashing}
+            log={testLog}
+            stageAttempts={stageAttempts}
+            sendToTv={testSendToTv}
+            onToggleSendToTv={() => setTestSendToTv((v) => !v)}
+            speak={testSpeak}
+            onToggleSpeak={() => setTestSpeak((v) => !v)}
+            onReset={resetTest}
+            onExit={() => setTestMode(false)}
+          />
         ) : (
-          /* Live Camera Viewfinder & Pose HUD */
-          <div className="space-y-4">
-            {/* Test mode, else the TV battle's hand: only these exercises are tracked */}
-            {testMode ? null : handCards ? (
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-[8px] font-pixel text-[#F4B41A]">
-                <span>🎴 CARDS IN HAND</span>
-                <span className="text-[#38B6FF]">ALL TRACKED • HANDS FREE</span>
+          <div className="kk-phone-slab kk-phone-slab--glass px-4 pt-3 pb-4">
+            <div className="flex justify-center -mt-7 mb-2">
+              <span className="kk-phone-plate kk-phone-plate--sm">{tracking}</span>
+            </div>
+            <div className="grid grid-cols-3 text-center">
+              <div>
+                <div className="font-pixel text-[8px] text-[#A7A9BE]">REPS</div>
+                <div className="kk-phone-heading text-[26px] text-[#F4D35E]">{repCount}</div>
               </div>
-
-              <div className="grid grid-cols-5 gap-1">
-                {handCards.map((card) => {
-                  const phase = phases.get(card.exercise);
-                  const isMoving = (phase?.state ?? 0) > 0;
-                  const progress = Math.min(100, (card.currentReps / card.requiredReps) * 100);
-
-                  return (
-                    <div
-                      key={card.id}
-                      className={`p-1 rounded border-2 transition-all flex flex-col justify-between text-left h-24 ${
-                        isMoving ? 'bg-[#242138] shadow-pixel-box' : 'bg-[#0F0E17]'
-                      }`}
-                      style={{
-                        borderColor: isMoving ? '#F4B41A' : card.colorHex,
-                      }}
-                    >
-                      <div>
-                        <div className="flex justify-between items-center text-[10px]">
-                          <span>{card.icon}</span>
-                          <span className="text-[7px] font-pixel text-[#A7A9BE]">
-                            {card.damage > 0 ? `⚔️${card.damage}` : `🛡️${card.block}`}
-                          </span>
-                        </div>
-                        <div className="font-pixel text-[7px] text-white truncate mt-1">
-                          {card.name}
-                        </div>
-                        <div className="text-[6px] font-mono uppercase text-[#A7A9BE] truncate">
-                          {card.exercise}
-                        </div>
-                        <div className={`text-[6px] font-mono uppercase truncate ${isMoving ? 'text-[#F4B41A]' : 'text-[#2E2B44]'}`}>
-                          {phase?.stateName ?? '—'}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-[8px] font-mono text-[#F4B41A] font-bold">
-                          {card.currentReps}/{card.requiredReps}
-                        </div>
-                        <div className="w-full h-1.5 bg-[#0F0E17] border border-[#2E2B44] rounded-sm overflow-hidden mt-0.5">
-                          <div
-                            className="h-full transition-all duration-200"
-                            style={{
-                              width: `${progress}%`,
-                              backgroundColor: card.colorHex,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div>
+                <div className="font-pixel text-[8px] text-[#A7A9BE]">POWER</div>
+                <div className="kk-phone-heading text-[26px] text-[#38B6FF]">{lastPower}</div>
+              </div>
+              <div>
+                <div className="font-pixel text-[8px] text-[#A7A9BE]">FORM</div>
+                <div className="kk-phone-heading text-[26px] text-[#00EB88]">{Math.round(lastForm * 100)}%</div>
               </div>
             </div>
-            ) : (
-              <div className="bg-[#1A1926] border-2 border-[#2E2B44] p-3 text-center space-y-1">
-                <div className="text-[8px] font-pixel text-[#F4B41A]">🎴 NO BATTLE IN PROGRESS</div>
-                <div className="text-[9px] font-mono text-[#A7A9BE]">
-                  Start a fight on the TV — your hand appears here and all of its exercises are tracked at once.
-                </div>
-                <button
-                  onClick={() => setTestMode(true)}
-                  className="mt-1 bg-[#2E2B44] text-[#FF3366] font-pixel text-[8px] px-3 py-2 border-2 border-black shadow-pixel-box"
-                >
-                  🧪 TEST TRACKING
-                </button>
-              </div>
-            )}
-
-            <div className="relative bg-black border-4 border-[#38B6FF] aspect-[4/3] overflow-hidden shadow-pixel-box">
-              {/* Hidden raw video element */}
-              <video
-                ref={videoRef}
-                playsInline
-                muted
-                className="hidden"
-              />
-
-              {/* Viewfinder Canvas Overlay */}
-              <canvas
-                ref={canvasRef}
-                className="w-full h-full object-cover pixelated"
-              />
-
-              {/* Kinematic State Pill */}
-              <div className="absolute top-2 left-2 bg-[#0F0E17]/90 border-2 border-[#F4B41A] px-2 py-1 flex items-center space-x-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#F4B41A] animate-ping" />
-                <span className="font-pixel text-[9px] text-[#F4B41A]">
-                  PHASE: {currentStateName}
-                </span>
-              </div>
-
-              {/* Top Right Viewfinder Indicators & Skeleton Toggle */}
-              <div className="absolute top-2 right-2 flex items-center space-x-1.5 z-20">
-                {/* Full Body Status Badge */}
-                <div
-                  className={`px-1.5 py-0.5 font-pixel text-[7px] border border-black shadow-pixel-box flex items-center gap-1 ${
-                    isFullBodyVisible ? 'bg-[#00EB88] text-black font-bold' : 'bg-[#FF3366] text-white animate-pulse'
-                  }`}
-                >
-                  {isFullBodyVisible ? 'BODY: OK' : `NEED: ${missingBodyParts.join(', ')}`}
-                </div>
-
-                {wakeLockActive && (
-                  <div className="bg-[#00EB88]/90 text-black border border-black px-1.5 py-0.5 font-pixel text-[8px]">
-                    WAKE LOCK ON
-                  </div>
-                )}
-
-                {/* OVERLAY MODE TOGGLE BUTTON (Cycle: ARMOR -> SKELETON -> OFF) */}
-                <button
-                  onClick={cycleOverlayMode}
-                  className={`px-2 py-0.5 font-pixel text-[8px] border-2 shadow-pixel-box transition-all flex items-center gap-1 ${
-                    overlayMode === 'ARMOR'
-                      ? 'bg-[#F4B41A] text-[#0F0E17] border-black font-bold'
-                      : overlayMode === 'SKELETON'
-                      ? 'bg-[#38B6FF] text-[#0F0E17] border-black font-bold'
-                      : 'bg-[#1A1926]/90 text-[#A7A9BE] border-[#2E2B44]'
-                  }`}
-                  title="Cycle camera overlay: AR Knight Armor, Skeleton lines, or Off (battery saver)"
-                >
-                  {overlayMode === 'ARMOR' && '🛡️ ARMOR'}
-                  {overlayMode === 'SKELETON' && '🦴 SKELETON'}
-                  {overlayMode === 'OFF' && '👁️ OVERLAY: OFF'}
-                </button>
-              </div>
-
-              {/* Out-of-Frame Step Back Alert Banner */}
-              {!isFullBodyVisible && (
-                <div className="absolute inset-x-3 top-12 bg-[#0F0E17]/95 border-2 border-[#FF3366] p-2.5 text-center z-30 shadow-pixel-box animate-pulse">
-                  <div className="font-pixel text-[8px] text-[#FF3366] flex items-center justify-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    STEP BACK: VISIBILITY DOWN TO KNEES REQUIRED
-                  </div>
-                  <div className="text-[7px] font-mono text-[#A7A9BE] mt-0.5">
-                    Please step back so your <strong className="text-[#F4B41A]">{missingBodyParts.join(' & ')}</strong> are visible.
-                  </div>
-                </div>
-              )}
-
-              {/* Rep Completed Flash Banner Overlay */}
-              {repFlash && (
-                <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center bg-[#00EB88]/20 border-4 border-[#00EB88]">
-                  <div className="bg-[#0F0E17]/95 border-4 border-[#F4B41A] px-5 py-3 text-center rounded shadow-pixel-box-gold">
-                    <div className="font-pixel text-[9px] text-[#00EB88] tracking-widest">REP DETECTED!</div>
-                    {repFlash.label && (
-                      <div className="font-pixel text-base text-white my-1 leading-relaxed">{repFlash.label}</div>
-                    )}
-                    <div className="font-pixel text-xl text-[#F4B41A] my-1">REP #{repFlash.rep}</div>
-                    <div className="font-pixel text-[11px] text-[#38B6FF]">+{repFlash.power} POWER</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Bottom Video Telemetry Bar */}
-              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent p-3 flex justify-around">
-                <div className="text-center">
-                  <div className="text-[9px] font-pixel text-[#A7A9BE]">REPS</div>
-                  <div className="text-xl font-pixel text-[#F4B41A]">{repCount}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-[9px] font-pixel text-[#A7A9BE]">POWER</div>
-                  <div className="text-xl font-pixel text-[#38B6FF]">{lastPower}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-[9px] font-pixel text-[#A7A9BE]">FORM</div>
-                  <div className="text-xl font-pixel text-[#00EB88]">
-                    {Math.round(lastForm * 100)}%
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {testMode ? (
-              <TrackingTestPanel
-                tracked={testExercises}
-                onToggleExercise={toggleTestExercise}
-                onSetTracked={setTestExercises}
-                counts={testCounts}
-                phases={phases}
-                flashing={testFlashing}
-                log={testLog}
-                sendToTv={testSendToTv}
-                onToggleSendToTv={() => setTestSendToTv((v) => !v)}
-                speak={testSpeak}
-                onToggleSpeak={() => setTestSpeak((v) => !v)}
-                onReset={resetTest}
-                onExit={() => setTestMode(false)}
-              />
-            ) : (
-              <>
-            {/* Quick Swing Simulation Button for Desktop/Testing */}
-            <div className="flex gap-2">
-              <button
-                onClick={handleSimulateSwing}
-                className="flex-1 bg-[#2E2B44] hover:bg-[#3E3B5E] text-[#F4B41A] font-pixel text-[10px] py-3 border-2 border-black shadow-pixel-box flex items-center justify-center gap-2 active:translate-x-0.5 active:translate-y-0.5"
-              >
-                <Zap className="w-3.5 h-3.5" />
-                {handCards ? 'SIMULATE A HAND REP' : `TRIGGER ${EXERCISE_SKILLS[activeExercise].skillName}`}
-              </button>
-            </div>
-              </>
-            )}
+            {wakeLockActive && <div className="kk-phone-tome text-[14px] text-center text-[#8A8295] mt-1">The screen stays awake.</div>}
           </div>
         )}
-      </main>
-
-      {/* Retro Bottom Navigation / Instructions */}
-      <footer className="border-t-2 border-[#2E2B44] bg-[#1A1926] p-2 text-center text-[10px] font-mono text-[#A7A9BE]">
-        MediaPipe Pose Landmarker + PeerJS WebRTC Stream
-      </footer>
+      </div>
     </div>
   );
 };

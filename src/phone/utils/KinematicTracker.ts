@@ -8,7 +8,43 @@ export interface NormalizedLandmark {
   visibility?: number;
 }
 
+/** Keeps the swing's body-relative bell height positive in lastMetricY, where 0 means "no previous frame". */
+const SWING_REL_OFFSET = 10;
+
+/**
+ * Kettlebell swing thresholds. Bell height is in standing-torso lengths below the shoulders (0 = shoulder line,
+ * 1 = hip line); hinge and knee are torso / thigh height as a share of standing (1 = upright / straight).
+ */
+const SWING = {
+  /** Hike: bell at least this low, elbows at least this straight, forearms hanging at least this vertically. */
+  hikeBell: 0.75,
+  hikeElbow: 140,
+  hikeForearm: 0.7,
+  /** Hike: hips hinged to at most this, knees not bent below this (deeper is a squat). */
+  hikeHinge: 0.88,
+  hikeKneeMin: 0.55,
+  /** Drive starts when the bell rises at least this fast (torso lengths / s) relative to the shoulders. */
+  driveSpeed: 1.2,
+  /** Lockout line: the bell has to rise to this height (about the bottom of the chest). */
+  lockoutBell: 0.65,
+  /** Lockout: standing tall again — hips at least this extended, or opened by lockoutHipOpen since the hike — and knees. */
+  lockoutHinge: 0.8,
+  lockoutHipOpen: 0.1,
+  lockoutKnee: 0.7,
+  /** Standing tall and the bell crossing the line may be this far apart, in either order (the bell staying within lockoutSlack of the line). */
+  lockoutGraceMs: 600,
+  lockoutSlack: 0.25,
+  /** Cancels the drive as a curl only for a forearm clearly standing up at nearly full length on screen. */
+  curlForearmLen: 0.8,
+  curlForearmUp: -0.5,
+  /** After a lockout, the bell has to drop past this before the next hike. */
+  resetBell: 0.8,
+};
+
 export type SwingState = 0 | 1 | 2; // Phase 0 (Prep/Start), Phase 1 (Mid/Inflection), Phase 2 (Peak/Lockout)
+
+/** Which hand holds the bell: one arm, or both hands together on the handle (tracked at their midpoint). */
+export type ArmSide = 'LEFT' | 'RIGHT' | 'BOTH';
 
 // MediaPipe Pose Landmark Indices (33 Keypoints):
 export const POSE_INDEX = {
@@ -70,6 +106,12 @@ export interface KinematicStateUpdate {
   velocity: number;
   telemetry?: RepTelemetry;
   debugNotes?: string;
+  /** The arm being tracked as the one holding the bell. */
+  arm?: ArmSide;
+  /** The exercise's stage names in order (state 0, 1, 2). */
+  stages?: string[];
+  /** In stage 0 with the start position met (e.g. the swing's hike): the next movement can begin a rep. */
+  armed?: boolean;
   isFullBodyVisible?: boolean;
   missingBodyParts?: string[];
 }
@@ -132,6 +174,29 @@ export class KinematicTracker {
   private cleanStageCompleted: boolean = false;
   private aroundBodyDirection: 'CLOCKWISE' | 'COUNTER_CLOCKWISE' | 'NONE' = 'NONE';
   private rdlWorkingLeg: 'LEFT' | 'RIGHT' = 'LEFT';
+
+  // Working arm: the hand that moves is the one with the bell; a raised but still free arm is ignored
+  private armSide: ArmSide = 'BOTH';
+  private armCandidate: ArmSide = 'BOTH';
+  private armCandidateFrames: number = 0;
+  private wristMotion = { l: 0, r: 0 };
+  private lastWrists: { lx: number; ly: number; rx: number; ry: number; t: number } | null = null;
+  /** Forearm length on screen while hanging in the swing's hike (the forearm's full, unforeshortened length). */
+  private swingForearmRef: number = 0;
+  /** When the bell crossed the swing's lockout line in this drive (0 = not yet). */
+  private swingLineAt: number = 0;
+  /** When the knight last stood tall in this drive (0 = not yet). */
+  private swingTallAt: number = 0;
+  /** Hip hinge at the start of this drive, and the best bell / hinge / knee the drive reached (for the miss note). */
+  private swingHikeHinge: number = 0;
+  private swingBest = { bell: 9, hinge: 0, knee: 0 };
+  /**
+   * Standing torso (shoulders→hips) and thigh (hips→knees) heights on screen. Facing the camera, a hip hinge
+   * shortens the torso and a knee bend shortens the thigh, so each is read as a ratio of its standing length.
+   * They follow the tallest recent values and slowly decay, so stepping closer or farther re-calibrates them.
+   */
+  private standingTorso: number = 0;
+  private standingThigh: number = 0;
 
   private requireFullBody: boolean = true;
   private consecutiveFullBodyFrames: number = 0;
@@ -197,6 +262,72 @@ export class KinematicTracker {
     return this.repCount;
   }
 
+  public getArmSide(): ArmSide {
+    return this.armSide;
+  }
+
+  /**
+   * Picks the arm holding the bell. Hands closer than shoulder width share the handle (BOTH). Otherwise the
+   * wrist with clearly more recent motion (~0.5s average speed) is the working one, so a free arm held up or
+   * hanging still never drives a rep. A switch must hold for a few frames and drops any half-finished rep, so
+   * the tracked point jumping to the other hand is never read as a burst of speed.
+   */
+  private updateWorkingArm(landmarks: NormalizedLandmark[], timestampMs: number): void {
+    const lWrist = landmarks[POSE_INDEX.LEFT_WRIST];
+    const rWrist = landmarks[POSE_INDEX.RIGHT_WRIST];
+    const lShoulder = landmarks[POSE_INDEX.LEFT_SHOULDER];
+    const rShoulder = landmarks[POSE_INDEX.RIGHT_SHOULDER];
+
+    const prev = this.lastWrists;
+    if (prev && timestampMs > prev.t) {
+      const dt = Math.max(0.016, (timestampMs - prev.t) / 1000);
+      const k = Math.min(1, dt / 0.5);
+      this.wristMotion.l += (Math.hypot(lWrist.x - prev.lx, lWrist.y - prev.ly) / dt - this.wristMotion.l) * k;
+      this.wristMotion.r += (Math.hypot(rWrist.x - prev.rx, rWrist.y - prev.ry) / dt - this.wristMotion.r) * k;
+    }
+    this.lastWrists = { lx: lWrist.x, ly: lWrist.y, rx: rWrist.x, ry: rWrist.y, t: timestampMs };
+
+    // Side-on the shoulders look narrow, so the grip scale never drops below about half the standing torso
+    const shoulderWidth = Math.max(0.08, this.standingTorso * 0.55, Math.abs(lShoulder.x - rShoulder.x));
+    const handsTogether = Math.hypot(lWrist.x - rWrist.x, lWrist.y - rWrist.y) < shoulderWidth * 0.9;
+    const { l, r } = this.wristMotion;
+    let candidate: ArmSide;
+    if (handsTogether) candidate = 'BOTH';
+    else if (l > r * 1.6 && l > 0.15) candidate = 'LEFT';
+    else if (r > l * 1.6 && r > 0.15) candidate = 'RIGHT';
+    else candidate = this.armSide; // no clear mover (still, or two bells moving together): keep it
+
+    this.armCandidateFrames = candidate === this.armCandidate ? this.armCandidateFrames + 1 : 0;
+    this.armCandidate = candidate;
+    if (candidate !== this.armSide && this.armCandidateFrames >= 6) {
+      this.armSide = candidate;
+      // The tracked point moves: abandon any half rep and drop the velocity reference so the jump isn't read as motion
+      this.currentState = 0;
+      this.maxMovementVelocity = 0;
+      this.phaseStartTimestamp = 0;
+      this.cleanStageCompleted = false;
+      this.lastMetricY = 0;
+      this.lastMetricX = 0;
+    }
+  }
+
+  private updateStandingRefs(landmarks: NormalizedLandmark[]): void {
+    const shoulderY = (landmarks[POSE_INDEX.LEFT_SHOULDER].y + landmarks[POSE_INDEX.RIGHT_SHOULDER].y) / 2;
+    const hipY = (landmarks[POSE_INDEX.LEFT_HIP].y + landmarks[POSE_INDEX.RIGHT_HIP].y) / 2;
+    const kneeY = (landmarks[POSE_INDEX.LEFT_KNEE].y + landmarks[POSE_INDEX.RIGHT_KNEE].y) / 2;
+    this.standingTorso = Math.max(this.standingTorso * 0.9985, hipY - shoulderY);
+    this.standingThigh = Math.max(this.standingThigh * 0.9985, kneeY - hipY);
+  }
+
+  /** The bell's wrist: the working arm's, or the midpoint of both hands on the handle. */
+  private workingWrist(landmarks: NormalizedLandmark[]): NormalizedLandmark {
+    const lWrist = landmarks[POSE_INDEX.LEFT_WRIST];
+    const rWrist = landmarks[POSE_INDEX.RIGHT_WRIST];
+    if (this.armSide === 'LEFT') return lWrist;
+    if (this.armSide === 'RIGHT') return rWrist;
+    return { x: (lWrist.x + rWrist.x) / 2, y: (lWrist.y + rWrist.y) / 2 };
+  }
+
   /**
    * Verifies that the user's FULL body (Arms, Legs, Hips, Shoulders) is visible in frame.
    * Suppresses rep counting if the user is too close or body parts are occluded/cut off.
@@ -237,21 +368,24 @@ export class KinematicTracker {
       return vis >= minVis && inBounds;
     };
 
+    // Each pair needs only one side clear: standing side-on or at an angle to the phone hides the far limbs,
+    // and MediaPipe still estimates them well enough from the near side
+
     // 1. Shoulders Verification
-    const shouldersVisible = isPointValid(lShoulder, 0.48) && isPointValid(rShoulder, 0.48);
+    const shouldersVisible = isPointValid(lShoulder, 0.42) || isPointValid(rShoulder, 0.42);
     if (!shouldersVisible) missingParts.push('SHOULDERS');
 
     // 2. Hips / Torso Verification
-    const hipsVisible = isPointValid(lHip, 0.45) && isPointValid(rHip, 0.45);
+    const hipsVisible = isPointValid(lHip, 0.40) || isPointValid(rHip, 0.40);
     if (!hipsVisible) missingParts.push('HIPS');
 
     // 3. Arms Verification (at least one working arm fully clear, wrists in bounds)
-    const wristsVisible = isPointValid(lWrist, 0.40) || isPointValid(rWrist, 0.40);
+    const wristsVisible = isPointValid(lWrist, 0.35) || isPointValid(rWrist, 0.35);
     const armsVisible = shouldersVisible && wristsVisible;
     if (!wristsVisible) missingParts.push('ARMS / HANDS');
 
     // 4. Legs Verification: KNEES MUST BE VISIBLE (Feet & ankles no longer gatekept)
-    const kneesVisible = isPointValid(lKnee, 0.40) && isPointValid(rKnee, 0.40);
+    const kneesVisible = isPointValid(lKnee, 0.35) || isPointValid(rKnee, 0.35);
     const legsVisible = kneesVisible;
     if (!kneesVisible) missingParts.push('KNEES');
 
@@ -359,6 +493,15 @@ export class KinematicTracker {
       }
     }
 
+    this.updateWorkingArm(landmarks, timestampMs);
+    this.updateStandingRefs(landmarks);
+    const update = this.processExercise(landmarks, timestampMs);
+    update.arm = this.armSide;
+    update.armed = this.currentState === 0 && this.phaseStartTimestamp > 0;
+    return update;
+  }
+
+  private processExercise(landmarks: NormalizedLandmark[], timestampMs: number): KinematicStateUpdate {
     switch (this.activeExercise) {
       case 'SQUAT':
         return this.processSquat(landmarks, timestampMs);
@@ -514,61 +657,123 @@ export class KinematicTracker {
 
   // =========================================================================
   // EXERCISE 1: KETTLEBELL SWING ("IRON CLEAVE")
+  // Tracked by the forearm, hips and knees, relative to the body:
+  //   HIKE     straight arms hanging, bell at or below the hips, hips hinged, knees only slightly bent
+  //   DRIVE    the bell swings up as the hips open
+  //   LOCKOUT  bell at chest height and the knight standing tall (hips and knees extended)
+  // A goblet squat moves the bell just as far on screen, but with the elbows bent, the forearms standing up,
+  // the knees deeply bent and the whole body rising with it.
   // =========================================================================
   private processSwing(landmarks: NormalizedLandmark[], timestampMs: number): KinematicStateUpdate {
     const lWrist = landmarks[POSE_INDEX.LEFT_WRIST];
     const rWrist = landmarks[POSE_INDEX.RIGHT_WRIST];
+    const lElbow = landmarks[POSE_INDEX.LEFT_ELBOW];
+    const rElbow = landmarks[POSE_INDEX.RIGHT_ELBOW];
     const lHip = landmarks[POSE_INDEX.LEFT_HIP];
     const rHip = landmarks[POSE_INDEX.RIGHT_HIP];
     const lShoulder = landmarks[POSE_INDEX.LEFT_SHOULDER];
     const rShoulder = landmarks[POSE_INDEX.RIGHT_SHOULDER];
 
-    const avgWristY = (lWrist.y + rWrist.y) / 2;
-    const isSingleArmLeft = Math.abs(lWrist.y - rWrist.y) > 0.22 && lWrist.y > lHip.y;
-    const isSingleArmRight = Math.abs(lWrist.y - rWrist.y) > 0.22 && rWrist.y > rHip.y;
-
-    const wristY = isSingleArmLeft ? lWrist.y : isSingleArmRight ? rWrist.y : avgWristY;
+    const singleArm = this.armSide !== 'BOTH';
+    const mid = (a: NormalizedLandmark, b: NormalizedLandmark) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    const wrist = this.workingWrist(landmarks);
+    const elbow = this.armSide === 'LEFT' ? lElbow : this.armSide === 'RIGHT' ? rElbow : mid(lElbow, rElbow);
+    const shoulder = this.armSide === 'LEFT' ? lShoulder : this.armSide === 'RIGHT' ? rShoulder : mid(lShoulder, rShoulder);
+    const lKnee = landmarks[POSE_INDEX.LEFT_KNEE];
+    const rKnee = landmarks[POSE_INDEX.RIGHT_KNEE];
     const hipY = (lHip.y + rHip.y) / 2;
     const shoulderY = (lShoulder.y + rShoulder.y) / 2;
+    const kneeY = (lKnee.y + rKnee.y) / 2;
+    const torsoHeight = Math.max(0.12, this.standingTorso);
 
-    const torsoHeight = Math.max(0.15, Math.abs(hipY - shoulderY));
-    const hikeThresholdY = hipY - torsoHeight * 0.05;
-    const lockoutThresholdY = shoulderY + torsoHeight * 0.18;
+    // Bell height in standing-torso lengths below the shoulders (0 = shoulder line, 1 = hip line): body-relative,
+    // so squatting or standing up doesn't move it
+    const rel = (wrist.y - shoulderY) / torsoHeight;
+    // Hip hinge: torso height vs standing (1 = upright, lower = leaning forward). Knees: thigh height vs
+    // standing (1 = straight, ~0.9 = the swing's soft bend, under ~0.55 = squatting)
+    const hinge = (hipY - shoulderY) / torsoHeight;
+    const knee = this.standingThigh > 0.02 ? (kneeY - hipY) / this.standingThigh : 1;
+    const hingedHike = hinge <= SWING.hikeHinge && knee >= SWING.hikeKneeMin;
+    const hipsOpen = hinge >= SWING.lockoutHinge || (this.swingHikeHinge > 0 && hinge - this.swingHikeHinge >= SWING.lockoutHipOpen);
+    const standingTall = hipsOpen && knee >= SWING.lockoutKnee;
+    let note: string | undefined;
+    // Arm straightness and forearm direction (+1 hanging straight down, -1 standing straight up)
+    const elbowAngle = calculateAngle(shoulder, elbow, wrist);
+    const forearmLen = Math.hypot(wrist.x - elbow.x, wrist.y - elbow.y);
+    const forearmDown = forearmLen > 0.005 ? (wrist.y - elbow.y) / forearmLen : 0;
+    // Forearm standing up at full length = a goblet hold / curl (a swung forearm points at the camera and looks short)
+    // A swung forearm points at the camera at the top: elbow and wrist bunch up and the angle between them is noise,
+    // so only a forearm still near full length on screen and clearly pointing up reads as a curl. Only below the
+    // lockout line: a curl folds the forearm up while the bell is still low, but a swing carried overhead points it
+    // straight up too, and that's not a fault
+    const curled =
+      rel > SWING.lockoutBell &&
+      this.swingForearmRef > 0 &&
+      forearmLen >= this.swingForearmRef * SWING.curlForearmLen &&
+      forearmDown <= SWING.curlForearmUp;
 
     const dt = this.lastTimestamp > 0 ? Math.max(0.016, (timestampMs - this.lastTimestamp) / 1000) : 0.033;
-    const upwardVelocity = this.lastMetricY > 0 ? (this.lastMetricY - wristY) / dt : 0;
+    // lastMetricY keeps rel offset by SWING_REL_OFFSET so 0 still means "no previous frame" (reset on arm switch)
+    const prevRel = this.lastMetricY > 0 ? this.lastMetricY - SWING_REL_OFFSET : null;
+    const relVelocity = prevRel !== null ? (prevRel - rel) / dt : 0; // torso lengths/s, upward positive
+    const upwardVelocity = relVelocity * torsoHeight;
 
     let emittedTelemetry: RepTelemetry | undefined = undefined;
 
     switch (this.currentState) {
-      case 0: { // HIKE
-        if (wristY > hikeThresholdY) {
+      case 0: { // HIKE: straight arms, forearms hanging, bell at or below the hips, hips hinged, soft knees
+        if (rel >= SWING.hikeBell && elbowAngle >= SWING.hikeElbow && forearmDown >= SWING.hikeForearm && hingedHike) {
           this.phaseStartTimestamp = timestampMs;
           this.maxMovementVelocity = 0;
+          this.swingForearmRef = Math.max(this.swingForearmRef * 0.9, forearmLen);
         }
-        if (this.phaseStartTimestamp > 0 && upwardVelocity > 0.35 && wristY <= hipY + 0.08) {
+        if (this.phaseStartTimestamp > 0 && relVelocity > SWING.driveSpeed && rel <= 1.0) {
           this.currentState = 1;
           this.maxMovementVelocity = upwardVelocity;
+          this.swingLineAt = 0;
+          this.swingTallAt = 0;
+          this.swingHikeHinge = hinge;
+          this.swingBest = { bell: rel, hinge, knee };
         }
         break;
       }
-      case 1: { // DRIVE
+      case 1: { // DRIVE: the bell swings up and forward as the hips open
         if (upwardVelocity > this.maxMovementVelocity) {
           this.maxMovementVelocity = upwardVelocity;
         }
-        if (wristY > hipY + 0.12 && upwardVelocity < -0.2) {
+        this.swingBest = {
+          bell: Math.min(this.swingBest.bell, rel),
+          hinge: Math.max(this.swingBest.hinge, hinge),
+          knee: Math.max(this.swingBest.knee, knee),
+        };
+        // Fell back into the hike, or the forearms folded up into a curl: not a swing
+        const fellBack = rel > 1.1 && relVelocity < -0.8;
+        if (fellBack || curled) {
+          const best = this.swingBest;
+          note = curled
+            ? `cancelled: forearm curled up (${forearmDown.toFixed(2)})`
+            : `missed lockout — best: bell ${best.bell.toFixed(2)} hinge ${best.hinge.toFixed(2)} knee ${best.knee.toFixed(2)}`;
           this.currentState = 0;
           this.maxMovementVelocity = 0;
+          if (curled) this.phaseStartTimestamp = 0;
           break;
         }
-        if (wristY <= lockoutThresholdY) {
+        // Lockout: the bell crosses the line and the hips and knees extend, together or within a short grace either way
+        // (the bell usually gets there a beat before the hips finish); a bell floated up while still bent over doesn't count
+        if (rel <= SWING.lockoutBell && !this.swingLineAt) this.swingLineAt = timestampMs;
+        if (standingTall) this.swingTallAt = timestampMs;
+        const nearLine = rel <= SWING.lockoutBell + SWING.lockoutSlack;
+        const atLine =
+          rel <= SWING.lockoutBell || (this.swingLineAt > 0 && timestampMs - this.swingLineAt <= SWING.lockoutGraceMs && nearLine);
+        const wasTall = this.swingTallAt > 0 && timestampMs - this.swingTallAt <= SWING.lockoutGraceMs;
+        if (atLine && (standingTall || (wasTall && nearLine))) {
           if (timestampMs - this.lastRepTimestamp >= this.minRepIntervalMs) {
             this.currentState = 2;
             this.repCount++;
             this.lastRepTimestamp = timestampMs;
 
             const wristDelta = Math.abs(lWrist.y - rWrist.y);
-            const formScore = isSingleArmLeft || isSingleArmRight ? 0.95 : Math.max(0.65, 1.0 - wristDelta * 2.2);
+            const formScore = singleArm ? 0.95 : Math.max(0.65, 1.0 - wristDelta * 2.2);
             const rawPower = Math.round(55 + Math.max(0.6, this.maxMovementVelocity) * 38);
             const finalPower = Math.min(150, Math.max(50, rawPower));
 
@@ -588,16 +793,17 @@ export class KinematicTracker {
         }
         break;
       }
-      case 2: { // LOCKOUT / PEAK
-        if (wristY > lockoutThresholdY + torsoHeight * 0.25 || upwardVelocity < -0.25) {
+      case 2: { // LOCKOUT / PEAK: the next rep needs a fresh hike
+        if (rel > SWING.resetBell || relVelocity < -1.0) {
           this.currentState = 0;
           this.maxMovementVelocity = 0;
+          this.phaseStartTimestamp = 0;
         }
         break;
       }
     }
 
-    this.lastMetricY = wristY;
+    this.lastMetricY = rel + SWING_REL_OFFSET;
     this.lastTimestamp = timestampMs;
 
     const names = ['HIKE', 'DRIVE', 'LOCKOUT'];
@@ -605,13 +811,15 @@ export class KinematicTracker {
       exercise: 'SWING',
       state: this.currentState,
       stateName: names[this.currentState],
+      stages: names,
       repCount: this.repCount,
       power: emittedTelemetry?.power || (this.currentState === 1 ? Math.round(50 + this.maxMovementVelocity * 32) : 0),
       form: emittedTelemetry?.form || 1.0,
-      primaryY: wristY,
+      primaryY: wrist.y,
       referenceY: shoulderY,
       velocity: upwardVelocity,
       telemetry: emittedTelemetry,
+      debugNotes: note ?? `bell ${rel.toFixed(2)} hinge ${hinge.toFixed(2)} knee ${knee.toFixed(2)} elbow ${Math.round(elbowAngle)}°`,
     };
     this.onStateChange?.(update);
     return update;
@@ -693,6 +901,7 @@ export class KinematicTracker {
       exercise: 'SQUAT',
       state: this.currentState,
       stateName: names[this.currentState],
+      stages: names,
       repCount: this.repCount,
       power: emittedTelemetry?.power || Math.round(50 + ascentVelocity * 30),
       form: emittedTelemetry?.form || 1.0,
@@ -717,7 +926,7 @@ export class KinematicTracker {
     const lHip = landmarks[POSE_INDEX.LEFT_HIP];
     const rHip = landmarks[POSE_INDEX.RIGHT_HIP];
 
-    const wristY = (lWrist.y + rWrist.y) / 2;
+    const wristY = this.workingWrist(landmarks).y;
     const shoulderY = (lShoulder.y + rShoulder.y) / 2;
     const hipY = (lHip.y + rHip.y) / 2;
 
@@ -734,7 +943,8 @@ export class KinematicTracker {
           this.maxMovementVelocity = 0;
         }
         // Rapid upward pull into rack
-        if (velocity > 0.4 && wristY <= hipY) {
+        // Only from the hang: the bell has to start below the hip
+        if (this.phaseStartTimestamp > 0 && velocity > 0.4 && wristY <= hipY) {
           this.currentState = 1;
         }
         break;
@@ -773,6 +983,7 @@ export class KinematicTracker {
         if (wristY >= shoulderY) {
           this.currentState = 0;
           this.cleanStageCompleted = false;
+          this.phaseStartTimestamp = 0;
         }
         break;
       }
@@ -786,6 +997,7 @@ export class KinematicTracker {
       exercise: 'CLEAN_AND_PRESS',
       state: this.currentState,
       stateName: names[this.currentState],
+      stages: names,
       repCount: this.repCount,
       power: emittedTelemetry?.power || Math.round(55 + velocity * 30),
       form: emittedTelemetry?.form || 1.0,
@@ -810,7 +1022,7 @@ export class KinematicTracker {
     const lHip = landmarks[POSE_INDEX.LEFT_HIP];
     const rHip = landmarks[POSE_INDEX.RIGHT_HIP];
 
-    const workingWrist = lWrist.y < rWrist.y ? lWrist : rWrist;
+    const workingWrist = this.workingWrist(landmarks);
     const shoulderY = (lShoulder.y + rShoulder.y) / 2;
     const hipY = (lHip.y + rHip.y) / 2;
 
@@ -826,7 +1038,8 @@ export class KinematicTracker {
           this.maxMovementVelocity = 0;
         }
         // Continuous high pull explosive drive
-        if (velocity > 0.55 && workingWrist.y <= hipY) {
+        // Only from the backswing: the bell has to start below the hip
+        if (this.phaseStartTimestamp > 0 && velocity > 0.55 && workingWrist.y <= hipY) {
           this.currentState = 1;
           this.maxMovementVelocity = velocity;
         }
@@ -863,6 +1076,7 @@ export class KinematicTracker {
         if (workingWrist.y > shoulderY - 0.10) {
           this.currentState = 0;
           this.maxMovementVelocity = 0;
+          this.phaseStartTimestamp = 0;
         }
         break;
       }
@@ -876,6 +1090,7 @@ export class KinematicTracker {
       exercise: 'SNATCH',
       state: this.currentState,
       stateName: names[this.currentState],
+      stages: names,
       repCount: this.repCount,
       power: emittedTelemetry?.power || Math.round(60 + velocity * 35),
       form: emittedTelemetry?.form || 1.0,
@@ -964,6 +1179,7 @@ export class KinematicTracker {
       exercise: 'WINDMILL',
       state: this.currentState,
       stateName: names[this.currentState],
+      stages: names,
       repCount: this.repCount,
       power: emittedTelemetry?.power || 75,
       form: emittedTelemetry?.form || 1.0,
@@ -988,7 +1204,16 @@ export class KinematicTracker {
     const lKnee = landmarks[POSE_INDEX.LEFT_KNEE];
     const rKnee = landmarks[POSE_INDEX.RIGHT_KNEE];
 
-    const wristY = (lWrist.y + rWrist.y) / 2;
+    const wrist = this.workingWrist(landmarks);
+    const wristY = wrist.y;
+    // Arms hang straight through the whole pull (a goblet squat moves the bell as far, with bent elbows)
+    const lElbow = landmarks[POSE_INDEX.LEFT_ELBOW];
+    const rElbow = landmarks[POSE_INDEX.RIGHT_ELBOW];
+    const lShoulder = landmarks[POSE_INDEX.LEFT_SHOULDER];
+    const rShoulder = landmarks[POSE_INDEX.RIGHT_SHOULDER];
+    const elbow = this.armSide === 'LEFT' ? lElbow : this.armSide === 'RIGHT' ? rElbow : { x: (lElbow.x + rElbow.x) / 2, y: (lElbow.y + rElbow.y) / 2 };
+    const shoulder = this.armSide === 'LEFT' ? lShoulder : this.armSide === 'RIGHT' ? rShoulder : { x: (lShoulder.x + rShoulder.x) / 2, y: (lShoulder.y + rShoulder.y) / 2 };
+    const armsStraight = calculateAngle(shoulder, elbow, wrist) >= 145 && wrist.y > elbow.y;
     const hipY = (lHip.y + rHip.y) / 2;
     const kneeY = (lKnee.y + rKnee.y) / 2;
 
@@ -999,11 +1224,12 @@ export class KinematicTracker {
 
     switch (this.currentState) {
       case 0: { // FLOOR / SHIN SETUP
-        if (wristY > kneeY) {
+        if (wristY > kneeY && armsStraight) {
           this.phaseStartTimestamp = timestampMs;
           this.maxMovementVelocity = 0;
         }
-        if (pullVelocity > 0.25 && wristY <= kneeY) {
+        // Only a pull from below the knee: the bell has to start low
+        if (this.phaseStartTimestamp > 0 && pullVelocity > 0.25 && wristY <= kneeY) {
           this.currentState = 1;
         }
         break;
@@ -1011,6 +1237,11 @@ export class KinematicTracker {
       case 1: { // PULLING PAST KNEES
         if (pullVelocity > this.maxMovementVelocity) {
           this.maxMovementVelocity = pullVelocity;
+        }
+        if (!armsStraight) {
+          this.currentState = 0;
+          this.phaseStartTimestamp = 0;
+          break;
         }
         // Strict hip lockout (wrists at hip level, NOT swinging upward)
         if (wristY <= hipY + 0.05) {
@@ -1039,6 +1270,7 @@ export class KinematicTracker {
         if (wristY > kneeY - 0.05) {
           this.currentState = 0;
           this.maxMovementVelocity = 0;
+          this.phaseStartTimestamp = 0;
         }
         break;
       }
@@ -1052,6 +1284,7 @@ export class KinematicTracker {
       exercise: 'DEADLIFT',
       state: this.currentState,
       stateName: names[this.currentState],
+      stages: names,
       repCount: this.repCount,
       power: emittedTelemetry?.power || Math.round(50 + pullVelocity * 30),
       form: emittedTelemetry?.form || 1.0,
@@ -1074,9 +1307,7 @@ export class KinematicTracker {
     const lShoulder = landmarks[POSE_INDEX.LEFT_SHOULDER];
     const rShoulder = landmarks[POSE_INDEX.RIGHT_SHOULDER];
 
-    const isSingleArmLeft = lWrist.y < rWrist.y - 0.15;
-    const isSingleArmRight = rWrist.y < lWrist.y - 0.15;
-    const workingWrist = isSingleArmLeft ? lWrist : isSingleArmRight ? rWrist : { x: (lWrist.x + rWrist.x) / 2, y: (lWrist.y + rWrist.y) / 2 };
+    const workingWrist = this.workingWrist(landmarks);
 
     const shoulderY = (lShoulder.y + rShoulder.y) / 2;
     const dt = this.lastTimestamp > 0 ? Math.max(0.016, (timestampMs - this.lastTimestamp) / 1000) : 0.033;
@@ -1087,11 +1318,16 @@ export class KinematicTracker {
 
     switch (this.currentState) {
       case 0: { // RACK POSITION
-        if (workingWrist.y >= shoulderY - 0.08) {
+        // Racked = the bell settles at the shoulder; one sweeping up from below (a snatch or swing) doesn't count
+        const inRack = workingWrist.y >= shoulderY - 0.08 && workingWrist.y <= shoulderY + 0.15;
+        if (inRack && Math.abs(upwardVelocity) < 1.0) {
           this.phaseStartTimestamp = timestampMs;
           this.maxMovementVelocity = 0;
+        } else if (workingWrist.y > shoulderY + 0.15) {
+          this.phaseStartTimestamp = 0;
         }
-        if (workingWrist.y < shoulderY - 0.08 && upwardVelocity > 0.3) {
+        // Only a press from the rack: the bell has to start at the shoulder
+        if (this.phaseStartTimestamp > 0 && workingWrist.y < shoulderY - 0.08 && upwardVelocity > 0.3) {
           this.currentState = 1;
           this.maxMovementVelocity = upwardVelocity;
         }
@@ -1127,6 +1363,7 @@ export class KinematicTracker {
         if (workingWrist.y >= shoulderY - 0.06 || upwardVelocity < -0.2) {
           this.currentState = 0;
           this.maxMovementVelocity = 0;
+          this.phaseStartTimestamp = 0;
         }
         break;
       }
@@ -1140,6 +1377,7 @@ export class KinematicTracker {
       exercise: 'OVERHEAD_PRESS',
       state: this.currentState,
       stateName: names[this.currentState],
+      stages: names,
       repCount: this.repCount,
       power: emittedTelemetry?.power || Math.round(50 + this.maxMovementVelocity * 30),
       form: emittedTelemetry?.form || 1.0,
@@ -1166,7 +1404,7 @@ export class KinematicTracker {
     const lKnee = landmarks[POSE_INDEX.LEFT_KNEE];
     const rKnee = landmarks[POSE_INDEX.RIGHT_KNEE];
 
-    const wristY = (lWrist.y + rWrist.y) / 2;
+    const wristY = this.workingWrist(landmarks).y;
     const shoulderY = (lShoulder.y + rShoulder.y) / 2;
     const hipY = (lHip.y + rHip.y) / 2;
     const kneeY = (lKnee.y + rKnee.y) / 2;
@@ -1232,6 +1470,7 @@ export class KinematicTracker {
       exercise: 'THRUSTER',
       state: this.currentState,
       stateName: names[this.currentState],
+      stages: names,
       repCount: this.repCount,
       power: emittedTelemetry?.power || Math.round(60 + upwardVelocity * 35),
       form: emittedTelemetry?.form || 1.0,
@@ -1257,8 +1496,8 @@ export class KinematicTracker {
     const rHip = landmarks[POSE_INDEX.RIGHT_HIP];
 
     const hipY = (lHip.y + rHip.y) / 2;
-    // Working arm is whichever elbow is pulled highest
-    const isLeftArmActive = lElbow.y < rElbow.y;
+    // Working arm: the moving one, else (hands together) whichever elbow is pulled highest
+    const isLeftArmActive = this.armSide === 'BOTH' ? lElbow.y < rElbow.y : this.armSide === 'LEFT';
     const activeElbow = isLeftArmActive ? lElbow : rElbow;
     const activeWrist = isLeftArmActive ? lWrist : rWrist;
 
@@ -1322,6 +1561,7 @@ export class KinematicTracker {
       exercise: 'GORILLA_ROW',
       state: this.currentState,
       stateName: names[this.currentState],
+      stages: names,
       repCount: this.repCount,
       power: emittedTelemetry?.power || Math.round(50 + rowVelocity * 30),
       form: emittedTelemetry?.form || 1.0,
@@ -1415,6 +1655,7 @@ export class KinematicTracker {
       exercise: 'AROUND_THE_BODY',
       state: this.currentState,
       stateName: names[this.currentState],
+      stages: names,
       repCount: this.repCount,
       power: emittedTelemetry?.power || 75,
       form: emittedTelemetry?.form || 1.0,
@@ -1447,7 +1688,7 @@ export class KinematicTracker {
     const plantedKnee = isLeftPlanted ? lKnee : rKnee;
     const trailKnee = isLeftPlanted ? rKnee : lKnee;
     const hipY = (lHip.y + rHip.y) / 2;
-    const wristY = (lWrist.y + rWrist.y) / 2;
+    const wristY = this.workingWrist(landmarks).y;
 
     const elevationDelta = hasAnkles
       ? (isLeftPlanted ? lAnkle.y - rAnkle.y : rAnkle.y - lAnkle.y)
@@ -1514,6 +1755,7 @@ export class KinematicTracker {
       exercise: 'SINGLE_LEG_RDL',
       state: this.currentState,
       stateName: names[this.currentState],
+      stages: names,
       repCount: this.repCount,
       power: emittedTelemetry?.power || 75,
       form: emittedTelemetry?.form || 1.0,

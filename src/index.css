@@ -2081,3 +2081,234 @@ canvas,
   text-shadow: 0 2px 0 #000;
   animation: kkIntroRise 0.7s 0.4s cubic-bezier(0.2, 0.8, 0.3, 1) both;
 }
+
+/* =============================================================================
+   Phone companion (/phone): the TV's dark-fantasy look — stone slabs in iron frames,
+   gold plates with pointed ends, forged buttons — sized for a phone held at arm's length
+   ============================================================================= */
+.kk-phone {
+  min-height: 100dvh;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(244, 180, 26, 0.10), transparent 55%),
+    radial-gradient(ellipse at 50% 100%, rgba(107, 91, 149, 0.16), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.22) 0 2px, transparent 2px 9px),
+    linear-gradient(180deg, #17141F 0%, #0B0A10 100%);
+  color: #ECE2CA;
+}
+
+/* Gold title plate with pointed ends (the hub banner, phone-sized) */
+.kk-phone-plate {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 30px;
+  font-family: 'Silkscreen', 'Press Start 2P', monospace;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: #F4D35E;
+  text-shadow: 2px 2px 0 #000;
+  filter: drop-shadow(3px 3px 0 #000);
+  white-space: nowrap;
+}
+.kk-phone-plate::before,
+.kk-phone-plate::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  clip-path: polygon(0 50%, 16px 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 16px 100%);
+}
+.kk-phone-plate::before {
+  inset: 0;
+  background: linear-gradient(180deg, #F4D35E, #C98A12 55%, #7A4E08);
+}
+.kk-phone-plate::after {
+  inset: 3px 3px;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.025) 0 2px, transparent 2px 6px),
+    linear-gradient(180deg, #24202E, #120F18);
+}
+.kk-phone-plate--sm {
+  padding: 5px 20px;
+  font-size: 10px;
+}
+.kk-phone-plate--sm::before,
+.kk-phone-plate--sm::after {
+  clip-path: polygon(0 50%, 10px 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 10px 100%);
+}
+.kk-phone-plate--sm::after {
+  inset: 2px;
+}
+
+.kk-phone-gem {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  background: #F4B41A;
+  transform: rotate(45deg);
+  box-shadow: 0 0 0 2px #000;
+}
+
+/* Weathered stone slab inside a black + iron double frame (the hub plaque, flat) */
+.kk-phone-slab {
+  --frame: #4A4458;
+  --accent-line: #A7A9BE55;
+  position: relative;
+  border: 3px solid #050408;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.06), transparent 65%),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.18) 0 2px, transparent 2px 9px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0 3px, transparent 3px 11px),
+    linear-gradient(180deg, #2A2633 0%, #1B1822 60%, #121017 100%);
+  box-shadow:
+    inset 0 0 0 3px var(--frame),
+    inset 0 0 0 5px #0B0A10,
+    inset 0 0 0 6px var(--accent-line),
+    inset 0 0 40px rgba(0, 0, 0, 0.7),
+    5px 5px 0 0 #000;
+}
+.kk-phone-slab--gold {
+  --frame: #C98A12;
+  --accent-line: #F4B41A99;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(244, 180, 26, 0.14), transparent 65%),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.18) 0 2px, transparent 2px 9px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0 3px, transparent 3px 11px),
+    linear-gradient(180deg, #33291F 0%, #1F1A1A 60%, #141016 100%);
+}
+/* Translucent slab laid over the camera */
+.kk-phone-slab--glass {
+  background:
+    linear-gradient(180deg, rgba(42, 38, 51, 0.88) 0%, rgba(18, 16, 23, 0.92) 100%);
+}
+
+.kk-phone-heading {
+  font-family: 'Silkscreen', 'Press Start 2P', monospace;
+  letter-spacing: 0.08em;
+  text-shadow: 2px 2px 0 #000;
+}
+.kk-phone-tome {
+  font-family: 'VT323', monospace;
+  font-size: 18px;
+  line-height: 1.1;
+  color: #C9C0AE;
+}
+
+/* Forged buttons: a gold-cast slab (primary) or a dark iron one */
+.kk-phone-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #1A1206;
+  text-shadow: 0 1px 0 rgba(255, 240, 200, 0.5);
+  border: 3px solid #000;
+  background: linear-gradient(180deg, #FCE38A 0%, #F4B41A 45%, #B57A0C 100%);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -3px 0 rgba(90, 50, 0, 0.6),
+    4px 4px 0 #000;
+  transition: transform 80ms steps(2);
+}
+.kk-phone-btn:active {
+  transform: translate(3px, 3px);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -3px 0 rgba(90, 50, 0, 0.6),
+    1px 1px 0 #000;
+}
+.kk-phone-btn:disabled {
+  opacity: 0.45;
+}
+.kk-phone-btn--iron {
+  color: #F4D35E;
+  text-shadow: 1px 1px 0 #000;
+  background: linear-gradient(180deg, #3A3546 0%, #24202E 55%, #15121B 100%);
+  box-shadow:
+    inset 0 0 0 2px #4A4458,
+    inset 0 2px 0 rgba(255, 255, 255, 0.12),
+    4px 4px 0 #000;
+}
+.kk-phone-btn--iron:active {
+  box-shadow: inset 0 0 0 2px #4A4458, 1px 1px 0 #000;
+}
+.kk-phone-btn--blood {
+  color: #FFD9E0;
+  text-shadow: 1px 1px 0 #000;
+  background: linear-gradient(180deg, #8E2440 0%, #5A1226 55%, #320814 100%);
+  box-shadow:
+    inset 0 0 0 2px #C2385C,
+    inset 0 2px 0 rgba(255, 255, 255, 0.15),
+    4px 4px 0 #000;
+}
+.kk-phone-btn--sm {
+  padding: 7px 10px;
+  font-size: 8px;
+  border-width: 2px;
+  box-shadow: inset 0 0 0 1px #4A4458, inset 0 1px 0 rgba(255, 255, 255, 0.12), 3px 3px 0 #000;
+}
+
+.kk-phone-input {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 12px;
+  font-family: 'VT323', monospace;
+  font-size: 22px;
+  letter-spacing: 0.12em;
+  color: #F4D35E;
+  text-transform: uppercase;
+  background: #0B0A10;
+  border: 2px solid #4A4458;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8);
+  outline: none;
+}
+.kk-phone-input:focus {
+  border-color: #C98A12;
+}
+.kk-phone-input::placeholder {
+  color: #4A4458;
+}
+
+/* Small engraved chip for HUD readouts over the camera */
+.kk-phone-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  color: #ECE2CA;
+  text-shadow: 1px 1px 0 #000;
+  background: linear-gradient(180deg, rgba(43, 39, 61, 0.92), rgba(13, 11, 19, 0.92));
+  border: 1px solid #4A4458;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 2px 2px 0 #000;
+}
+.kk-phone-chip--gold { border-color: #C98A12; color: #F4D35E; }
+.kk-phone-chip--ok { border-color: #00EB88; color: #8BFFC9; }
+.kk-phone-chip--bad { border-color: #FF3366; color: #FFB3C4; }
+
+/* Torch vignette over the camera so the HUD reads on any background */
+.kk-phone-vignette {
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(5, 4, 8, 0.75) 0%, transparent 18%, transparent 70%, rgba(5, 4, 8, 0.9) 100%),
+    radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(5, 4, 8, 0.55) 100%);
+}
+
+/* Rep struck: a gold plate that rises and fades */
+.kk-phone-rep {
+  animation: kkPhoneRep 0.9s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+@keyframes kkPhoneRep {
+  0% { opacity: 0; transform: scale(0.7); }
+  15% { opacity: 1; transform: scale(1.08); }
+  30% { transform: scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-24px); }
+}
