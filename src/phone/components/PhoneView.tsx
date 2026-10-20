@@ -962,6 +962,17 @@ export const PhoneView: React.FC = () => {
             </div>
           </div>
 
+          {/* Cellular carriers often block the direct phone↔TV link (no TURN relay is configured) */}
+          {!linked && (
+            <p className="flex items-start gap-2 kk-phone-tome text-[#A7A9BE]">
+              <Wifi className="w-4 h-4 shrink-0 mt-1 text-[#38B6FF]" />
+              <span>
+                For the surest bond, join thy phone to the <span className="text-[#F4D35E]">same WiFi as the TV</span>.
+                Cellular data may fail to connect.
+              </span>
+            </p>
+          )}
+
           <p className="kk-phone-tome text-[16px]">{statusMessage}</p>
         </section>
 
