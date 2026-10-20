@@ -1372,10 +1372,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                 <div className="flex gap-3">
                   <button
                     onClick={() => continueReward(handleNextExpeditionEncounter)}
-                    className="flex-1 bg-[#00EB88] hover:bg-[#55ffaa] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box flex items-center justify-center gap-1.5"
+                    className="flex-1 bg-[#00EB88] hover:bg-[#55ffaa] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
                   >
-                    <span>NEXT BATTLE ▶</span>
-                    <span className="text-[9px] opacity-80">(OR SQUAT)</span>
+                    NEXT BATTLE ▶
                   </button>
                   <button
                     onClick={() => continueReward(onExitBattle)}
@@ -1421,11 +1420,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                     </div>
                     <button
                       onClick={() => continueReward(() => onSecretTrial(secretCall))}
-                      className="w-full hover:brightness-110 text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box flex items-center justify-center gap-1.5"
+                      className="w-full hover:brightness-110 text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
                       style={{ background: SECRET_TRIAL_COPY[secretCall].bar[1] }}
                     >
-                      <span>{SECRET_TRIAL_COPY[secretCall].callButton}</span>
-                      <span className="text-[9px] opacity-80">(OR SQUAT)</span>
+                      {SECRET_TRIAL_COPY[secretCall].callButton}
                     </button>
                   </>
                 ) : (
@@ -1433,18 +1431,16 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                   {currentLevel < 5 ? (
                     <button
                       onClick={() => continueReward(handleNextLevelExpedition)}
-                      className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box flex items-center justify-center gap-1.5"
+                      className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
                     >
-                      <span>LEVEL {currentLevel + 1} ▶</span>
-                      <span className="text-[9px] opacity-80">(OR SQUAT)</span>
+                      LEVEL {currentLevel + 1} ▶
                     </button>
                   ) : (
                     <button
                       onClick={() => continueReward(onExitBattle)}
-                      className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box flex items-center justify-center gap-1.5"
+                      className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
                     >
-                      <span>WORLD MAP ▶</span>
-                      <span className="text-[9px] opacity-80">(OR SQUAT)</span>
+                      WORLD MAP ▶
                     </button>
                   )}
                   <button
@@ -1470,10 +1466,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                 <div className="flex gap-3">
                   <button
                     onClick={() => continueReward(handleNextEncounter)}
-                    className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box flex items-center justify-center gap-1.5"
+                    className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
                   >
-                    <span>NEXT BATTLE ▶</span>
-                    <span className="text-[9px] opacity-80">(OR SQUAT)</span>
+                    NEXT BATTLE ▶
                   </button>
                   <button
                     onClick={() => continueReward(onExitBattle)}
@@ -1519,10 +1514,19 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             )}
 
             {/* 10-foot remote button prompt */}
-            <div className="mt-4 pt-2.5 border-t border-[#2E2B44] flex items-center justify-center gap-4 text-[9px] font-pixel text-[#A7A9BE]">
-              <span className="text-[#F4B41A]">{battleStatus === 'DEFEAT' ? '[ENTER] RETRY' : '[ENTER] or [SQUAT] CONTINUE'}</span>
-              <span>•</span>
-              <span className="text-white">[BACK / ESC] TOWN HUB</span>
+            <div className="mt-4 pt-2.5 border-t border-[#2E2B44] flex flex-col items-center gap-1.5">
+              {battleStatus !== 'DEFEAT' && (
+                <div className="font-pixel text-[8.5px] text-[#00EB88] flex items-center justify-center gap-1.5 tracking-wider animate-pulse">
+                  <span>◆</span>
+                  <span>SQUAT TO CONTINUE HANDS-FREE</span>
+                  <span>◆</span>
+                </div>
+              )}
+              <div className="flex items-center justify-center gap-3 text-[8px] font-pixel text-[#A7A9BE]">
+                <span className="text-[#F4B41A]">[ENTER] {battleStatus === 'DEFEAT' ? 'RETRY' : 'CONTINUE'}</span>
+                <span>•</span>
+                <span className="text-white">[BACK / ESC] TOWN HUB</span>
+              </div>
             </div>
           </div>
         </div>

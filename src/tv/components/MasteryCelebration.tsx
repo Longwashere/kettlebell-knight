@@ -174,10 +174,13 @@ export const MasteryCelebration: React.FC<MasteryCelebrationProps> = ({ levelUps
 
   const handleNextRef = React.useRef(handleNext);
   handleNextRef.current = handleNext;
+  const lastSquatAtRef = React.useRef<number>(0);
 
   useEffect(() => {
     const unsub = networkManager.onTelemetry((telemetry) => {
       if (telemetry.event === 'REP_TRIGGER' && telemetry.exercise === 'SQUAT') {
+        if (Date.now() - lastSquatAtRef.current < 750) return;
+        lastSquatAtRef.current = Date.now();
         handleNextRef.current();
       }
     });
@@ -279,11 +282,13 @@ export const MasteryCelebration: React.FC<MasteryCelebrationProps> = ({ levelUps
 
             <button
               onClick={handleNext}
-              className="w-full bg-[#00EB88] hover:bg-[#5dffb8] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box flex items-center justify-center gap-2"
+              className="w-full bg-[#00EB88] hover:bg-[#5dffb8] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box flex items-center justify-center"
             >
-              <span>[ENTER / SQUAT]</span>
               <span>{isLast ? 'CONTINUE ▶' : 'NEXT ▶'}</span>
             </button>
+            <div className="mt-2.5 flex items-center justify-center text-[8.5px] font-pixel text-[#00EB88] tracking-wider animate-pulse">
+              <span>◆ [ENTER] or SQUAT TO CONTINUE ◆</span>
+            </div>
           </div>
         </div>
       </div>

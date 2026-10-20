@@ -109,11 +109,13 @@ export const CardUnlockCelebration: React.FC<CardUnlockCelebrationProps> = ({
 
             <button
               onClick={handleNext}
-              className="w-full bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box flex items-center justify-center gap-2"
+              className="w-full bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box flex items-center justify-center"
             >
-              <span>[ENTER / SQUAT]</span>
               <span>{isLast ? 'ADD TO BATTLE DECK ▶' : 'NEXT CARD ▶'}</span>
             </button>
+            <div className="mt-2.5 flex items-center justify-center text-[8.5px] font-pixel text-[#F4B41A] tracking-wider animate-pulse">
+              <span>◆ [ENTER] or SQUAT TO CONTINUE ◆</span>
+            </div>
           </div>
         </div>
       </div>
