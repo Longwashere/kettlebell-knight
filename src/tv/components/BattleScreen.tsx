@@ -197,6 +197,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         const first = list[0];
         const newMonsters = createStageEncounter(first, expeditionLevel, expeditionMapId);
         commitMonsters(newMonsters);
+        clearShownHp();
         setPlayerBlock(0);
         setRunXp(0);
         setRunLevelUps([]);
@@ -231,6 +232,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const commitMonsters = useCallback((next: MonsterState[] | ((prev: MonsterState[]) => MonsterState[])) => {
     monstersRef.current = typeof next === 'function' ? next(monstersRef.current) : next;
     setMonsters(monstersRef.current);
+  }, []);
+  // Nameplate HP while a cast's hits are on their way (by slot): a card resolves when it fires, but each
+  // foe's bar drops when its hit lands in the knight's move, which may be queued behind earlier casts.
+  const [shownHp, setShownHp] = useState<Record<number, number>>({});
+  const pendingHitsRef = useRef<Record<number, number>>({});
+  const clearShownHp = useCallback(() => {
+    pendingHitsRef.current = {};
+    setShownHp({});
   }, []);
   const targetedIndexRef = useRef<number>(targetedMonsterIndex);
   targetedIndexRef.current = targetedMonsterIndex;
@@ -619,6 +628,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
       // Define victory completion callback (invoked by engine when kill cam finishes)
       let onFinishVictory: (() => void) | undefined = undefined;
+      let armVictoryFallback: (() => void) | undefined = undefined;
 
       if (isVictory) {
         isAwaitingVictoryRef.current = true;
@@ -687,11 +697,15 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
         onFinishVictory = triggerVictoryModal;
 
-        // 10-second safety fallback: show victory screen anyway if kill cam does not signal finish
-        victoryFallbackTimerRef.current = window.setTimeout(() => {
-          console.warn('[BattleScreen] 10s victory safety fallback fired');
-          triggerVictoryModal();
-        }, 10000);
+        // 10-second safety fallback: show victory screen anyway if kill cam does not signal finish. Armed
+        // when the finishing move starts, since it may wait behind earlier casts.
+        armVictoryFallback = () => {
+          if (victoryFallbackTimerRef.current) clearTimeout(victoryFallbackTimerRef.current);
+          victoryFallbackTimerRef.current = window.setTimeout(() => {
+            console.warn('[BattleScreen] 10s victory safety fallback fired');
+            triggerVictoryModal();
+          }, 10000);
+        };
       } else if (res.monsters[targetedIndexRef.current]?.currentHp <= 0) {
         // Target died: move to the next living foe, front row first
         const next = frontTarget(res.monsters);
@@ -701,7 +715,24 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       // The attack plays at the foes hit, in order (e.g. the back row for BACK cards). The knight move
       // lands each hit on its impact frame; damage labels and deaths show then.
       if (engine) {
+        // Bars hold their HP until each hit lands
+        for (const hit of res.hits) pendingHitsRef.current[hit.index] = (pendingHitsRef.current[hit.index] ?? 0) + 1;
+        setShownHp((prev) => {
+          const next = { ...prev };
+          for (const hit of res.hits) if (!(hit.index in next)) next[hit.index] = before[hit.index]?.currentHp ?? 0;
+          return next;
+        });
         const showHit = (hit: (typeof res.hits)[number]) => {
+          const left = (pendingHitsRef.current[hit.index] ?? 1) - 1;
+          if (left > 0) pendingHitsRef.current[hit.index] = left;
+          else delete pendingHitsRef.current[hit.index];
+          setShownHp((prev) => {
+            const next = { ...prev };
+            const trueHp = monstersRef.current[hit.index]?.currentHp ?? 0;
+            if (left > 0 && hit.index in prev) next[hit.index] = Math.max(trueHp, prev[hit.index] - hit.damage);
+            else delete next[hit.index];
+            return next;
+          });
           const tags = [hit.effect === 'strong' ? 'WEAK!' : hit.effect === 'resisted' ? 'RESIST' : '', hit.blocked ? `(${hit.blocked} blocked)` : '', card.shatter ? 'SHATTER' : '', hit.staggered ? `STAGGER +${hit.staggered}s` : ''].filter(Boolean).join(' ');
           const color = hit.damage <= 0 ? 0x38B6FF : hit.effect === 'strong' ? 0xF4B41A : hit.effect === 'resisted' ? 0xA7A9BE : 0xFF3366;
           engine.spawnMonsterText(hit.index, `-${hit.damage}`, color, hit.effect === 'strong' ? 14 : 12);
@@ -713,11 +744,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           ctx: { block: res.block, heal: res.heal },
           targets: res.hits.map((hit) => hit.index),
           onImpact: (i) => showHit(res.hits[i]),
+          onStart: armVictoryFallback,
           onFinish: onFinishVictory,
           isKillCam: isVictory,
           killSlot: fatalHit ? fatalHit.index : targetedMonsterIndex,
           stagger: card.target === 'CHAIN' ? 8 : 2,
         });
+      } else {
+        armVictoryFallback?.();
       }
 
       commitMonsters(res.monsters);
@@ -777,6 +811,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       const nextTemplate = expeditionEncounters[nextStep];
       const newMonsters = createStageEncounter(nextTemplate, currentLevel, currentMap);
       commitMonsters(newMonsters);
+      clearShownHp();
       setTargetedMonsterIndex(0);
       setPlayerBlock(0); // block resets between fights, but HP carries over!
       setBattleStatus('FIGHTING');
@@ -803,6 +838,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     const firstTemplate = expeditionEncounters[0];
     const newMonsters = createStageEncounter(firstTemplate, currentLevel, currentMap);
     commitMonsters(newMonsters);
+    clearShownHp();
     setTargetedMonsterIndex(0);
     resetRun();
     setPlayerBlock(0);
@@ -833,6 +869,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       const firstTemplate = nextList[0];
       const newMonsters = createStageEncounter(firstTemplate, nextLvl, currentMap);
       commitMonsters(newMonsters);
+      clearShownHp();
       setTargetedMonsterIndex(0);
       resetRun();
       setPlayerBlock(0);
@@ -867,6 +904,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     const newMonsters = createStageEncounter(template);
 
     commitMonsters(newMonsters);
+
+    clearShownHp();
     setTargetedMonsterIndex(0);
     resetRun();
     setPlayerBlock(0);
@@ -920,12 +959,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       },
       encounter: { index: currentEncounterIndex, id: ENCOUNTERS[currentEncounterIndex]?.id },
       target: targetedMonsterIndex,
-      monsters: monsters.map((m) => ({
+      monsters: monsters.map((m, i) => ({
         id: m.id,
         instanceId: m.instanceId,
         name: m.name,
         spriteType: m.spriteType,
         hp: m.currentHp,
+        shownHp: shownHp[i] ?? m.currentHp, // nameplate HP: lags hp until pending hits land
         maxHp: m.maxHp,
         block: m.block,
         element: m.element,
@@ -1162,7 +1202,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         <div className="flex items-start justify-end gap-2 flex-1 min-w-0 pl-4">
           {monsters.map((m, idx) => {
             const isTargeted = idx === targetedMonsterIndex;
-            const isDead = m.currentHp <= 0;
+            const hp = shownHp[idx] ?? m.currentHp;
+            const isDead = hp <= 0;
             const cardClass = isDead ? 'kk-hud-card--dead' : isTargeted ? 'kk-hud-card--targeted' : 'kk-hud-card--monster';
             const intentCritical = m.intent.remainingSeconds < 1.2;
             const intentProgress = Math.max(0, Math.min(100, (1 - m.intent.remainingSeconds / m.intent.durationSeconds) * 100));
@@ -1213,9 +1254,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                     <div className="kk-hud-vial h-[11px] mt-1">
                       <div
                         className="kk-hud-vial__bar kk-hud-vial__bar--monster"
-                        style={{ width: `${Math.max(0, Math.min(100, (m.currentHp / m.maxHp) * 100))}%` }}
+                        style={{ width: `${Math.max(0, Math.min(100, (hp / m.maxHp) * 100))}%` }}
                       />
-                      <span className="kk-hud-vial__label">{m.currentHp} / {m.maxHp}</span>
+                      <span className="kk-hud-vial__label">{hp} / {m.maxHp}</span>
                     </div>
 
                     {/* Intent: what lands when the charge bar fills */}
@@ -1507,7 +1548,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                     <span className="text-[#FF3366]">{ENCOUNTERS[currentEncounterIndex].map!.replace(/_/g, ' ')}</span>
                   )}
                   <span className="text-white truncate">
-                    {ENCOUNTERS[currentEncounterIndex]?.name.toUpperCase() || 'ENCOUNTER'} ({monsters.filter(m => m.currentHp > 0).length}/{monsters.length})
+                    {ENCOUNTERS[currentEncounterIndex]?.name.toUpperCase() || 'ENCOUNTER'} ({monsters.filter((m, i) => (shownHp[i] ?? m.currentHp) > 0).length}/{monsters.length})
                   </span>
                 </>
               )}

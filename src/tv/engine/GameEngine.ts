@@ -87,6 +87,7 @@ interface KnightMoveOptions {
   targets?: number[];
   ctx?: Partial<KnightMoveContext>;
   onImpact?: (i: number) => void;
+  onStart?: () => void; // when the move begins playing (later than the call if it was queued)
   onFinish?: () => void;
   isKillCam?: boolean;
   killSlot?: number;
@@ -1609,6 +1610,9 @@ export class GameEngine {
   public playKnightDefeat(): void {
     const spine = this.knightSpine;
     if (!spine || this.knightLocked) return;
+    // A fallen knight casts nothing more: drop the queued casts, then cut the playing one short
+    this.knightMoveQueue = [];
+    this.activeKnightMove?.cancel();
     this.knightLocked = true;
     audioManager.play('hurt', { pan: -0.3 });
     audioManager.play('thud', { pan: -0.3, delay: 0.45, rate: 0.8 }); // armour hits the floor
@@ -2668,6 +2672,7 @@ export class GameEngine {
       if (this.knightMoveQueue.length > MAX_QUEUED_KNIGHT_MOVES) this.activeKnightMove.cancel();
       return;
     }
+    opts.onStart?.();
     const ctx: KnightMoveContext = { power: 100, form: 1, crit: false, damage: 0, ...knightMoveCard(id), ...opts.ctx };
     const defaultSlot = (this.monsterSlots[this.targetSlotIndex]?.isAlive ? this.monsterSlots[this.targetSlotIndex] : null)
       ?? this.monsterSlots.find((s) => s.isAlive);
@@ -2694,6 +2699,7 @@ export class GameEngine {
     const knight = this.knightContainer;
     if (!knight || !this.effectsLayer || !this.gameLayer) {
       landAll();
+      this.playNextKnightMove();
       return;
     }
     this.activeKnightMove?.cancel();
@@ -2861,9 +2867,16 @@ export class GameEngine {
     } catch (err) {
       console.error(`[GameEngine] knight move ${id} failed to build:`, err);
       cleanup();
+      this.playNextKnightMove();
       return;
     }
     this.runKnightTimeline(id, tl, cleanup, opts.onFinish, opts.isKillCam);
+  }
+
+  /** Starts the oldest queued knight move, if any (playKnightMove queues casts made mid-move). */
+  private playNextKnightMove(): void {
+    const next = this.isDestroyed ? undefined : this.knightMoveQueue.shift();
+    if (next) this.playKnightMove(next.id, next.opts);
   }
 
   /** Ticks a knight move's timeline on the engine loop; `cleanup` runs once when it ends or is cut short. */
@@ -2883,8 +2896,7 @@ export class GameEngine {
         if (this.activeKnightMove === handle) this.activeKnightMove = null;
         cleanup();
         // The next queued cast starts now, so a pending Block pulse or victory pose waits for it too
-        const next = this.isDestroyed ? undefined : this.knightMoveQueue.shift();
-        if (next) this.playKnightMove(next.id, next.opts);
+        this.playNextKnightMove();
         if (this.knightShieldPending && !this.activeKnightMove) {
           this.knightShieldPending = false;
           if (!this.knightGuardShown) this.playerShieldPulse();
@@ -3429,6 +3441,7 @@ export class GameEngine {
       move?: string;
       targets?: number[];
       onImpact?: (i: number) => void;
+      onStart?: () => void;
       onFinish?: () => void;
       isKillCam?: boolean;
       killSlot?: number;
