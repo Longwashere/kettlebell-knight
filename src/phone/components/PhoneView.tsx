@@ -5,7 +5,7 @@ import { NormalizedLandmark, POSE_INDEX } from '../utils/KinematicTracker';
 import { HandTracker, ExercisePhase } from '../utils/HandTracker';
 import { StageLog, StageAttempt } from '../utils/stageLog';
 import { TrackingTestPanel, TestRepEntry, ALL_EXERCISES, REP_GROUP_MS, exerciseLabel } from './TrackingTestPanel';
-import { networkManager, NetworkConnectionState } from '../../shared/NetworkManager';
+import { networkManager, NetworkConnectionState, lastPairedRoom } from '../../shared/NetworkManager';
 import { RepTelemetry, ExerciseType, EXERCISE_SKILLS, HandSyncMode } from '../../types/game';
 import { CombatCard } from '../../types/battle';
 import { audioManager } from '../../shared/AudioManager';
@@ -17,9 +17,10 @@ import { Tv, Zap, Swords, Wifi } from 'lucide-react';
 
 export const PhoneView: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const roomFromQuery = searchParams.get('room') || '';
+  // The QR link carries ?room=; the home-screen app opens without it and rejoins the last TV instead
+  const initialRoom = searchParams.get('room') || lastPairedRoom();
 
-  const [roomId, setRoomId] = useState<string>(roomFromQuery);
+  const [roomId, setRoomId] = useState<string>(initialRoom);
   const [netState, setNetState] = useState<NetworkConnectionState>('DISCONNECTED');
   const [statusMessage, setStatusMessage] = useState<string>('Ready to pair with Fire TV');
   const [workoutStarted, setWorkoutStarted] = useState<boolean>(false);
@@ -113,9 +114,9 @@ export const PhoneView: React.FC = () => {
       if (info) setStatusMessage(info);
     });
 
-    // Auto-connect if room is present in URL, otherwise scan local WiFi (dev server only)
-    if (roomFromQuery) {
-      handleConnect(roomFromQuery);
+    // Auto-connect to the QR link's or the last room, otherwise scan local WiFi (dev server only)
+    if (initialRoom) {
+      handleConnect(initialRoom);
     } else if (LAN_DISCOVERY) {
       scanWifi();
     }
@@ -127,7 +128,7 @@ export const PhoneView: React.FC = () => {
         wakeLockRef.current.release().catch(() => {});
       }
     };
-  }, [roomFromQuery]);
+  }, [initialRoom]);
 
   // Connect to TV Host via PeerJS
   const handleConnect = async (targetRoom: string) => {

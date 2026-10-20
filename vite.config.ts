@@ -66,21 +66,63 @@ function localDiscoveryPlugin(): Plugin {
 }
 
 /**
- * GitHub Pages build (`vite build --mode pages`): the site is only the phone companion.
+ * GitHub Pages build (`vite build --mode pages`): the site is only the phone companion, installable as a PWA.
  * Drops the TV-only assets (~140 MB) and, since Pages has no SPA rewrites, copies index.html to each
  * route's folder (so /phone?room=… loads with a 200) and to 404.html for anything else.
+ * pwa/ holds the icons and service worker; the manifest is written here so its paths follow `base`.
  */
 function pagesSitePlugin(): Plugin {
   const TV_ONLY_ASSETS = ['spine', 'music', 'cinematics', 'codex', 'backgrounds'];
   const ROUTES = ['phone', 'test', 'lab'];
+  const PWA_FILES = ['icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
+  const THEME = '#0F0E17';
+  let base = '/';
   return {
     name: 'phone-pages-site',
     apply: 'build',
+    configResolved(config) {
+      base = config.base;
+    },
+    transformIndexHtml() {
+      const meta = (name: string, content: string) => ({ tag: 'meta', attrs: { name, content }, injectTo: 'head' as const });
+      return [
+        { tag: 'link', attrs: { rel: 'manifest', href: `${base}manifest.webmanifest` }, injectTo: 'head' },
+        { tag: 'link', attrs: { rel: 'apple-touch-icon', href: `${base}apple-touch-icon.png` }, injectTo: 'head' },
+        meta('theme-color', THEME),
+        meta('mobile-web-app-capable', 'yes'),
+        meta('apple-mobile-web-app-capable', 'yes'),
+        meta('apple-mobile-web-app-title', 'KB Knight'),
+        meta('apple-mobile-web-app-status-bar-style', 'black-translucent'),
+      ];
+    },
     closeBundle() {
       const dist = path.resolve(__dirname, 'dist');
       for (const dir of TV_ONLY_ASSETS) {
         fs.rmSync(path.join(dist, 'assets', dir), { recursive: true, force: true });
       }
+
+      const pwa = path.resolve(__dirname, 'pwa');
+      for (const file of PWA_FILES) fs.copyFileSync(path.join(pwa, file), path.join(dist, file));
+      const sw = fs.readFileSync(path.join(pwa, 'sw.js'), 'utf8').replace(/__BUILD_ID__/g, Date.now().toString(36));
+      fs.writeFileSync(path.join(dist, 'sw.js'), sw);
+      const manifest = {
+        id: `${base}phone`,
+        name: 'Kettlebell Knight Companion',
+        short_name: 'KB Knight',
+        description: 'Counts your kettlebell reps with the camera and sends them to Kettlebell Knight on your TV.',
+        start_url: `${base}phone`,
+        scope: base,
+        display: 'standalone',
+        background_color: THEME,
+        theme_color: THEME,
+        icons: [
+          { src: `${base}icon-192.png`, sizes: '192x192', type: 'image/png' },
+          { src: `${base}icon-512.png`, sizes: '512x512', type: 'image/png' },
+          { src: `${base}icon-maskable-512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      };
+      fs.writeFileSync(path.join(dist, 'manifest.webmanifest'), JSON.stringify(manifest, null, 2));
+
       const index = path.join(dist, 'index.html');
       for (const route of ROUTES) {
         fs.mkdirSync(path.join(dist, route), { recursive: true });

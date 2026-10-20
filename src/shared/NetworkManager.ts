@@ -13,6 +13,30 @@ export type HandCallback = (cards: CombatCard[] | null, mode?: HandSyncMode) => 
  * WebRTC Network Manager using PeerJS (signalling and STUN/TURN servers configured in deployConfig).
  * Enables zero-latency reliable RTCDataChannel telemetry streaming from Phone to Fire TV.
  */
+const TV_ROOM_KEY = 'kk_tv_room';
+const PHONE_ROOM_KEY = 'kk_phone_last_room';
+
+function readStored(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStored(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage blocked (private mode): pairing still works, it just isn't remembered
+  }
+}
+
+/** Phone: the last TV room it paired with, for the home-screen app that opens without ?room=. */
+export function lastPairedRoom(): string {
+  return readStored(PHONE_ROOM_KEY) || '';
+}
+
 export class NetworkManager {
   private static instance: NetworkManager;
   private peer: Peer | null = null;
@@ -89,11 +113,13 @@ export class NetworkManager {
   }
 
   /**
-   * Initializes TV host peer listening for incoming phone connections
+   * Initializes TV host peer listening for incoming phone connections.
+   * The TV keeps its room code across launches, so a phone that saved the companion to its home screen
+   * (and remembers its last room) reconnects without scanning the QR code again.
    */
   public async initHost(customRoomId?: string): Promise<string> {
     this.isHost = true;
-    this.roomId = customRoomId || NetworkManager.generateRoomCode();
+    this.roomId = customRoomId || readStored(TV_ROOM_KEY) || NetworkManager.generateRoomCode();
     this.setState('INITIALIZING', `Setting up room ${this.roomId}...`);
     const options = await peerOptions();
 
@@ -105,6 +131,7 @@ export class NetworkManager {
 
       this.peer.on('open', (id) => {
         this.roomId = id;
+        writeStored(TV_ROOM_KEY, id);
         this.setState('WAITING_FOR_PEER', `Room ready: ${id}`);
         resolve(id);
       });
@@ -154,6 +181,7 @@ export class NetworkManager {
         this.setupConnectionHandlers(conn);
 
         conn.on('open', () => {
+          writeStored(PHONE_ROOM_KEY, roomId);
           this.sendHandshake();
           resolve();
         });

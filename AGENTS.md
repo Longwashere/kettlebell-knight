@@ -62,7 +62,9 @@ Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test
 - The phone companion is on GitHub Pages (https://longwashere.github.io/kettlebell-knight/phone), deployed by
   `.github/workflows/pages.yml` on every push to `main`. `npm run build:pages` (Vite mode `pages`, `.env.pages`) serves
   only `/phone` and `/test`, under base `/kettlebell-knight/`, without the TV assets; use `import.meta.env.BASE_URL`
-  for any asset the phone loads. The Fire TV app is a Capacitor Android shell (`capacitor.config.ts`, `android/`) bundling `dist/`
+  for any asset the phone loads. It's an installable PWA: icons + service worker in `pwa/`, manifest written by
+  `pagesSitePlugin` in vite.config.ts. The TV keeps its room code across launches and the phone remembers its last
+  room (`lastPairedRoom`), so the home-screen app reconnects without the QR code. The Fire TV app is a Capacitor Android shell (`capacitor.config.ts`, `android/`) bundling `dist/`
   (or loading `CAP_SERVER_URL`); `src/tv/native.ts` bridges the remote's Back key and exits from the title menu / hub.
 - Release settings are `VITE_*` env vars read in `src/shared/deployConfig.ts` (see `.env.example`): `VITE_PHONE_URL`
   for the pairing QR code (set in `.env.production`; required in the APK, whose origin is `https://localhost`),
