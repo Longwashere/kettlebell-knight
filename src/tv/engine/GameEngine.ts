@@ -80,6 +80,19 @@ const KNIGHT_ATLAS_KEY = '/assets/spine/knight/HulkForm2.atlas';
 const KNIGHT_FX_SLOTS = ['sword', 'Normal_Slash', 'Light', 'PunchFx_Skill3', 'Dash_Mash'];
 const KNIGHT_SCALE = 0.15;
 const KNIGHT_HOME = { x: 130, y: 168 }; // knight feet at rest (battlefield coords)
+const MAX_QUEUED_KNIGHT_MOVES = 3; // casts waiting behind the playing move before it gets cut short
+
+/** playKnightMove() options: who it hits, what it shows, and what runs when it lands and ends. */
+interface KnightMoveOptions {
+  targets?: number[];
+  ctx?: Partial<KnightMoveContext>;
+  onImpact?: (i: number) => void;
+  onFinish?: () => void;
+  isKillCam?: boolean;
+  killSlot?: number;
+  stagger?: number;
+  interrupt?: boolean;
+}
 /** Knight feet and scale in the blacksmith's fitting room (left of the docked shop panel). */
 const SHOWCASE_KNIGHT = { x: 100, y: 192, scale: 1.28 };
 const MONSTER_OUTLINE_COLOR = 0x0F0E17; // retro.dark
@@ -1227,6 +1240,8 @@ export class GameEngine {
 
   // Knight move choreography (knightMoves.ts)
   private activeKnightMove: { id: KnightMoveId; cancel: () => void } | null = null;
+  // Casts made while a move plays wait their turn (playKnightMove), oldest first
+  private knightMoveQueue: { id: KnightMoveId; opts: KnightMoveOptions }[] = [];
   private knightVictoryPending = false; // victory pose waits for the finishing blow's move to end
   private knightShieldPending = false; // Block pulse requested during a move
   private knightGuardShown = false; // the current move drew its own Block ward (guard())
@@ -2075,6 +2090,7 @@ export class GameEngine {
     this.isKillCamActive = false;
     this.hitStopFrames = 0;
     this.spinesFrozen = false;
+    this.knightMoveQueue = []; // dropped first, or cancelling the move would start the next one
     this.activeKnightMove?.cancel();
     this.activeKnightMove = null;
     this.knightLocked = false;
@@ -2643,19 +2659,15 @@ export class GameEngine {
    * order; defaults to the targeted monster). `onImpact(i)` runs when hit `i` lands; every hit lands
    * exactly once, even if the move is cut short. When a move lands all hits at once they are spaced
    * `stagger` frames apart (CHAIN cards use a longer stagger).
+   * A move requested while another plays is queued and starts when it ends (`interrupt` cuts the
+   * playing one short instead). Past MAX_QUEUED_KNIGHT_MOVES waiting, the playing move is cut short.
    */
-  public playKnightMove(
-    id: KnightMoveId,
-    opts: {
-      targets?: number[];
-      ctx?: Partial<KnightMoveContext>;
-      onImpact?: (i: number) => void;
-      onFinish?: () => void;
-      isKillCam?: boolean;
-      killSlot?: number;
-      stagger?: number;
-    } = {},
-  ): void {
+  public playKnightMove(id: KnightMoveId, opts: KnightMoveOptions = {}): void {
+    if (this.activeKnightMove && !opts.interrupt && this.knightContainer && !this.isDestroyed) {
+      this.knightMoveQueue.push({ id, opts });
+      if (this.knightMoveQueue.length > MAX_QUEUED_KNIGHT_MOVES) this.activeKnightMove.cancel();
+      return;
+    }
     const ctx: KnightMoveContext = { power: 100, form: 1, crit: false, damage: 0, ...knightMoveCard(id), ...opts.ctx };
     const defaultSlot = (this.monsterSlots[this.targetSlotIndex]?.isAlive ? this.monsterSlots[this.targetSlotIndex] : null)
       ?? this.monsterSlots.find((s) => s.isAlive);
@@ -2870,6 +2882,9 @@ export class GameEngine {
         finished = true;
         if (this.activeKnightMove === handle) this.activeKnightMove = null;
         cleanup();
+        // The next queued cast starts now, so a pending Block pulse or victory pose waits for it too
+        const next = this.isDestroyed ? undefined : this.knightMoveQueue.shift();
+        if (next) this.playKnightMove(next.id, next.opts);
         if (this.knightShieldPending && !this.activeKnightMove) {
           this.knightShieldPending = false;
           if (!this.knightGuardShown) this.playerShieldPulse();
@@ -4029,6 +4044,7 @@ export class GameEngine {
     if (spell?.weaponId) this.showWeaponAttachment(spell.weaponId);
     const slots = targets ?? undefined;
     this.playKnightMove(id, {
+      interrupt: true,
       targets: slots,
       ctx: { power: 90, form: 1, crit: false, damage },
       onImpact: (i) => {
