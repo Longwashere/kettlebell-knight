@@ -1,56 +1,74 @@
 import { NormalizedLandmark, POSE_INDEX } from './KinematicTracker';
+import ARMOR_FRAMES from '../../../public/assets/phone/knight-armor.json';
 
 export interface KnightArmorRenderOptions {
-  glowPower?: number; // 0 - 150 (drives aura and weapon sparks)
+  glowPower?: number; // 0 - 150 (drives the visor glow, aura and embers)
   activePhase?: number; // 0 (Hike/Prep), 1 (Drive), 2 (Lockout)
   showHelmet?: boolean;
   showChestplate?: boolean;
   showPauldrons?: boolean;
   showGauntlets?: boolean;
   showLegArmor?: boolean;
-  showWeapons?: boolean; // defaults to true (Buster Sword & Kettlebell Shield)
-  heraldryColor?: string;
+  showWeapons?: boolean; // defaults to true (the dragon-crest shield)
+  heraldryColor?: string; // tints the war-aura (defaults to forge ember)
   requireFullBody?: boolean; // defaults to true: gatekeeps armor until shoulders, hips, hands, and knees are visible
 }
 
+type Pt = { x: number; y: number };
+type Part = keyof typeof ARMOR_FRAMES;
+
 /**
- * Pixel-Perfect Palette matched directly from the 32-bit Kettlebell Knight reference artwork:
- * Heavy Cast-Iron Slate Blue, Weathered Metal Highlights, and Fiery Molten T-Visor Glow.
+ * Palette sampled from the TV knight (HulkForm2): blackened steel, gilded bronze trim, crimson cloth
+ * and the forge-ember glow of the visor.
  */
-const KB_PALETTE = {
-  // Heavy Cast-Iron Steel
-  outline: '#13141C',
-  ironDarkest: '#1C1F2B',
-  ironShadow: '#282E40',
-  ironMid: '#3C445C',
-  ironPlate: '#525E7E',
-  ironLight: '#7584A6',
-  ironHighlight: '#A0B0D1',
-  ironGlint: '#D4E0F4',
-
-  // Molten Forge Visor Glow
-  visorDark: '#8A1500',
-  visorRed: '#C92A00',
-  visorOrange: '#FF5900',
-  visorAmber: '#FFA71A',
-  visorCore: '#FFF4A3',
-
-  // Stamped Weight & Scratch Marks
-  stampDark: '#161924',
-  stampBevel: '#8291B3',
+const PAL = {
+  outline: '#0E0A08',
+  steelDark: '#2A2A2E',
+  steelMid: '#5E5D63',
+  steelLight: '#A9A8A6',
+  steelGlint: '#E6E2D6',
+  goldDark: '#5E3F12',
+  gold: '#B5832A',
+  goldLight: '#F2C966',
+  crimsonDark: '#3D0A0B',
+  crimson: '#7E1716',
+  crimsonLight: '#B9302A',
+  wineDark: '#1E0508',
+  wine: '#4A0C12',
+  wineLight: '#6E1520',
+  emberRed: '#C92A00',
+  ember: '#FF6A00',
+  emberAmber: '#FFB12E',
+  emberCore: '#FFF2B0',
 };
 
+/** Armour is painted into a buffer this many canvas pixels per texel, then upscaled without smoothing. */
+const PIXEL = 2;
+
 /**
- * 32-Bit Kettlebell Knight Augmented Reality Renderer.
- * Projects the iconic Kettlebell Juggernaut directly onto MediaPipe Pose landmarks:
- * - Giant cast-iron overhead arch handle sweeping over the shoulders and head
- * - Cylindrical barrel helmet with mini kettlebell loop and glowing fiery T-visor
- * - Spherical cast-iron pauldrons stamped with "24kg" and "32kg" weight badges
- * - Massive round spherical kettlebell breastplate with center reinforcement disc & battle scratches
- * - Heavy Kettlebell Heater Shield and Kettlebell-Hilt Buster Greatsword
- * - Chunky spherical knee cops and cast-iron greaves
+ * Dark-fantasy pixel-art knight projected onto MediaPipe Pose landmarks.
+ * Uses the TV knight's own armour parts (public/assets/phone/knight-armor.png, cut from the Spine atlas by
+ * scripts/build_phone_armor.py) as a 2D puppet — crested great helm, gilded cuirass, gauntlets, greaves and
+ * the dragon-crest shield — plus hand-painted pauldrons, a crimson cape, a glowing visor and a war-aura.
+ * Everything is drawn into a low-res buffer and composited with a dark outline so it reads as one sprite.
  */
 export class KnightArmorRenderer {
+  private static sheet: HTMLImageElement | null = null;
+  private static sheetReady = false;
+  private static art: HTMLCanvasElement | null = null;
+  private static mask: HTMLCanvasElement | null = null;
+
+  /** Starts loading the armour sheet; drawKnightArmor() draws nothing until it has arrived. */
+  public static preload(): void {
+    if (this.sheet) return;
+    const img = new Image();
+    img.onload = () => {
+      this.sheetReady = true;
+    };
+    img.src = '/assets/phone/knight-armor.png';
+    this.sheet = img;
+  }
+
   public static drawKnightArmor(
     ctx: CanvasRenderingContext2D,
     w: number,
@@ -58,7 +76,9 @@ export class KnightArmorRenderer {
     landmarks: NormalizedLandmark[],
     options: KnightArmorRenderOptions = {}
   ): void {
-    if (!landmarks || landmarks.length < 27) return;
+    if (!landmarks || landmarks.length < 29) return;
+    this.preload();
+    if (!this.sheetReady) return;
 
     const {
       glowPower = 50,
@@ -69,970 +89,460 @@ export class KnightArmorRenderer {
       showGauntlets = true,
       showLegArmor = true,
       showWeapons = true,
+      heraldryColor,
       requireFullBody = true,
     } = options;
 
-    ctx.save();
-    ctx.imageSmoothingEnabled = false;
-
-    // Extract landmarks
-    const nose = landmarks[POSE_INDEX.NOSE];
-    const lShoulder = landmarks[POSE_INDEX.LEFT_SHOULDER];
-    const rShoulder = landmarks[POSE_INDEX.RIGHT_SHOULDER];
-    const lElbow = landmarks[POSE_INDEX.LEFT_ELBOW];
-    const rElbow = landmarks[POSE_INDEX.RIGHT_ELBOW];
-    const lWrist = landmarks[POSE_INDEX.LEFT_WRIST];
-    const rWrist = landmarks[POSE_INDEX.RIGHT_WRIST];
-    const lHip = landmarks[POSE_INDEX.LEFT_HIP];
-    const rHip = landmarks[POSE_INDEX.RIGHT_HIP];
-    const lKnee = landmarks[POSE_INDEX.LEFT_KNEE];
-    const rKnee = landmarks[POSE_INDEX.RIGHT_KNEE];
-    const lAnkle = landmarks[POSE_INDEX.LEFT_ANKLE];
-    const rAnkle = landmarks[POSE_INDEX.RIGHT_ANKLE];
-
-    // Body Visibility Gatekeeper:
-    // Only materialize the Kettlebell Knight armor when the user's body down to the knees is fully visible in frame.
-    const isPointValid = (p?: NormalizedLandmark, minVis = 0.40): boolean => {
+    // Body Visibility Gatekeeper: only materialize the armor when the body down to the knees is in frame.
+    const isPointValid = (p?: NormalizedLandmark, minVis = 0.4): boolean => {
       if (!p) return false;
       const vis = p.visibility !== undefined ? p.visibility : 1.0;
       const inBounds = p.x >= 0.01 && p.x <= 0.99 && p.y >= 0.01 && p.y <= 0.99;
       return vis >= minVis && inBounds;
     };
+    const lm = (i: number) => landmarks[i];
+    const shouldersVisible = isPointValid(lm(POSE_INDEX.LEFT_SHOULDER), 0.45) && isPointValid(lm(POSE_INDEX.RIGHT_SHOULDER), 0.45);
+    const hipsVisible = isPointValid(lm(POSE_INDEX.LEFT_HIP)) && isPointValid(lm(POSE_INDEX.RIGHT_HIP));
+    const wristsVisible = isPointValid(lm(POSE_INDEX.LEFT_WRIST), 0.38) || isPointValid(lm(POSE_INDEX.RIGHT_WRIST), 0.38);
+    const kneesVisible = isPointValid(lm(POSE_INDEX.LEFT_KNEE), 0.38) && isPointValid(lm(POSE_INDEX.RIGHT_KNEE), 0.38);
+    if (requireFullBody && !(shouldersVisible && hipsVisible && wristsVisible && kneesVisible)) return;
 
-    const shouldersVisible = isPointValid(lShoulder, 0.45) && isPointValid(rShoulder, 0.45);
-    const hipsVisible = isPointValid(lHip, 0.40) && isPointValid(rHip, 0.40);
-    const wristsVisible = isPointValid(lWrist, 0.38) || isPointValid(rWrist, 0.38);
-    const kneesVisible = isPointValid(lKnee, 0.38) && isPointValid(rKnee, 0.38);
-
-    const isBodyFullyVisible = shouldersVisible && hipsVisible && wristsVisible && kneesVisible;
-
-    if (requireFullBody && !isBodyFullyVisible) {
-      ctx.restore();
-      return;
-    }
-
-    const isVisible = (p?: NormalizedLandmark, minVis = 0.35) =>
-      p && (p.visibility ?? 1) >= minVis;
-
-    // Convert normalized coordinates to screen pixel points
-    const pNose = nose ? { x: nose.x * w, y: nose.y * h } : null;
-    const pLShoulder = { x: lShoulder.x * w, y: lShoulder.y * h };
-    const pRShoulder = { x: rShoulder.x * w, y: rShoulder.y * h };
-    const pLElbow = isVisible(lElbow) ? { x: lElbow.x * w, y: lElbow.y * h } : null;
-    const pRElbow = isVisible(rElbow) ? { x: rElbow.x * w, y: rElbow.y * h } : null;
-    const pLWrist = isVisible(lWrist) ? { x: lWrist.x * w, y: lWrist.y * h } : null;
-    const pRWrist = isVisible(rWrist) ? { x: rWrist.x * w, y: rWrist.y * h } : null;
-    const pLHip = isVisible(lHip) ? { x: lHip.x * w, y: lHip.y * h } : null;
-    const pRHip = isVisible(rHip) ? { x: rHip.x * w, y: rHip.y * h } : null;
-    const pLKnee = isVisible(lKnee) ? { x: lKnee.x * w, y: lKnee.y * h } : null;
-    const pRKnee = isVisible(rKnee) ? { x: rKnee.x * w, y: rKnee.y * h } : null;
-    const pLAnkle = isVisible(lAnkle) ? { x: lAnkle.x * w, y: lAnkle.y * h } : null;
-    const pRAnkle = isVisible(rAnkle) ? { x: rAnkle.x * w, y: rAnkle.y * h } : null;
-
-    // Body metric dimensions
-    const shoulderWidth = Math.hypot(pLShoulder.x - pRShoulder.x, pLShoulder.y - pRShoulder.y);
-    const chestCenter = {
-      x: (pLShoulder.x + pRShoulder.x) / 2,
-      y: (pLShoulder.y + pRShoulder.y) / 2,
+    // Landmarks in buffer texels
+    const bw = Math.ceil(w / PIXEL);
+    const bh = Math.ceil(h / PIXEL);
+    const at = (i: number, minVis = 0.35): Pt | null => {
+      const p = landmarks[i];
+      if (!p || (p.visibility ?? 1) < minVis) return null;
+      return { x: (p.x * w) / PIXEL, y: (p.y * h) / PIXEL };
     };
+    const lS = at(POSE_INDEX.LEFT_SHOULDER, 0);
+    const rS = at(POSE_INDEX.RIGHT_SHOULDER, 0);
+    if (!lS || !rS) return;
+    const nose = at(POSE_INDEX.NOSE);
+    const lEar = at(POSE_INDEX.LEFT_EAR, 0.2);
+    const rEar = at(POSE_INDEX.RIGHT_EAR, 0.2);
+    const lE = at(POSE_INDEX.LEFT_ELBOW);
+    const rE = at(POSE_INDEX.RIGHT_ELBOW);
+    const lW = at(POSE_INDEX.LEFT_WRIST);
+    const rW = at(POSE_INDEX.RIGHT_WRIST);
+    const lH = at(POSE_INDEX.LEFT_HIP);
+    const rH = at(POSE_INDEX.RIGHT_HIP);
+    const lK = at(POSE_INDEX.LEFT_KNEE);
+    const rK = at(POSE_INDEX.RIGHT_KNEE);
+    const lA = at(POSE_INDEX.LEFT_ANKLE);
+    const rA = at(POSE_INDEX.RIGHT_ANKLE);
+    const lT = at(POSE_INDEX.LEFT_FOOT_INDEX);
+    const rT = at(POSE_INDEX.RIGHT_FOOT_INDEX);
 
-    // 1. GIANT OVERHEAD KETTLEBELL ARCH HANDLE (Drawn in background behind head/body)
-    this.drawOverheadKettlebellHandle(ctx, pLShoulder, pRShoulder, pNose, shoulderWidth);
+    const sw = Math.max(8, dist(lS, rS));
+    const neckBase = mid(lS, rS);
+    const hipMid = lH && rH ? mid(lH, rH) : { x: neckBase.x, y: neckBase.y + sw * 1.3 };
+    const centerX = neckBase.x;
+    const time = performance.now() / 1000;
+    const surge = Math.min(1, Math.max(0, (glowPower - 40) / 80)) * 0.7 + (activePhase === 1 ? 0.3 : 0);
 
-    // 2. ROUND SPHERICAL KETTLEBELL CUIRASS (Belly & Chest)
-    if (showChestplate && pLHip && pRHip) {
-      this.drawKettlebellCuirass(ctx, pLShoulder, pRShoulder, pLHip, pRHip, activePhase, glowPower);
-    }
+    const b = this.buffer(bw, bh);
+    b.setTransform(1, 0, 0, 1, 0, 0);
+    b.clearRect(0, 0, bw, bh);
+    b.imageSmoothingEnabled = false;
 
-    // 3. SPHERICAL KETTLEBELL PAULDRONS ("24kg" & "32kg" stamped spheres)
-    if (showPauldrons) {
-      const pauldronRadius = shoulderWidth * 0.32;
-      // Left on screen (user's right shoulder): 24kg
-      this.drawKettlebellPauldron(ctx, pLShoulder, pLElbow, pauldronRadius, '24kg', 'LEFT');
-      // Right on screen (user's left shoulder): 32kg
-      this.drawKettlebellPauldron(ctx, pRShoulder, pRElbow, pauldronRadius, '32kg', 'RIGHT');
-    }
+    // --- Back to front ---
+    if (showChestplate) this.drawCape(b, lS, rS, hipMid, lK, rK, sw, time, activePhase);
 
-    // 4. VAMBRACES & WEAPONS (Buster Sword in right hand, Heater Shield on left arm)
-    if (showGauntlets) {
-      if (pLElbow && pLWrist) {
-        this.drawIronVambrace(ctx, pLElbow, pLWrist, shoulderWidth * 0.16);
-        if (showWeapons) {
-          // Mount Buster Greatsword on screen-left hand
-          this.drawKettlebellBusterSword(ctx, pLElbow, pLWrist, shoulderWidth * 0.45, glowPower, activePhase);
-        }
-      }
-      if (pRElbow && pRWrist) {
-        this.drawIronVambrace(ctx, pRElbow, pRWrist, shoulderWidth * 0.16);
-        if (showWeapons) {
-          // Mount Kettlebell Heater Shield on screen-right forearm
-          this.drawKettlebellShield(ctx, pRElbow, pRWrist, shoulderWidth * 0.48, activePhase);
-        }
-      }
-    }
-
-    // 5. LEGS: CHUNKY KNEE COPS & GREAVES
     if (showLegArmor) {
-      const kneeSize = shoulderWidth * 0.18;
-      if (pLKnee) this.drawKettlebellPoleyn(ctx, pLKnee, kneeSize);
-      if (pRKnee) this.drawKettlebellPoleyn(ctx, pRKnee, kneeSize);
-
-      if (pLKnee && pLAnkle) this.drawKettlebellGreave(ctx, pLKnee, pLAnkle, shoulderWidth * 0.16);
-      if (pRKnee && pRAnkle) this.drawKettlebellGreave(ctx, pRKnee, pRAnkle, shoulderWidth * 0.16);
+      for (const [hip, knee, ankle, toe] of [
+        [lH, lK, lA, lT],
+        [rH, rK, rA, rT],
+      ] as const) {
+        if (hip && knee) this.limb(b, 'thigh', hip, knee, sw * 0.4, -0.06, 0.12, sideOf(knee, centerX));
+        if (knee && ankle) this.limb(b, 'calf', knee, ankle, sw * 0.36, -0.08, 0.06, sideOf(knee, centerX));
+        if (ankle) this.foot(b, ankle, toe, knee, sw);
+      }
     }
 
-    // 6. HELMET & GLOWING T-VISOR (Drawn in front of the handle)
-    if (showHelmet && pNose) {
-      this.drawKettlebellHelmet(ctx, pNose, chestCenter, shoulderWidth * 0.4, activePhase, glowPower);
+    if (showChestplate && lH && rH) {
+      // Gilded cuirass from the collar to just past the hips (its crimson tabard covers the belt line)
+      const torsoLen = dist(neckBase, hipMid);
+      const tilt = Math.atan2(hipMid.x - neckBase.x, hipMid.y - neckBase.y);
+      this.sprite(b, 'body', neckBase.x, neckBase.y - torsoLen * 0.08, sw * 1.18, torsoLen * 1.26, -tilt, 0.5, 0);
     }
 
-    // 7. ATMOSPHERIC FORGE EMBERS (Rising from the T-Visor and Greatsword)
-    if (glowPower > 60 || activePhase === 1) {
-      if (pNose) this.drawForgeEmbers(ctx, pNose.x, pNose.y, shoulderWidth * 0.5, activePhase);
+    // Arms: plate upper arm, then the gauntlet with the fist past the wrist
+    // The shield stays out of the way of two-handed grips and overhead lockouts
+    const shieldOnRight = showWeapons && rE && rW && rW.y > rS.y && (!lW || dist(lW, rW) > sw * 0.55);
+    for (const [shoulder, elbow, wrist, part] of [
+      [lS, lE, lW, 'forearmB'],
+      [rS, rE, rW, 'forearm'],
+    ] as const) {
+      const side = sideOf(shoulder, centerX);
+      if (showGauntlets && elbow) this.limb(b, part, shoulder, elbow, sw * 0.34, -0.1, 0.1, side);
+      if (showGauntlets && elbow && wrist) this.limb(b, 'arm', elbow, wrist, sw * 0.4, -0.08, 0.5, -side);
     }
 
-    ctx.restore();
-  }
-
-  /**
-   * 1. Giant Overhead Cast-Iron Kettlebell Arch Handle
-   * Loops high above the head from behind the left shoulder to behind the right shoulder.
-   */
-  private static drawOverheadKettlebellHandle(
-    ctx: CanvasRenderingContext2D,
-    lS: { x: number; y: number },
-    rS: { x: number; y: number },
-    nose: { x: number; y: number } | null,
-    shoulderWidth: number
-  ): void {
-    const chestCenterX = (lS.x + rS.x) / 2;
-    const chestCenterY = (lS.y + rS.y) / 2;
-    const headTopY = nose ? nose.y - shoulderWidth * 0.35 : chestCenterY - shoulderWidth * 0.7;
-    const archApexY = headTopY - shoulderWidth * 0.38;
-    const archWidth = shoulderWidth * 0.85;
-    const tubeThickness = Math.max(14, shoulderWidth * 0.14);
-
-    ctx.save();
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    // Path for the big kettlebell arch handle
-    const createArchPath = (yOffset = 0) => {
-      ctx.beginPath();
-      ctx.moveTo(chestCenterX - archWidth * 0.5, lS.y + 10 + yOffset);
-      ctx.bezierCurveTo(
-        chestCenterX - archWidth * 0.58,
-        archApexY + yOffset,
-        chestCenterX + archWidth * 0.58,
-        archApexY + yOffset,
-        chestCenterX + archWidth * 0.5,
-        rS.y + 10 + yOffset
-      );
-    };
-
-    // Black outer outline
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = tubeThickness + 10;
-    createArchPath();
-    ctx.stroke();
-
-    // Dark shadow tube base
-    ctx.strokeStyle = KB_PALETTE.ironShadow;
-    ctx.lineWidth = tubeThickness + 4;
-    createArchPath();
-    ctx.stroke();
-
-    // Cast-iron plate body
-    ctx.strokeStyle = KB_PALETTE.ironPlate;
-    ctx.lineWidth = tubeThickness;
-    createArchPath();
-    ctx.stroke();
-
-    // Metallic highlight stripe along the outer top curve
-    ctx.strokeStyle = KB_PALETTE.ironHighlight;
-    ctx.lineWidth = tubeThickness * 0.38;
-    ctx.beginPath();
-    ctx.moveTo(chestCenterX - archWidth * 0.42, archApexY + tubeThickness * 0.6);
-    ctx.bezierCurveTo(
-      chestCenterX - archWidth * 0.45,
-      archApexY - tubeThickness * 0.15,
-      chestCenterX + archWidth * 0.45,
-      archApexY - tubeThickness * 0.15,
-      chestCenterX + archWidth * 0.42,
-      archApexY + tubeThickness * 0.6
-    );
-    ctx.stroke();
-
-    // Specular glint at apex
-    ctx.strokeStyle = KB_PALETTE.ironGlint;
-    ctx.lineWidth = tubeThickness * 0.16;
-    ctx.beginPath();
-    ctx.moveTo(chestCenterX - archWidth * 0.18, archApexY - tubeThickness * 0.12);
-    ctx.lineTo(chestCenterX + archWidth * 0.18, archApexY - tubeThickness * 0.12);
-    ctx.stroke();
-
-    ctx.restore();
-  }
-
-  /**
-   * 2. Cylindrical Barrel Helmet, Mini Handle & Glowing Molten T-Visor
-   */
-  private static drawKettlebellHelmet(
-    ctx: CanvasRenderingContext2D,
-    nose: { x: number; y: number },
-    chestCenter: { x: number; y: number },
-    radius: number,
-    phase: number,
-    power: number
-  ): void {
-    const headAngle = Math.atan2(nose.x - chestCenter.x, chestCenter.y - nose.y) * 0.28;
-    const helmCenter = { x: nose.x, y: nose.y - radius * 0.15 };
-
-    ctx.save();
-    ctx.translate(helmCenter.x, helmCenter.y);
-    ctx.rotate(headAngle);
-
-    // --- A. ROUND NECK COLLAR / GORGET (Base under helmet) ---
-    const collarW = radius * 1.55;
-    const collarH = radius * 0.42;
-    const collarY = radius * 0.75;
-
-    ctx.fillStyle = KB_PALETTE.ironDarkest;
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.ellipse(0, collarY, collarW * 0.5, collarH * 0.5, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Collar metallic rim highlight
-    ctx.strokeStyle = KB_PALETTE.ironHighlight;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.ellipse(0, collarY - 2, collarW * 0.45, collarH * 0.35, 0, 0, Math.PI);
-    ctx.stroke();
-
-    // --- B. MINI KETTLEBELL HANDLE ON TOP OF HELMET ---
-    const miniHandleW = radius * 0.52;
-    const miniHandleH = radius * 0.38;
-    const miniThickness = Math.max(5, radius * 0.11);
-
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = miniThickness + 4;
-    ctx.beginPath();
-    ctx.arc(0, -radius * 0.85, miniHandleW * 0.5, Math.PI, 0);
-    ctx.stroke();
-
-    ctx.strokeStyle = KB_PALETTE.ironPlate;
-    ctx.lineWidth = miniThickness;
-    ctx.beginPath();
-    ctx.arc(0, -radius * 0.85, miniHandleW * 0.5, Math.PI, 0);
-    ctx.stroke();
-
-    ctx.strokeStyle = KB_PALETTE.ironGlint;
-    ctx.lineWidth = miniThickness * 0.35;
-    ctx.beginPath();
-    ctx.arc(0, -radius * 0.85, miniHandleW * 0.5 - 1, Math.PI * 0.8, Math.PI * 0.2, true);
-    ctx.stroke();
-
-    // --- C. CYLINDRICAL BARREL DOME HELMET ---
-    const helmW = radius * 1.35;
-    const helmH = radius * 1.5;
-
-    // Cast-iron shaded cylinder gradient
-    const helmGrad = ctx.createLinearGradient(-helmW * 0.5, 0, helmW * 0.5, 0);
-    helmGrad.addColorStop(0, KB_PALETTE.ironDarkest);
-    helmGrad.addColorStop(0.18, KB_PALETTE.ironShadow);
-    helmGrad.addColorStop(0.5, KB_PALETTE.ironPlate);
-    helmGrad.addColorStop(0.8, KB_PALETTE.ironLight);
-    helmGrad.addColorStop(0.92, KB_PALETTE.ironHighlight);
-    helmGrad.addColorStop(1, KB_PALETTE.ironDarkest);
-
-    ctx.fillStyle = helmGrad;
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 4;
-
-    ctx.beginPath();
-    // Rounded dome top tapering to flat barrel chin
-    ctx.roundRect(-helmW * 0.5, -radius * 0.85, helmW, helmH, [
-      radius * 0.65,
-      radius * 0.65,
-      radius * 0.25,
-      radius * 0.25,
-    ]);
-    ctx.fill();
-    ctx.stroke();
-
-    // Horizontal ridge band across the brow
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(-helmW * 0.48, -radius * 0.28);
-    ctx.lineTo(helmW * 0.48, -radius * 0.28);
-    ctx.stroke();
-
-    ctx.strokeStyle = KB_PALETTE.ironGlint;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(-helmW * 0.45, -radius * 0.31);
-    ctx.lineTo(helmW * 0.45, -radius * 0.31);
-    ctx.stroke();
-
-    // --- D. GLOWING MOLTEN FIERY T-VISOR SLIT (Key Feature) ---
-    const visorW = radius * 0.82;
-    const visorBarH = Math.max(7, radius * 0.18);
-    const stemW = Math.max(8, radius * 0.24);
-    const stemH = radius * 0.44;
-    const visorY = -radius * 0.08;
-
-    // Helper: Draws the T-Visor polygon path
-    const createTVisorPath = () => {
-      ctx.beginPath();
-      // Top horizontal bar
-      ctx.moveTo(-visorW * 0.5, visorY);
-      ctx.lineTo(visorW * 0.5, visorY);
-      ctx.lineTo(visorW * 0.5, visorY + visorBarH);
-      ctx.lineTo(stemW * 0.5, visorY + visorBarH);
-      // Down vertical stem
-      ctx.lineTo(stemW * 0.5, visorY + visorBarH + stemH);
-      ctx.lineTo(-stemW * 0.5, visorY + visorBarH + stemH);
-      ctx.lineTo(-stemW * 0.5, visorY + visorBarH);
-      ctx.lineTo(-visorW * 0.5, visorY + visorBarH);
-      ctx.closePath();
-    };
-
-    // 1. Dark Black Recessed Cavity
-    ctx.fillStyle = KB_PALETTE.outline;
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 3;
-    createTVisorPath();
-    ctx.fill();
-    ctx.stroke();
-
-    // 2. Fiery Visor Glow & Bloom
-    const isDrive = phase === 1;
-    ctx.save();
-    ctx.shadowColor = KB_PALETTE.visorOrange;
-    ctx.shadowBlur = isDrive ? 28 : 16;
-
-    // Visor fiery gradient (bright yellow core, deep orange edges)
-    const visorGrad = ctx.createLinearGradient(0, visorY, 0, visorY + visorBarH + stemH);
-    visorGrad.addColorStop(0, KB_PALETTE.visorCore);
-    visorGrad.addColorStop(0.35, KB_PALETTE.visorAmber);
-    visorGrad.addColorStop(0.7, KB_PALETTE.visorOrange);
-    visorGrad.addColorStop(1, KB_PALETTE.visorRed);
-
-    ctx.fillStyle = visorGrad;
-    createTVisorPath();
-    ctx.fill();
-
-    // Superheated white-hot center filament
-    ctx.fillStyle = KB_PALETTE.visorCore;
-    ctx.shadowColor = '#FFFFFF';
-    ctx.shadowBlur = 8;
-    ctx.fillRect(-visorW * 0.42, visorY + 2, visorW * 0.84, visorBarH * 0.45);
-    ctx.fillRect(-stemW * 0.25, visorY + visorBarH, stemW * 0.5, stemH * 0.7);
-
-    ctx.restore();
-
-    ctx.restore();
-  }
-
-  /**
-   * 3. Spherical Cast-Iron Pauldrons ("24kg" & "32kg" Stamped Spheres)
-   */
-  private static drawKettlebellPauldron(
-    ctx: CanvasRenderingContext2D,
-    shoulder: { x: number; y: number },
-    elbow: { x: number; y: number } | null,
-    radius: number,
-    weightText: '24kg' | '32kg',
-    side: 'LEFT' | 'RIGHT'
-  ): void {
-    ctx.save();
-    ctx.translate(shoulder.x, shoulder.y);
-
-    if (elbow) {
-      const angle = Math.atan2(elbow.y - shoulder.y, elbow.x - shoulder.x);
-      // Tilt slightly with the arm
-      ctx.rotate(angle * 0.4);
+    if (showPauldrons) {
+      this.pauldron(b, lS, lE, sw, sideOf(lS, centerX));
+      this.pauldron(b, rS, rE, sw, sideOf(rS, centerX));
     }
 
-    // --- A. UNDER-RING CUFF PLATES (Articulation rings under sphere) ---
-    const cuffW = radius * 1.6;
-    const cuffH = radius * 0.45;
-    ctx.fillStyle = KB_PALETTE.ironDarkest;
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 3.5;
+    if (shieldOnRight && rE && rW) this.shield(b, rE, rW, sw, sideOf(rW, centerX));
 
-    ctx.beginPath();
-    ctx.roundRect(-cuffW * 0.5, radius * 0.45, cuffW, cuffH, [6]);
-    ctx.fill();
-    ctx.stroke();
+    if (showHelmet && nose) this.helm(b, nose, lEar, rEar, neckBase, sw, surge, time);
 
-    // Rivets on cuff
-    ctx.fillStyle = KB_PALETTE.ironHighlight;
-    ctx.fillRect(-cuffW * 0.35, radius * 0.6, 4, 4);
-    ctx.fillRect(0, radius * 0.6, 4, 4);
-    ctx.fillRect(cuffW * 0.35 - 4, radius * 0.6, 4, 4);
+    // --- Composite: outline, optional war-aura, art, then embers on top ---
+    const m = this.mask!.getContext('2d')!;
+    m.globalCompositeOperation = 'copy';
+    m.drawImage(this.art!, 0, 0);
+    m.globalCompositeOperation = 'source-in';
+    m.fillStyle = PAL.outline;
+    m.fillRect(0, 0, bw, bh);
 
-    // --- B. GIANT SPHERICAL CAST-IRON KETTLEBELL BALL ---
-    const sphereGrad = ctx.createRadialGradient(
-      radius * 0.2,
-      -radius * 0.25,
-      radius * 0.1,
-      0,
-      0,
-      radius * 1.05
-    );
-    sphereGrad.addColorStop(0, KB_PALETTE.ironGlint);
-    sphereGrad.addColorStop(0.2, KB_PALETTE.ironHighlight);
-    sphereGrad.addColorStop(0.55, KB_PALETTE.ironPlate);
-    sphereGrad.addColorStop(0.85, KB_PALETTE.ironShadow);
-    sphereGrad.addColorStop(1, KB_PALETTE.ironDarkest);
-
-    ctx.fillStyle = sphereGrad;
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 4;
-
-    ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Outer crescent shadow line for 3D depth
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius - 2, Math.PI * 0.3, Math.PI * 1.2);
-    ctx.stroke();
-
-    // --- C. STAMPED WEIGHT ENGRAVING ("24kg" / "32kg") ---
-    const fontSize = Math.max(10, Math.round(radius * 0.42));
-    ctx.font = `900 ${fontSize}px "Courier New", monospace`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    const textAngle = side === 'LEFT' ? -0.22 : 0.22;
     ctx.save();
-    ctx.rotate(textAngle);
-
-    // Embossed shadow (debossed into cast-iron)
-    ctx.fillStyle = KB_PALETTE.stampDark;
-    ctx.fillText(weightText, 0, 1.5);
-
-    // Light bevel highlight edge
-    ctx.fillStyle = KB_PALETTE.stampBevel;
-    ctx.fillText(weightText, -0.5, -0.5);
-
-    // Primary dark engraved ink
-    ctx.fillStyle = KB_PALETTE.ironDarkest;
-    ctx.fillText(weightText, 0, 0);
-
-    ctx.restore();
-
-    ctx.restore();
-  }
-
-  /**
-   * 4. Massive Round Spherical Kettlebell Cuirass (Breastplate & Belly)
-   * The entire torso is a giant cast-iron kettlebell with center circular medallion & battle scars!
-   */
-  private static drawKettlebellCuirass(
-    ctx: CanvasRenderingContext2D,
-    lS: { x: number; y: number },
-    rS: { x: number; y: number },
-    lH: { x: number; y: number },
-    rH: { x: number; y: number },
-    phase: number,
-    power: number
-  ): void {
-    ctx.save();
-
-    const shoulderDist = Math.hypot(lS.x - rS.x, lS.y - rS.y);
-    const chestCenterX = (lS.x + rS.x + lH.x + rH.x) / 4;
-    const chestCenterY = (lS.y + rS.y) / 2 + ((lH.y + rH.y) / 2 - (lS.y + rS.y) / 2) * 0.42;
-    const bellRadius = shoulderDist * 0.58;
-
-    // --- A. GIANT SPHERICAL KETTLEBELL BELLY (3D Cast-Iron Shading) ---
-    const bellGrad = ctx.createRadialGradient(
-      chestCenterX + bellRadius * 0.15,
-      chestCenterY - bellRadius * 0.25,
-      bellRadius * 0.08,
-      chestCenterX,
-      chestCenterY,
-      bellRadius * 1.05
-    );
-    bellGrad.addColorStop(0, KB_PALETTE.ironGlint);
-    bellGrad.addColorStop(0.25, KB_PALETTE.ironHighlight);
-    bellGrad.addColorStop(0.6, KB_PALETTE.ironPlate);
-    bellGrad.addColorStop(0.85, KB_PALETTE.ironShadow);
-    bellGrad.addColorStop(1, KB_PALETTE.ironDarkest);
-
-    ctx.fillStyle = bellGrad;
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 5;
-
-    ctx.beginPath();
-    ctx.arc(chestCenterX, chestCenterY, bellRadius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // --- B. CENTRAL CIRCULAR REINFORCEMENT MEDALLION ---
-    const medalRadius = bellRadius * 0.46;
-    const medalGrad = ctx.createLinearGradient(
-      chestCenterX - medalRadius,
-      chestCenterY - medalRadius,
-      chestCenterX + medalRadius,
-      chestCenterY + medalRadius
-    );
-    medalGrad.addColorStop(0, KB_PALETTE.ironHighlight);
-    medalGrad.addColorStop(0.4, KB_PALETTE.ironPlate);
-    medalGrad.addColorStop(0.9, KB_PALETTE.ironShadow);
-    medalGrad.addColorStop(1, KB_PALETTE.ironDarkest);
-
-    ctx.fillStyle = medalGrad;
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 3.5;
-
-    ctx.beginPath();
-    ctx.arc(chestCenterX, chestCenterY, medalRadius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Medallion inner rim bevel
-    ctx.strokeStyle = KB_PALETTE.ironGlint;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(chestCenterX, chestCenterY, medalRadius - 2.5, Math.PI * 0.8, Math.PI * 1.8);
-    ctx.stroke();
-
-    // --- C. BATTLE SLASH SCRATCHES ACROSS MEDALLION (Just like artwork!) ---
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    // Scratch 1 (long diagonal slash)
-    ctx.moveTo(chestCenterX - medalRadius * 0.5, chestCenterY - medalRadius * 0.35);
-    ctx.lineTo(chestCenterX + medalRadius * 0.45, chestCenterY + medalRadius * 0.4);
-    // Scratch 2 (secondary nick)
-    ctx.moveTo(chestCenterX - medalRadius * 0.2, chestCenterY - medalRadius * 0.5);
-    ctx.lineTo(chestCenterX + medalRadius * 0.15, chestCenterY - medalRadius * 0.1);
-    ctx.stroke();
-
-    // Highlight edge along the scratches
-    ctx.strokeStyle = KB_PALETTE.ironGlint;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(chestCenterX - medalRadius * 0.5 + 1, chestCenterY - medalRadius * 0.35 + 1);
-    ctx.lineTo(chestCenterX + medalRadius * 0.45 + 1, chestCenterY + medalRadius * 0.4 + 1);
-    ctx.stroke();
-
-    // --- D. BOTTOM WAIST LIP / RIM BAND ---
-    const lipY = chestCenterY + bellRadius * 0.68;
-    const lipW = bellRadius * 1.45;
-
-    ctx.fillStyle = KB_PALETTE.ironShadow;
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 3.5;
-    ctx.beginPath();
-    ctx.roundRect(chestCenterX - lipW * 0.5, lipY, lipW, bellRadius * 0.22, [8]);
-    ctx.fill();
-    ctx.stroke();
-
-    // Heavy round rivets on waist lip
-    ctx.fillStyle = KB_PALETTE.ironGlint;
-    const rivetCount = 5;
-    for (let i = 0; i < rivetCount; i++) {
-      const rx = chestCenterX - lipW * 0.4 + (i * (lipW * 0.8)) / (rivetCount - 1);
-      ctx.beginPath();
-      ctx.arc(rx, lipY + bellRadius * 0.11, 3.5, 0, Math.PI * 2);
-      ctx.fill();
+    ctx.imageSmoothingEnabled = false;
+    if (surge > 0.15) {
+      // War-aura: the silhouette, tinted, pulsing two texels out
+      m.fillStyle = heraldryColor && activePhase !== 1 ? heraldryColor : PAL.ember;
+      m.fillRect(0, 0, bw, bh);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = (0.25 + 0.2 * Math.sin(time * 9)) * surge;
+      for (const [dx, dy] of RING2) ctx.drawImage(this.mask!, dx * PIXEL, dy * PIXEL, bw * PIXEL, bh * PIXEL);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+      m.fillStyle = PAL.outline;
+      m.fillRect(0, 0, bw, bh);
     }
+    for (const [dx, dy] of RING1) ctx.drawImage(this.mask!, dx * PIXEL, dy * PIXEL, bw * PIXEL, bh * PIXEL);
+    ctx.drawImage(this.art!, 0, 0, bw * PIXEL, bh * PIXEL);
 
-    // --- E. DRIVE PHASE FORGE PULSE RING ---
-    if (phase === 1 || power > 80) {
-      ctx.save();
-      ctx.strokeStyle = KB_PALETTE.visorOrange;
-      ctx.shadowColor = KB_PALETTE.visorAmber;
-      ctx.shadowBlur = 18;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(chestCenterX, chestCenterY, medalRadius * 1.35, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
+    if (surge > 0.25 && nose) this.embers(ctx, neckBase, sw, surge, time);
+    ctx.restore();
+  }
+
+  private static buffer(bw: number, bh: number): CanvasRenderingContext2D {
+    if (!this.art || this.art.width !== bw || this.art.height !== bh) {
+      this.art = document.createElement('canvas');
+      this.mask = document.createElement('canvas');
+      this.art.width = this.mask.width = bw;
+      this.art.height = this.mask.height = bh;
     }
-
-    ctx.restore();
+    return this.art.getContext('2d')!;
   }
 
-  /**
-   * 5. Chunky Cast-Iron Forearm Vambraces & Gauntlets
-   */
-  private static drawIronVambrace(
-    ctx: CanvasRenderingContext2D,
-    elbow: { x: number; y: number },
-    wrist: { x: number; y: number },
-    thickness: number
-  ): void {
-    const angle = Math.atan2(wrist.y - elbow.y, wrist.x - elbow.x);
-    const length = Math.hypot(wrist.x - elbow.x, wrist.y - elbow.y);
-
-    ctx.save();
-    ctx.translate(elbow.x, elbow.y);
-    ctx.rotate(angle);
-
-    // Rounded elbow cop
-    ctx.fillStyle = KB_PALETTE.ironPlate;
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(0, 0, thickness * 0.65, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Vambrace forearm shaft
-    const armGrad = ctx.createLinearGradient(0, -thickness * 0.5, 0, thickness * 0.5);
-    armGrad.addColorStop(0, KB_PALETTE.ironGlint);
-    armGrad.addColorStop(0.3, KB_PALETTE.ironPlate);
-    armGrad.addColorStop(0.8, KB_PALETTE.ironShadow);
-    armGrad.addColorStop(1, KB_PALETTE.ironDarkest);
-
-    ctx.fillStyle = armGrad;
-    ctx.beginPath();
-    ctx.roundRect(0, -thickness * 0.45, length * 0.82, thickness * 0.9, [thickness * 0.25]);
-    ctx.fill();
-    ctx.stroke();
-
-    // Heavy flared wrist gauntlet cuff
-    ctx.fillStyle = KB_PALETTE.ironShadow;
-    ctx.beginPath();
-    ctx.roundRect(length * 0.78, -thickness * 0.6, length * 0.25, thickness * 1.2, [4]);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.restore();
-  }
-
-  /**
-   * 6. Heavy Kettlebell Heater Shield (Left Arm / Screen Right)
-   * Sturdy medieval heater shield with thick beveled border and embossed Kettlebell crest!
-   */
-  private static drawKettlebellShield(
-    ctx: CanvasRenderingContext2D,
-    elbow: { x: number; y: number },
-    wrist: { x: number; y: number },
-    size: number,
-    phase: number
-  ): void {
-    const angle = Math.atan2(wrist.y - elbow.y, wrist.x - elbow.x);
-    const shieldCenter = {
-      x: wrist.x + Math.cos(angle) * (size * 0.25),
-      y: wrist.y + Math.sin(angle) * (size * 0.25),
-    };
-
-    ctx.save();
-    ctx.translate(shieldCenter.x, shieldCenter.y);
-    ctx.rotate(angle * 0.6);
-
-    const sW = size * 0.9;
-    const sH = size * 1.25;
-
-    // Helper: Classic Heater Shield Path
-    const createShieldPath = (inset = 0) => {
-      const w2 = (sW - inset * 2) * 0.5;
-      const hTop = -sH * 0.5 + inset;
-      const hMid = sH * 0.05;
-      const hBottom = sH * 0.5 - inset;
-
-      ctx.beginPath();
-      // Curved top edge
-      ctx.moveTo(-w2, hTop + 6);
-      ctx.quadraticCurveTo(0, hTop - 8, w2, hTop + 6);
-      // Straight upper sides tapering into pointed bottom beak
-      ctx.lineTo(w2, hMid);
-      ctx.quadraticCurveTo(w2 * 0.85, hBottom * 0.65, 0, hBottom);
-      ctx.quadraticCurveTo(-w2 * 0.85, hBottom * 0.65, -w2, hMid);
-      ctx.closePath();
-    };
-
-    // 1. Black outer border outline
-    ctx.fillStyle = KB_PALETTE.outline;
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 4;
-    createShieldPath(0);
-    ctx.fill();
-    ctx.stroke();
-
-    // 2. Beveled outer rim
-    ctx.fillStyle = KB_PALETTE.ironPlate;
-    createShieldPath(4);
-    ctx.fill();
-    ctx.stroke();
-
-    // 3. Recessed shield field plate
-    const fieldGrad = ctx.createLinearGradient(-sW * 0.5, -sH * 0.5, sW * 0.5, sH * 0.5);
-    fieldGrad.addColorStop(0, KB_PALETTE.ironLight);
-    fieldGrad.addColorStop(0.35, KB_PALETTE.ironPlate);
-    fieldGrad.addColorStop(0.8, KB_PALETTE.ironShadow);
-    fieldGrad.addColorStop(1, KB_PALETTE.ironDarkest);
-
-    ctx.fillStyle = fieldGrad;
-    createShieldPath(10);
-    ctx.fill();
-    ctx.stroke();
-
-    // 4. EMBOSSED CAST-IRON KETTLEBELL CREST IN CENTER
-    const kbIconRadius = sW * 0.22;
-    const kbCenterY = -sH * 0.02;
-
-    // Embossed shadow
-    ctx.fillStyle = KB_PALETTE.ironDarkest;
-    ctx.beginPath();
-    ctx.arc(0, kbCenterY + 2, kbIconRadius, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Kettlebell body
-    ctx.fillStyle = KB_PALETTE.ironGlint;
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(0, kbCenterY, kbIconRadius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Kettlebell handle loop
-    ctx.lineWidth = 3.5;
-    ctx.strokeStyle = KB_PALETTE.ironGlint;
-    ctx.beginPath();
-    ctx.arc(0, kbCenterY - kbIconRadius * 0.8, kbIconRadius * 0.55, Math.PI * 0.9, Math.PI * 0.1);
-    ctx.stroke();
-
-    // Corner rivets along shield rim
-    ctx.fillStyle = KB_PALETTE.ironGlint;
-    ctx.fillRect(-sW * 0.4, -sH * 0.44, 4, 4);
-    ctx.fillRect(sW * 0.4 - 4, -sH * 0.44, 4, 4);
-    ctx.fillRect(-2, sH * 0.4 - 4, 4, 4);
-
-    ctx.restore();
-  }
-
-  /**
-   * 7. The Kettlebell Buster Greatsword (Right Hand / Screen Left)
-   * Heavy broad slab blade with rounded kettlebell crossguard & iron pommel!
-   */
-  private static drawKettlebellBusterSword(
-    ctx: CanvasRenderingContext2D,
-    elbow: { x: number; y: number },
-    wrist: { x: number; y: number },
-    size: number,
-    power: number,
-    phase: number
-  ): void {
-    const angle = Math.atan2(wrist.y - elbow.y, wrist.x - elbow.x);
-
-    ctx.save();
-    ctx.translate(wrist.x, wrist.y);
-    ctx.rotate(angle);
-
-    const bladeLen = size * 2.2;
-    const bladeW = size * 0.45;
-
-    // --- A. KETTLEBELL CROSSGUARD (Hollow Ring Handle Guard) ---
-    const guardRadius = bladeW * 0.65;
-
-    // Guard kettlebell bell body
-    ctx.fillStyle = KB_PALETTE.ironPlate;
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 3.5;
-    ctx.beginPath();
-    ctx.arc(0, 0, guardRadius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Guard kettlebell handle loops on left and right
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = KB_PALETTE.ironPlate;
-    ctx.beginPath();
-    ctx.arc(0, -guardRadius * 0.7, guardRadius * 0.65, Math.PI, 0);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(0, guardRadius * 0.7, guardRadius * 0.65, 0, Math.PI);
-    ctx.stroke();
-
-    // --- B. HEAVY BUSTER SLAB BLADE ---
-    const bladeGrad = ctx.createLinearGradient(0, -bladeW * 0.5, 0, bladeW * 0.5);
-    bladeGrad.addColorStop(0, KB_PALETTE.ironGlint);
-    bladeGrad.addColorStop(0.3, KB_PALETTE.ironLight);
-    bladeGrad.addColorStop(0.65, KB_PALETTE.ironPlate);
-    bladeGrad.addColorStop(1, KB_PALETTE.ironShadow);
-
-    ctx.fillStyle = bladeGrad;
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 4;
-
-    ctx.beginPath();
-    ctx.moveTo(guardRadius * 0.8, -bladeW * 0.5);
-    ctx.lineTo(bladeLen - bladeW * 0.75, -bladeW * 0.5); // Top blade spine
-    ctx.lineTo(bladeLen, 0); // Angled clip point tip
-    ctx.lineTo(bladeLen - bladeW * 0.75, bladeW * 0.5);
-    ctx.lineTo(guardRadius * 0.8, bladeW * 0.5);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Central fuller ridge line down the blade
-    ctx.strokeStyle = KB_PALETTE.ironDarkest;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(guardRadius * 1.2, 0);
-    ctx.lineTo(bladeLen - bladeW * 0.8, 0);
-    ctx.stroke();
-
-    // Sharp metallic cutting edge highlight
-    ctx.strokeStyle = KB_PALETTE.ironGlint;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(guardRadius * 0.9, -bladeW * 0.45);
-    ctx.lineTo(bladeLen - bladeW * 0.72, -bladeW * 0.45);
-    ctx.stroke();
-
-    // High-power / Drive molten sparks along the blade edge
-    if (power > 80 || phase === 1) {
-      ctx.save();
-      ctx.strokeStyle = KB_PALETTE.visorAmber;
-      ctx.shadowColor = KB_PALETTE.visorOrange;
-      ctx.shadowBlur = 12;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(guardRadius * 1.5, -bladeW * 0.48);
-      ctx.lineTo(bladeLen - bladeW * 0.8, -bladeW * 0.48);
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    ctx.restore();
-  }
-
-  /**
-   * 8. Spherical Kettlebell Poleyns (Knee Cops)
-   */
-  private static drawKettlebellPoleyn(
-    ctx: CanvasRenderingContext2D,
-    knee: { x: number; y: number },
-    size: number
-  ): void {
-    ctx.save();
-    ctx.translate(knee.x, knee.y);
-
-    const sphereGrad = ctx.createRadialGradient(
-      size * 0.2,
-      -size * 0.25,
-      size * 0.08,
-      0,
-      0,
-      size * 1.05
-    );
-    sphereGrad.addColorStop(0, KB_PALETTE.ironGlint);
-    sphereGrad.addColorStop(0.3, KB_PALETTE.ironHighlight);
-    sphereGrad.addColorStop(0.65, KB_PALETTE.ironPlate);
-    sphereGrad.addColorStop(1, KB_PALETTE.ironDarkest);
-
-    ctx.fillStyle = sphereGrad;
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 3.5;
-
-    ctx.beginPath();
-    ctx.arc(0, 0, size * 0.65, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Center kettlebell iron rivet
-    ctx.fillStyle = KB_PALETTE.ironGlint;
-    ctx.beginPath();
-    ctx.arc(0, 0, size * 0.16, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
-  }
-
-  /**
-   * 9. Heavy Cast-Iron Greaves (Lower Shin & Ankle Armor)
-   */
-  private static drawKettlebellGreave(
-    ctx: CanvasRenderingContext2D,
-    knee: { x: number; y: number },
-    ankle: { x: number; y: number },
-    thickness: number
-  ): void {
-    const angle = Math.atan2(ankle.y - knee.y, ankle.x - knee.x);
-    const length = Math.hypot(ankle.x - knee.x, ankle.y - knee.y);
-
-    ctx.save();
-    ctx.translate(knee.x, knee.y);
-    ctx.rotate(angle);
-
-    const greaveGrad = ctx.createLinearGradient(0, -thickness * 0.5, 0, thickness * 0.5);
-    greaveGrad.addColorStop(0, KB_PALETTE.ironGlint);
-    greaveGrad.addColorStop(0.3, KB_PALETTE.ironPlate);
-    greaveGrad.addColorStop(0.8, KB_PALETTE.ironShadow);
-    greaveGrad.addColorStop(1, KB_PALETTE.ironDarkest);
-
-    ctx.fillStyle = greaveGrad;
-    ctx.strokeStyle = KB_PALETTE.outline;
-    ctx.lineWidth = 3.5;
-
-    // Segmented contoured shin plate
-    ctx.beginPath();
-    ctx.roundRect(length * 0.15, -thickness * 0.45, length * 0.72, thickness * 0.9, [thickness * 0.25]);
-    ctx.fill();
-    ctx.stroke();
-
-    // Ridge plate down center
-    ctx.strokeStyle = KB_PALETTE.ironGlint;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(length * 0.22, 0);
-    ctx.lineTo(length * 0.78, 0);
-    ctx.stroke();
-
-    // Heavy flared boot ring
-    ctx.fillStyle = KB_PALETTE.ironDarkest;
-    ctx.fillRect(length * 0.78, -thickness * 0.52, length * 0.12, thickness * 1.04);
-    ctx.strokeRect(length * 0.78, -thickness * 0.52, length * 0.12, thickness * 1.04);
-
-    ctx.restore();
-  }
-
-  /**
-   * 10. Atmospheric Molten Forge Embers
-   */
-  private static drawForgeEmbers(
-    ctx: CanvasRenderingContext2D,
+  /** Draws an armour part with its anchor (ax, ay as fractions of the part) at x, y. */
+  private static sprite(
+    b: CanvasRenderingContext2D,
+    part: Part,
     x: number,
     y: number,
-    radius: number,
+    width: number,
+    height: number,
+    rotation: number,
+    ax: number,
+    ay: number,
+    flip = false
+  ): void {
+    const [sx, sy, sw, sh] = ARMOR_FRAMES[part];
+    b.save();
+    b.translate(Math.round(x), Math.round(y));
+    b.rotate(rotation);
+    if (flip) b.scale(-1, 1);
+    b.drawImage(this.sheet!, sx, sy, sw, sh, -width * ax, -height * ay, width, height);
+    b.restore();
+  }
+
+  /** Stretches an upright part (top = joint `a`) along the bone a→b, extended by `head`/`tail` × its length. */
+  private static limb(
+    b: CanvasRenderingContext2D,
+    part: Part,
+    a: Pt,
+    c: Pt,
+    width: number,
+    head: number,
+    tail: number,
+    side: number
+  ): void {
+    const len = dist(a, c);
+    if (len < 2) return;
+    const rot = Math.atan2(c.y - a.y, c.x - a.x) - Math.PI / 2;
+    const total = len * (1 - head + tail);
+    this.sprite(b, part, a.x, a.y, width, total, rot, 0.5, -head / (1 - head + tail), side > 0);
+  }
+
+  /** Layered gilded spaulder with a back-swept horn, tilting with the upper arm. */
+  private static pauldron(b: CanvasRenderingContext2D, s: Pt, elbow: Pt | null, sw: number, side: number): void {
+    const r = sw * 0.27;
+    const armAngle = elbow ? Math.atan2(elbow.y - s.y, elbow.x - s.x) : Math.PI / 2;
+    // 0 when the arm hangs, follows it up to ~50° as the arm raises
+    const lift = clamp((Math.PI / 2 - Math.abs(armAngle)) * side, -0.9, 0.9) * 0.5;
+
+    b.save();
+    b.translate(Math.round(s.x + side * r * 0.25), Math.round(s.y - r * 0.15));
+    b.rotate(-lift * side);
+    b.scale(side, 1);
+
+    // Horn: a curved spike sweeping up and out
+    b.fillStyle = PAL.steelDark;
+    b.beginPath();
+    b.moveTo(-r * 0.05, -r * 0.55);
+    b.quadraticCurveTo(r * 0.55, -r * 1.25, r * 1.0, -r * 1.45);
+    b.quadraticCurveTo(r * 0.75, -r * 0.85, r * 0.55, -r * 0.4);
+    b.closePath();
+    b.fill();
+    b.fillStyle = PAL.steelLight;
+    b.fillRect(Math.round(r * 0.5), Math.round(-r * 1.05), 1, Math.max(1, Math.round(r * 0.25)));
+
+    // Three lames, bottom first so the dome overlaps them
+    const lames = [
+      { y: r * 0.62, rx: r * 0.92, ry: r * 0.42 },
+      { y: r * 0.32, rx: r * 1.0, ry: r * 0.5 },
+    ];
+    for (const l of lames) {
+      b.fillStyle = PAL.crimsonDark;
+      b.beginPath();
+      b.ellipse(r * 0.1, l.y + 1, l.rx, l.ry, 0, 0, Math.PI);
+      b.fill();
+      b.fillStyle = PAL.steelMid;
+      b.beginPath();
+      b.ellipse(r * 0.1, l.y, l.rx, l.ry, 0, 0, Math.PI);
+      b.fill();
+      b.fillStyle = PAL.gold;
+      b.beginPath();
+      b.ellipse(r * 0.1, l.y, l.rx, l.ry, 0, 0.1, Math.PI - 0.1);
+      b.ellipse(r * 0.1, l.y - 1, l.rx - 1, l.ry - 1, 0, Math.PI - 0.1, 0.1, true);
+      b.fill();
+    }
+
+    // Dome
+    const dome = b.createRadialGradient(r * 0.25, -r * 0.35, r * 0.05, 0, 0, r * 1.1);
+    dome.addColorStop(0, PAL.steelLight);
+    dome.addColorStop(0.35, PAL.steelMid);
+    dome.addColorStop(0.75, PAL.steelDark);
+    dome.addColorStop(1, PAL.outline);
+    b.fillStyle = dome;
+    b.beginPath();
+    b.ellipse(0, 0, r, r * 0.78, 0, Math.PI * 0.98, Math.PI * 2.02);
+    b.quadraticCurveTo(r * 0.2, r * 0.38, -r, r * 0.04);
+    b.fill();
+
+    // Gilded rim + fluting
+    b.strokeStyle = PAL.gold;
+    b.lineWidth = Math.max(1, r * 0.14);
+    b.beginPath();
+    b.moveTo(-r * 0.98, r * 0.04);
+    b.quadraticCurveTo(r * 0.2, r * 0.4, r, 0);
+    b.stroke();
+    b.strokeStyle = PAL.goldLight;
+    b.lineWidth = 1;
+    b.beginPath();
+    b.moveTo(-r * 0.9, -r * 0.02);
+    b.quadraticCurveTo(r * 0.2, r * 0.3, r * 0.92, -r * 0.06);
+    b.stroke();
+    b.strokeStyle = PAL.steelDark;
+    b.beginPath();
+    b.moveTo(-r * 0.25, -r * 0.7);
+    b.quadraticCurveTo(-r * 0.05, -r * 0.2, -r * 0.1, r * 0.2);
+    b.moveTo(r * 0.35, -r * 0.68);
+    b.quadraticCurveTo(r * 0.45, -r * 0.2, r * 0.45, r * 0.18);
+    b.stroke();
+
+    // Rivets
+    b.fillStyle = PAL.goldLight;
+    for (const t of [-0.6, 0.15, 0.8]) b.fillRect(Math.round(r * t), Math.round(r * 0.16 + Math.abs(t) * -r * 0.08), 1, 1);
+
+    b.restore();
+  }
+
+  /** Crimson cape hanging from behind the shoulders, swaying, ragged at the hem. */
+  private static drawCape(
+    b: CanvasRenderingContext2D,
+    lS: Pt,
+    rS: Pt,
+    hip: Pt,
+    lK: Pt | null,
+    rK: Pt | null,
+    sw: number,
+    time: number,
     phase: number
   ): void {
-    const count = 10;
-    const time = performance.now() * 0.0018;
+    const left = lS.x < rS.x ? lS : rS;
+    const right = lS.x < rS.x ? rS : lS;
+    const hemY = lK && rK ? (lK.y + rK.y) / 2 + sw * 0.15 : hip.y + sw * 0.9;
+    const flare = sw * (phase === 1 ? 0.55 : 0.4);
+    const sway = Math.sin(time * 1.7) * sw * 0.08;
 
+    const path = () => {
+      b.beginPath();
+      b.moveTo(left.x + sw * 0.05, left.y);
+      b.lineTo(right.x - sw * 0.05, right.y);
+      b.quadraticCurveTo(right.x + flare * 0.6, (right.y + hemY) / 2, right.x + flare + sway, hemY);
+      const teeth = 7;
+      const x0 = right.x + flare + sway;
+      const x1 = left.x - flare + sway;
+      for (let i = 1; i <= teeth; i++) {
+        const x = x0 + ((x1 - x0) * i) / teeth;
+        const ragged = (i % 2 ? sw * 0.12 : 0) + Math.sin(time * 2.3 + i * 1.9) * sw * 0.04;
+        b.lineTo(x, hemY - ragged);
+      }
+      b.quadraticCurveTo(left.x - flare * 0.6, (left.y + hemY) / 2, left.x + sw * 0.05, left.y);
+      b.closePath();
+    };
+
+    const g = b.createLinearGradient(left.x - flare, 0, right.x + flare, 0);
+    g.addColorStop(0, PAL.wineDark);
+    g.addColorStop(0.3, PAL.wine);
+    g.addColorStop(0.55, PAL.wineLight);
+    g.addColorStop(0.8, PAL.wine);
+    g.addColorStop(1, PAL.wineDark);
+    b.fillStyle = g;
+    path();
+    b.fill();
+    // Gilded hem and edges
+    b.strokeStyle = PAL.goldDark;
+    b.lineWidth = 2;
+    path();
+    b.stroke();
+    b.strokeStyle = PAL.gold;
+    b.lineWidth = 1;
+    path();
+    b.stroke();
+
+    // Folds
+    b.strokeStyle = PAL.wineDark;
+    b.lineWidth = 1;
+    b.beginPath();
+    for (const t of [0.2, 0.45, 0.7, 0.9]) {
+      const x = left.x + (right.x - left.x) * t;
+      const xh = left.x - flare + (right.x - left.x + flare * 2) * t + sway;
+      b.moveTo(x, left.y + sw * 0.4);
+      b.quadraticCurveTo((x + xh) / 2 + sway * 0.5, (left.y + hemY) / 2, xh, hemY - sw * 0.15);
+    }
+    b.stroke();
+  }
+
+  /** Sabaton: the foot plate pointed from the ankle toward the toes. */
+  private static foot(b: CanvasRenderingContext2D, ankle: Pt, toe: Pt | null, knee: Pt | null, sw: number): void {
+    const toward = toe ?? { x: ankle.x, y: ankle.y + sw * 0.3 };
+    const ang = Math.atan2(toward.y - ankle.y, toward.x - ankle.x);
+    const facesLeft = Math.cos(ang) < 0;
+    const w = sw * 0.62;
+    const hgt = w * 0.55;
+    b.save();
+    b.translate(Math.round(ankle.x), Math.round(ankle.y));
+    // A frontal camera mostly sees toes pointing down-screen: keep the plate level, nudged by the toe direction
+    const lean = knee ? clamp((ankle.x - knee.x) / sw, -0.4, 0.4) : 0;
+    b.rotate(lean);
+    if (facesLeft) b.scale(-1, 1);
+    const [sx, sy, fw, fh] = ARMOR_FRAMES.foot;
+    b.drawImage(this.sheet!, sx, sy, fw, fh, -w * 0.35, -hgt * 0.35, w, hgt);
+    b.restore();
+  }
+
+  /** The dragon-crest heater shield strapped to the forearm. */
+  private static shield(b: CanvasRenderingContext2D, elbow: Pt, wrist: Pt, sw: number, side: number): void {
+    const c = { x: elbow.x * 0.4 + wrist.x * 0.6 + side * sw * 0.12, y: elbow.y * 0.4 + wrist.y * 0.6 };
+    const fore = Math.atan2(wrist.y - elbow.y, wrist.x - elbow.x) - Math.PI / 2;
+    const size = sw * 0.95;
+    this.sprite(b, 'shield', c.x, c.y, size * (41 / 49), size, fore * 0.25, 0.5, 0.5, side < 0);
+  }
+
+  /** Crested great helm, tilted with the ears, with a forge-lit eye slit. */
+  private static helm(
+    b: CanvasRenderingContext2D,
+    nose: Pt,
+    lEar: Pt | null,
+    rEar: Pt | null,
+    neck: Pt,
+    sw: number,
+    surge: number,
+    time: number
+  ): void {
+    const earSpan = lEar && rEar ? dist(lEar, rEar) : sw * 0.5;
+    const width = clamp(earSpan * 1.75, sw * 0.6, sw * 0.95);
+    const height = width * (27 / 19);
+    const center = lEar && rEar ? { x: (mid(lEar, rEar).x + nose.x) / 2, y: (lEar.y + rEar.y) / 2 } : nose;
+    let roll = lEar && rEar ? Math.atan2(rEar.y - lEar.y, rEar.x - lEar.x) : 0;
+    if (Math.abs(roll) > Math.PI / 2) roll -= Math.sign(roll) * Math.PI;
+    roll = clamp(roll, -0.5, 0.5);
+
+    // Gorget: steel collar bridging helm and cuirass
+    const gorget = b.createLinearGradient(neck.x - sw * 0.3, 0, neck.x + sw * 0.3, 0);
+    gorget.addColorStop(0, PAL.steelDark);
+    gorget.addColorStop(0.6, PAL.steelMid);
+    gorget.addColorStop(1, PAL.steelDark);
+    b.fillStyle = gorget;
+    b.beginPath();
+    b.ellipse(neck.x, neck.y - sw * 0.1, sw * 0.3, sw * 0.16, 0, 0, Math.PI * 2);
+    b.fill();
+    b.fillStyle = PAL.gold;
+    b.fillRect(Math.round(neck.x - sw * 0.26), Math.round(neck.y - sw * 0.04), Math.round(sw * 0.52), 1);
+    b.fillRect(Math.round(neck.x - sw * 0.2), Math.round(neck.y - sw * 0.17), Math.round(sw * 0.4), 1);
+
+    // Sprite: the helm face sits at 55% of its height; put that on the eye line
+    b.save();
+    b.translate(Math.round(center.x), Math.round(center.y));
+    b.rotate(roll);
+    const [sx, sy, fw, fh] = ARMOR_FRAMES.head;
+    b.drawImage(this.sheet!, sx, sy, fw, fh, -width / 2, -height * 0.55, width, height);
+
+    // Eye slit glow (always lit, flares with effort)
+    const flicker = 0.85 + 0.15 * Math.sin(time * 23) * Math.sin(time * 7);
+    const glow = (0.55 + surge * 0.45) * flicker;
+    const slitW = Math.max(3, Math.round(width * 0.62));
+    const slitY = Math.round(-height * 0.1);
+    b.globalCompositeOperation = 'lighter';
+    b.globalAlpha = glow * 0.5;
+    b.fillStyle = PAL.ember;
+    b.fillRect(-Math.round(slitW / 2) - 1, slitY - 1, slitW + 2, 3);
+    b.globalAlpha = glow;
+    b.fillStyle = PAL.emberAmber;
+    b.fillRect(-Math.round(slitW / 2), slitY, Math.round(slitW * 0.4), 1);
+    b.fillRect(Math.round(slitW / 2) - Math.round(slitW * 0.4), slitY, Math.round(slitW * 0.4), 1);
+    if (surge > 0.4) {
+      b.fillStyle = PAL.emberCore;
+      b.fillRect(-Math.round(slitW * 0.3), slitY, 1, 1);
+      b.fillRect(Math.round(slitW * 0.3) - 1, slitY, 1, 1);
+    }
+    b.restore();
+  }
+
+  /** Forge embers drifting up around the knight (drawn at canvas scale as chunky pixels). */
+  private static embers(ctx: CanvasRenderingContext2D, neck: Pt, sw: number, surge: number, time: number): void {
+    const count = Math.round(6 + surge * 10);
+    const spread = sw * 1.3 * PIXEL;
     ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < count; i++) {
-      const seed = i * 47.13;
-      const progress = (time * 0.8 + seed * 0.1) % 1;
-      const emberX = x + Math.sin(time + seed) * radius;
-      const emberY = y - progress * radius * 1.6;
-      const size = 2.5 + (i % 2) * 1.5;
-      const alpha = Math.sin(progress * Math.PI) * 0.85;
-
-      ctx.fillStyle = i % 2 === 0 ? KB_PALETTE.visorAmber : KB_PALETTE.visorOrange;
-      ctx.shadowColor = KB_PALETTE.visorAmber;
-      ctx.shadowBlur = 8;
-      ctx.globalAlpha = Math.max(0, alpha);
-
-      ctx.beginPath();
-      ctx.fillRect(emberX, emberY, size, size);
+      const seed = i * 12.9898;
+      const progress = (time * (0.35 + (i % 3) * 0.08) + (Math.sin(seed) * 0.5 + 0.5)) % 1;
+      const x = neck.x * PIXEL + Math.sin(seed * 3.1) * spread + Math.sin(time * 2 + seed) * sw * 0.15 * PIXEL;
+      const y = neck.y * PIXEL + sw * 1.4 * PIXEL - progress * sw * 3 * PIXEL;
+      const size = PIXEL * (i % 4 === 0 ? 2 : 1);
+      ctx.globalAlpha = Math.sin(progress * Math.PI) * surge;
+      ctx.fillStyle = i % 3 === 0 ? PAL.emberCore : i % 3 === 1 ? PAL.emberAmber : PAL.ember;
+      ctx.fillRect(Math.round(x / PIXEL) * PIXEL, Math.round(y / PIXEL) * PIXEL, size, size);
     }
     ctx.restore();
   }
 }
+
+const RING1: ReadonlyArray<[number, number]> = [
+  [-1, 0],
+  [1, 0],
+  [0, -1],
+  [0, 1],
+];
+const RING2: ReadonlyArray<[number, number]> = [
+  [-2, 0],
+  [2, 0],
+  [0, -2],
+  [0, 2],
+  [-1, -1],
+  [1, -1],
+  [-1, 1],
+  [1, 1],
+];
+
+const dist = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
+const mid = (a: Pt, b: Pt): Pt => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+/** -1 for points left of the body's centre line, 1 for points right of it. */
+const sideOf = (p: Pt, centerX: number) => (p.x < centerX ? -1 : 1);

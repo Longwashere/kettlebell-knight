@@ -24,6 +24,7 @@ npm run rigs [-- ids]         # monster rig reference → work/rigs.md: anims + 
 npm run vfx:shrink            # TV-sized copies of the Spine VFX: public/assets/spine/vfx → vfx-tv (rerun after adding one)
 npm run sfx [-- ids]          # render the procedural sound bank to work/sfx/*.wav + index.html to audition
 npm run music                 # render the Electric Pow Wow workout soundtrack & stems to work/music/ + web asset
+python3 scripts/build_phone_armor.py  # cut the knight's armour parts from the Spine atlas for the phone AR overlay
 ```
 
 Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test` (alias `/lab`) motion-detection lab.

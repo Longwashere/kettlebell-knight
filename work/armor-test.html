@@ -1,0 +1,35 @@
+<!doctype html><html><body style="margin:0;background:#111">
+<canvas id="c" width="1920" height="480"></canvas>
+<script type="module">
+import { KnightArmorRenderer } from '/src/phone/utils/KnightArmorRenderer.ts';
+const W=640,H=480;
+// [x,y] in 640x480 px for the 33 pose points we need
+function pose(o){
+  const p=Array.from({length:33},()=>({x:.5,y:.5,z:0,visibility:1}));
+  const set=(i,x,y)=>{p[i]={x:x/W,y:y/H,z:0,visibility:1}};
+  for(const [i,[x,y]] of Object.entries(o)) set(+i,x,y);
+  return p;
+}
+const base={0:[320,95],7:[302,92],8:[338,92],11:[285,140],12:[355,140],23:[295,250],24:[345,250],25:[292,330],26:[348,330],27:[290,410],28:[350,410],31:[282,425],32:[358,425]};
+const poses=[
+ {...base,13:[272,195],14:[368,195],15:[275,245],16:[365,245]},
+ {...base,13:[258,105],14:[382,105],15:[300,55],16:[340,55]},
+ {...base,0:[320,150],7:[302,147],8:[338,147],11:[283,195],12:[357,195],23:[290,290],24:[350,290],25:[262,320],26:[378,320],27:[280,410],28:[360,410],13:[300,240],14:[340,240],15:[318,270],16:[322,270]},
+];
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+KnightArmorRenderer.preload();
+function draw(){
+  ctx.fillStyle='#2b3440';ctx.fillRect(0,0,c.width,c.height);
+  poses.forEach((ps,i)=>{
+    const off=document.createElement('canvas');off.width=W;off.height=H;const o=off.getContext('2d');
+    // stick figure "person"
+    o.fillStyle='#55606e';o.fillRect(0,0,W,H);
+    const lm=pose(ps);o.strokeStyle='#d9b38c';o.lineWidth=14;o.lineCap='round';
+    for(const [a,b] of [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]]){o.beginPath();o.moveTo(lm[a].x*W,lm[a].y*H);o.lineTo(lm[b].x*W,lm[b].y*H);o.stroke();}
+    o.fillStyle='#d9b38c';o.beginPath();o.arc(lm[0].x*W,lm[0].y*H,26,0,7);o.fill();
+    KnightArmorRenderer.drawKnightArmor(o,W,H,lm,{glowPower:i===1?120:40,activePhase:i===1?1:0});
+    ctx.drawImage(off,i*W,0);
+  });
+}
+setTimeout(()=>{draw();document.title='ready'},800);
+</script></body></html>
