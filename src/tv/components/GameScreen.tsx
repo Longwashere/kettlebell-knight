@@ -8,6 +8,7 @@ import { BlacksmithShop, SHOP_ITEMS } from './BlacksmithShop';
 import { BattleScreen } from './BattleScreen';
 import { TitleScreen } from './TitleScreen';
 import { MapSelectScreen } from './MapSelectScreen';
+import { StageCinematic } from './StageCinematic';
 import { CardCodexScreen } from './CardCodexScreen';
 import { SecretTrial } from './SecretTrial';
 import { isSecretTrialId, type SecretTrialId } from '../../shared/secretTrials';
@@ -78,6 +79,10 @@ export const GameScreen: React.FC = () => {
   const [roomId, setRoomId] = useState<string>('');
   const [netState, setNetState] = useState<NetworkConnectionState>('INITIALIZING');
   const [isQrModalOpen, setIsQrModalOpen] = useState<boolean>(false);
+
+  // Dark fantasy stage cinematic state (for prologue when embarking on Level 1 via Quick Play)
+  const [showCinematic, setShowCinematic] = useState<boolean>(false);
+  const [cinematicMapId, setCinematicMapId] = useState<BattleMapId>('VERDANT_FOREST');
 
   // RPG Progression state
   const [profile, setProfile] = useState<PlayerProfile | null>(() => profileManager.getActiveProfile());
@@ -240,6 +245,28 @@ export const GameScreen: React.FC = () => {
     setSelectedExpeditionMap(mapId);
     setSelectedExpeditionLevel(level);
     setBattleReturnView('HUB');
+
+    // First time embarking on Level 1 of a stage: play the dark fantasy prologue automatically!
+    if (level === 1 && !profileManager.hasViewedCinematic(mapId)) {
+      profileManager.markCinematicViewed(mapId);
+      audioManager.play('ui_select');
+      setCinematicMapId(mapId);
+      setShowCinematic(true);
+      return;
+    }
+
+    setCurrentView('COMBAT');
+  }, []);
+
+  const handleCinematicClose = useCallback(() => {
+    setShowCinematic(false);
+    audioManager.play('equip');
+    setCurrentView('COMBAT');
+  }, []);
+
+  const handleCinematicEmbark = useCallback(() => {
+    setShowCinematic(false);
+    audioManager.play('equip');
     setCurrentView('COMBAT');
   }, []);
 
@@ -303,7 +330,7 @@ export const GameScreen: React.FC = () => {
 
   useEffect(() => registerDebug(
     'screen',
-    () => ({ view: currentView, net: netState, roomId, qrOpen: isQrModalOpen, sessionReps, highestPower, gold: playerGold }),
+    () => ({ view: currentView, net: netState, roomId, qrOpen: isQrModalOpen, sessionReps, highestPower, gold: playerGold, showCinematic }),
     {
       // Equips a SHOP_ITEMS item for free (its slot's previous item is unequipped), e.g. equip('void_bell')
       equip: (id: string) => {
@@ -336,6 +363,11 @@ export const GameScreen: React.FC = () => {
         setSelectedExpeditionLevel(level ?? 1);
         setCurrentView('COMBAT');
       },
+      quickPlay: () => handleQuickPlay(),
+      cinematic: (open?: boolean, mapId?: BattleMapId) => {
+        if (mapId) setCinematicMapId(mapId);
+        setShowCinematic(open ?? true);
+      },
       unlockCard: (templateId: string) => profileManager.unlockCard(templateId),
       unlockAllCards: () => {
         const ids = CARD_CATALOG.map((c) => c.templateId);
@@ -365,7 +397,7 @@ export const GameScreen: React.FC = () => {
         };
       },
     },
-  ), [currentView, netState, roomId, isQrModalOpen, sessionReps, highestPower, playerGold]);
+  ), [currentView, netState, roomId, isQrModalOpen, sessionReps, highestPower, playerGold, showCinematic]);
 
   // 3. Blacksmith Equipment Preview Callback
   const handlePreviewShopItem = useCallback((item: EquipmentItem) => {
@@ -523,7 +555,7 @@ export const GameScreen: React.FC = () => {
         setCurrentView('HUB');
       }
     },
-  }, { enabled: currentView !== 'COMBAT' && currentView !== 'TITLE' && currentView !== 'TRIAL' && currentView !== 'MAP_SELECT' && currentView !== 'SANCTUARY' });
+  }, { enabled: !showCinematic && currentView !== 'COMBAT' && currentView !== 'TITLE' && currentView !== 'TRIAL' && currentView !== 'MAP_SELECT' && currentView !== 'SANCTUARY' });
 
   const toggleMute = () => {
     const muted = audioManager.toggleMute();
@@ -689,6 +721,7 @@ export const GameScreen: React.FC = () => {
             <HubMenu
               selectedIndex={hubIndex}
               isFocused={hubFocusArea === 'CAROUSEL'}
+              quickPlayStage={latestUnlockedStage(profile)}
               onSelectNode={(node) => {
                 if (node === 'BLACKSMITH') {
                   setCurrentView('BLACKSMITH');
@@ -807,6 +840,16 @@ export const GameScreen: React.FC = () => {
         onClose={() => setIsQrModalOpen(false)}
         isPaired={netState === 'CONNECTED'}
       />
+
+      {/* 64-BIT DARK FANTASY STAGE CINEMATIC MODAL (Auto-played on Level 1 embark) */}
+      {showCinematic && (
+        <StageCinematic
+          key={cinematicMapId}
+          mapId={cinematicMapId}
+          onClose={handleCinematicClose}
+          onEmbark={handleCinematicEmbark}
+        />
+      )}
     </div>
   );
 };

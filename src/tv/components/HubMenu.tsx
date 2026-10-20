@@ -1,5 +1,8 @@
 import React from 'react';
 import { HubLocation } from '../../types/game';
+import { BattleMapId } from '../../types/battle';
+import { CAMPAIGN_MAPS, CAMPAIGN_MAP_ORDER, latestUnlockedStage } from '../../shared/expeditionEngine';
+import { profileManager } from '../../shared/ProfileManager';
 
 /**
  * Pixel-art sprites as character grids, drawn as crisp SVG rects (one per horizontal run).
@@ -248,6 +251,7 @@ interface HubMenuProps {
   onSelectNode: (node: HubLocation) => void;
   onHoverNode: (index: number) => void;
   isFocused?: boolean;
+  quickPlayStage?: { mapId: BattleMapId; level: number };
 }
 
 export const HubMenu: React.FC<HubMenuProps> = ({
@@ -255,7 +259,16 @@ export const HubMenu: React.FC<HubMenuProps> = ({
   onSelectNode,
   onHoverNode,
   isFocused = true,
+  quickPlayStage,
 }) => {
+  const stage = quickPlayStage ?? latestUnlockedStage(profileManager.getActiveProfile());
+  const stageIndex = CAMPAIGN_MAP_ORDER.indexOf(stage.mapId) + 1;
+  const stageNum = stageIndex > 0 ? stageIndex : 1;
+  const mapConfig = CAMPAIGN_MAPS[stage.mapId];
+  const mapName = mapConfig?.name ?? stage.mapId.replace(/_/g, ' ');
+  const lvlConfig = mapConfig?.levels?.find((l) => l.level === stage.level);
+  const isBoss = stage.level === 5;
+
   return (
     <div className="kk-hub">
       {/* Town title banner */}
@@ -273,6 +286,21 @@ export const HubMenu: React.FC<HubMenuProps> = ({
       <div className="kk-hub__row">
         {HUB_NODES.map((node, index) => {
           const isSelected = isFocused && selectedIndex === index;
+          const isQuickPlay = node.id === 'QUICK_PLAY';
+          const subtitle = isQuickPlay
+            ? `STAGE ${stageNum} • LVL ${stage.level}${isBoss ? ' (BOSS)' : ''}`
+            : node.subtitle;
+
+          const descContent = isQuickPlay ? (
+            <>
+              <span className="text-[#FFFFFE] font-bold block truncate">{mapName}</span>
+              <span className="text-[#C9C4D6] block text-[17px] leading-tight mt-0.5">
+                Level {stage.level} of 5: {lvlConfig?.title ?? 'Expedition'}
+              </span>
+            </>
+          ) : (
+            node.desc
+          );
 
           return (
             <div
@@ -295,8 +323,8 @@ export const HubMenu: React.FC<HubMenuProps> = ({
               </div>
 
               <h3 className="kk-plaque__title">{node.title}</h3>
-              <span className="kk-plaque__subtitle">{node.subtitle}</span>
-              <p className="kk-plaque__desc">{node.desc}</p>
+              <span className="kk-plaque__subtitle">{subtitle}</span>
+              <div className="kk-plaque__desc">{descContent}</div>
               <span className="kk-plaque__prompt">{isSelected ? '▶ PRESS SELECT' : ''}</span>
 
               <span className="kk-plaque__medal">

@@ -83,6 +83,20 @@ registerDebug(
     'profile.delete': (slotId: string) => {
       return profileManager.deleteProfile(slotId);
     },
+    'profile.setProgress': (mapId: string, levelCleared: number, unlockedMaps?: string[]) => {
+      const p = profileManager.getActiveProfile();
+      if (!p) return null;
+      const id = mapId.toUpperCase() as any;
+      const maps = unlockedMaps ? (unlockedMaps as any) : p.unlockedMaps.includes(id) ? p.unlockedMaps : [...p.unlockedMaps, id];
+      profileManager.saveActiveProfile({
+        unlockedMaps: maps,
+        mapProgress: {
+          ...p.mapProgress,
+          [id]: { highestLevelCleared: levelCleared, totalClears: 1, bestReps: 10 },
+        },
+      });
+      return profileManager.getActiveProfile();
+    },
   }
 );
 
