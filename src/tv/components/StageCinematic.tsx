@@ -5,6 +5,7 @@ import { BATTLE_MAPS } from '../engine/battleMaps';
 import { audioManager } from '../../shared/AudioManager';
 import { networkManager } from '../../shared/NetworkManager';
 import { useTVRemote } from '../hooks/useTVRemote';
+import { ASSET_ROOT } from '@/shared/assetRoot';
 
 interface StageCinematicProps {
   mapId: BattleMapId;
@@ -119,7 +120,7 @@ export const StageCinematic: React.FC<StageCinematicProps> = ({ mapId, onClose, 
   };
 
   useEffect(() => {
-    audioManager.playBgm('/assets/music/cinematic_prologue.mp3', 0.75);
+    audioManager.playBgm(`${ASSET_ROOT}/music/cinematic_prologue.mp3`, 0.75);
     audioManager.play('ui_select');
     return stopTimer;
   }, [mapId]);

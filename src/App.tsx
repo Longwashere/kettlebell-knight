@@ -8,7 +8,7 @@ import { Tv, Smartphone, Swords, Shield, Zap, Activity } from 'lucide-react';
 // Loaded on demand so phones never download PixiJS and the TV engine.
 const GameScreen = lazy(() => import('./tv/components/GameScreen').then((m) => ({ default: m.GameScreen })));
 
-/** GitHub Pages build (`npm run build:pages`): only the phone companion and the motion lab are served. */
+/** GitHub Pages build (`npm run build:pages`): the phone companion and motion lab, plus the TV game for demos. */
 const PHONE_SITE = import.meta.env.VITE_PHONE_SITE === 'true';
 
 const RootLauncher: React.FC = () => {
@@ -111,6 +111,14 @@ export const App: React.FC = () => {
       <BrowserRouter basename={basename}>
         <Routes>
           <Route path="/phone" element={<PhoneView />} />
+          <Route
+            path="/tv"
+            element={
+              <Suspense fallback={<div className="w-screen h-screen bg-[#0F0E17]" />}>
+                <GameScreen />
+              </Suspense>
+            }
+          />
           <Route path="/test" element={<MotionTestView />} />
           <Route path="/lab" element={<MotionTestView />} />
           <Route path="*" element={<Navigate to="/phone" replace />} />

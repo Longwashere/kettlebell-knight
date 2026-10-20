@@ -1,3 +1,4 @@
+import { ASSET_ROOT } from '@/shared/assetRoot';
 /**
  * Spine VFX rigs (public/assets/spine/vfx-tv, TV-sized copies made by `npm run vfx:shrink` from
  * public/assets/spine/vfx). Moves play them with `h.vfx(name, x, y, opts)`; the engine loads all of them
@@ -18,7 +19,7 @@ export interface VfxRig {
   skin?: string;
 }
 
-const DIR = '/assets/spine/vfx-tv';
+const DIR = `${ASSET_ROOT}/spine/vfx-tv`;
 
 export const VFX_RIGS: Record<VfxName, VfxRig> = {
   explosion: { skeleton: `${DIR}/explosion/BlastTNT.json`, atlas: `${DIR}/explosion/BlastTNT.atlas`, scale: 0.19, anims: ['animation'] },

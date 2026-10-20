@@ -1,4 +1,5 @@
 import { SFX_BANK, SR, resolveSfx, type SfxName, type SoundId } from './sfx/bank';
+import { ASSET_ROOT } from '@/shared/assetRoot';
 
 export type { SfxName, SoundId } from './sfx/bank';
 
@@ -104,7 +105,7 @@ class AudioManager {
   }
 
   /** Plays background music on loop using an HTML5 audio element (keeps memory overhead minimal on Fire TV). */
-  public playBgm(url = '/assets/music/battle_electric_pow_wow.mp3', volume = 0.65): void {
+  public playBgm(url = `${ASSET_ROOT}/music/battle_electric_pow_wow.mp3`, volume = 0.65): void {
     if (typeof Audio === 'undefined') return;
     this.bgmVolume = volume;
     try {

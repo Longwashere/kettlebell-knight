@@ -25,7 +25,7 @@ npm run vfx:shrink            # TV-sized copies of the Spine VFX: public/assets/
 npm run sfx [-- ids]          # render the procedural sound bank to work/sfx/*.wav + index.html to audition
 npm run music                 # render the Electric Pow Wow workout soundtrack & stems to work/music/ + web asset
 python3 scripts/build_phone_armor.py  # cut the knight's armour parts from the Spine atlas for the phone AR overlay
-npm run build:pages  # phone-only GitHub Pages build (see Deploy)
+npm run build:pages  # GitHub Pages build: phone PWA + /tv demo (see Deploy)
 npm run tv:sync    # build + copy dist/ into the Capacitor Android (Fire TV) project in android/
 npm run tv:open    # open android/ in Android Studio to build the APK
 ```
@@ -61,8 +61,8 @@ Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test
 
 - The phone companion is on GitHub Pages (https://longwashere.github.io/kettlebell-knight/phone), deployed by
   `.github/workflows/pages.yml` on every push to `main`. `npm run build:pages` (Vite mode `pages`, `.env.pages`) serves
-  only `/phone` and `/test`, under base `/kettlebell-knight/`, without the TV assets; use `import.meta.env.BASE_URL`
-  for any asset the phone loads. It's an installable PWA: icons + service worker in `pwa/`, manifest written by
+  `/phone`, `/test` and, for demos in a desktop browser, `/tv`, under base `/kettlebell-knight/`. Build every public asset
+  URL from `ASSET_ROOT` (src/shared/assetRoot.ts) or `import.meta.env.BASE_URL`, never a bare `/assets/...`. It's an installable PWA: icons + service worker in `pwa/`, manifest written by
   `pagesSitePlugin` in vite.config.ts. The TV keeps its room code across launches and the phone remembers its last
   room (`lastPairedRoom`), so the home-screen app reconnects without the QR code. The Fire TV app is a Capacitor Android shell (`capacitor.config.ts`, `android/`) bundling `dist/`
   (or loading `CAP_SERVER_URL`); `src/tv/native.ts` bridges the remote's Back key and exits from the title menu / hub.

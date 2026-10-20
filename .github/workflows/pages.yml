@@ -1,4 +1,5 @@
 # Publishes the phone companion to GitHub Pages: https://longwashere.github.io/kettlebell-knight/phone
+# (and the TV game, for demos: …/kettlebell-knight/tv)
 # Release settings (PeerServer, TURN) come from repo Settings → Secrets and variables → Actions → Variables.
 name: Deploy phone companion to Pages
 

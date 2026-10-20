@@ -1,7 +1,8 @@
 // Service worker for the phone companion on GitHub Pages (copied into dist by the `pages` Vite build,
 // which replaces __BUILD_ID__ so each deploy gets a fresh cache).
 // Pages: network first, so a new deploy shows up on the next launch; cached copy when offline.
-// Hashed build files (assets/*): cache first, they never change.
+// Hashed build files (assets/*) and the phone's art (assets/phone/): cache first, they never change.
+// The TV demo's art and music (other assets/ subfolders, ~140 MB) are left to the browser's HTTP cache.
 const CACHE = 'kk-phone-__BUILD_ID__';
 const SCOPE = new URL(self.registration.scope);
 
@@ -36,7 +37,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (url.pathname.startsWith(SCOPE.pathname + 'assets/')) {
+  const asset = url.pathname.startsWith(SCOPE.pathname + 'assets/') ? url.pathname.slice(SCOPE.pathname.length + 7) : null;
+  if (asset !== null && (!asset.includes('/') || asset.startsWith('phone/'))) {
     event.respondWith(
       caches.match(request).then(
         (cached) =>

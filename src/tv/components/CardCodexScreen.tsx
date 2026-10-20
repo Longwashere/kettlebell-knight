@@ -35,6 +35,7 @@ import {
   Shield,
   Sparkles,
 } from 'lucide-react';
+import { ASSET_ROOT } from '@/shared/assetRoot';
 
 export type CodexTab = 'ALL' | 'MONSTER_ARTS' | 'DISCIPLINES' | 'WEAPON_SPELLS' | 'KINEMATICS';
 
@@ -255,7 +256,7 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
         ? unlockDef.condition.targetMonsterNames
         : 'Fallen Horror';
       return {
-        url: `/assets/codex/monsters/${monsterId}.png`,
+        url: `${ASSET_ROOT}/codex/monsters/${monsterId}.png`,
         name: monsterName.toUpperCase(),
         tag: 'PATRON HORROR',
         type: 'MONSTER' as const,
@@ -267,8 +268,8 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
       const weaponId = (activeItem.card as any).weaponId || (activeItem as any).spellMeta?.weaponId;
       const weaponName = (activeItem as any).spellMeta?.weaponName || 'Relic Weapon';
       return {
-        url: `/assets/codex/weapons/art_${weaponId}.png`,
-        fallbackUrl: `/assets/codex/weapons/kettlebell_iron.png`,
+        url: `${ASSET_ROOT}/codex/weapons/art_${weaponId}.png`,
+        fallbackUrl: `${ASSET_ROOT}/codex/weapons/kettlebell_iron.png`,
         name: weaponName.toUpperCase(),
         tag: 'FORGED RELIC',
         type: 'WEAPON' as const,
@@ -278,7 +279,7 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
 
     // Martial Discipline or Starter Card -> 32-bit Painterly Adventurer/Knight
     return {
-      url: '/assets/codex/adventurer.png',
+      url: `${ASSET_ROOT}/codex/adventurer.png`,
       name: 'CITADEL CHAMPION',
       tag: activeItem.isStarter ? 'STARTER DISCIPLINE' : 'MARTIAL MASTERY',
       type: 'KNIGHT' as const,
@@ -664,7 +665,7 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
                     {(() => {
                       const isKnight = entityInfo?.type === 'KNIGHT';
                       const isMonster = entityInfo?.type === 'MONSTER';
-                      const fallback = isKnight || isMonster ? '/assets/codex/adventurer.png' : '/assets/codex/weapons/kettlebell_iron.png';
+                      const fallback = isKnight || isMonster ? `${ASSET_ROOT}/codex/adventurer.png` : `${ASSET_ROOT}/codex/weapons/kettlebell_iron.png`;
                       return (
                         <img
                           src={entityInfo?.url}

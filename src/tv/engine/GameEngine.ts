@@ -19,6 +19,7 @@ import {
   KNIGHT_MOVES, KNIGHT_MOVE_IDS, knightMoveFor, knightMoveCard,
   type KnightMoveId, type KnightMoveHost, type KnightMoveContext, type KnightTarget,
 } from './knightMoves';
+import { ASSET_ROOT } from '@/shared/assetRoot';
 
 interface FloatingCombatText {
   container: Container;
@@ -74,8 +75,8 @@ export interface SkeletonAttachmentMock {
 
 // Spine knight rig (public/assets/spine/knight, Spine 4.2). Skeleton is ~540 units tall;
 // 0.15 gives a ~80px knight on the 426x240 canvas.
-const KNIGHT_SKELETON_KEY = '/assets/spine/knight/HulkForm2.json';
-const KNIGHT_ATLAS_KEY = '/assets/spine/knight/HulkForm2.atlas';
+const KNIGHT_SKELETON_KEY = `${ASSET_ROOT}/spine/knight/HulkForm2.json`;
+const KNIGHT_ATLAS_KEY = `${ASSET_ROOT}/spine/knight/HulkForm2.atlas`;
 /** Knight rig slots a move may hide or recolour (weapon, built-in effects); reset after every move, mirrored on afterimages. */
 const KNIGHT_FX_SLOTS = ['sword', 'Normal_Slash', 'Light', 'PunchFx_Skill3', 'Dash_Mash'];
 const KNIGHT_SCALE = 0.15;
@@ -183,7 +184,7 @@ interface MonsterRig {
 // Spine 4.2 monster rigs (public/assets/spine/monsters).
 // Rigs authored facing right are flipped (scale.x *= -1) by default to face the knight.
 // Rigs authored facing left have flipX: false to preserve their left-facing orientation.
-const MONSTER_DIR = '/assets/spine/monsters';
+const MONSTER_DIR = `${ASSET_ROOT}/spine/monsters`;
 const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   SLIME: {
     skeleton: `${MONSTER_DIR}/greenSlime/TuXi01.json`,

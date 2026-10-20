@@ -22,7 +22,7 @@ export function phonePairUrl(roomId: string): string {
     warnedPhoneUrl = true;
     console.warn('[deployConfig] VITE_PHONE_URL is not set: the pairing QR code points at this page\'s own origin.');
   }
-  const base = env.VITE_PHONE_URL?.replace(/\/+$/, '') || `${window.location.origin}/phone`;
+  const base = env.VITE_PHONE_URL?.replace(/\/+$/, '') || `${window.location.origin}${env.BASE_URL}phone`;
   return `${base}?room=${encodeURIComponent(roomId)}`;
 }
 

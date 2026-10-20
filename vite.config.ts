@@ -66,14 +66,14 @@ function localDiscoveryPlugin(): Plugin {
 }
 
 /**
- * GitHub Pages build (`vite build --mode pages`): the site is only the phone companion, installable as a PWA.
- * Drops the TV-only assets (~140 MB) and, since Pages has no SPA rewrites, copies index.html to each
- * route's folder (so /phone?room=… loads with a 200) and to 404.html for anything else.
+ * GitHub Pages build (`vite build --mode pages`): the phone companion, installable as a PWA, plus the TV game at
+ * /tv for demos in a desktop browser (keyboard arrows/Enter/Space stand in for the remote).
+ * Since Pages has no SPA rewrites, copies index.html to each route's folder (so /phone?room=… loads with a 200)
+ * and to 404.html for anything else.
  * pwa/ holds the icons and service worker; the manifest is written here so its paths follow `base`.
  */
 function pagesSitePlugin(): Plugin {
-  const TV_ONLY_ASSETS = ['spine', 'music', 'cinematics', 'codex', 'backgrounds'];
-  const ROUTES = ['phone', 'test', 'lab'];
+  const ROUTES = ['phone', 'tv', 'test', 'lab'];
   const PWA_FILES = ['icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
   const THEME = '#0F0E17';
   let base = '/';
@@ -97,9 +97,6 @@ function pagesSitePlugin(): Plugin {
     },
     closeBundle() {
       const dist = path.resolve(__dirname, 'dist');
-      for (const dir of TV_ONLY_ASSETS) {
-        fs.rmSync(path.join(dist, 'assets', dir), { recursive: true, force: true });
-      }
 
       const pwa = path.resolve(__dirname, 'pwa');
       for (const file of PWA_FILES) fs.copyFileSync(path.join(pwa, file), path.join(dist, file));

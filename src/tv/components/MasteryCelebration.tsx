@@ -14,6 +14,7 @@ import { audioManager } from '../../shared/AudioManager';
 import { networkManager } from '../../shared/NetworkManager';
 import { useTVRemote } from '../hooks/useTVRemote';
 import { Sparkles, TrendingUp } from 'lucide-react';
+import { ASSET_ROOT } from '@/shared/assetRoot';
 
 interface MasteryCelebrationProps {
   levelUps: MasteryLevelUp[];
@@ -84,12 +85,12 @@ export const WeaponCardFront: React.FC<{
             }}
           />
           <img
-            src={`/assets/codex/weapons/art_${weapon.id}.png`}
+            src={`${ASSET_ROOT}/codex/weapons/art_${weapon.id}.png`}
             alt={weapon.name}
             className="relative z-10 max-h-[68px] w-auto max-w-[85%] scale-125 object-contain filter drop-shadow-[0_0_10px_rgba(0,0,0,0.95)] drop-shadow-[0_0_14px_rgba(255,255,255,0.2)] pixelated"
             style={{ imageRendering: 'pixelated', width: 'auto', height: 'auto', objectFit: 'contain' }}
             onError={(e) => {
-              (e.target as HTMLImageElement).src = '/assets/codex/weapons/kettlebell_iron.png';
+              (e.target as HTMLImageElement).src = `${ASSET_ROOT}/codex/weapons/kettlebell_iron.png`;
             }}
           />
         </div>
