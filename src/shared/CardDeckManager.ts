@@ -4,11 +4,24 @@ import { ExerciseType } from '../types/game';
 import { bindCard, rebindCard, buildLoadout, type Loadout } from './progression';
 
 /**
+ * Incompatible pairs of exercises that cannot co-exist in the same hand
+ * to prevent false-trigger co-reps (e.g. Squat & Lunge, Single-Leg RDL & Deadlift).
+ */
+export const MUTUALLY_EXCLUSIVE_EXERCISES: Readonly<Partial<Record<ExerciseType, readonly ExerciseType[]>>> = {
+  SQUAT: ['LUNGE'],
+  LUNGE: ['SQUAT'],
+  SINGLE_LEG_RDL: ['DEADLIFT'],
+  DEADLIFT: ['SINGLE_LEG_RDL'],
+};
+
+/**
  * Slay the Spire Style Card & Deck Manager for Kettlebell Knight.
  * 
  * Strict Constraint:
  * The 5 cards in hand MUST ALWAYS require different exercises from each other.
  * If Card 1 requires Goblet Squats, none of the other 4 cards in hand can be a Goblet Squat.
+ * Additionally, exercises with overlapping movement patterns that could co-trigger reps
+ * (SQUAT / LUNGE, SINGLE_LEG_RDL / DEADLIFT) cannot both be in hand at the same time.
  */
 export class CardDeckManager {
   private drawPile: CombatCard[] = [];
@@ -110,28 +123,46 @@ export class CardDeckManager {
   }
 
   /**
+   * Checks whether a card's exercise is eligible to enter the hand:
+   * 1. Must not duplicate any exercise already in hand.
+   * 2. Cannot conflict with an incompatible exercise already in hand.
+   */
+  private canExerciseEnterHand(exercise: ExerciseType, inHand: Set<ExerciseType>): boolean {
+    if (inHand.has(exercise)) return false;
+    const conflicts = MUTUALLY_EXCLUSIVE_EXERCISES[exercise];
+    if (conflicts && conflicts.some(c => inHand.has(c))) return false;
+    return true;
+  }
+
+  /**
    * Draws a card whose exercise is NOT currently in the player's hand.
-   * Strictly enforces the "different exercises in hand" rule.
+   * Strictly enforces the "different exercises in hand" rule, as well as mutual exclusion
+   * between exercises that could co-trigger reps (e.g. SQUAT / LUNGE, SINGLE_LEG_RDL / DEADLIFT).
    */
   private drawUniqueExerciseCard(): CombatCard | null {
     const currentExercisesInHand = new Set(this.hand.map(c => c.exercise));
 
-    // Search draw pile for a card with an exercise NOT in hand
-    let candidateIndex = this.drawPile.findIndex(c => !currentExercisesInHand.has(c.exercise));
+    // Search draw pile for a card with an eligible exercise
+    let candidateIndex = this.drawPile.findIndex(c => this.canExerciseEnterHand(c.exercise, currentExercisesInHand));
 
     // If no candidate in draw pile, recycle and shuffle discard pile
     if (candidateIndex === -1 && this.discardPile.length > 0) {
       this.drawPile.push(...this.discardPile);
       this.discardPile = [];
       this.shuffle(this.drawPile);
-      candidateIndex = this.drawPile.findIndex(c => !currentExercisesInHand.has(c.exercise));
+      candidateIndex = this.drawPile.findIndex(c => this.canExerciseEnterHand(c.exercise, currentExercisesInHand));
     }
 
-    // If still no candidate, mint a fresh copy of an unlocked card for an exercise missing from the hand
+    // If still no candidate, mint a fresh copy of an unlocked card for an eligible exercise missing from the hand
     if (candidateIndex === -1) {
-      const missing = this.templates.filter(c => !currentExercisesInHand.has(c.exercise));
+      const missing = this.templates.filter(c => this.canExerciseEnterHand(c.exercise, currentExercisesInHand));
       if (missing.length > 0) {
         return this.createCardInstance(missing[Math.floor(Math.random() * missing.length)]);
+      }
+      // Safety fallback: if total unlocked pool lacks enough eligible exercises, fall back to non-duplicate
+      const nonDuplicate = this.templates.filter(c => !currentExercisesInHand.has(c.exercise));
+      if (nonDuplicate.length > 0) {
+        return this.createCardInstance(nonDuplicate[Math.floor(Math.random() * nonDuplicate.length)]);
       }
       return null;
     }
@@ -146,9 +177,13 @@ export class CardDeckManager {
     return [...this.drawPile, ...this.hand, ...this.discardPile].map((c) => c.templateId);
   }
 
-  /** Dev: puts a fresh copy of `template` in the hand, replacing the card with the same exercise (else slot 0). */
+  /** Dev: puts a fresh copy of `template` in the hand, replacing the card with the same or conflicting exercise (else slot 0). */
   public debugPutInHand(template: CardTemplate): CombatCard[] {
-    const i = Math.max(0, this.hand.findIndex((c) => c.exercise === template.exercise));
+    const conflicts = MUTUALLY_EXCLUSIVE_EXERCISES[template.exercise] ?? [];
+    const i = Math.max(
+      0,
+      this.hand.findIndex((c) => c.exercise === template.exercise || conflicts.includes(c.exercise))
+    );
     this.sources.set(template.templateId, template);
     this.hand[i] = this.createCardInstance(bindCard(template, this.loadout));
     return [...this.hand];

@@ -97,8 +97,29 @@ interface CleanPressArm {
   peakSpeed: number;
 }
 
+/** Windmill timing. The descent and return are slow, so a hand jittering around the knee line can re-trigger a rep. */
+const WINDMILL = {
+  /** After a rep, the tracker waits this long before a new descent can start (and between counted reps). */
+  cooldownMs: 1200,
+};
+
 const freshCleanPressArm = (): CleanPressArm =>
   ({ state: 0, armed: false, pullAt: 0, rackAt: 0, racked: false, lastY: 0, peakSpeed: 0 });
+
+/**
+ * Snatch thresholds. Both wrists are followed: the hands start together on the hike and part on the way up, so a
+ * midpoint of the two never reaches overhead. Heights are standing-torso lengths above the shoulder line.
+ */
+const SNATCH = {
+  /** Pull starts when either wrist rises at least this fast (screen heights / s) out of the hike. */
+  pullSpeed: 0.55,
+  /** Lockout: the higher wrist at least this far above the shoulders. A locked-out arm reaches ~0.9. */
+  lockout: 0.6,
+  /** After a lockout, the wrist has to drop below this before the next hike. */
+  reset: 0.3,
+  /** A pull that hasn't locked out by now (or fell back below the hips) is abandoned. */
+  pullTimeoutMs: 1500,
+};
 
 /**
  * Lunge thresholds. Thighs are read as hip→knee height over the standing thigh (1 = straight down, 0 = level):
@@ -275,6 +296,8 @@ export class KinematicTracker {
   private cleanRackAt: number = 0;
   /** Clean & press progress per wrist. */
   private cleanPressArms = { LEFT: freshCleanPressArm(), RIGHT: freshCleanPressArm() };
+  /** Snatch: each wrist's height last frame (null = no reference yet). */
+  private snatchLastWrists: { l: number; r: number } | null = null;
   /**
    * Standing torso (shoulders→hips) and thigh (hips→knees) heights on screen. Facing the camera, a hip hinge
    * shortens the torso and a knee bend shortens the thigh, so each is read as a ratio of its standing length.
@@ -341,6 +364,7 @@ export class KinematicTracker {
     this.cleanStageCompleted = false;
     this.cleanRackAt = 0;
     this.cleanPressArms = { LEFT: freshCleanPressArm(), RIGHT: freshCleanPressArm() };
+    this.snatchLastWrists = null;
     this.aroundBodyDirection = 'NONE';
     this.consecutiveFullBodyFrames = 0;
   }
@@ -388,6 +412,8 @@ export class KinematicTracker {
     this.armCandidate = candidate;
     if (candidate !== this.armSide && this.armCandidateFrames >= 6) {
       this.armSide = candidate;
+      // The snatch follows both wrists itself, so the hands parting mid-pull mustn't cost it the rep
+      if (this.activeExercise === 'SNATCH') return;
       // The tracked point moves: abandon any half rep and drop the velocity reference so the jump isn't read as motion
       this.currentState = 0;
       this.maxMovementVelocity = 0;
@@ -744,10 +770,11 @@ export class KinematicTracker {
     }
 
     // 10. Deadlift: Wrists pulling vertically from mid-shin to hip, never rising to shoulders
+    // Both hands stay low: a windmill (one arm overhead, the other at the shin) averages out to the same height
     if (
       this.allowedExercises.includes('DEADLIFT') &&
-      wristY >= hipY - 0.05 &&
-      wristY <= kneeY + 0.15
+      topWristY >= hipY - 0.05 &&
+      bottomWristY <= kneeY + 0.15
     ) {
       return 'DEADLIFT';
     }
@@ -1163,25 +1190,31 @@ export class KinematicTracker {
     const lHip = landmarks[POSE_INDEX.LEFT_HIP];
     const rHip = landmarks[POSE_INDEX.RIGHT_HIP];
 
-    const workingWrist = this.workingWrist(landmarks);
     const shoulderY = (lShoulder.y + rShoulder.y) / 2;
     const hipY = (lHip.y + rHip.y) / 2;
+    const torsoHeight = Math.max(0.12, this.standingTorso);
+    const lockoutY = shoulderY - SNATCH.lockout * torsoHeight;
 
+    // The bell is the higher wrist on the way up and the lower one in the hike; speed is the faster-rising wrist
+    const topY = Math.min(lWrist.y, rWrist.y);
+    const bottomY = Math.max(lWrist.y, rWrist.y);
     const dt = this.lastTimestamp > 0 ? Math.max(0.016, (timestampMs - this.lastTimestamp) / 1000) : 0.033;
-    const velocity = this.lastMetricY > 0 ? (this.lastMetricY - workingWrist.y) / dt : 0;
+    const prev = this.snatchLastWrists;
+    const velocity = prev ? Math.max(prev.l - lWrist.y, prev.r - rWrist.y) / dt : 0;
 
     let emittedTelemetry: RepTelemetry | undefined = undefined;
 
     switch (this.currentState) {
       case 0: { // BACKSWING / HIKE
-        if (workingWrist.y > hipY) {
+        if (bottomY > hipY) {
           this.phaseStartTimestamp = timestampMs;
           this.maxMovementVelocity = 0;
         }
         // Continuous high pull explosive drive
-        // Only from the backswing: the bell has to start below the hip
-        if (this.phaseStartTimestamp > 0 && velocity > 0.55 && workingWrist.y <= hipY) {
+        // Only from the backswing: the bell has to have been below the hip
+        if (this.phaseStartTimestamp > 0 && velocity > SNATCH.pullSpeed) {
           this.currentState = 1;
+          this.phaseStartTimestamp = timestampMs;
           this.maxMovementVelocity = velocity;
         }
         break;
@@ -1190,8 +1223,15 @@ export class KinematicTracker {
         if (velocity > this.maxMovementVelocity) {
           this.maxMovementVelocity = velocity;
         }
+        // A swing or a pull that died: back to the hike
+        if (timestampMs - this.phaseStartTimestamp > SNATCH.pullTimeoutMs || (topY > hipY && velocity < 0)) {
+          this.currentState = 0;
+          this.phaseStartTimestamp = 0;
+          this.maxMovementVelocity = 0;
+          break;
+        }
         // Punch-through to overhead lockout
-        if (workingWrist.y <= shoulderY - 0.24) {
+        if (topY <= lockoutY) {
           if (timestampMs - this.lastRepTimestamp >= this.minRepIntervalMs) {
             this.currentState = 2;
             this.repCount++;
@@ -1214,7 +1254,7 @@ export class KinematicTracker {
         break;
       }
       case 2: { // OVERHEAD LOCKOUT RETURN
-        if (workingWrist.y > shoulderY - 0.10) {
+        if (topY > shoulderY - SNATCH.reset * torsoHeight) {
           this.currentState = 0;
           this.maxMovementVelocity = 0;
           this.phaseStartTimestamp = 0;
@@ -1223,7 +1263,7 @@ export class KinematicTracker {
       }
     }
 
-    this.lastMetricY = workingWrist.y;
+    this.snatchLastWrists = { l: lWrist.y, r: rWrist.y };
     this.lastTimestamp = timestampMs;
 
     const names = ['HIKE', 'EXPLOSIVE PULL', 'OVERHEAD LOCK'];
@@ -1235,8 +1275,8 @@ export class KinematicTracker {
       repCount: this.repCount,
       power: emittedTelemetry?.power || Math.round(60 + velocity * 35),
       form: emittedTelemetry?.form || 1.0,
-      primaryY: workingWrist.y,
-      referenceY: shoulderY - 0.24,
+      primaryY: topY,
+      referenceY: lockoutY,
       velocity,
       telemetry: emittedTelemetry,
     };
@@ -1274,7 +1314,8 @@ export class KinematicTracker {
         if (topWrist.y < shoulderY - 0.20 && bottomWrist.y < kneeY - 0.15) {
           this.phaseStartTimestamp = timestampMs;
         }
-        if (bottomWrist.y > kneeY - 0.08) {
+        // Cooldown after a rep: the hand settling back up past the knee line is the same rep, not a new descent
+        if (bottomWrist.y > kneeY - 0.08 && timestampMs - this.lastRepTimestamp >= WINDMILL.cooldownMs) {
           this.currentState = 1;
         }
         break;
@@ -1288,7 +1329,7 @@ export class KinematicTracker {
       }
       case 2: { // RETURN TO UPRIGHT STAND
         if (bottomWrist.y <= kneeY - 0.15) {
-          if (timestampMs - this.lastRepTimestamp >= this.minRepIntervalMs) {
+          if (timestampMs - this.lastRepTimestamp >= WINDMILL.cooldownMs) {
             this.repCount++;
             this.lastRepTimestamp = timestampMs;
 
