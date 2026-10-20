@@ -6,6 +6,7 @@ import { TARGET_LABEL } from '../../shared/cardBalance';
 import { ELEMENT_INFO } from '../../shared/elements';
 import { cardLevelMultiplier } from '../../shared/progression';
 import type { CardTarget } from '../../types/battle';
+import type { RepCardTarget } from '../engine/repStamp';
 
 /**
  * Formation diagram: three cells, front to back (left to right). Lit cells are hit at full damage,
@@ -324,6 +325,7 @@ export const CombatCardView: React.FC<CombatCardViewProps> = ({ card, index, han
 
   return (
     <div
+      data-card-id={card.id}
       className={`kk-card-slot ${focused ? 'kk-card-slot--focused' : ''} ${primed ? 'kk-card-slot--primed' : ''} ${flipped ? 'kk-card-slot--flipped' : ''}`}
       style={style}
       onClick={onSelect}
@@ -341,6 +343,7 @@ export const CombatCardView: React.FC<CombatCardViewProps> = ({ card, index, han
           <TechniqueSide card={card} active={flipped} />
         </div>
       </div>
+      <div className="kk-card-absorb" aria-hidden />
       {castGhost && (
         <div
           key={castGhost.id}
@@ -353,3 +356,22 @@ export const CombatCardView: React.FC<CombatCardViewProps> = ({ card, index, han
     </div>
   );
 };
+
+/**
+ * The hand card `cardId` as a rep-stream target for the TV engine (GameEngine.showRepStamp): found by its
+ * slot's data-card-id, flared imperatively so a rep's credit doesn't re-render the hand.
+ */
+export function cardRepTarget(cardId: string): RepCardTarget {
+  const slot = () => document.querySelector<HTMLElement>(`.kk-card-slot[data-card-id="${CSS.escape(cardId)}"]`);
+  return {
+    locate: () => slot()?.getBoundingClientRect() ?? null,
+    absorb: (color) => {
+      const glow = slot()?.querySelector<HTMLElement>('.kk-card-absorb');
+      if (!glow) return;
+      glow.style.setProperty('--absorb', color);
+      glow.classList.remove('kk-card-absorb--on');
+      void glow.offsetWidth; // restart the animation
+      glow.classList.add('kk-card-absorb--on');
+    },
+  };
+}

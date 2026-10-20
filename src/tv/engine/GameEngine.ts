@@ -12,6 +12,7 @@ import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { MoveTracer, type Box, type MoveTraceReport } from './moveTrace';
 import { VFX_RIGS, VFX_NAMES, type VfxName, type VfxOpts } from './vfx';
 import { OutlineFilter } from './outlineFilter';
+import { RepStamp, type RepCardTarget } from './repStamp';
 import { TRIAL_SCENES, type TrialScene } from './trialScenes';
 import type { SecretTrialId, TrialRepResult } from '../../shared/secretTrials';
 import {
@@ -1190,6 +1191,7 @@ export class GameEngine {
 
   // Combat entities
   private floatingTexts: FloatingCombatText[] = [];
+  private repStamp: RepStamp | null = null;
   private particles: Particle[] = [];
   private activeProjectiles: ActiveProjectile[] = [];
   private activeEffects: ActiveCombatEffect[] = [];
@@ -1354,6 +1356,29 @@ export class GameEngine {
     this.flashOverlay.alpha = 0;
     this.flashOverlay.y = SCENE_RAISE_Y; // cancel the effects-layer raise so the flash stays fullscreen
     this.effectsLayer.addChild(this.flashOverlay);
+
+    // 5. Rep stamp, screen-fixed above the camera-transformed scene
+    this.repStamp = new RepStamp((rect) => {
+      const c = this.app?.canvas.getBoundingClientRect();
+      if (!c || !c.width || !c.height) return null;
+      return { x: ((rect.left + rect.width / 2 - c.left) * 426) / c.width, y: ((rect.top - c.top) * 240) / c.height, h: (rect.height * 240) / c.height };
+    });
+    this.app.stage.addChild(this.repStamp.view);
+  }
+
+  /**
+   * Acknowledges a counted rep on screen: the streak count and the exercise's name, then a stream into the
+   * hand card it counted toward (`card`, if any).
+   */
+  public showRepStamp(exercise: ExerciseType, power: number = 80, card: RepCardTarget | null = null): void {
+    // Mid-cast a counter would cover the attack: the rep streams straight into its card instead
+    if (this.activeKnightMove) this.repStamp?.streamOnly(exercise, card);
+    else this.repStamp?.show(exercise, power, card);
+  }
+
+  /** A card is being cast: clears the rep counters off the attack (their credit streams into their cards). */
+  public clearRepStamps(): void {
+    this.repStamp?.clear();
   }
 
   private createRetroBackground(): void {
@@ -3727,6 +3752,8 @@ export class GameEngine {
         this.rootStage.y = (120 - this.cameraFocusY * this.cameraZoom) + shakeOffsetY;
       }
 
+      this.repStamp?.update(delta);
+
       // 4. Update Floating Combat Numbers
       for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
         const item = this.floatingTexts[i];
@@ -3845,6 +3872,7 @@ export class GameEngine {
       particles: this.particles.length,
       floatingTexts: this.floatingTexts.length,
     };
+    const repStamp = this.repStamp?.getDebugState() ?? null;
     const idle =
       this.isReady &&
       this.loadsInFlight === 0 &&
@@ -3872,6 +3900,7 @@ export class GameEngine {
       camera: { zoom: Number(this.cameraZoom.toFixed(3)), shake: Number(this.shakeIntensity.toFixed(2)) },
       equipped: { ...this.equippedSlots },
       reps: { total: this.totalRepsCount, combo: this.currentCombo },
+      repStamp,
       assetRefs: { knight: knightAssetRefs, monsters: Object.fromEntries(monsterAssetRefs) },
     };
   }
@@ -4110,6 +4139,8 @@ export class GameEngine {
     }
     this.activeEffects = [];
     this.monsterOutline.destroy();
+    this.repStamp?.destroy();
+    this.repStamp = null;
 
     if (this.app) {
       try {

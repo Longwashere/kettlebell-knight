@@ -25,7 +25,7 @@ import { BattleIntro, introTimeline, introHudClass, type IntroStep } from './Bat
 import { BATTLE_QUOTES, nextBattleQuote, quoteHoldMs, type BattleQuote } from './battleQuotes';
 import { STAGE_LORE } from '../../shared/stageLore';
 import type { CardUnlockDef } from '../../shared/cardUnlocks';
-import { CombatCardView } from './CombatCardView';
+import { CombatCardView, cardRepTarget } from './CombatCardView';
 import { rollSecretTrial, type SecretTrialId } from '../../shared/secretTrials';
 import { SECRET_TRIAL_COPY } from './secretTrialCopy';
 import { TRIAL_SCENES } from '../engine/trialScenes';
@@ -578,6 +578,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     }
 
     const result = deckManagerRef.current.recordRep(exercise, power, form);
+    // The rep's stamp streams its credit into the card it counted toward. A cast is its own payoff, and
+    // clears the counters off the attack.
+    if (result.activated) engineRef.current?.clearRepStamps();
+    else engineRef.current?.showRepStamp(exercise, power, result.card ? cardRepTarget(result.card.id) : null);
 
     if (result.activated && result.card) {
       const card = result.card;

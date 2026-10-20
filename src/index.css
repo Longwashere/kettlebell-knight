@@ -113,6 +113,27 @@ canvas,
   cursor: pointer;
 }
 
+/* A rep's credit landing (the TV rep stream, cardRepTarget): the card flares in the stream's colour */
+.kk-card-absorb {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: 10px;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse 70% 45% at 50% 0%, var(--absorb, #F4B41A) 0%, transparent 70%);
+  box-shadow: 0 0 0 3px #FFF7D6, 0 0 26px 6px var(--absorb, #F4B41A), inset 0 0 34px var(--absorb, #F4B41A);
+  mix-blend-mode: screen;
+}
+.kk-card-absorb--on {
+  animation: kkAbsorb 900ms steps(9, end) forwards;
+}
+@keyframes kkAbsorb {
+  0% { opacity: 1; transform: scale(1.04); }
+  25% { opacity: 0.85; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
 .kk-card-slot--focused {
   transform: translateY(-14px) rotate(0deg) scale(1.06);
   filter: none;
