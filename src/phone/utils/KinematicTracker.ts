@@ -41,6 +41,85 @@ const SWING = {
   resetBell: 0.8,
 };
 
+/**
+ * Kettlebell clean thresholds (hike → rack, no press). Bell height uses the swing's scale: standing-torso lengths
+ * below the shoulders (0 = shoulder line, 1 = hip line).
+ */
+const CLEAN = {
+  /** Hike: the bell at least this low (around the hips or below). */
+  hikeBell: 0.85,
+  /** Pull starts when the bell rises at least this fast (torso lengths / s). */
+  pullSpeed: 1.0,
+  /** Rack zone: the bell between these heights (a little above the shoulder line down to the upper chest). */
+  rackHigh: -0.3,
+  rackLow: 0.45,
+  /**
+   * Rack: the elbow tucked at least this far below the wrist (torso lengths). A swing reaching chest height has its
+   * arm straight out toward the camera, so its elbow sits between shoulder and wrist — level with or above the hand.
+   */
+  rackElbowTuck: 0.12,
+  /** Rack: the bell settled (slower than this, torso lengths / s) for this long. */
+  rackStillSpeed: 1.2,
+  rackHoldMs: 150,
+  /** A pull that hasn't racked by now (or dropped back into the hike) is abandoned. */
+  pullTimeoutMs: 1600,
+};
+
+/**
+ * Clean & press thresholds (normalized screen units). Each wrist runs its own hang → rack → overhead sequence, so the
+ * free hand hanging at the side or held up never stands in for the bell.
+ */
+const CLEAN_PRESS = {
+  /** Rack: the wrist within this distance of the shoulder line, held this long. */
+  rackBand: 0.12,
+  rackHoldMs: 100,
+  /** Lockout: the wrist at least this far above the shoulder line. */
+  lockout: 0.24,
+  /** Pull starts when the wrist rises at least this fast (screen heights / s) from the hang. */
+  pullSpeed: 0.4,
+  /** A pull that hasn't racked by now is abandoned. */
+  pullTimeoutMs: 2000,
+  /** Hang → lockout can't be faster than this: anything quicker is a tracking glitch, not a rep. */
+  minRepMs: 500,
+  /** A wrist moving further than this in one frame (or barely visible) is a tracking glitch: its rep is dropped. */
+  maxFrameJump: 0.2,
+  minVisibility: 0.3,
+};
+
+interface CleanPressArm {
+  state: SwingState;
+  /** The wrist has hung below the hips since its last rep (a rep has to start from the hang). */
+  armed: boolean;
+  pullAt: number;
+  rackAt: number;
+  racked: boolean;
+  lastY: number;
+  peakSpeed: number;
+}
+
+const freshCleanPressArm = (): CleanPressArm =>
+  ({ state: 0, armed: false, pullAt: 0, rackAt: 0, racked: false, lastY: 0, peakSpeed: 0 });
+
+/**
+ * Lunge thresholds. Thighs are read as hip→knee height over the standing thigh (1 = straight down, 0 = level):
+ * at the bottom of a lunge the front thigh is about level and the rear one points down, so the knees split apart.
+ */
+const LUNGE = {
+  /** Standing: both thighs at least this upright and the knees split by less than resetSplit. */
+  standThigh: 0.8,
+  resetSplit: 0.25,
+  /** Sinking starts once the knees split this far (standing thighs) or the front thigh folds below this. */
+  startSplit: 0.35,
+  startThigh: 0.7,
+  /** Depth: the front thigh at most this upright with the knees split at least this far. */
+  depthThigh: 0.45,
+  depthSplit: 0.5,
+  /** Drive: the front thigh has risen this far back from its deepest point. */
+  driveRise: 0.1,
+  /** The torso stays at least this tall (vs standing): a hinge with the leg kicked back is a single-leg RDL. */
+  minTorso: 0.72,
+};
+
 export type SwingState = 0 | 1 | 2; // Phase 0 (Prep/Start), Phase 1 (Mid/Inflection), Phase 2 (Peak/Lockout)
 
 /** Which hand holds the bell: one arm, or both hands together on the handle (tracked at their midpoint). */
@@ -134,10 +213,10 @@ export function calculateAngle(
 }
 
 /**
- * Full Suite 11-Exercise Kinematic Tracker for Kettlebell Knight.
+ * Full Suite 13-Exercise Kinematic Tracker for Kettlebell Knight.
  * 
  * Features:
- * 1. Dedicated Biomechanical State Machines for all 11 Kettlebell Exercises:
+ * 1. Dedicated Biomechanical State Machines for all 13 Kettlebell Exercises:
  *    - SWING
  *    - SQUAT (Goblet)
  *    - CLEAN_AND_PRESS
@@ -149,6 +228,8 @@ export function calculateAngle(
  *    - GORILLA_ROW
  *    - AROUND_THE_BODY
  *    - SINGLE_LEG_RDL
+ *    - CLEAN
+ *    - LUNGE
  * 
  * 2. Smart Hand Router:
  *    Restricts detection pool to the active 5 cards in hand to eliminate false positives
@@ -190,6 +271,10 @@ export class KinematicTracker {
   /** Hip hinge at the start of this drive, and the best bell / hinge / knee the drive reached (for the miss note). */
   private swingHikeHinge: number = 0;
   private swingBest = { bell: 9, hinge: 0, knee: 0 };
+  /** When the clean's bell settled in the rack zone (0 = not settled). */
+  private cleanRackAt: number = 0;
+  /** Clean & press progress per wrist. */
+  private cleanPressArms = { LEFT: freshCleanPressArm(), RIGHT: freshCleanPressArm() };
   /**
    * Standing torso (shoulders→hips) and thigh (hips→knees) heights on screen. Facing the camera, a hip hinge
    * shortens the torso and a knee bend shortens the thigh, so each is read as a ratio of its standing length.
@@ -254,6 +339,8 @@ export class KinematicTracker {
     this.maxSquatDepth = 0;
     this.lastRepTimestamp = 0;
     this.cleanStageCompleted = false;
+    this.cleanRackAt = 0;
+    this.cleanPressArms = { LEFT: freshCleanPressArm(), RIGHT: freshCleanPressArm() };
     this.aroundBodyDirection = 'NONE';
     this.consecutiveFullBodyFrames = 0;
   }
@@ -306,6 +393,7 @@ export class KinematicTracker {
       this.maxMovementVelocity = 0;
       this.phaseStartTimestamp = 0;
       this.cleanStageCompleted = false;
+      this.cleanRackAt = 0;
       this.lastMetricY = 0;
       this.lastMetricX = 0;
     }
@@ -493,7 +581,8 @@ export class KinematicTracker {
       }
     }
 
-    this.updateWorkingArm(landmarks, timestampMs);
+    // Clean & press follows each wrist on its own and reports the bell arm itself
+    if (this.activeExercise !== 'CLEAN_AND_PRESS') this.updateWorkingArm(landmarks, timestampMs);
     this.updateStandingRefs(landmarks);
     const update = this.processExercise(landmarks, timestampMs);
     update.arm = this.armSide;
@@ -508,8 +597,9 @@ export class KinematicTracker {
       case 'OVERHEAD_PRESS':
         return this.processOverheadPress(landmarks, timestampMs);
       case 'CLEAN_AND_PRESS':
-      case 'CLEAN':
         return this.processCleanAndPress(landmarks, timestampMs);
+      case 'CLEAN':
+        return this.processClean(landmarks, timestampMs);
       case 'SNATCH':
         return this.processSnatch(landmarks, timestampMs);
       case 'WINDMILL':
@@ -525,7 +615,7 @@ export class KinematicTracker {
       case 'SINGLE_LEG_RDL':
         return this.processSingleLegRDL(landmarks, timestampMs);
       case 'LUNGE':
-        return this.processSquat(landmarks, timestampMs);
+        return this.processLunge(landmarks, timestampMs);
       case 'SWING':
       default:
         return this.processSwing(landmarks, timestampMs);
@@ -582,7 +672,17 @@ export class KinematicTracker {
       return 'WINDMILL';
     }
 
-    // 3. Single-Leg RDL Signature: One ankle or knee elevated significantly behind
+    // 3. Lunge Signature: Torso upright, bell held at the chest, one knee dropped well below the other
+    if (
+      this.allowedExercises.includes('LUNGE') &&
+      torsoHeight > 0.2 &&
+      Math.abs(lKnee.y - rKnee.y) > 0.1 &&
+      wristY < hipY
+    ) {
+      return 'LUNGE';
+    }
+
+    // 4. Single-Leg RDL Signature: One ankle or knee elevated significantly behind
     const legDeltaY =
       lAnkle && rAnkle && (lAnkle.visibility ?? 0) > 0.35 && (rAnkle.visibility ?? 0) > 0.35
         ? Math.abs(lAnkle.y - rAnkle.y)
@@ -595,7 +695,7 @@ export class KinematicTracker {
       return 'SINGLE_LEG_RDL';
     }
 
-    // 4. Gorilla Row Signature: Bent-over torso, one elbow pulling high past hip
+    // 5. Gorilla Row Signature: Bent-over torso, one elbow pulling high past hip
     const lElbow = landmarks[POSE_INDEX.LEFT_ELBOW];
     const rElbow = landmarks[POSE_INDEX.RIGHT_ELBOW];
     if (
@@ -607,7 +707,7 @@ export class KinematicTracker {
       return 'GORILLA_ROW';
     }
 
-    // 5. Thruster Signature: Sinking into deep squat with wrists in rack, then pressing overhead
+    // 6. Thruster Signature: Sinking into deep squat with wrists in rack, then pressing overhead
     if (
       this.allowedExercises.includes('THRUSTER') &&
       hipY > kneeY - 0.08 &&
@@ -616,7 +716,7 @@ export class KinematicTracker {
       return 'THRUSTER';
     }
 
-    // 6. Goblet Squat: Hips sinking deep below knees while wrists anchored at chest
+    // 7. Goblet Squat: Hips sinking deep below knees while wrists anchored at chest
     if (
       this.allowedExercises.includes('SQUAT') &&
       hipY > kneeY - 0.08 &&
@@ -625,7 +725,7 @@ export class KinematicTracker {
       return 'SQUAT';
     }
 
-    // 7. Overhead Press: Wrists driving high above shoulders while hips stay stable
+    // 8. Overhead Press: Wrists driving high above shoulders while hips stay stable
     if (
       this.allowedExercises.includes('OVERHEAD_PRESS') &&
       wristY < shoulderY - 0.15 &&
@@ -634,7 +734,7 @@ export class KinematicTracker {
       return 'OVERHEAD_PRESS';
     }
 
-    // 8. Snatch: Working wrist passes rapidly straight overhead without rack pause
+    // 9. Snatch: Working wrist passes rapidly straight overhead without rack pause
     if (
       this.allowedExercises.includes('SNATCH') &&
       topWristY < shoulderY - 0.20 &&
@@ -643,7 +743,7 @@ export class KinematicTracker {
       return 'SNATCH';
     }
 
-    // 9. Deadlift: Wrists pulling vertically from mid-shin to hip, never rising to shoulders
+    // 10. Deadlift: Wrists pulling vertically from mid-shin to hip, never rising to shoulders
     if (
       this.allowedExercises.includes('DEADLIFT') &&
       wristY >= hipY - 0.05 &&
@@ -917,79 +1017,120 @@ export class KinematicTracker {
   // =========================================================================
   // EXERCISE 3: CLEAN AND PRESS ("STORM BREAKER")
   // Two stages: Floor/Hang -> Rack Clean -> Overhead Lockout
+  // Each wrist runs the sequence on its own: the bell hand is whichever one goes hang → rack → overhead, so a free
+  // hand hanging at the side or held up still never makes (or breaks) a rep.
   // =========================================================================
   private processCleanAndPress(landmarks: NormalizedLandmark[], timestampMs: number): KinematicStateUpdate {
-    const lWrist = landmarks[POSE_INDEX.LEFT_WRIST];
-    const rWrist = landmarks[POSE_INDEX.RIGHT_WRIST];
     const lShoulder = landmarks[POSE_INDEX.LEFT_SHOULDER];
     const rShoulder = landmarks[POSE_INDEX.RIGHT_SHOULDER];
     const lHip = landmarks[POSE_INDEX.LEFT_HIP];
     const rHip = landmarks[POSE_INDEX.RIGHT_HIP];
 
-    const wristY = this.workingWrist(landmarks).y;
     const shoulderY = (lShoulder.y + rShoulder.y) / 2;
     const hipY = (lHip.y + rHip.y) / 2;
+    const lockoutY = shoulderY - CLEAN_PRESS.lockout;
 
     const dt = this.lastTimestamp > 0 ? Math.max(0.016, (timestampMs - this.lastTimestamp) / 1000) : 0.033;
-    const velocity = this.lastMetricY > 0 ? (this.lastMetricY - wristY) / dt : 0;
 
     let emittedTelemetry: RepTelemetry | undefined = undefined;
+    const sides = ['LEFT', 'RIGHT'] as const;
 
-    switch (this.currentState) {
-      case 0: { // HANG SETUP
-        this.cleanStageCompleted = false;
-        if (wristY > hipY) {
-          this.phaseStartTimestamp = timestampMs;
-          this.maxMovementVelocity = 0;
-        }
-        // Rapid upward pull into rack
-        // Only from the hang: the bell has to start below the hip
-        if (this.phaseStartTimestamp > 0 && velocity > 0.4 && wristY <= hipY) {
-          this.currentState = 1;
-        }
-        break;
-      }
-      case 1: { // RACK POSITION REACHED
-        if (Math.abs(wristY - shoulderY) < 0.12) {
-          this.cleanStageCompleted = true;
-        }
-        // From rack, drives overhead
-        if (this.cleanStageCompleted && wristY < shoulderY - 0.18 && velocity > 0.3) {
-          this.currentState = 2;
-        }
-        break;
-      }
-      case 2: { // OVERHEAD LOCKOUT
-        if (wristY <= shoulderY - 0.24) {
-          if (timestampMs - this.lastRepTimestamp >= this.minRepIntervalMs) {
-            this.repCount++;
-            this.lastRepTimestamp = timestampMs;
+    for (const side of sides) {
+      const arm = this.cleanPressArms[side];
+      const wrist = landmarks[side === 'LEFT' ? POSE_INDEX.LEFT_WRIST : POSE_INDEX.RIGHT_WRIST];
+      const y = wrist.y;
 
-            const powerScore = Math.min(150, Math.max(65, Math.round(65 + this.maxMovementVelocity * 40)));
-            emittedTelemetry = {
-              event: 'REP_TRIGGER',
-              exercise: 'CLEAN_AND_PRESS',
-              skillName: EXERCISE_SKILLS.CLEAN_AND_PRESS.skillName,
-              power: powerScore,
-              form: 0.95,
-              repCount: this.repCount,
-              state: 2,
-              timestamp: timestampMs,
-            };
-            this.onRepCompleted?.(emittedTelemetry);
+      // Lost or teleporting wrist (e.g. the pose model swapping hands): drop this arm's rep rather than read a jump
+      const glitch =
+        (wrist.visibility ?? 1) < CLEAN_PRESS.minVisibility ||
+        (arm.lastY > 0 && Math.abs(y - arm.lastY) > CLEAN_PRESS.maxFrameJump);
+      if (glitch) {
+        this.cleanPressArms[side] = { ...freshCleanPressArm(), lastY: y };
+        continue;
+      }
+
+      const velocity = arm.lastY > 0 ? (arm.lastY - y) / dt : 0; // upward positive
+      arm.lastY = y;
+
+      switch (arm.state) {
+        case 0: { // HANG SETUP
+          if (y > hipY) arm.armed = true;
+          // Only from the hang: the bell has to start below the hip
+          if (arm.armed && y <= hipY && velocity > CLEAN_PRESS.pullSpeed) {
+            arm.state = 1;
+            arm.pullAt = timestampMs;
+            arm.rackAt = 0;
+            arm.racked = false;
+            arm.peakSpeed = velocity;
           }
+          break;
         }
-        // Return to hang reset
-        if (wristY >= shoulderY) {
-          this.currentState = 0;
-          this.cleanStageCompleted = false;
-          this.phaseStartTimestamp = 0;
+        case 1: { // RACK CLEAN, then the press
+          arm.peakSpeed = Math.max(arm.peakSpeed, velocity);
+          if (Math.abs(y - shoulderY) < CLEAN_PRESS.rackBand) {
+            if (!arm.rackAt) arm.rackAt = timestampMs;
+            if (timestampMs - arm.rackAt >= CLEAN_PRESS.rackHoldMs) arm.racked = true;
+          } else if (!arm.racked) {
+            arm.rackAt = 0;
+          }
+
+          if (y > hipY) {
+            arm.state = 0; // dropped back into the hang: start again
+          } else if (!arm.racked && timestampMs - arm.pullAt > CLEAN_PRESS.pullTimeoutMs) {
+            arm.state = 0;
+            arm.armed = false;
+          } else if (arm.racked && y <= lockoutY) {
+            arm.state = 2;
+            arm.armed = false;
+            if (
+              timestampMs - this.lastRepTimestamp >= this.minRepIntervalMs &&
+              timestampMs - arm.pullAt >= CLEAN_PRESS.minRepMs
+            ) {
+              this.repCount++;
+              this.lastRepTimestamp = timestampMs;
+              this.armSide = side;
+
+              const powerScore = Math.min(150, Math.max(65, Math.round(65 + arm.peakSpeed * 40)));
+              emittedTelemetry = {
+                event: 'REP_TRIGGER',
+                exercise: 'CLEAN_AND_PRESS',
+                skillName: EXERCISE_SKILLS.CLEAN_AND_PRESS.skillName,
+                power: powerScore,
+                form: 0.95,
+                repCount: this.repCount,
+                state: 2,
+                timestamp: timestampMs,
+              };
+              this.onRepCompleted?.(emittedTelemetry);
+
+              // Both hands on one bell finish together: the other one's matching run isn't a second rep
+              const other = this.cleanPressArms[side === 'LEFT' ? 'RIGHT' : 'LEFT'];
+              if (other.state === 1) {
+                other.state = 0;
+                other.armed = false;
+              }
+            }
+          }
+          break;
         }
-        break;
+        case 2: { // OVERHEAD LOCKOUT: back below the shoulders before the next hang
+          if (y >= shoulderY) arm.state = 0;
+          break;
+        }
       }
     }
 
-    this.lastMetricY = wristY;
+    // Report the arm furthest into a rep (the last bell arm while both rest)
+    const { LEFT: left, RIGHT: right } = this.cleanPressArms;
+    if (left.state !== right.state) this.armSide = left.state > right.state ? 'LEFT' : 'RIGHT';
+    if (this.armSide === 'BOTH') this.armSide = 'RIGHT';
+    const shown = this.cleanPressArms[this.armSide];
+    const shownWrist = landmarks[this.armSide === 'LEFT' ? POSE_INDEX.LEFT_WRIST : POSE_INDEX.RIGHT_WRIST];
+    this.currentState = shown.state;
+    this.phaseStartTimestamp = shown.state === 0 && shown.armed ? timestampMs : 0;
+
+    const velocity = this.lastMetricY > 0 ? (this.lastMetricY - shownWrist.y) / dt : 0;
+    this.lastMetricY = shownWrist.y;
     this.lastTimestamp = timestampMs;
 
     const names = ['HANG', 'RACK CLEAN', 'OVERHEAD'];
@@ -1001,8 +1142,8 @@ export class KinematicTracker {
       repCount: this.repCount,
       power: emittedTelemetry?.power || Math.round(55 + velocity * 30),
       form: emittedTelemetry?.form || 1.0,
-      primaryY: wristY,
-      referenceY: shoulderY - 0.24,
+      primaryY: shownWrist.y,
+      referenceY: lockoutY,
       velocity,
       telemetry: emittedTelemetry,
     };
@@ -1763,6 +1904,255 @@ export class KinematicTracker {
       referenceY: plantedKnee.y,
       velocity: elevationDelta,
       telemetry: emittedTelemetry,
+    };
+    this.onStateChange?.(update);
+    return update;
+  }
+
+  // =========================================================================
+  // EXERCISE 12: KETTLEBELL CLEAN ("ANVIL BREAKER")
+  // Tracked by the bell's height relative to the body and the elbow under it:
+  //   HIKE  bell at or below the hips
+  //   PULL  the bell snaps up as the hips open
+  //   RACK  bell settled at the shoulder with the elbow tucked beneath it (counts here — no press)
+  // A swing passes through the same height with a straight arm pointing at the camera, its elbow level with or
+  // above the hand, and never settles there.
+  // =========================================================================
+  private processClean(landmarks: NormalizedLandmark[], timestampMs: number): KinematicStateUpdate {
+    const lElbow = landmarks[POSE_INDEX.LEFT_ELBOW];
+    const rElbow = landmarks[POSE_INDEX.RIGHT_ELBOW];
+    const lShoulder = landmarks[POSE_INDEX.LEFT_SHOULDER];
+    const rShoulder = landmarks[POSE_INDEX.RIGHT_SHOULDER];
+
+    const wrist = this.workingWrist(landmarks);
+    const elbowY = this.armSide === 'LEFT' ? lElbow.y : this.armSide === 'RIGHT' ? rElbow.y : (lElbow.y + rElbow.y) / 2;
+    const shoulderY = (lShoulder.y + rShoulder.y) / 2;
+    const torsoHeight = Math.max(0.12, this.standingTorso);
+
+    const rel = (wrist.y - shoulderY) / torsoHeight;
+    const elbowTuck = (elbowY - wrist.y) / torsoHeight;
+    const inRack = rel >= CLEAN.rackHigh && rel <= CLEAN.rackLow && elbowTuck >= CLEAN.rackElbowTuck;
+
+    const dt = this.lastTimestamp > 0 ? Math.max(0.016, (timestampMs - this.lastTimestamp) / 1000) : 0.033;
+    const prevRel = this.lastMetricY > 0 ? this.lastMetricY - SWING_REL_OFFSET : null;
+    const relVelocity = prevRel !== null ? (prevRel - rel) / dt : 0; // torso lengths/s, upward positive
+
+    let emittedTelemetry: RepTelemetry | undefined = undefined;
+    let note: string | undefined;
+
+    switch (this.currentState) {
+      case 0: { // HIKE: the bell low, ready to pull
+        if (rel >= CLEAN.hikeBell) {
+          this.phaseStartTimestamp = timestampMs;
+          this.maxMovementVelocity = 0;
+        }
+        if (this.phaseStartTimestamp > 0 && relVelocity > CLEAN.pullSpeed && rel < CLEAN.hikeBell) {
+          this.currentState = 1;
+          this.maxMovementVelocity = relVelocity;
+          this.cleanRackAt = 0;
+        }
+        break;
+      }
+      case 1: { // PULL: the bell rises; it has to settle in the rack with the elbow tucked
+        this.maxMovementVelocity = Math.max(this.maxMovementVelocity, relVelocity);
+        if (inRack && Math.abs(relVelocity) < CLEAN.rackStillSpeed) {
+          if (!this.cleanRackAt) this.cleanRackAt = timestampMs;
+        } else {
+          this.cleanRackAt = 0;
+        }
+
+        // Dropped back into the hike (a swing, or a missed catch), or never settled
+        const fellBack = rel >= CLEAN.hikeBell && relVelocity < 0;
+        if (fellBack || timestampMs - this.phaseStartTimestamp > CLEAN.pullTimeoutMs) {
+          note = fellBack ? 'cancelled: bell fell back without racking' : 'cancelled: no rack';
+          this.currentState = 0;
+          this.maxMovementVelocity = 0;
+          this.cleanRackAt = 0;
+          if (!fellBack) this.phaseStartTimestamp = 0;
+          break;
+        }
+
+        if (this.cleanRackAt && timestampMs - this.cleanRackAt >= CLEAN.rackHoldMs) {
+          this.currentState = 2;
+          if (timestampMs - this.lastRepTimestamp >= this.minRepIntervalMs) {
+            this.repCount++;
+            this.lastRepTimestamp = timestampMs;
+
+            // A tighter tuck (elbow well under the bell) is the cleaner catch
+            const formScore = Math.min(1.0, Math.max(0.75, 0.75 + (elbowTuck - CLEAN.rackElbowTuck) * 0.8));
+            const powerScore = Math.min(150, Math.max(60, Math.round(55 + this.maxMovementVelocity * 22)));
+            emittedTelemetry = {
+              event: 'REP_TRIGGER',
+              exercise: 'CLEAN',
+              skillName: EXERCISE_SKILLS.CLEAN.skillName,
+              power: powerScore,
+              form: Number(formScore.toFixed(2)),
+              repCount: this.repCount,
+              state: 2,
+              timestamp: timestampMs,
+              wristVelocity: Number((this.maxMovementVelocity * torsoHeight).toFixed(2)),
+            };
+            this.onRepCompleted?.(emittedTelemetry);
+          }
+        }
+        break;
+      }
+      case 2: { // RACK: the next rep starts from the bell back down in the hike (a press from here doesn't count)
+        if (rel >= CLEAN.hikeBell) {
+          this.currentState = 0;
+          this.phaseStartTimestamp = timestampMs;
+          this.maxMovementVelocity = 0;
+          this.cleanRackAt = 0;
+        }
+        break;
+      }
+    }
+
+    this.lastMetricY = rel + SWING_REL_OFFSET;
+    this.lastTimestamp = timestampMs;
+
+    const names = ['HIKE', 'PULL', 'RACK'];
+    const update: KinematicStateUpdate = {
+      exercise: 'CLEAN',
+      state: this.currentState,
+      stateName: names[this.currentState],
+      stages: names,
+      repCount: this.repCount,
+      power: emittedTelemetry?.power || (this.currentState === 1 ? Math.round(55 + this.maxMovementVelocity * 22) : 0),
+      form: emittedTelemetry?.form || 1.0,
+      primaryY: wrist.y,
+      referenceY: shoulderY,
+      velocity: relVelocity * torsoHeight,
+      telemetry: emittedTelemetry,
+      debugNotes: note ?? `bell ${rel.toFixed(2)} tuck ${elbowTuck.toFixed(2)}`,
+    };
+    this.onStateChange?.(update);
+    return update;
+  }
+
+  // =========================================================================
+  // EXERCISE 13: GOBLET LUNGE ("VALKYRIE DASH")
+  // Tracked by both thighs (hip→knee height vs standing), so it works facing the camera or side-on:
+  //   STAND        both thighs upright, knees level
+  //   SINK         one knee drops back and down while the front thigh folds toward level
+  //   DRIVE UP     depth reached (front thigh about level, knees split); counts once standing tall again
+  // A squat folds both thighs together (no split); a single-leg RDL splits them too but hinges the torso over.
+  // Either leg may lead, so alternating lunges count every step.
+  // =========================================================================
+  private processLunge(landmarks: NormalizedLandmark[], timestampMs: number): KinematicStateUpdate {
+    const lShoulder = landmarks[POSE_INDEX.LEFT_SHOULDER];
+    const rShoulder = landmarks[POSE_INDEX.RIGHT_SHOULDER];
+    const lHip = landmarks[POSE_INDEX.LEFT_HIP];
+    const rHip = landmarks[POSE_INDEX.RIGHT_HIP];
+    const lKnee = landmarks[POSE_INDEX.LEFT_KNEE];
+    const rKnee = landmarks[POSE_INDEX.RIGHT_KNEE];
+
+    const shoulderY = (lShoulder.y + rShoulder.y) / 2;
+    const hipY = (lHip.y + rHip.y) / 2;
+    const thighRef = Math.max(0.06, this.standingThigh);
+    const torsoHeight = Math.max(0.12, this.standingTorso);
+
+    // The front knee is the higher one on screen (its thigh folds toward level); the rear knee drops toward the floor
+    const frontThigh = (Math.min(lKnee.y, rKnee.y) - hipY) / thighRef;
+    const rearThigh = (Math.max(lKnee.y, rKnee.y) - hipY) / thighRef;
+    const split = rearThigh - frontThigh;
+    const torso = (hipY - shoulderY) / torsoHeight;
+    const upright = torso >= LUNGE.minTorso;
+
+    const dt = this.lastTimestamp > 0 ? Math.max(0.016, (timestampMs - this.lastTimestamp) / 1000) : 0.033;
+    // lastMetricY keeps frontThigh offset so 0 still means "no previous frame"
+    const prevFront = this.lastMetricY > 0 ? this.lastMetricY - SWING_REL_OFFSET : null;
+    const riseVelocity = prevFront !== null ? (frontThigh - prevFront) / dt : 0; // thigh lengths/s, rising positive
+
+    let emittedTelemetry: RepTelemetry | undefined = undefined;
+    let note: string | undefined;
+    const standing = frontThigh >= LUNGE.standThigh && split < LUNGE.resetSplit;
+
+    switch (this.currentState) {
+      case 0: { // STAND
+        if (standing) {
+          this.phaseStartTimestamp = timestampMs;
+        }
+        if (upright && (split >= LUNGE.startSplit || frontThigh < LUNGE.startThigh)) {
+          this.currentState = 1;
+          this.maxSquatDepth = frontThigh; // shallowest front thigh reached = the lunge's depth
+          this.maxMovementVelocity = 0;
+        }
+        break;
+      }
+      case 1: { // SINK: the rear knee drops, the front thigh folds toward level
+        this.maxSquatDepth = Math.min(this.maxSquatDepth, frontThigh);
+        if (!upright) {
+          note = `cancelled: torso hinged (${torso.toFixed(2)})`;
+          this.currentState = 0;
+          this.phaseStartTimestamp = 0;
+          break;
+        }
+        if (standing) {
+          note = `missed depth — best: front thigh ${this.maxSquatDepth.toFixed(2)}`;
+          this.currentState = 0;
+          break;
+        }
+        const deepEnough = this.maxSquatDepth <= LUNGE.depthThigh && split >= LUNGE.depthSplit;
+        if (deepEnough && frontThigh - this.maxSquatDepth >= LUNGE.driveRise) {
+          this.currentState = 2;
+          this.maxMovementVelocity = riseVelocity;
+        }
+        break;
+      }
+      case 2: { // DRIVE UP: push back to standing tall
+        this.maxMovementVelocity = Math.max(this.maxMovementVelocity, riseVelocity);
+        if (!upright) {
+          note = `cancelled: torso hinged (${torso.toFixed(2)})`;
+          this.currentState = 0;
+          this.phaseStartTimestamp = 0;
+          break;
+        }
+        if (standing) {
+          if (timestampMs - this.lastRepTimestamp >= this.minRepIntervalMs) {
+            this.repCount++;
+            this.lastRepTimestamp = timestampMs;
+
+            // Front thigh level (0) or past it is full depth; 0.45 just scrapes in
+            const depthScore = Math.min(1.0, Math.max(0.7, 1.0 - Math.max(0, this.maxSquatDepth) * 0.65));
+            const powerScore = Math.min(150, Math.max(60, Math.round(60 + this.maxMovementVelocity * 40)));
+            emittedTelemetry = {
+              event: 'REP_TRIGGER',
+              exercise: 'LUNGE',
+              skillName: EXERCISE_SKILLS.LUNGE.skillName,
+              power: powerScore,
+              form: Number(depthScore.toFixed(2)),
+              repCount: this.repCount,
+              state: 2,
+              timestamp: timestampMs,
+            };
+            this.onRepCompleted?.(emittedTelemetry);
+          }
+          this.currentState = 0;
+          this.maxSquatDepth = 0;
+          this.maxMovementVelocity = 0;
+        }
+        break;
+      }
+    }
+
+    this.lastMetricY = frontThigh + SWING_REL_OFFSET;
+    this.lastTimestamp = timestampMs;
+
+    const names = ['STAND', 'SINK', 'DRIVE UP'];
+    const update: KinematicStateUpdate = {
+      exercise: 'LUNGE',
+      state: this.currentState,
+      stateName: names[this.currentState],
+      stages: names,
+      repCount: this.repCount,
+      power: emittedTelemetry?.power || (this.currentState === 2 ? Math.round(60 + this.maxMovementVelocity * 40) : 0),
+      form: emittedTelemetry?.form || 1.0,
+      primaryY: hipY,
+      referenceY: Math.min(lKnee.y, rKnee.y),
+      velocity: riseVelocity,
+      telemetry: emittedTelemetry,
+      debugNotes: note ?? `front ${frontThigh.toFixed(2)} rear ${rearThigh.toFixed(2)} split ${split.toFixed(2)} torso ${torso.toFixed(2)}`,
     };
     this.onStateChange?.(update);
     return update;

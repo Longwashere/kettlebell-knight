@@ -131,14 +131,14 @@ const EXERCISE_TIPS: Record<ExerciseType, { instruction: string; criteria: strin
     powerTip: 'Keep hips square and reach long through your rear heel.',
   },
   CLEAN: {
-    instruction: 'Explosive floor to shoulder rack snap.',
-    criteria: 'Hike to rack.',
-    powerTip: 'Tuck elbow.',
+    instruction: 'Hike the bell back, snap the hips and catch it in the rack at your shoulder. No press.',
+    criteria: 'Bell rises from below the hips and settles at the shoulder with the elbow tucked under it for a beat.',
+    powerTip: 'A faster pull scores more power; a tight elbow tuck scores better form.',
   },
   LUNGE: {
-    instruction: 'Split stance knee drop.',
-    criteria: 'Rear knee sinks near floor.',
-    powerTip: 'Push through front heel.',
+    instruction: 'Hold the bell at your chest and step into a lunge, either leg. Facing the phone or side-on.',
+    criteria: 'Front thigh folds to about level while the rear knee drops, torso tall, then stand back up with feet together.',
+    powerTip: 'Drive through the front heel: a faster rise scores more power, a deeper front thigh better form.',
   },
 };
 

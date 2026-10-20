@@ -88,7 +88,7 @@ export class HandTracker {
       tracker.setAutoRoute(true);
       tracker.setAllowedExercises(Object.keys(EXERCISE_SKILLS) as ExerciseType[]);
     }
-    // CLEAN and LUNGE reuse the clean & press and squat machines, which report those names: credit the card's exercise
+    // Credit the card's exercise, in case a machine reports under another name
     tracker.onRepCompleted = (telemetry) =>
       this.onRepCompleted?.({ ...telemetry, exercise: exercise ?? telemetry.exercise });
     return tracker;
