@@ -421,8 +421,8 @@ export const STAGE_LORE: Record<BattleMapId, StageLore> = {
         subtitle: 'The Censer That Never Went Out',
         text: [
           'But his winter has not reached everywhere. In the deepest chapel, one censer still swings above a ring of candles that must never go dark.',
-          'Through the long cold, the martyrs kept them lit by circling iron around their heads, hour upon hour.',
-          'Trace the halo in these halls, round and round. The candles remember the motion, and they will call you to keep the vigil.',
+          'Through the long cold, the martyrs kept them lit by passing iron around their waists, hour upon hour.',
+          'Pass the iron in these halls, round and round. The candles remember the motion, and they will call you to keep the vigil.',
         ],
         mood: 'legend',
         image: `${ASSET_ROOT}/cinematics/cathedral_crypt/chapter5_legend.jpg`,

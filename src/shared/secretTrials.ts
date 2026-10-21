@@ -10,7 +10,7 @@ import type { ExerciseType } from '../types/game';
  *   excalibell          The Enchanted Stone (forests): 100 goblet squats in 60s pull the bell from the stone.
  *   bellringer_mallet   The High Striker (Town Square, by night): 30 swings hard enough to ring the bell, in 45s.
  *   leviathan_anchor    The Drowned Anchor (Sunken Cistern): gorilla rows haul it up before the water closes over.
- *   everburning_censer  The Last Vigil (Cathedral Crypt): halos keep the candles lit until the censer wakes.
+ *   everburning_censer  The Last Vigil (Cathedral Crypt): around-the-body passes keep the candles lit until the censer wakes.
  *   dead_weight         The Pallbearer's Grave (Blood Cemetery): 66 deadlifts before an eclipse turns the moon red.
  *   tolling_thunder     The Great Bell (Belfry Ramparts): snatches only count on the storm's beat.
  *   midas_bell          The Gilded Vault (Cathedral Vault): thrusters build steam faster than the door bleeds it.
