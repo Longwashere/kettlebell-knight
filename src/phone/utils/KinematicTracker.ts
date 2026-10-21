@@ -12,6 +12,12 @@ export interface NormalizedLandmark {
 const POSTURE = {
   /** A frame where the shin or torso-per-shin jumps more than this share is a landmark glitch and is skipped. */
   glitch: 0.2,
+  /**
+   * Only a frame with the knees at least this straight (thigh vs standing) can raise the upright reference: a squat
+   * tilts the shins toward the camera, shortening them on screen, and would otherwise leave standing tall reading as
+   * hunched over for good (no swing would lock out again).
+   */
+  uprightKnee: 0.92,
 };
 
 /** Keeps the swing's body-relative bell height positive in lastMetricY, where 0 means "no previous frame". */
@@ -556,10 +562,10 @@ export class KinematicTracker {
     const kneeY = (landmarks[POSE_INDEX.LEFT_KNEE].y + landmarks[POSE_INDEX.RIGHT_KNEE].y) / 2;
     this.standingTorso = Math.max(this.standingTorso * 0.9985, hipY - shoulderY);
     this.standingThigh = Math.max(this.standingThigh * 0.9985, kneeY - hipY);
-    this.updatePosture(landmarks, hipY - shoulderY);
+    this.updatePosture(landmarks, hipY - shoulderY, this.standingThigh > 0.02 ? (kneeY - hipY) / this.standingThigh : 1);
   }
 
-  private updatePosture(landmarks: NormalizedLandmark[], torso: number): void {
+  private updatePosture(landmarks: NormalizedLandmark[], torso: number, kneeStraight: number): void {
     // The longer shin (in a lunge the rear one lies flat), from ankles MediaPipe actually sees in frame
     const shinOf = (knee: NormalizedLandmark, ankle: NormalizedLandmark | undefined) =>
       ankle && (ankle.visibility ?? 1) >= 0.3 && ankle.y <= 0.99 ? ankle.y - knee.y : 0;
@@ -580,7 +586,9 @@ export class KinematicTracker {
       (this.torsoPerShin > 0 && Math.abs(ratio - this.torsoPerShin) > POSTURE.glitch * this.torsoPerShin);
     if (!glitch) {
       this.torsoPerShin = this.torsoPerShin > 0 ? this.torsoPerShin + (ratio - this.torsoPerShin) * 0.35 : ratio;
-      this.uprightTorsoPerShin = Math.max(this.uprightTorsoPerShin, this.torsoPerShin);
+      if (kneeStraight >= POSTURE.uprightKnee || this.uprightTorsoPerShin === 0) {
+        this.uprightTorsoPerShin = Math.max(this.uprightTorsoPerShin, this.torsoPerShin);
+      }
     }
     this.posture = this.uprightTorsoPerShin > 0 ? this.torsoPerShin / this.uprightTorsoPerShin : fallback;
   }
