@@ -1,0 +1,35 @@
+Tiefling_Imp.png
+size:128,87
+filter:Linear,Linear
+pma:false
+Layer 1
+bounds:45,2,46,37
+offsets:1,1,48,38
+body
+bounds:2,2,43,25
+rotate:90
+brows
+bounds:2,47,28,11
+rotate:90
+ear1
+bounds:15,47,21,13
+rotate:90
+ear2
+bounds:30,47,21,14
+rotate:90
+eyes
+bounds:96,47,23,8
+hands
+bounds:46,47,17,23
+rotate:90
+head
+bounds:93,2,29,33
+horn Copy
+bounds:71,47,14,23
+rotate:90
+nose
+bounds:14,77,7,7
+tail
+bounds:29,2,14,38
+teeth
+bounds:2,77,10,8

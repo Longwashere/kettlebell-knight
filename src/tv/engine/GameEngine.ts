@@ -185,11 +185,14 @@ interface MonsterRig {
 // Spine 4.2 monster rigs (public/assets/spine/monsters).
 // Rigs authored facing right are flipped (scale.x *= -1) by default to face the knight.
 // Rigs authored facing left have flipX: false to preserve their left-facing orientation.
+// Atlases load from monsters-tv/: copies resampled to ~1.5 texels per stage pixel (scripts/shrink_monsters.py).
+// Re-run it after adding a rig or changing a rig's `scale`.
 const MONSTER_DIR = `${ASSET_ROOT}/spine/monsters`;
+const MONSTER_TV_DIR = `${ASSET_ROOT}/spine/monsters-tv`;
 const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   SLIME: {
     skeleton: `${MONSTER_DIR}/greenSlime/TuXi01.json`,
-    atlas: `${MONSTER_DIR}/greenSlime/TuXi01.atlas`,
+    atlas: `${MONSTER_TV_DIR}/greenSlime/TuXi01.atlas`,
     scale: 0.12,
     height: 30,
     idle: 'Idle',
@@ -200,7 +203,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   TREEMON: {
     skeleton: `${MONSTER_DIR}/Treemon/XiaoShuRen.json`,
-    atlas: `${MONSTER_DIR}/Treemon/XiaoShuRen.atlas`,
+    atlas: `${MONSTER_TV_DIR}/Treemon/XiaoShuRen.atlas`,
     scale: 0.14,
     height: 55,
     idle: 'Idle',
@@ -213,7 +216,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   HELLHOUND: {
     skeleton: `${MONSTER_DIR}/2headedDog/DiYuShuangTouQuan.json`,
-    atlas: `${MONSTER_DIR}/2headedDog/DiYuShuangTouQuan.atlas`,
+    atlas: `${MONSTER_TV_DIR}/2headedDog/DiYuShuangTouQuan.atlas`,
     scale: 0.16,
     height: 45,
     idle: 'Idle',
@@ -225,7 +228,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   BOAR: {
     skeleton: `${MONSTER_DIR}/boar/monster_3010101.json`,
-    atlas: `${MONSTER_DIR}/boar/monster_3010101.atlas`,
+    atlas: `${MONSTER_TV_DIR}/boar/monster_3010101.atlas`,
     scale: 0.38,
     height: 35,
     idle: 'idle',
@@ -237,7 +240,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   DEMON_MONK: {
     skeleton: `${MONSTER_DIR}/demonMonk/spine_monster_201150001.json`,
-    atlas: `${MONSTER_DIR}/demonMonk/spine_monster_201150001.atlas`,
+    atlas: `${MONSTER_TV_DIR}/demonMonk/spine_monster_201150001.atlas`,
     scale: 0.26,
     height: 62,
     idle: 'idle',
@@ -250,7 +253,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   WOLF: {
     skeleton: `${MONSTER_DIR}/wolf/Unit_Spine_Wolf1.json`,
-    atlas: `${MONSTER_DIR}/wolf/Unit_Spine_Wolf1.atlas`,
+    atlas: `${MONSTER_TV_DIR}/wolf/Unit_Spine_Wolf1.atlas`,
     scale: 0.13,
     height: 40,
     idle: 'stand',
@@ -263,7 +266,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   BAT: {
     skeleton: `${MONSTER_DIR}/bat/CaveBat.json`,
-    atlas: `${MONSTER_DIR}/bat/CaveBat.atlas`,
+    atlas: `${MONSTER_TV_DIR}/bat/CaveBat.atlas`,
     scale: 0.0494,
     height: 52,
     idle: 'idle',
@@ -277,7 +280,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   BONE_GOLEM: {
     skeleton: `${MONSTER_DIR}/bone-golem/Boss_Swamp_golem.json`,
-    atlas: `${MONSTER_DIR}/bone-golem/Boss_Swamp_golem.atlas`,
+    atlas: `${MONSTER_TV_DIR}/bone-golem/Boss_Swamp_golem.atlas`,
     scale: 0.058,
     height: 68,
     idle: 'Idle',
@@ -288,7 +291,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   CRYPT_LORD: {
     skeleton: `${MONSTER_DIR}/crypt-lord/Lich.json`,
-    atlas: `${MONSTER_DIR}/crypt-lord/Lich.atlas`,
+    atlas: `${MONSTER_TV_DIR}/crypt-lord/Lich.atlas`,
     scale: 0.029,
     height: 72,
     idle: 'Idle',
@@ -299,7 +302,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   DARK_EMPEROR: {
     skeleton: `${MONSTER_DIR}/dark-emperor/DeathKnight.json`,
-    atlas: `${MONSTER_DIR}/dark-emperor/DeathKnight.atlas`,
+    atlas: `${MONSTER_TV_DIR}/dark-emperor/DeathKnight.atlas`,
     scale: 0.045,
     height: 75,
     idle: 'idle',
@@ -312,7 +315,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   DARK_KNIGHT: {
     skeleton: `${MONSTER_DIR}/dark-knight/Darkknight_monster05.json`,
-    atlas: `${MONSTER_DIR}/dark-knight/Darkknight_monster05.atlas`,
+    atlas: `${MONSTER_TV_DIR}/dark-knight/Darkknight_monster05.atlas`,
     scale: 0.09,
     height: 65,
     idle: 'Idle',
@@ -323,7 +326,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   DARK_MAGE: {
     skeleton: `${MONSTER_DIR}/dark-mage/Unit_Spine_BirdMageSpe1Skin1.json`,
-    atlas: `${MONSTER_DIR}/dark-mage/Unit_Spine_BirdMageSpe1Skin1.atlas`,
+    atlas: `${MONSTER_TV_DIR}/dark-mage/Unit_Spine_BirdMageSpe1Skin1.atlas`,
     scale: 0.09,
     height: 52,
     idle: 'stand',
@@ -334,7 +337,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   DEMON_ARCHBISHOP: {
     skeleton: `${MONSTER_DIR}/demon-monk/Boss_Archbishop.json`,
-    atlas: `${MONSTER_DIR}/demon-monk/Boss_Archbishop.atlas`,
+    atlas: `${MONSTER_TV_DIR}/demon-monk/Boss_Archbishop.atlas`,
     scale: 0.066,
     height: 75,
     idle: 'BOSS_Archbishop/001A_Idle',
@@ -346,7 +349,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   ELDRITCH_HORROR: {
     skeleton: `${MONSTER_DIR}/eldritch-horror/BS_Cthulhu.json`,
-    atlas: `${MONSTER_DIR}/eldritch-horror/BS_Cthulhu.atlas`,
+    atlas: `${MONSTER_TV_DIR}/eldritch-horror/BS_Cthulhu.atlas`,
     scale: 0.024,
     height: 80,
     idle: 'idle',
@@ -358,7 +361,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   GARGOYLE: {
     skeleton: `${MONSTER_DIR}/gargoyle/GargoyleEnemy.json`,
-    atlas: `${MONSTER_DIR}/gargoyle/GargoyleEnemy.atlas`,
+    atlas: `${MONSTER_TV_DIR}/gargoyle/GargoyleEnemy.atlas`,
     scale: 0.016,
     height: 65,
     idle: 'move',
@@ -369,7 +372,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   GHOST: {
     skeleton: `${MONSTER_DIR}/ghost/ghost.json`,
-    atlas: `${MONSTER_DIR}/ghost/ghost.atlas`,
+    atlas: `${MONSTER_TV_DIR}/ghost/ghost.atlas`,
     scale: 0.091,
     height: 42,
     idle: 'idle',
@@ -382,7 +385,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   GIANT_SPIDER: {
     skeleton: `${MONSTER_DIR}/giant-spider/spider_anim_85.json`,
-    atlas: `${MONSTER_DIR}/giant-spider/spider_anim_85.atlas`,
+    atlas: `${MONSTER_TV_DIR}/giant-spider/spider_anim_85.atlas`,
     scale: 0.316,
     height: 22,
     idle: 'spider_anim_85_idle',
@@ -393,7 +396,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   GOBLIN: {
     skeleton: `${MONSTER_DIR}/goblin/goblin.json`,
-    atlas: `${MONSTER_DIR}/goblin/goblin.atlas`,
+    atlas: `${MONSTER_TV_DIR}/goblin/goblin.atlas`,
     scale: 0.0312,
     height: 40,
     idle: 'Idle',
@@ -404,7 +407,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   GOLEM: {
     skeleton: `${MONSTER_DIR}/golem/StoneGolem.json`,
-    atlas: `${MONSTER_DIR}/golem/StoneGolem.atlas`,
+    atlas: `${MONSTER_TV_DIR}/golem/StoneGolem.atlas`,
     scale: 0.715,
     height: 100,
     idle: 'idle',
@@ -416,7 +419,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   GRAVE_COLOSSUS: {
     skeleton: `${MONSTER_DIR}/grave-colossus/zombie_CL_tank.json`,
-    atlas: `${MONSTER_DIR}/grave-colossus/zombie_CL_tank.atlas`,
+    atlas: `${MONSTER_TV_DIR}/grave-colossus/zombie_CL_tank.atlas`,
     scale: 0.258,
     height: 65,
     idle: 'idle',
@@ -427,7 +430,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   HARPY: {
     skeleton: `${MONSTER_DIR}/harpy/Harpy.json`,
-    atlas: `${MONSTER_DIR}/harpy/Harpy.atlas`,
+    atlas: `${MONSTER_TV_DIR}/harpy/Harpy.atlas`,
     scale: 0.4,
     height: 28,
     idle: 'Move',
@@ -439,7 +442,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   INFERNO_TITAN: {
     skeleton: `${MONSTER_DIR}/inferno-titan/Demogorgon.json`,
-    atlas: `${MONSTER_DIR}/inferno-titan/Demogorgon.atlas`,
+    atlas: `${MONSTER_TV_DIR}/inferno-titan/Demogorgon.atlas`,
     scale: 0.143,
     height: 75,
     idle: '1_Ready',
@@ -450,7 +453,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   KRAKEN: {
     skeleton: `${MONSTER_DIR}/abyssal-kraken/Octopus_Anim_01.json`,
-    atlas: `${MONSTER_DIR}/abyssal-kraken/Octopus_Anim_01.atlas`,
+    atlas: `${MONSTER_TV_DIR}/abyssal-kraken/Octopus_Anim_01.atlas`,
     scale: 0.036,
     height: 75,
     idle: 'Idle',
@@ -462,7 +465,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   LIZARDMAN: {
     skeleton: `${MONSTER_DIR}/lizardman/lizardman.json`,
-    atlas: `${MONSTER_DIR}/lizardman/lizardman.atlas`,
+    atlas: `${MONSTER_TV_DIR}/lizardman/lizardman.atlas`,
     scale: 0.089,
     height: 58,
     idle: 'Idle',
@@ -473,7 +476,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   MAGMA_DRAGON: {
     skeleton: `${MONSTER_DIR}/magma-dragon/Mission_104_dragon.json`,
-    atlas: `${MONSTER_DIR}/magma-dragon/Mission_104_dragon.atlas`,
+    atlas: `${MONSTER_TV_DIR}/magma-dragon/Mission_104_dragon.atlas`,
     scale: 0.212,
     height: 75,
     idle: 'idle1',
@@ -484,7 +487,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   MINOTAUR: {
     skeleton: `${MONSTER_DIR}/minotaur/BlackBullhead.json`,
-    atlas: `${MONSTER_DIR}/minotaur/BlackBullhead.atlas`,
+    atlas: `${MONSTER_TV_DIR}/minotaur/BlackBullhead.atlas`,
     scale: 0.42,
     height: 65,
     idle: 'idle',
@@ -495,7 +498,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   MUSHROOM: {
     skeleton: `${MONSTER_DIR}/mushroom-creature/M_Mushroom.json`,
-    atlas: `${MONSTER_DIR}/mushroom-creature/M_Mushroom.atlas`,
+    atlas: `${MONSTER_TV_DIR}/mushroom-creature/M_Mushroom.atlas`,
     scale: 0.102,
     height: 42,
     idle: 'idle',
@@ -507,7 +510,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   NIGHTMARE_STAG: {
     skeleton: `${MONSTER_DIR}/nightmare-stag/AnimalAnim5.json`,
-    atlas: `${MONSTER_DIR}/nightmare-stag/AnimalAnim5.atlas`,
+    atlas: `${MONSTER_TV_DIR}/nightmare-stag/AnimalAnim5.atlas`,
     scale: 0.293,
     height: 60,
     idle: 'body/idle',
@@ -518,7 +521,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   ORC: {
     skeleton: `${MONSTER_DIR}/orc/orc_warrior.json`,
-    atlas: `${MONSTER_DIR}/orc/orc_warrior.atlas`,
+    atlas: `${MONSTER_TV_DIR}/orc/orc_warrior.atlas`,
     scale: 0.072,
     height: 90,
     idle: 'Idle',
@@ -529,7 +532,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   SKELETON_ARCHER: {
     skeleton: `${MONSTER_DIR}/skeleton-archer/skeleton.json`,
-    atlas: `${MONSTER_DIR}/skeleton-archer/skeleton.atlas`,
+    atlas: `${MONSTER_TV_DIR}/skeleton-archer/skeleton.atlas`,
     scale: 0.099,
     height: 55,
     idle: 'Idle',
@@ -540,7 +543,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   SKELETON_KNIGHT: {
     skeleton: `${MONSTER_DIR}/skeleton-knight/title_knight_740.json`,
-    atlas: `${MONSTER_DIR}/skeleton-knight/title_knight_740.atlas`,
+    atlas: `${MONSTER_TV_DIR}/skeleton-knight/title_knight_740.atlas`,
     scale: 0.045,
     height: 65,
     idle: 'movement_ide',
@@ -551,7 +554,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   SKELETON_WARRIOR: {
     skeleton: `${MONSTER_DIR}/skeleton-warrior/skeleton_worrior.json`,
-    atlas: `${MONSTER_DIR}/skeleton-warrior/skeleton_worrior.atlas`,
+    atlas: `${MONSTER_TV_DIR}/skeleton-warrior/skeleton_worrior.atlas`,
     scale: 0.047,
     height: 58,
     idle: 'Idle',
@@ -562,7 +565,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   ANCIENT_TREANT: {
     skeleton: `${MONSTER_DIR}/ancient-treant/Treant.json`,
-    atlas: `${MONSTER_DIR}/ancient-treant/Treant.atlas`,
+    atlas: `${MONSTER_TV_DIR}/ancient-treant/Treant.atlas`,
     scale: 0.682,
     height: 70,
     idle: 'Idle',
@@ -573,7 +576,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   TROLL: {
     skeleton: `${MONSTER_DIR}/troll/troll_boss.json`,
-    atlas: `${MONSTER_DIR}/troll/troll_boss.atlas`,
+    atlas: `${MONSTER_TV_DIR}/troll/troll_boss.atlas`,
     scale: 0.077,
     height: 100,
     idle: 'Idle',
@@ -584,7 +587,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   VAULT_GUARDIAN: {
     skeleton: `${MONSTER_DIR}/vault-guardian/BS_small_armormonster_Ani.json`,
-    atlas: `${MONSTER_DIR}/vault-guardian/BS_small_armormonster_Ani.atlas`,
+    atlas: `${MONSTER_TV_DIR}/vault-guardian/BS_small_armormonster_Ani.atlas`,
     scale: 0.114,
     height: 62,
     idle: 'idle',
@@ -595,7 +598,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   VOID_PROPHET: {
     skeleton: `${MONSTER_DIR}/void-prophet/CultistFollower.json`,
-    atlas: `${MONSTER_DIR}/void-prophet/CultistFollower.atlas`,
+    atlas: `${MONSTER_TV_DIR}/void-prophet/CultistFollower.atlas`,
     scale: 0.048,
     height: 64,
     idle: 'idle',
@@ -608,7 +611,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   WATER_ELEMENTAL: {
     skeleton: `${MONSTER_DIR}/water-elemental/water_elemental.json`,
-    atlas: `${MONSTER_DIR}/water-elemental/water_elemental.atlas`,
+    atlas: `${MONSTER_TV_DIR}/water-elemental/water_elemental.atlas`,
     scale: 0.101,
     height: 60,
     idle: 'Idle',
@@ -620,7 +623,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   WRAITH: {
     skeleton: `${MONSTER_DIR}/wraith/specter.json`,
-    atlas: `${MONSTER_DIR}/wraith/specter.atlas`,
+    atlas: `${MONSTER_TV_DIR}/wraith/specter.atlas`,
     scale: 0.37,
     height: 50,
     idle: 'idle',
@@ -631,7 +634,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   CRYPT_CRAWLER: {
     skeleton: `${MONSTER_DIR}/crypt-crawler/Beetle.json`,
-    atlas: `${MONSTER_DIR}/crypt-crawler/Beetle.atlas`,
+    atlas: `${MONSTER_TV_DIR}/crypt-crawler/Beetle.atlas`,
     scale: 0.105,
     height: 42,
     idle: 'idle',
@@ -644,7 +647,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   PLAGUE_RAT: {
     skeleton: `${MONSTER_DIR}/plague-rat/elf_rat.json`,
-    atlas: `${MONSTER_DIR}/plague-rat/elf_rat.atlas`,
+    atlas: `${MONSTER_TV_DIR}/plague-rat/elf_rat.atlas`,
     scale: 0.182,
     height: 36,
     idle: 'idle',
@@ -657,7 +660,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   EMBER_SERPENT: {
     skeleton: `${MONSTER_DIR}/ember-serpent/Serpent_1.json`,
-    atlas: `${MONSTER_DIR}/ember-serpent/Serpent_1.atlas`,
+    atlas: `${MONSTER_TV_DIR}/ember-serpent/Serpent_1.atlas`,
     scale: 0.116,
     height: 50,
     idle: 'Hover',
@@ -670,7 +673,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   CINDER_IMP: {
     skeleton: `${MONSTER_DIR}/cinder-imp/Tiefling_Imp.json`,
-    atlas: `${MONSTER_DIR}/cinder-imp/Tiefling_Imp.atlas`,
+    atlas: `${MONSTER_TV_DIR}/cinder-imp/Tiefling_Imp.atlas`,
     scale: 0.182,
     height: 42,
     idle: 'idle',
@@ -682,7 +685,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   THORN_STALKER: {
     skeleton: `${MONSTER_DIR}/thorn-stalker/CactusMonster.json`,
-    atlas: `${MONSTER_DIR}/thorn-stalker/CactusMonster.atlas`,
+    atlas: `${MONSTER_TV_DIR}/thorn-stalker/CactusMonster.atlas`,
     scale: 0.037,
     height: 65,
     idle: 'idle',
@@ -696,7 +699,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   GIANT_CRAB: {
     skeleton: `${MONSTER_DIR}/giant-crab/giant_claw_crab.json`,
-    atlas: `${MONSTER_DIR}/giant-crab/giant_claw_crab.atlas`,
+    atlas: `${MONSTER_TV_DIR}/giant-crab/giant_claw_crab.atlas`,
     scale: 0.199,
     height: 48,
     idle: 'idle',
@@ -709,7 +712,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   SEWER_LURKER: {
     skeleton: `${MONSTER_DIR}/sewer-lurker/Anglerfish_Anim_01.json`,
-    atlas: `${MONSTER_DIR}/sewer-lurker/Anglerfish_Anim_01.atlas`,
+    atlas: `${MONSTER_TV_DIR}/sewer-lurker/Anglerfish_Anim_01.atlas`,
     scale: 0.029,
     height: 75,
     idle: 'Idle',
@@ -722,7 +725,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   GIANT_BEETLE: {
     skeleton: `${MONSTER_DIR}/giant-beetle/Beetle.json`,
-    atlas: `${MONSTER_DIR}/giant-beetle/Beetle.atlas`,
+    atlas: `${MONSTER_TV_DIR}/giant-beetle/Beetle.atlas`,
     scale: 0.125,
     height: 50,
     idle: 'idle',
@@ -735,7 +738,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   FOREST_BEAR: {
     skeleton: `${MONSTER_DIR}/forest-bear/Mission_14_bear.json`,
-    atlas: `${MONSTER_DIR}/forest-bear/Mission_14_bear.atlas`,
+    atlas: `${MONSTER_TV_DIR}/forest-bear/Mission_14_bear.atlas`,
     scale: 0.55,
     height: 68,
     idle: 'animation',
@@ -746,7 +749,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   CULTIST_ACOLYTE: {
     skeleton: `${MONSTER_DIR}/cultist-acolyte/cooltist.json`,
-    atlas: `${MONSTER_DIR}/cultist-acolyte/cooltist.atlas`,
+    atlas: `${MONSTER_TV_DIR}/cultist-acolyte/cooltist.atlas`,
     scale: 0.083,
     height: 58,
     idle: 'active_idle',
@@ -759,7 +762,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   LANTERN_WISP: {
     skeleton: `${MONSTER_DIR}/lantern-wisp/soul_spine.json`,
-    atlas: `${MONSTER_DIR}/lantern-wisp/soul_spine.atlas`,
+    atlas: `${MONSTER_TV_DIR}/lantern-wisp/soul_spine.atlas`,
     scale: 0.221,
     height: 40,
     idle: 'soul',
@@ -772,7 +775,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   THRONE_GUARDIAN: {
     skeleton: `${MONSTER_DIR}/throne-guardian/zombie_CL_tank.json`,
-    atlas: `${MONSTER_DIR}/throne-guardian/zombie_CL_tank.atlas`,
+    atlas: `${MONSTER_TV_DIR}/throne-guardian/zombie_CL_tank.atlas`,
     scale: 0.394,
     height: 68,
     idle: 'idle',
@@ -783,7 +786,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   STORM_CROW: {
     skeleton: `${MONSTER_DIR}/storm-crow/Unit_Spine_Crow3.json`,
-    atlas: `${MONSTER_DIR}/storm-crow/Unit_Spine_Crow3.atlas`,
+    atlas: `${MONSTER_TV_DIR}/storm-crow/Unit_Spine_Crow3.atlas`,
     scale: 0.075,
     height: 48,
     idle: 'stand',
@@ -797,7 +800,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   VAULT_HOUND: {
     skeleton: `${MONSTER_DIR}/vault-hound/Unit_Spine_RebelDog1.json`,
-    atlas: `${MONSTER_DIR}/vault-hound/Unit_Spine_RebelDog1.atlas`,
+    atlas: `${MONSTER_TV_DIR}/vault-hound/Unit_Spine_RebelDog1.atlas`,
     scale: 0.109,
     height: 48,
     idle: 'stand',
@@ -810,7 +813,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   },
   BARD: {
     skeleton: `${MONSTER_DIR}/bard/HeroBard.json`,
-    atlas: `${MONSTER_DIR}/bard/HeroBard.atlas`,
+    atlas: `${MONSTER_TV_DIR}/bard/HeroBard.atlas`,
     scale: 0.039,
     height: 60,
     idle: 'idle_aggressive',
@@ -1981,14 +1984,15 @@ export class GameEngine {
           spine.y += rig.offY * scaleMult;
         }
 
+        // monsters-tv atlases are pre-sized to the stage, so plain linear sampling (no mipmaps) stays sharp;
+        // trilinear mipmapping of the full-size art blended box-filtered levels and read as blur.
         const atlasAsset = Assets.get<TextureAtlas>(rig.atlas);
         if (atlasAsset?.pages) {
           for (const page of atlasAsset.pages) {
             const source = (page.texture as SpineTexture)?.texture?.source;
             if (source) {
-              source.autoGenerateMipmaps = true;
+              source.autoGenerateMipmaps = false;
               source.style.scaleMode = 'linear';
-              source.style.mipmapFilter = 'linear';
               source.style.update();
             }
           }
@@ -3962,6 +3966,57 @@ export class GameEngine {
     spine.state.timeScale = 0;
     spine.update(0);
     return { type: slot.spriteType, animations, bounds: bounds() };
+  }
+
+  /**
+   * Dev bridge: atlas texels per stage pixel for each visible attachment of the monster in `slot`, in its current
+   * pose (sqrt of texel area over on-stage area, summed over the attachment's triangles), with each region's size in
+   * the loaded atlas. ~1–2 renders crisp; far above that the rig goes soft. Feeds scripts/shrink_monsters.py.
+   */
+  public debugTexelDensity(slotIndex: number) {
+    const spine = this.monsterSlots[slotIndex]?.spine;
+    if (!spine) throw new Error(`No loaded monster in slot ${slotIndex}`);
+    const m = spine.worldTransform;
+    const stageScale = Math.sqrt(Math.abs(m.a * m.d - m.b * m.c));
+    const tri = (v: ArrayLike<number>, a: number, b: number, c: number) =>
+      Math.abs((v[b * 2] - v[a * 2]) * (v[c * 2 + 1] - v[a * 2 + 1]) - (v[c * 2] - v[a * 2]) * (v[b * 2 + 1] - v[a * 2 + 1])) / 2;
+    const regions: Record<string, { texels: number; px: number; w: number; h: number }> = {};
+    for (const slot of spine.skeleton.drawOrder) {
+      const att = slot.getAttachment() as any;
+      if (!att?.region || !slot.bone.active || slot.color.a === 0) continue;
+      const page = att.region.page ?? att.region.texture?.page;
+      const pageW = page?.width ?? 1;
+      const pageH = page?.height ?? 1;
+      let verts: Float32Array;
+      let tris: number[];
+      if (att instanceof RegionAttachment) {
+        verts = new Float32Array(8);
+        att.computeWorldVertices(slot, verts, 0, 2);
+        tris = [0, 1, 2, 2, 3, 0];
+      } else if (att.triangles && att.worldVerticesLength) {
+        verts = new Float32Array(att.worldVerticesLength);
+        att.computeWorldVertices(slot, 0, att.worldVerticesLength, verts, 0, 2);
+        tris = att.triangles;
+      } else continue;
+      let texels = 0;
+      let px = 0;
+      for (let i = 0; i < tris.length; i += 3) {
+        texels += tri(att.uvs, tris[i], tris[i + 1], tris[i + 2]) * pageW * pageH;
+        px += tri(verts, tris[i], tris[i + 1], tris[i + 2]) * stageScale * stageScale;
+      }
+      const name = att.region.name ?? att.path ?? att.name;
+      const r = (regions[name] ??= { texels: 0, px: 0, w: att.region.width, h: att.region.height });
+      r.texels += texels;
+      r.px += px;
+    }
+    return {
+      atlas: this.monsterSlots[slotIndex].rig?.atlas,
+      regions: Object.fromEntries(
+        Object.entries(regions)
+          .filter(([, r]) => r.px > 0.5)
+          .map(([name, r]) => [name, { density: Number(Math.sqrt(r.texels / r.px).toFixed(2)), px: Math.round(r.px), w: r.w, h: r.h }]),
+      ),
+    };
   }
 
   /**

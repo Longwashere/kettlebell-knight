@@ -1,0 +1,43 @@
+Octopus_Anim_01.png
+pma:false
+size:512,194
+filter:Linear,Linear
+Body
+bounds:2,2,157,142
+eye
+bounds:96,146,31,40
+offsets:0,0,31,40
+eye sad
+bounds:129,146,31,40
+offsets:0,0,31,40
+eye sad copy
+bounds:162,146,31,40
+offsets:0,0,31,40
+eye2
+bounds:2,146,45,46
+offsets:0,0,45,46
+eye2 close
+bounds:49,146,45,46
+offsets:0,0,45,47
+eye2 sad
+bounds:427,2,45,47
+offsets:0,0,45,47
+leg 1
+bounds:238,146,82,32
+leg 2
+bounds:360,2,65,48
+leg 3
+bounds:199,2,80,84
+leg 4
+bounds:281,2,77,78
+leg 5
+bounds:161,2,36,97
+mouth
+bounds:362,146,34,21
+offsets:0,0,34,21
+mouth happy
+bounds:322,146,38,25
+offsets:0,0,38,25
+mouth sad
+bounds:195,146,41,35
+offsets:-2,0,41,35

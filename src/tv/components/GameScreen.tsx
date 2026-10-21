@@ -3,7 +3,7 @@ import { GameEngine } from '../engine/GameEngine';
 import { useTVRemote } from '../hooks/useTVRemote';
 import { networkManager, NetworkConnectionState } from '../../shared/NetworkManager';
 import { discoveryManager } from '../../shared/DiscoveryManager';
-import { phonePairUrl } from '../../shared/deployConfig';
+import { FOLLOW_URL, phonePairUrl } from '../../shared/deployConfig';
 import { exitApp } from '../native';
 import { getGraphicsMode, setGraphicsMode, GraphicsMode } from '../graphicsMode';
 import { HubMenu, HUB_NODES } from './HubMenu';
@@ -318,6 +318,7 @@ export const GameScreen: React.FC = () => {
       textures: () => engineRef.current?.getTextureStats(),
       snapshot: () => engineRef.current?.snapshot(),
       pose: (slot: number, animation: string | null, time?: number) => engineRef.current?.debugPoseMonster(slot, animation, time),
+      texelDensity: (slot: number) => engineRef.current?.debugTexelDensity(slot),
       step: (frames: number) => engineRef.current?.debugStep(frames),
       resume: () => engineRef.current?.debugResume(),
       knightPose: (animation: string | null, time?: number) => engineRef.current?.debugPoseKnight(animation, time),
@@ -816,6 +817,24 @@ export const GameScreen: React.FC = () => {
               <span className="bg-[#0F0E17] border border-[#F4B41A] py-0.5 px-2 font-mono text-[11px] text-[#F4B41A] font-bold tracking-widest">
                 {roomId}
               </span>
+            </div>
+          </aside>
+        )}
+
+        {/* Once the phone is paired, the pairing widget's corner shows a follow-for-updates QR instead */}
+        {netState === 'CONNECTED' && currentView === 'HUB' && (
+          <aside
+            aria-label="Scan QR Code to follow the developer on X for updates"
+            className="absolute bottom-[76px] right-8 z-40 bg-[#1A1926]/95 border-4 border-[#2E2B44] p-2 rounded shadow-pixel-box flex items-center gap-3 animate-in fade-in"
+          >
+            <div className="p-1.5 bg-white border-2 border-black rounded">
+              <QRCodeSVG value={FOLLOW_URL} size={64} level="M" />
+            </div>
+
+            <div className="flex flex-col items-start gap-1.5 pr-1">
+              <span className="font-pixel text-[8px] text-white">FOLLOW FOR</span>
+              <span className="font-pixel text-[8px] text-[#F4B41A]">UPDATES</span>
+              <span className="font-mono text-[11px] text-[#A7A9BE] font-bold">@AnotherDevName</span>
             </div>
           </aside>
         )}

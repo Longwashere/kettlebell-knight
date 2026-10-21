@@ -35,6 +35,8 @@
  *                             frame and report errors (threw, never landed) and warnings (missing rig anim,
  *                             nothing reached the knight before impact, not back at rest, overlong). Fails on errors.
  *   portraits[:ids]           tight idle portrait of each monster (default: all) → work/rigs/<id>.png
+ *   density[:ids]             atlas texels per stage pixel of each monster's regions at idle → work/rigs/density.json
+ *                             (input of scripts/shrink_monsters.py; merges into the existing file)
  *   vfxinfo                   Spine VFX rigs (src/tv/engine/vfx.ts): anims, frames, on-stage size at size 1
  *   vfxsheet[:name[:n[:size]]]  contact sheet of VFX rigs (all or one), n poses per animation (default 8)
  *   kanims | kmoves           print knight animations (frames + Spine events) / knight move ids (knightMoves.ts)
@@ -383,6 +385,20 @@ async function runStep(step) {
         save(id, url.replace(/^data:image\/png;base64,/, ''), dir);
       }
       return `${ids.length} portrait(s) → ${path.relative(ROOT, dir)}/`;
+    }
+    case 'density': {
+      const ids = arg ? arg.split(',') : await kk('__kk.monsterIds()');
+      const file = path.join(ROOT, 'work', 'rigs', 'density.json');
+      const out = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
+      for (const id of ids) {
+        await kk(`__kk.encounter(${js(id)})`);
+        await kk('__kk.idle(5000, 100)').catch(() => {});
+        await kk("__kk.call('pose', 0, null)");
+        out[id] = await kk("__kk.call('texelDensity', 0)");
+      }
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, JSON.stringify(out, null, 1));
+      return `${ids.length} monster(s) → ${path.relative(ROOT, file)}`;
     }
     case 'vfxinfo': {
       const rows = await kk('__kk.vfxInfo()', LONG());

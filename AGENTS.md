@@ -22,6 +22,7 @@ npm run shot -- <steps>   # headless /tv run: screenshots + state + console erro
 npm run balance [-- campaign|encounters] [N] [cards]  # balance sim: stage win rates by level/effort, or a full campaign playthrough
 npm run rigs [-- ids]         # monster rig reference → work/rigs.md: anims + frame lengths + events, moveset, portraits
 npm run vfx:shrink            # TV-sized copies of the Spine VFX: public/assets/spine/vfx → vfx-tv (rerun after adding one)
+python3 scripts/shrink_monsters.py  # TV-sized monster atlases (monsters → monsters-tv) from `npm run shot -- density`; rerun after adding a rig or changing its scale
 npm run sfx [-- ids]          # render the procedural sound bank to work/sfx/*.wav + index.html to audition
 npm run music                 # render the Electric Pow Wow workout soundtrack & stems to work/music/ + web asset
 python3 scripts/build_phone_armor.py  # cut the knight's armour parts from the Spine atlas for the phone AR overlay

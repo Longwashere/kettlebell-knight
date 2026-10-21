@@ -61,6 +61,11 @@ function state(): Record<string, unknown> {
 // Sound bank: what played (state().audio), and `call('audioReset')` to count a single move's sounds
 registerDebug('audio', () => audioManager.debugState(), { audioReset: () => audioManager.debugState(true) });
 
+// Network: `call('fakePaired', true)` shows the TV as phone-paired (no real peer) to check paired-only UI
+registerDebug('network', () => ({ state: networkManager.getState() }), {
+  fakePaired: (on = true) => (networkManager as any).setState(on ? 'CONNECTED' : 'WAITING_FOR_PEER', 'debug'),
+});
+
 // Player profile: progression data and slot management
 registerDebug(
   'profile',

@@ -1,0 +1,27 @@
+Anglerfish_Anim_01.png
+pma:false
+size:512,200
+filter:Linear,Linear
+Angler rod
+bounds:2,122,66,76
+Body 1_Normal
+bounds:350,2,141,94
+Body 2_Happy
+bounds:2,2,172,118
+Body 3_Sick
+bounds:176,2,172,115
+Fin bottom
+bounds:223,122,16,19
+Fin top
+bounds:173,122,21,25
+eye01_Normal
+bounds:196,122,25,23
+eye02_Half closed
+bounds:140,122,31,28
+eyes 3 Cry
+bounds:107,122,31,32
+light off
+bounds:241,122,13,13
+light on
+bounds:70,122,35,36
+offsets:0,0,35,36

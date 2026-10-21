@@ -26,6 +26,9 @@ export function phonePairUrl(roomId: string): string {
   return `${base}?room=${encodeURIComponent(roomId)}`;
 }
 
+/** Developer's X/Twitter profile, shown as a follow-for-updates QR code on the hub once a phone is paired. */
+export const FOLLOW_URL = 'https://x.com/AnotherDevName';
+
 /** STUN, plus TURN from a credentials endpoint or static env vars so strict NATs and cellular phones can relay. */
 async function iceServers(): Promise<RTCIceServer[]> {
   const servers = [...STUN_SERVERS];
