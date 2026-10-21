@@ -1520,8 +1520,8 @@ export class GameEngine {
   }
 
   /**
-   * Scales the 426x240 canvas by the largest whole number that fits and centres it on whole pixels.
-   * A fractional stretch (e.g. 4.507x at 1080p) makes some pixel columns wider than others.
+   * Upscales the 426x240 canvas (CSS only, the render size is unchanged) to cover the whole screen, centred.
+   * On a 16:9 TV that is a near-exact fit; other aspect ratios crop a sliver off the long edges.
    */
   private fitCanvas(): void {
     if (!this.app) return;
@@ -1529,8 +1529,7 @@ export class GameEngine {
     const { width, height } = this.app.screen;
     const boxW = this.containerElement.clientWidth;
     const boxH = this.containerElement.clientHeight;
-    const fit = Math.min(boxW / width, boxH / height);
-    const scale = fit >= 1 ? Math.floor(fit) : fit; // tiny windows fall back to a fractional fit
+    const scale = Math.max(boxW / width, boxH / height);
     const cssW = Math.round(width * scale);
     const cssH = Math.round(height * scale);
     canvas.style.width = `${cssW}px`;
