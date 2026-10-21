@@ -4,14 +4,19 @@
  * and press, swords cut) and built on its helpers. Merged into KNIGHT_MOVES next to SPELL_MOVES. Review with
  *   npm run shot -- "encounter:wolf,boar,slime" idle kfilm:<templateId>:16:4:0,1,2
  */
+import type { Graphics } from 'pixi.js';
 import { Timeline, lerp, easeIn, easeOut, easeInOut, arc, rand, INK } from './choreo';
-import { pal, bolt, pillar, runeCircle, orb, wing, lance } from './fxKit';
+import { pal, crescent, scorch, runeCircle, orb, wing, lance, hash } from './fxKit';
 import { tentacle } from './monsterKit';
 import {
-  type KnightMove, type KnightMoveHost, each, once, strikeSpot, chest, land, travel, here, HOME, backstep,
-  ghostTrail, swingSound, chargeSound, drawSpan, slashFx, hitFx, ringFx, chargeFx, debris, dust, shards, projectile,
+  type KnightMove, type KnightMoveHost, type P, each, once, strikeSpot, chest, land, travel, here, HOME, backstep,
+  ghostTrail, swingSound, chargeSound, drawSpan, slashFx, hitFx, ringFx, debris, dust, shards,
 } from './knightKit';
-import { whirl, raiseAndHold, chain, eye, phantomBell, anchor, blackHole } from './spellMoves';
+import { whirl, raiseAndHold, chain, eye, phantomBell, anchor } from './spellMoves';
+import {
+  lightSpan, glow, glint, godRay, focusLines, speedLines, impactFrame, shockSphere, skyBolt, groundCracks,
+  weaponTrail, windUp, afterglow, mix,
+} from './spellKit';
 
 const P_BRASS = pal(0xF2B636, 0xFFF7D6, 0x3B2205);
 const P_CIRCUS = pal(0xF472B6, 0xFFF1F7, 0x3B0A24);
@@ -34,34 +39,48 @@ const LIGHTS = [0xF87171, 0xFBBF24, 0x34D399, 0x60A5FA, 0xF472B6];
 // The Bellringer's Mallet: carnival strongman
 
 /**
- * Test Your Strength: a spectral High Striker springs up behind the foe; the knight brings the mallet down on its
- * pad, the puck rockets up the pole, rings the bell, and the bell drops on the foe's head.
+ * Test Your Strength: a spectral High Striker springs up behind the foe, its marquee bulbs dark; the knight
+ * brings the mallet down on its pad, the puck rockets up the pole lighting every bulb, rings the bell, and the
+ * bell breaks loose and drops on the foe's head.
  */
 function testYourStrength(h: KnightMoveHost, tl: Timeline) {
   const t0 = h.target;
   const c = chest(t0);
-  const pole = { x: t0.x + 22, top: t0.y - 92 };
-  const PAD = 26; // the mallet hits the pad
+  const pole = { x: t0.x + 24, top: t0.y - 100 };
+  const PAD = 28; // the mallet hits the pad
   const DING = PAD + 10;
   const HIT = DING + 14;
+  const DIM = 0x0B0716;
+  const BULBS = 9;
   tl.at(0, () => h.anim('RUN', true));
   travel(h, tl, 0, 12, HOME, strikeSpot(h, t0, 54), easeInOut);
   tl.every(0, 12, 6, () => h.sound('step', { vol: 0.4 }));
+  tl.during(0, 12, (t) => h.dim(0.55 * t, DIM));
+  const puckY = (t: number) => lerp(t0.y - 4, pole.top + 6, easeOut(t));
   // The striker rises out of the ground
-  drawSpan(h, tl, 6, HIT + 24, (g, t, f) => {
+  drawSpan(h, tl, 6, HIT + 26, (g, t, f) => {
     const up = easeOut(Math.min(1, f / 10));
     const fade = t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1;
     const top = lerp(t0.y, pole.top, up);
     for (let y = t0.y; y > top; y -= 8) g.rect(pole.x - 3, y - 8, 6, 4).fill({ color: 0xDC2626, alpha: fade }).rect(pole.x - 3, y - 4, 6, 4).fill({ color: 0xFDF4E3, alpha: fade });
     g.rect(pole.x - 14, t0.y - 4, 28, 6).fill({ color: 0x5B2A12, alpha: fade }).stroke({ width: 1, color: INK, alpha: fade });
-    if (f < DING - 6) orb(g, pole.x, top - 4, 6, P_BRASS, fade);
+    for (let b = 0; b < BULBS; b++) g.circle(pole.x - 8, lerp(t0.y - 10, pole.top + 8, b / (BULBS - 1)), 1.5).fill({ color: 0x57534E, alpha: fade });
+    if (f < DING - 6) orb(g, pole.x, top - 4, 7, P_BRASS, fade);
+  }, 'back');
+  // Marquee bulbs light one by one as the puck passes them
+  lightSpan(h, tl, PAD, HIT + 26, (g, t, f) => {
+    const fade = t > 0.8 ? 1 - (t - 0.8) / 0.2 : 1;
+    const lit = f >= DING - PAD ? BULBS : Math.floor(((t0.y - puckY(f / (DING - PAD))) / (t0.y - pole.top)) * BULBS + 1);
+    for (let b = 0; b < Math.min(BULBS, lit); b++) {
+      const chase = f > DING - PAD ? (Math.floor(f / 3) + b) % 2 : 1;
+      glow(g, pole.x - 8, lerp(t0.y - 10, pole.top + 8, b / (BULBS - 1)), 6, LIGHTS[b % LIGHTS.length], fade * (0.5 + 0.5 * chase));
+    }
   }, 'back');
   tl.at(12, () => {
     h.anim('ATTACK4');
     h.animSpeed(0.5);
-    h.camera(1.12, (h.pos().x + pole.x) / 2, t0.y - 50, 40);
-    chargeSound(h, PAD - 12);
   });
+  windUp(h, tl, 12, PAD - 3, 0xF2B636, { zoom: 1.2, reach: 34 });
   tl.during(14, PAD - 3, (t) => h.lift(easeOut(t) * 10));
   tl.at(PAD - 3, () => {
     h.animSpeed(1.8);
@@ -70,206 +89,310 @@ function testYourStrength(h: KnightMoveHost, tl: Timeline) {
   tl.during(PAD - 3, PAD, (t) => h.lift(lerp(10, 0, easeIn(t))));
   tl.at(PAD, () => {
     h.animSpeed(1);
-    h.shake(4);
-    h.sound('impact_heavy', { vol: 0.7 });
-    h.emit(pole.x - 6, t0.y - 2, { count: 10, colors: [0xFDF4E3, 0xFBBF24], speed: [1, 3], angle: -Math.PI / 2, spread: 1, gravity: 0.2, size: 2, life: [10, 18] });
+    h.shake(6);
+    h.hitStop(4);
+    h.sound('impact_heavy', { vol: 0.8 });
+    h.emit(pole.x - 6, t0.y - 2, { count: 14, colors: [0xFDF4E3, 0xFBBF24], speed: [1, 3], angle: -Math.PI / 2, spread: 1, gravity: 0.2, size: 2, life: [10, 18] });
+    h.camera(1.08, pole.x - 20, (t0.y + pole.top) / 2, HIT - PAD);
   });
+  shockSphere(h, tl, PAD, { x: pole.x - 6, y: t0.y - 4 }, 30, 0xF2B636, 10);
   // The puck rockets up the pole
   drawSpan(h, tl, PAD, DING + 1, (g, t) => {
-    const y = lerp(t0.y - 4, pole.top + 6, easeOut(t));
+    const y = puckY(t);
     g.rect(pole.x - 6, y - 3, 12, 6).fill({ color: 0xE5E7EB }).stroke({ width: 1, color: INK });
-    g.rect(pole.x - 2, y + 3, 4, 20 * (1 - t)).fill({ color: 0xFFF7D6, alpha: 0.5 });
   });
+  weaponTrail(h, tl, PAD, DING + 1, P_BRASS, 10, 8, () => ({ x: pole.x, y: puckY((tl.frame - PAD) / (DING - PAD)) }));
   tl.at(DING, () => {
     h.sound('impact_metal', { rate: 1.9, vol: 0.9 });
     h.sound('ui_select', { vol: 0.6 });
     h.flash(0.2, 0xFFF7D6);
-    h.emit(pole.x, pole.top - 4, { count: 24, colors: LIGHTS, speed: [1.5, 4], spread: Math.PI, gravity: 0.15, size: 2, life: [14, 28] });
+    h.emit(pole.x, pole.top - 4, { count: 30, colors: LIGHTS, speed: [1.5, 4.5], spread: Math.PI, gravity: 0.15, size: 2, life: [14, 28] });
   });
-  ringFx(h, tl, DING, { x: pole.x, y: pole.top }, 6, 50, 0xFBBF24, 14, 2);
+  lightSpan(h, tl, DING, DING + 16, (g, t) => {
+    glow(g, pole.x, pole.top - 4, 40 * (1 - t) + 10, 0xFDE68A, 1 - t);
+    glint(g, pole.x, pole.top - 4, 30 * (1 - t) + 4, t, 0xFFFFFF, 1 - t);
+  });
+  ringFx(h, tl, DING, { x: pole.x, y: pole.top }, 6, 60, 0xFBBF24, 14, 2);
   // The bell breaks loose and drops on the foe
+  const bellAt = (t: number): P => ({ x: lerp(pole.x, c.x, t), y: lerp(pole.top - 4, c.y - 26, easeIn(t)) - arc(t) * 20 });
   drawSpan(h, tl, DING + 2, HIT + 1, (g, t) => {
-    const x = lerp(pole.x, c.x, t);
-    const y = lerp(pole.top - 4, c.y - 26, easeIn(t)) - arc(t) * 20;
-    orb(g, x, y, 8, P_BRASS);
-    g.rect(x - 2, y - 11, 4, 4).fill({ color: 0x78716C });
+    const p = bellAt(t);
+    orb(g, p.x, p.y, 9, P_BRASS);
+    g.rect(p.x - 2, p.y - 12, 4, 4).fill({ color: 0x78716C });
   });
-  hitFx(h, tl, HIT, { x: c.x, y: c.y - 22 }, P_BRASS, 22);
+  weaponTrail(h, tl, DING + 2, HIT + 1, P_BRASS, 12, 8, () => bellAt((tl.frame - DING - 2) / (HIT - DING - 2)));
+  hitFx(h, tl, HIT, { x: c.x, y: c.y - 22 }, P_BRASS, 24);
+  shockSphere(h, tl, HIT, { x: c.x, y: c.y - 20 }, 50, 0xF2B636, 14, 0xFFF7D6);
   tl.at(HIT, () => {
-    land(h, 0, { scale: 1.3, tint: 0xFDE68A, burst: 'crater', burstSize: 1, sfx: 'impact_metal' });
+    land(h, 0, { scale: 1.35, tint: 0xFDE68A, burst: 'crater', burstSize: 1, sfx: 'impact_metal', glare: 0.2 });
+    impactFrame(h, tl, { x: c.x, y: c.y - 20 }, { color: 0xF2B636, dim: [0.55, DIM] });
     h.sound('impact_metal', { rate: 1.4, vol: 0.7, delay: 0.05 });
-    h.camera(1.3, c.x, c.y - 10, 10, true);
-    h.knock(0, 4, -6);
+    h.camera(1.32, c.x, c.y - 10, 10, true);
+    h.knock(0, 4, -8);
+  });
+  // Seeing stars
+  lightSpan(h, tl, HIT + 4, HIT + 34, (g, t, f) => {
+    for (let k = 0; k < 4; k++) {
+      const a = f * 0.25 + (k / 4) * Math.PI * 2;
+      glint(g, c.x + Math.cos(a) * 14, c.y - t0.height * 0.5 + Math.sin(a) * 4, 5, 0, 0xFDE68A, 1 - t);
+    }
   });
   backstep(h, tl, HIT + 8, HIT + 24, 14);
-  tl.end(HIT + 26);
+  tl.during(HIT + 12, HIT + 28, (t) => h.dim(0.55 * (1 - t), DIM));
+  tl.end(HIT + 30);
 }
 
 /**
- * Big Top Finale: the knight presses the mallet overhead and rings it like a ringmaster's bell; confetti cannons
- * fire from the floor under every foe and fireworks burst over them.
+ * Big Top Finale: spotlights sweep a darkened ring; the knight presses the mallet overhead and rings it like a
+ * ringmaster's bell; mortars fire from the floor and fireworks burst over every foe, raining down on them.
  */
 function bigTopFinale(h: KnightMoveHost, tl: Timeline) {
   const foes = each(h);
-  const TOLL = 20;
-  raiseAndHold(h, tl, 0, TOLL + 6);
+  const TOLL = 22;
+  const DIM = 0x0B0716;
+  raiseAndHold(h, tl, 0, TOLL + 8);
   tl.at(0, () => {
-    h.camera(1.04, (h.home.x + foes[foes.length - 1].x) / 2, h.home.y - 50, 60);
+    h.camera(1.18, h.home.x + 10, h.home.y - 44, TOLL);
     h.sound('victory', { vol: 0.35, rate: 1.2 });
   });
-  tl.during(0, 10, (t) => h.dim(0.4 * t, 0x0B0716));
-  // Spotlights sweep the arena
-  drawSpan(h, tl, 0, TOLL + 46, (g, t, f) => {
-    const fade = t > 0.8 ? 1 - (t - 0.8) / 0.2 : Math.min(1, f / 8);
+  tl.during(0, 12, (t) => h.dim(0.7 * t, DIM));
+  // Spotlights sweep the arena, then all swing onto the knight for the toll
+  lightSpan(h, tl, 0, TOLL + 60, (g, t, f) => {
+    const fade = t > 0.85 ? 1 - (t - 0.85) / 0.15 : Math.min(1, f / 8);
     for (let k = 0; k < 3; k++) {
-      const x = 150 + k * 110 + Math.sin(f * 0.06 + k * 2) * 50;
-      g.poly([x - 6, -4, x + 6, -4, x + 30, h.home.y + 4, x - 30, h.home.y + 4]).fill({ color: LIGHTS[k * 2], alpha: 0.1 * fade });
+      const sweep = 150 + k * 110 + Math.sin(f * 0.07 + k * 2) * 60;
+      const x = f < TOLL ? lerp(sweep, h.home.x, easeIn(Math.min(1, f / TOLL))) : sweep;
+      const src = 60 + k * 150;
+      g.poly([src - 4, -10, src + 4, -10, x + 26, h.home.y + 4, x - 26, h.home.y + 4]).fill({ color: LIGHTS[k * 2], alpha: 0.16 * fade });
+      g.ellipse(x, h.home.y + 2, 28, 6).fill({ color: LIGHTS[k * 2], alpha: 0.25 * fade });
     }
   }, 'back');
   tl.at(TOLL, () => {
     h.sound('impact_metal', { rate: 1.6, vol: 0.9 });
-    h.shake(5);
+    h.shake(6);
+    h.hitStop(3);
     const p = h.weaponTip();
-    h.emit(p.x, p.y, { count: 20, colors: LIGHTS, speed: [1, 3.5], spread: Math.PI, gravity: 0.1, size: 2, life: [14, 26] });
+    h.emit(p.x, p.y, { count: 24, colors: LIGHTS, speed: [1, 3.5], spread: Math.PI, gravity: 0.1, size: 2, life: [14, 26] });
+    h.camera(1.02, (h.home.x + foes[foes.length - 1].x) / 2 + 20, h.home.y - 64, 50);
   });
-  ringFx(h, tl, TOLL, () => h.weaponTip(), 6, 70, 0xFBBF24, 14, 2);
+  lightSpan(h, tl, TOLL, TOLL + 14, (g, t) => glint(g, h.weaponTip().x, h.weaponTip().y, 30 * (1 - t) + 4, 0, 0xFFF1F7, 1 - t));
+  ringFx(h, tl, TOLL, () => h.weaponTip(), 6, 80, 0xFBBF24, 14, 2);
+  const last = foes.length - 1;
   foes.forEach((t, i) => {
-    const at = TOLL + 8 + i * 5;
+    const fire = TOLL + 4 + i * 5;
+    const pop = fire + 10;
+    const at = pop + 6;
     const c = chest(t);
-    // Cannon from the floor, then a firework over the foe
-    drawSpan(h, tl, at - 6, at + 2, (g, u) => {
-      g.rect(t.x - 6, t.y - 6, 12, 8).fill({ color: 0x7F1D1D }).stroke({ width: 1, color: INK });
-      g.rect(t.x - 2, t.y - 6 - 50 * u, 4, 50 * u).fill({ color: 0xFFF1F7, alpha: 0.6 });
+    const color = LIGHTS[(i * 2 + 1) % LIGHTS.length];
+    const burstAt = { x: t.x, y: t.y - t.height - 34 };
+    // Mortar shell rising from the floor beside the foe
+    tl.at(fire, () => h.sound('shoot', { rate: 0.7, vol: 0.5 }));
+    drawSpan(h, tl, fire - 4, fire + 2, (g) => g.rect(t.x + 12, t.y - 8, 10, 10).fill({ color: 0x7F1D1D }).stroke({ width: 1, color: INK }));
+    weaponTrail(h, tl, fire, pop + 1, pal(color, 0xFFFFFF, INK), 5, 8, () => {
+      const u = Math.min(1, (tl.frame - fire) / (pop - fire));
+      return { x: lerp(t.x + 17, burstAt.x, u), y: lerp(t.y - 8, burstAt.y, easeOut(u)) };
+    });
+    // The firework: a sphere of light-streaks, then its sparks fall burning onto the foe
+    lightSpan(h, tl, pop, pop + 22, (g, u) => {
+      const r = 40 * easeOut(u);
+      const a = 1 - u;
+      for (let k = 0; k < 16; k++) {
+        const ang = (k / 16) * Math.PI * 2;
+        const x1 = burstAt.x + Math.cos(ang) * r;
+        const y1 = burstAt.y + Math.sin(ang) * r + u * u * 18;
+        g.moveTo(burstAt.x + Math.cos(ang) * r * 0.6, burstAt.y + Math.sin(ang) * r * 0.6 + u * u * 12).lineTo(x1, y1).stroke({ width: 2, color, alpha: a });
+        g.circle(x1, y1, 1.5).fill({ color: 0xFFFFFF, alpha: a });
+      }
+      glow(g, burstAt.x, burstAt.y, 30 * (1 - u) + 6, color, a);
+    });
+    tl.at(pop, () => {
+      h.sound('explosion', { rate: 1.5, vol: 0.5 });
+      h.sound('fire_burst', { rate: 1.6, vol: 0.4 });
+      h.emit(burstAt.x, burstAt.y, { count: 26, colors: [color, 0xFFFFFF, ...LIGHTS], speed: [1, 3.5], spread: Math.PI, gravity: 0.12, size: 2, life: [18, 34] });
     });
     tl.at(at, () => {
-      land(h, h.targets.length ? i : undefined, { scale: 0.9, tint: 0xFBCFE8, burst: 'explosion', burstSize: 0.7, sfx: 'explosion' });
+      land(h, h.targets.length ? i : undefined, { scale: i === last ? 1 : 0.9, tint: 0xFBCFE8, burst: 'explosion', burstSize: 0.7, sfx: 'explosion', glare: i === last ? 0.2 : 0.5 });
+      if (i === last) impactFrame(h, tl, c, { color: 0xF472B6, dim: [0.7, DIM] });
       h.knock(i, 4, 10);
-      h.emit(c.x, c.y - 20, { count: 30, colors: LIGHTS, speed: [1.5, 4.5], spread: Math.PI, gravity: 0.12, size: 2, life: [18, 34] });
-      h.sound('fire_burst', { rate: 1.6, vol: 0.4 });
+      h.emit(c.x, c.y - 10, { count: 20, colors: LIGHTS, speed: [1.5, 4], spread: Math.PI, gravity: 0.15, size: 2, life: [16, 30] });
     });
-    ringFx(h, tl, at, { x: c.x, y: c.y - 24 }, 4, 40, LIGHTS[i % LIGHTS.length], 16, 2);
   });
-  const last = TOLL + 8 + (foes.length - 1) * 5;
-  tl.during(last + 10, last + 24, (t) => h.dim(0.4 * (1 - t), 0x0B0716));
-  tl.end(last + 26);
+  // Confetti drifts over the ring
+  tl.every(TOLL + 10, TOLL + 50, 2, () => h.emit(rand(160, 420), rand(20, 60), { count: 2, colors: LIGHTS, speed: [0.2, 0.8], angle: Math.PI / 2, spread: 0.8, gravity: 0.03, size: 2, life: [30, 50] }));
+  const end = TOLL + 20 + last * 5;
+  tl.during(end + 8, end + 24, (t) => h.dim(0.7 * (1 - t), DIM));
+  tl.end(end + 26);
 }
 
 // =============================================================================================
 // The Leviathan's Anchor: the deep
 
-/** Undertow: the anchor is hurled past the pack, bites the floor, and the knight rows it back in a wave that drags them all. */
+/** Undertow: the anchor is hurled past the pack and bites the floor; the knight rows it back in a wave that drags them all. */
 function undertow(h: KnightMoveHost, tl: Timeline) {
   const foes = each(h);
-  const far = { x: Math.max(...foes.map((t) => t.x)) + 40, y: h.home.y };
+  const far = { x: Math.min(424, Math.max(...foes.map((t) => t.x)) + 40), y: h.home.y };
   const OUT = 22; // the anchor bites behind them
-  const HAUL = OUT + 16; // the wave hits
+  const HAUL = OUT + 26; // the wave reaches the knight's side
+  const DIM = 0x02161D;
   const head = whirl(h, tl, 0, 14, P_DEEP, {
     reach: 22, link: 0x57534E, trail: [0xCCFBF1, 0x2DD4BF],
     head: (g, x, y, f) => anchor(g, x, y, 1, f * 0.3, P_DEEP),
   });
+  tl.at(0, () => h.camera(1.2, h.home.x + 10, h.home.y - 40, 14));
+  tl.during(0, 12, (t) => h.dim(0.6 * t, DIM));
   tl.at(2, () => h.weaponShown(false));
   tl.at(14, () => {
     h.anim('ATTACK2');
     swingSound(h, true);
+    h.camera(1.02, (h.home.x + far.x) / 2, h.home.y - 44, HAUL - 14 + 20);
   });
   const from = once(() => head());
+  const flyAt = (t: number): P => ({ x: lerp(from().x, far.x, easeOut(t)), y: lerp(from().y, far.y - 8, t) - arc(t) * 44 });
   drawSpan(h, tl, 14, OUT + 1, (g, t, f) => {
-    const s = from();
-    const x = lerp(s.x, far.x, easeOut(t));
-    const y = lerp(s.y, far.y - 8, t) - arc(t) * 40;
-    chain(g, h.pos().x + 12, h.pos().y - 30, x, y, 0x57534E, 10 * (1 - t));
-    anchor(g, x, y, 1.2, f * 0.4, P_DEEP);
+    const p = flyAt(t);
+    chain(g, h.pos().x + 12, h.pos().y - 30, p.x, p.y, 0x57534E, 10 * (1 - t));
+    anchor(g, p.x, p.y, 1.2, f * 0.4, P_DEEP);
   });
+  weaponTrail(h, tl, 14, OUT + 1, P_DEEP, 8, 8, () => flyAt(Math.min(1, (tl.frame - 14) / (OUT - 14))));
   tl.at(OUT, () => {
     h.sound('rock', { vol: 0.6 });
-    h.shake(3);
-    dust(h, { x: far.x, y: far.y }, 8, -1);
+    h.shake(4);
+    h.hitStop(2);
+    dust(h, { x: far.x, y: far.y }, 10, -1);
   });
+  shockSphere(h, tl, OUT, { x: far.x, y: far.y - 6 }, 26, 0x2DD4BF, 10);
   // Hauled back: the chain drags a wall of water through the pack
   tl.at(OUT + 4, () => {
     h.anim('ATTACK1');
     h.sound('wave', { vol: 0.8 });
     h.sound('rattle', { rate: 0.6, vol: 0.6 });
   });
-  drawSpan(h, tl, OUT + 4, HAUL + 10, (g, t, f) => {
-    const x = lerp(far.x, h.pos().x + 30, easeIn(Math.min(1, t * 1.2)));
-    const crest = 34 * Math.sin(Math.min(1, t * 1.3) * Math.PI * 0.9) + 8;
-    g.poly([x - 70, far.y + 4, x - 40, far.y - crest * 0.6, x - 8, far.y - crest, x + 14, far.y - crest * 0.4, x + 30, far.y + 4]).fill({ color: 0x0E7490, alpha: 0.65 });
-    g.poly([x - 40, far.y - crest * 0.6, x - 8, far.y - crest, x + 14, far.y - crest * 0.4]).stroke({ width: 2, color: 0xCCFBF1 });
-    chain(g, h.pos().x + 12, h.pos().y - 30, x, far.y - 8, 0x57534E, 2);
-    anchor(g, x, far.y - 8, 1.2, f * 0.4, P_DEEP);
+  const waveX = (t: number) => lerp(far.x, h.home.x + 50, easeInOut(Math.min(1, t * 1.15)));
+  const crest = (t: number) => 54 * Math.sin(Math.min(1, t * 1.8) * Math.PI * 0.5) * (t > 0.8 ? 1 - (t - 0.8) / 0.2 * 0.7 : 1) + 12;
+  drawSpan(h, tl, OUT + 4, HAUL + 12, (g, t, f) => {
+    const x = waveX(t);
+    const cr = crest(t);
+    // Body of the wave curling toward the knight, a foam lip on its crest
+    g.poly([x + 70, far.y + 4, x + 40, far.y - cr * 0.6, x + 8, far.y - cr, x - 12, far.y - cr * 0.8, x - 20, far.y - cr * 0.4, x - 30, far.y + 4]).fill({ color: 0x0E7490, alpha: 0.7 });
+    g.poly([x + 40, far.y - cr * 0.6, x + 8, far.y - cr, x - 12, far.y - cr * 0.8, x - 20, far.y - cr * 0.4]).stroke({ width: 3, color: 0xCCFBF1 });
+    chain(g, h.pos().x + 12, h.pos().y - 30, x - 16, far.y - 8, 0x57534E, 2);
+    anchor(g, x - 16, far.y - 8, 1.2, f * 0.4, P_DEEP);
   });
-  tl.every(OUT + 6, HAUL + 10, 2, () => h.emit(rand(h.home.x + 60, far.x), h.home.y - rand(0, 20), { count: 1, colors: [0xCCFBF1, 0x67E8F9], speed: [0.5, 1.5], angle: -Math.PI / 2, spread: 1, gravity: 0.15, size: 2, life: [10, 18] }));
-  foes.forEach((t, i) => {
-    tl.at(HAUL - i * 3, () => {
-      land(h, h.targets.length ? i : undefined, { scale: 0.85, tint: 0xA5F3FC, sfx: 'splash' });
-      h.knock(i, -16, 4);
+  lightSpan(h, tl, OUT + 4, HAUL + 12, (g, t, f) => {
+    const x = waveX(t);
+    const cr = crest(t);
+    glow(g, x, far.y - cr * 0.6, cr, 0x2DD4BF, 0.5);
+    for (let k = 0; k < 6; k++) g.circle(x - 16 + k * 8 + Math.sin(f * 0.5 + k) * 2, far.y - cr * (0.7 + 0.1 * Math.sin(k)), 2).fill({ color: 0xFFFFFF, alpha: 0.7 });
+  });
+  tl.every(OUT + 6, HAUL + 12, 2, () => h.emit(waveX((tl.frame - OUT - 4) / (HAUL + 8 - OUT)), h.home.y - rand(10, 40), { count: 2, colors: [0xCCFBF1, 0x67E8F9, 0xFFFFFF], speed: [0.5, 2], angle: -Math.PI / 2, spread: 1, gravity: 0.15, size: 2, life: [10, 18] }));
+  // Each foe is hit as the wave's face reaches it (back row first); the first contact gets the impact frame
+  const reach = (x: number) => {
+    for (let f = 0; f <= HAUL + 8 - OUT; f++) if (waveX(f / (HAUL + 8 - OUT)) - 20 <= x) return OUT + 4 + f;
+    return HAUL;
+  };
+  const order = foes.map((t, i) => ({ i, at: reach(t.x) })).sort((a, b) => a.at - b.at);
+  order.forEach(({ i, at }, n) => {
+    const t = foes[i];
+    shockSphere(h, tl, at, chest(t), 30, 0x2DD4BF, 10);
+    tl.at(at, () => {
+      land(h, h.targets.length ? i : undefined, { scale: 0.95, tint: 0xA5F3FC, sfx: 'splash', glare: n === 0 ? 0.2 : 0.5 });
+      if (n === 0) impactFrame(h, tl, chest(t), { color: 0x2DD4BF, dim: [0.6, DIM] });
+      h.knock(i, -18, 6);
     });
   });
-  tl.at(HAUL + 10, () => h.weaponShown(true));
-  tl.end(HAUL + 22);
+  tl.at(HAUL + 12, () => h.weaponShown(true));
+  tl.during(HAUL + 10, HAUL + 24, (t) => h.dim(0.6 * (1 - t), DIM));
+  tl.end(HAUL + 26);
 }
 
-/** Leviathan's Maw: the anchor is flung skyward and comes down as a vast jaw bursts from the floor to swallow the foe. */
+/** Leviathan's Maw: the anchor is flung skyward; an eye opens in a black whirlpool under the foe and vast jaws burst up to swallow it. */
 function leviathansMaw(h: KnightMoveHost, tl: Timeline) {
   const t0 = h.target;
   const c = chest(t0);
-  const HIT = 40;
+  const HIT = 44;
+  const DIM = 0x02161D;
   tl.at(0, () => {
     h.anim('ATTACK3');
     swingSound(h, true);
     h.weaponShown(false);
-    h.camera(1.1, (h.home.x + t0.x) / 2, h.home.y - 50, HIT + 10);
+    h.camera(1.1, (h.home.x + t0.x) / 2, h.home.y - 50, 24);
   });
-  tl.during(0, 12, (t) => h.dim(0.5 * t, 0x02161D));
+  tl.during(0, 12, (t) => h.dim(0.7 * t, DIM));
   // Up and out of frame
-  drawSpan(h, tl, 4, 18, (g, t, f) => anchor(g, lerp(h.pos().x + 10, c.x, t), lerp(h.pos().y - 50, -20, easeOut(t)), 1.3, f * 0.5, P_ABYSS));
-  // A swirl of dark water opens under the foe
-  drawSpan(h, tl, 12, HIT + 20, (g, t, f) => {
-    const r = 30 * easeOut(Math.min(1, (f) / 12)) * (t > 0.8 ? (1 - t) / 0.2 : 1);
+  drawSpan(h, tl, 4, 18, (g, t, f) => anchor(g, lerp(h.pos().x + 10, c.x, t), lerp(h.pos().y - 50, -30, easeOut(t)), 1.3, f * 0.5, P_ABYSS));
+  // A swirl of black water opens under the foe, and something looks up out of it
+  const swirlR = (t: number, f: number) => 34 * easeOut(Math.min(1, f / 12)) * (t > 0.8 ? (1 - t) / 0.2 : 1);
+  drawSpan(h, tl, 12, HIT + 22, (g, t, f) => {
+    const r = swirlR(t, f);
     g.ellipse(t0.x, t0.y + 2, r + 4, r * 0.3 + 1).fill({ color: 0x02161D });
-    for (let k = 0; k < 3; k++) g.ellipse(t0.x, t0.y + 2, r - k * 8, (r - k * 8) * 0.3).stroke({ width: 1, color: 0x2DD4BF, alpha: 0.6 });
+    if (f > 6 && f < HIT - 12) eye(g, t0.x, t0.y + 2, 8, Math.min(1, (f - 6) / 6), 0, P_ABYSS);
+  }, 'ground');
+  lightSpan(h, tl, 12, HIT + 22, (g, t, f) => {
+    const r = swirlR(t, f);
+    for (let arm = 0; arm < 3; arm++) {
+      const pts: number[] = [];
+      for (let k = 0; k <= 10; k++) {
+        const u = k / 10;
+        const a = f * 0.2 + arm * 2.1 + u * 4;
+        pts.push(t0.x + Math.cos(a) * r * u, t0.y + 2 + Math.sin(a) * r * u * 0.3);
+      }
+      g.poly(pts, false).stroke({ width: 1.5, color: 0x2DD4BF, alpha: 0.8 });
+    }
+    glow(g, t0.x, t0.y, r, 0x0E7490, 0.5);
   }, 'ground');
   tl.at(12, () => h.sound('wave', { vol: 0.5, rate: 0.6 }));
+  tl.at(18, () => {
+    h.sound('growl', { rate: 0.5, vol: 0.6 });
+    h.camera(1.18, t0.x, t0.y - 30, HIT - 18);
+  });
+  tl.every(18, HIT - 10, 4, () => h.shake(1.5));
   // The jaws rise around the foe as the anchor falls into the gullet
-  drawSpan(h, tl, HIT - 10, HIT + 16, (g, t) => {
+  drawSpan(h, tl, HIT - 12, HIT + 18, (g, t) => {
     const up = t < 0.4 ? easeOut(t / 0.4) : 1;
-    const shut = t < 0.4 ? 0 : easeIn(Math.min(1, (t - 0.4) / 0.2));
+    const shut = t < 0.4 ? 0 : easeIn(Math.min(1, (t - 0.4) / 0.15));
     const fade = t > 0.8 ? 1 - (t - 0.8) / 0.2 : 1;
     for (const side of [-1, 1]) {
-      const bx = t0.x + side * (26 - shut * 18);
-      const top = t0.y - 70 * up;
-      g.poly([bx, t0.y + 2, bx + side * 6, top + 10, bx - side * 4, top]).fill({ color: 0x164E63, alpha: fade }).stroke({ width: 2, color: 0x02161D, alpha: fade });
-      for (let k = 0; k < 5; k++) {
+      const bx = t0.x + side * (30 - shut * 20);
+      const top = t0.y - 80 * up;
+      g.poly([bx, t0.y + 2, bx + side * 8, top + 10, bx - side * 5, top]).fill({ color: 0x164E63, alpha: fade }).stroke({ width: 2, color: 0x02161D, alpha: fade });
+      for (let k = 0; k < 6; k++) {
         const y = t0.y - k * 12 * up;
-        g.poly([bx, y, bx - side * 8, y - 4, bx, y - 7]).fill({ color: 0xF0FDFA, alpha: fade });
+        g.poly([bx, y, bx - side * 9, y - 4, bx, y - 7]).fill({ color: 0xF0FDFA, alpha: fade });
       }
     }
   });
-  drawSpan(h, tl, HIT - 8, HIT + 1, (g, t, f) => anchor(g, c.x, lerp(-20, c.y, easeIn(t)), 1.4, f * 0.6, P_ABYSS));
-  hitFx(h, tl, HIT, c, P_ABYSS, 26, [0xCCFBF1, 0x2DD4BF, 0xFFFFFF]);
+  lightSpan(h, tl, HIT - 12, HIT, (g, t) => godRay(g, t0.x, t0.y - 90 * t, t0.y + 2, 20, 40, 0x2DD4BF, 0.5 * t));
+  drawSpan(h, tl, HIT - 8, HIT + 1, (g, t, f) => anchor(g, c.x, lerp(-30, c.y, easeIn(t)), 1.5, f * 0.6, P_ABYSS));
+  speedLines(h, tl, HIT - 6, HIT, () => c, 0xCCFBF1, { alpha: 0.4 });
+  hitFx(h, tl, HIT, c, P_ABYSS, 28, [0xCCFBF1, 0x2DD4BF, 0xFFFFFF]);
+  shockSphere(h, tl, HIT, c, 66, 0x2DD4BF, 18, 0xCCFBF1);
   tl.at(HIT, () => {
-    land(h, 0, { scale: 1.45, tint: 0xA5F3FC, flash: 0xCCFBF1, burst: 'ice', burstSize: 1.1, sfx: 'chomp' });
+    land(h, 0, { scale: 1.45, tint: 0xA5F3FC, flash: 0xCCFBF1, burst: 'ice', burstSize: 1.2, sfx: 'chomp', glare: 0.2 });
+    impactFrame(h, tl, c, { color: 0x22D3EE, dim: [0.7, DIM], hold: 4 });
     h.sound('roar', { rate: 0.6, vol: 0.6 });
     h.sound('splash', { vol: 0.8 });
-    h.camera(1.34, c.x, c.y, 12, true);
-    h.knock(0, 4, -8);
-    h.emit(c.x, t0.y, { count: 40, colors: [0xCCFBF1, 0x67E8F9, 0x0E7490], speed: [1, 4], angle: -Math.PI / 2, spread: 1.2, gravity: 0.2, size: 2, life: [16, 30] });
+    h.camera(1.36, c.x, c.y, 12, true);
+    h.knock(0, 4, -10);
+    shards(h, c, 20);
+    h.emit(c.x, t0.y, { count: 44, colors: [0xCCFBF1, 0x67E8F9, 0x0E7490], speed: [1, 4.5], angle: -Math.PI / 2, spread: 1.1, gravity: 0.2, size: 2, life: [16, 30] });
   });
   tl.at(HIT + 16, () => h.weaponShown(true));
-  tl.during(HIT + 10, HIT + 24, (t) => h.dim(0.5 * (1 - t), 0x02161D));
-  tl.end(HIT + 26);
+  tl.during(HIT + 12, HIT + 26, (t) => h.dim(0.7 * (1 - t), DIM));
+  tl.end(HIT + 28);
 }
 
 // =============================================================================================
 // The Everburning Censer: holy smoke and candlelight
 
-/** Sanctified Smoke: the censer whirls a ring of holy smoke round the knight (a ward), then hurls a smoke-wreathed coal at the foe. */
+/** Sanctified Smoke: the censer whirls a ring of holy smoke round the knight (a ward), then hurls a blazing coal at the foe. */
 function sanctifiedSmoke(h: KnightMoveHost, tl: Timeline) {
   const t0 = h.target;
   const c = chest(t0);
   const THROW = 34;
   const HIT = THROW + 10;
+  const DIM = 0x06121C;
+  tl.at(0, () => h.camera(1.2, h.home.x + 8, h.home.y - 38, THROW));
+  tl.during(0, 12, (t) => h.dim(0.55 * t, DIM));
   const head = whirl(h, tl, 0, THROW, P_CENSER, {
     reach: 24, link: 0xCBD5E1, trail: [0xE0F2FE, 0x7DD3FC],
     head: (g, x, y, f) => {
@@ -277,144 +400,233 @@ function sanctifiedSmoke(h: KnightMoveHost, tl: Timeline) {
       for (let k = -1; k <= 1; k++) g.rect(x + k * 3 - 0.5, y - 4, 1.5, 7).fill({ color: 0xFDE68A, alpha: 0.7 + 0.3 * Math.sin(f + k) });
     },
   });
+  lightSpan(h, tl, 2, THROW, (g, t) => glow(g, head().x, head().y, 12 + 8 * t, 0xFDE68A, 0.7));
   tl.at(2, () => {
     h.weaponShown(false);
     h.sound('holy', { vol: 0.5 });
   });
-  // The ward: a ring of smoke closing round the knight
-  drawSpan(h, tl, 6, THROW + 24, (g, t, f) => {
+  // The ward: a ring of smoke closing round the knight, lit from within
+  drawSpan(h, tl, 6, THROW + 26, (g, t, f) => {
     const p = h.pos();
     const grow = easeOut(Math.min(1, f / 16));
     const fade = t > 0.8 ? 1 - (t - 0.8) / 0.2 : 1;
-    for (let k = 0; k < 10; k++) {
-      const a = f * 0.08 + (k / 10) * Math.PI * 2;
-      g.circle(p.x + Math.cos(a) * 30 * grow, p.y - 26 + Math.sin(a) * 30 * grow * 0.45, 7 + Math.sin(f * 0.2 + k) * 2).fill({ color: 0xE0F2FE, alpha: 0.18 * fade });
+    for (let k = 0; k < 12; k++) {
+      const a = f * 0.08 + (k / 12) * Math.PI * 2;
+      g.circle(p.x + Math.cos(a) * 32 * grow, p.y - 26 + Math.sin(a) * 32 * grow * 0.45, 7 + Math.sin(f * 0.2 + k) * 2).fill({ color: 0xE0F2FE, alpha: 0.2 * fade });
     }
   });
+  lightSpan(h, tl, 6, THROW + 26, (g, t, f) => {
+    const p = h.pos();
+    const grow = easeOut(Math.min(1, f / 16));
+    const fade = t > 0.8 ? 1 - (t - 0.8) / 0.2 : 1;
+    g.ellipse(p.x, p.y - 26, 32 * grow, 14 * grow).stroke({ width: 2, color: 0x7DD3FC, alpha: 0.6 * fade });
+    godRay(g, p.x, 0, p.y, 10, 30, 0x7DD3FC, 0.25 * fade * grow);
+  }, 'back');
   tl.at(18, () => h.guard(0x7DD3FC));
-  projectile(h, tl, THROW, HIT - THROW, () => head(), () => c, 24,
-    (g, x, y, _t, f) => {
-      g.circle(x, y, 7).fill({ color: 0x7DD3FC, alpha: 0.25 });
-      orb(g, x, y, 3.5, P_CANDLE);
-      if (f % 2 === 0) g.circle(x - 6, y + 2, 4).fill({ color: 0xE0F2FE, alpha: 0.3 });
-    },
-    () => {},
-    (x, y) => h.emit(x, y, { count: 1, colors: [0xE0F2FE, 0xBAE6FD], speed: [0.1, 0.4], spread: Math.PI, gravity: -0.02, size: 3, life: [12, 20] }),
-  );
-  tl.at(THROW, () => swingSound(h));
-  hitFx(h, tl, HIT, c, P_CENSER, 18);
+  const from = once(() => head());
+  const coal = (t: number): P => ({ x: lerp(from().x, c.x, t), y: lerp(from().y, c.y, t) - arc(t) * 24 });
+  drawSpan(h, tl, THROW, HIT + 1, (g, t) => orb(g, coal(t).x, coal(t).y, 4, P_CANDLE));
+  lightSpan(h, tl, THROW, HIT + 1, (g, t) => glow(g, coal(t).x, coal(t).y, 16, 0xFDE68A, 1));
+  weaponTrail(h, tl, THROW, HIT + 1, P_CENSER, 10, 8, () => coal(Math.min(1, (tl.frame - THROW) / (HIT - THROW))));
+  tl.at(THROW, () => {
+    swingSound(h);
+    h.camera(1.14, (h.home.x + c.x) / 2, c.y - 10, HIT - THROW + 4);
+  });
+  hitFx(h, tl, HIT, c, P_CENSER, 20);
+  shockSphere(h, tl, HIT, c, 50, 0x7DD3FC, 14, 0xFDE68A);
+  lightSpan(h, tl, HIT, HIT + 18, (g, u) => godRay(g, t0.x, 0, t0.y, 24 * (1 - u), 40 * (1 - u) + 2, 0xFDE68A, 1 - u));
   tl.at(HIT, () => {
-    land(h, 0, { scale: 1.1, tint: 0xE0F2FE, burst: 'portal', burstSize: 0.8, sfx: 'holy' });
-    h.knock(0, 8, 2);
-    h.emit(c.x, c.y, { count: 20, colors: [0xE0F2FE, 0xFDE68A], speed: [0.5, 2], spread: Math.PI, gravity: -0.03, size: 3, life: [16, 28] });
+    land(h, 0, { scale: 1.15, tint: 0xE0F2FE, burst: 'portal', burstSize: 0.9, sfx: 'holy', glare: 0.2 });
+    impactFrame(h, tl, c, { color: 0x7DD3FC, dim: [0.55, DIM] });
+    h.camera(1.28, c.x, c.y, 10, true);
+    h.knock(0, 10, 2);
+    h.emit(c.x, c.y, { count: 24, colors: [0xE0F2FE, 0xFDE68A], speed: [0.5, 2.2], spread: Math.PI, gravity: -0.03, size: 3, life: [16, 28] });
   });
   tl.at(HIT + 6, () => h.weaponShown(true));
-  tl.end(HIT + 20);
+  tl.during(HIT + 8, HIT + 22, (t) => h.dim(0.55 * (1 - t), DIM));
+  tl.end(HIT + 22);
 }
 
 /** Candlemass: the censer is swung low across the floor; a candle sprouts under every foe and flares into a pillar of holy fire. */
 function candlemass(h: KnightMoveHost, tl: Timeline) {
   const foes = each(h);
   const SWEEP = 14;
+  const DIM = 0x0A0703;
   tl.at(0, () => {
     h.anim('ATTACK2');
     swingSound(h, true);
-    h.camera(1.04, (h.home.x + foes[foes.length - 1].x) / 2, h.home.y - 46, 60);
+    h.camera(1.04, (h.home.x + foes[foes.length - 1].x) / 2, h.home.y - 50, 70);
   });
-  tl.during(0, 10, (t) => h.dim(0.5 * t, 0x0A0703));
+  tl.during(0, 10, (t) => h.dim(0.7 * t, DIM));
   tl.at(SWEEP, () => h.sound('holy', { vol: 0.7 }));
+  // The censer's sweep leaves a line of embers along the floor that the candles grow from
+  lightSpan(h, tl, SWEEP - 4, SWEEP + 30, (g, t, f) => {
+    const reach = Math.min(1, f / 12);
+    const fade = t > 0.6 ? 1 - (t - 0.6) / 0.4 : 1;
+    const x0 = h.home.x + 30;
+    const x1 = lerp(x0, foes[foes.length - 1].x + 20, reach);
+    g.rect(x0, h.home.y - 1, x1 - x0, 2).fill({ color: 0xFDE68A, alpha: 0.6 * fade });
+    glow(g, x1, h.home.y, 12, 0xFDE68A, fade);
+  }, 'ground');
+  const last = foes.length - 1;
   foes.forEach((t, i) => {
     const sprout = SWEEP + 2 + i * 4;
-    const flare = sprout + 16;
-    drawSpan(h, tl, sprout, flare + 26, (g, u, f) => {
+    const flare = sprout + 18;
+    const c = chest(t);
+    drawSpan(h, tl, sprout, flare + 28, (g, u, f) => {
       const grow = Math.min(1, f / 8);
       const fade = u > 0.8 ? 1 - (u - 0.8) / 0.2 : 1;
-      g.rect(t.x - 3, t.y - 14 * grow, 6, 14 * grow).fill({ color: 0xE7E0CF, alpha: fade }).stroke({ width: 1, color: INK, alpha: fade });
-      const tall = f < 16 ? 5 : 5 + 90 * easeOut(Math.min(1, (f - 16) / 6));
-      g.poly([t.x - 4, t.y - 14 * grow, t.x + Math.sin(f) * 2, t.y - 14 * grow - tall, t.x + 4, t.y - 14 * grow]).fill({ color: 0xFDE68A, alpha: fade });
-      if (f >= 16) pillar(g, t.x, t.y - 120, t.y - 14, 18 * (1 - u * 0.6), P_CANDLE, 0.6 * fade);
+      g.rect(t.x - 3, t.y - 16 * grow, 6, 16 * grow).fill({ color: 0xE7E0CF, alpha: fade }).stroke({ width: 1, color: INK, alpha: fade });
+      for (let k = 0; k < 3; k++) g.rect(t.x - 3 + k * 2, t.y - 16 * grow + 2, 1, 3 + k).fill({ color: 0xF5F5F4, alpha: fade });
+      const tall = f < 18 ? 5 + Math.sin(f) : 5 + 100 * easeOut(Math.min(1, (f - 18) / 6));
+      g.poly([t.x - 4, t.y - 16 * grow, t.x + Math.sin(f) * 2, t.y - 16 * grow - tall, t.x + 4, t.y - 16 * grow]).fill({ color: 0xFDE68A, alpha: fade });
+    });
+    lightSpan(h, tl, sprout, flare + 28, (g, u, f) => {
+      const fade = u > 0.8 ? 1 - (u - 0.8) / 0.2 : 1;
+      const top = t.y - 16 * Math.min(1, f / 8);
+      if (f < 18) glow(g, t.x, top - 4, 10 + Math.sin(f * 0.8) * 2, 0xFDE68A, fade);
+      else {
+        const b = 1 - Math.min(1, (f - 18) / 30);
+        godRay(g, t.x, top - 130, top, 18 * b + 4, 30 * b + 6, 0xFDE68A, fade);
+        glow(g, t.x, c.y, 40 * b + 10, 0xF59E0B, fade * b);
+      }
     });
     tl.at(flare, () => {
-      land(h, h.targets.length ? i : undefined, { scale: 0.9, tint: 0xFEF3C7, burst: 'fire', burstSize: 0.6, sfx: 'fire_burst' });
-      h.knock(i, 2, 8);
+      land(h, h.targets.length ? i : undefined, { scale: i === last ? 1.05 : 0.9, tint: 0xFEF3C7, burst: 'fire', burstSize: 0.7, sfx: 'fire_burst', glare: i === last ? 0.2 : 0.5 });
+      if (i === last) impactFrame(h, tl, c, { color: 0xFBBF24, dim: [0.7, DIM] });
+      h.knock(i, 2, 10);
+      h.emit(t.x, t.y - 20, { count: 16, colors: [0xFDE68A, 0xFFFBEB, 0xF59E0B], speed: [0.6, 2.4], angle: -Math.PI / 2, spread: 0.6, gravity: -0.03, size: 2, life: [18, 30] });
     });
   });
-  const last = SWEEP + 18 + (foes.length - 1) * 4;
-  tl.during(last + 14, last + 28, (t) => h.dim(0.5 * (1 - t), 0x0A0703));
-  tl.end(last + 30);
+  const end = SWEEP + 20 + last * 4;
+  tl.during(end + 16, end + 30, (t) => h.dim(0.7 * (1 - t), DIM));
+  tl.end(end + 32);
 }
 
 // =============================================================================================
 // Tolling Thunder: the storm bell
 
-/** Peal of Thunder: the bell is snatched to lockout and tolls; lightning leaps from it to the foes in turn. */
+/** Peal of Thunder: storm clouds roil overhead; the bell is snatched to lockout and tolls, and lightning leaps from it through the foes in turn. */
 function pealOfThunder(h: KnightMoveHost, tl: Timeline) {
   const hits = h.targets.length ? [...h.targets] : [h.target, h.target, h.target];
-  const TOLL = 18;
-  raiseAndHold(h, tl, 0, TOLL + 20);
-  tl.at(0, () => h.sound('charge', { vol: 0.6 }));
-  tl.during(0, 12, (t) => h.dim(0.55 * t, 0x050A18));
-  chargeFx(h, tl, 2, TOLL, () => h.weaponTip(), P_STORM, 30, 10);
+  const TOLL = 20;
+  const DIM = 0x050A18;
+  raiseAndHold(h, tl, 0, TOLL + 26);
+  tl.at(0, () => {
+    h.sound('charge', { vol: 0.6 });
+    h.sound('thunder', { vol: 0.3, rate: 0.6, delay: 0.2 });
+  });
+  tl.during(0, 14, (t) => h.dim(0.7 * t, DIM));
+  stormClouds(h, tl, 0, TOLL + 40 + hits.length * 5);
+  windUp(h, tl, 2, TOLL, 0x67E8F9, { zoom: 1.22, sound: false });
+  // A bolt from the clouds strikes the raised bell and charges it
+  lightSpan(h, tl, TOLL - 4, TOLL + 4, (g, _t, f) => {
+    const p = h.weaponTip();
+    skyBolt(g, p.x + 10, -10, p.x, p.y, f, P_STORM, 3, 1);
+  });
   tl.at(TOLL, () => {
     h.sound('block', { rate: 0.45, vol: 0.9 });
-    h.sound('thunder', { vol: 0.6 });
+    h.sound('thunder', { vol: 0.7 });
     h.flash(0.25, 0xE0F7FF);
-    h.shake(4);
+    h.shake(6);
+    h.hitStop(3);
+    h.camera(1.04, (h.home.x + hits[hits.length - 1].x) / 2, h.home.y - 44, 40);
   });
-  ringFx(h, tl, TOLL, () => h.weaponTip(), 8, 60, 0x67E8F9, 12, 2);
+  shockSphere(h, tl, TOLL, () => h.weaponTip(), 40, 0x67E8F9, 12);
   hits.forEach((t, k) => {
     const at = TOLL + 3 + k * 5;
     const c = chest(t);
+    const last = k === hits.length - 1;
     const from = k === 0 ? () => h.weaponTip() : () => chest(hits[k - 1]);
-    drawSpan(h, tl, at, at + 8, (g, u) => {
+    lightSpan(h, tl, at, at + 10, (g, u, f) => {
       const s = from();
-      bolt(g, s.x, s.y, c.x, c.y, 7, 10, P_STORM, 3, k * 7 + 1, 1 - u);
+      skyBolt(g, s.x, s.y, c.x, c.y, f + k * 7, P_STORM, 3.5, 1 - u);
+      glow(g, c.x, c.y, 22 * (1 - u) + 6, 0x67E8F9, 1 - u);
     });
     tl.at(at, () => {
-      land(h, h.targets.length ? k : undefined, { scale: 0.85, tint: 0xA5F3FC, sfx: 'zap' });
-      h.knock(k, 6, 2);
-      h.sparks(c.x, c.y, 8, [0xA5F3FC, 0xFFFFFF]);
+      land(h, h.targets.length ? k : undefined, { scale: last ? 1.05 : 0.85, tint: 0xA5F3FC, sfx: 'zap', glare: last ? 0.2 : 0.6 });
+      if (last) impactFrame(h, tl, c, { color: 0x67E8F9, dim: [0.7, DIM] });
+      h.knock(k, 8, 2);
+      h.sparks(c.x, c.y, 10, [0xA5F3FC, 0xFFFFFF]);
     });
   });
   const last = TOLL + 3 + (hits.length - 1) * 5;
-  tl.during(last + 8, last + 20, (t) => h.dim(0.55 * (1 - t), 0x050A18));
-  tl.end(last + 22);
+  tl.during(last + 12, last + 26, (t) => h.dim(0.7 * (1 - t), DIM));
+  tl.end(last + 28);
 }
 
-/** Storm Toll: a phantom belfry bell drops over the pack and the knight's press rings it; the storm answers on every foe. */
+/** Storm clouds rolling in across the top of the frame, lit from within by flickers. */
+function stormClouds(h: KnightMoveHost, tl: Timeline, from: number, to: number) {
+  drawSpan(h, tl, from, to, (g, t, f) => {
+    const a = Math.min(1, f / 10) * (t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1);
+    for (let k = 0; k < 9; k++) {
+      const x = ((k * 53 + f * 0.4) % 480) - 30;
+      g.ellipse(x, 12 + (k % 3) * 8, 36, 14).fill({ color: 0x1E293B, alpha: 0.85 * a });
+    }
+  }, 'back');
+  lightSpan(h, tl, from, to, (g, t, f) => {
+    const a = Math.min(1, f / 10) * (t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1);
+    if (hash(Math.floor(f / 4)) > 0.7) glow(g, 60 + hash(Math.floor(f / 4) + 3) * 320, 20, 40, 0x67E8F9, 0.5 * a);
+  }, 'back');
+}
+
+/** Storm Toll: a phantom belfry bell drops over the pack and the knight's press rings it; the sky answers with a bolt on every foe. */
 function stormToll(h: KnightMoveHost, tl: Timeline) {
   const foes = each(h);
   const cx = foes.reduce((s, t) => s + t.x, 0) / foes.length;
-  const STRIKE = 26;
+  const STRIKE = 28;
+  const DIM = 0x050A18;
   raiseAndHold(h, tl, 0, STRIKE + 6);
   tl.at(0, () => {
-    h.camera(1.04, (h.home.x + cx) / 2, h.home.y - 56, 60);
+    h.camera(1.02, (h.home.x + cx) / 2 + 20, h.home.y - 60, STRIKE + 10);
     h.sound('thunder', { vol: 0.5, rate: 0.8 });
   });
-  tl.during(0, 12, (t) => h.dim(0.55 * t, 0x050A18));
-  drawSpan(h, tl, 4, STRIKE + 30, (g, t, f) => {
-    const y = lerp(-60, h.home.y - 90, easeOut(Math.min(1, f / 18)));
+  tl.during(0, 12, (t) => h.dim(0.75 * t, DIM));
+  stormClouds(h, tl, 0, STRIKE + 44);
+  const bellY = (f: number) => lerp(-60, h.home.y - 96, easeOut(Math.min(1, f / 18)));
+  const ring = (f: number) => (f > STRIKE - 4 ? Math.sin((f - STRIKE + 4) * 1.2) * 4 * Math.max(0, 1 - (f - STRIKE) / 20) : 0);
+  lightSpan(h, tl, 4, STRIKE + 32, (g, t, f) => {
     const fade = t > 0.8 ? 1 - (t - 0.8) / 0.2 : 1;
-    const ring = f > STRIKE - 4 ? Math.sin((f - STRIKE + 4) * 1.2) * 4 : 0;
-    phantomBell(g, cx + ring, y, 70, P_STORM, fade);
+    const blaze = f > STRIKE - 4 ? Math.max(0, 1 - (f - STRIKE + 4) / 16) : 0;
+    glow(g, cx + ring(f), bellY(f) + 10, 50 + 30 * blaze, 0x67E8F9, (0.4 + 0.6 * blaze) * fade);
+  }, 'back');
+  drawSpan(h, tl, 4, STRIKE + 32, (g, t, f) => {
+    const fade = t > 0.8 ? 1 - (t - 0.8) / 0.2 : 1;
+    phantomBell(g, cx + ring(f), bellY(f), 74, P_STORM, fade);
+  });
+  // Lightning crawls over the bell as it charges
+  lightSpan(h, tl, 12, STRIKE, (g, _t, f) => {
+    if (f % 3) return;
+    const y = bellY(f + 12);
+    skyBolt(g, cx - 30, y + 30, cx + 30, y - 10, f, P_STORM, 1.5, 0.7);
   });
   tl.at(STRIKE, () => {
     h.sound('block', { rate: 0.38, vol: 1 });
-    h.shake(7);
-    h.flash(0.3, 0xE0F7FF);
+    h.shake(9);
+    h.hitStop(3);
   });
-  ringFx(h, tl, STRIKE, { x: cx, y: h.home.y }, 10, 200, 0x67E8F9, 20, 3);
+  shockSphere(h, tl, STRIKE, () => ({ x: cx, y: bellY(STRIKE) + 20 }), 90, 0x67E8F9, 16, 0xFFFFFF);
+  ringFx(h, tl, STRIKE, { x: cx, y: h.home.y }, 10, 220, 0x67E8F9, 20, 3);
   foes.forEach((t, i) => {
     const at = STRIKE + 4 + i * 4;
-    drawSpan(h, tl, at, at + 10, (g, u) => bolt(g, t.x + rand(-6, 6), -10, t.x, t.y - 10, 8, 14, P_STORM, 4, i * 5 + 3, 1 - u));
+    lightSpan(h, tl, at, at + 12, (g, u, f) => {
+      skyBolt(g, t.x + rand(-8, 8), -20, t.x, t.y - 6, f + i * 5, P_STORM, 5, 1 - u);
+      glow(g, t.x, t.y - 10, 34 * (1 - u) + 8, 0x67E8F9, 1 - u);
+    });
+    drawSpan(h, tl, at, at + 50, (g, u) => {
+      scorch(g, t.x, t.y, 20, 0x67E8F9, 1 - u);
+      groundCracks(g, t.x, t.y + 2, 36, 6, 79 + i, P_STORM, Math.min(1, u * 8), 1 - u);
+    }, 'ground');
     tl.at(at, () => {
-      land(h, h.targets.length ? i : undefined, { scale: 0.95, tint: 0xA5F3FC, burst: 'crater', burstSize: 0.7, sfx: 'thunder' });
-      h.knock(i, 4, 6);
+      land(h, h.targets.length ? i : undefined, { scale: 1, tint: 0xA5F3FC, burst: 'crater', burstSize: 0.8, sfx: 'thunder', glare: i === 0 ? 0.2 : 0.6 });
+      if (i === 0) impactFrame(h, tl, chest(t), { color: 0x67E8F9, dim: [0.75, DIM] });
+      h.knock(i, 4, 8);
+      h.sparks(t.x, t.y - 10, 12, [0xA5F3FC, 0xFFFFFF]);
     });
   });
   const last = STRIKE + 4 + (foes.length - 1) * 4;
-  tl.during(last + 12, last + 26, (t) => h.dim(0.55 * (1 - t), 0x050A18));
-  tl.end(last + 28);
+  tl.during(last + 14, last + 28, (t) => h.dim(0.75 * (1 - t), DIM));
+  tl.end(last + 30);
 }
 
 // =============================================================================================
@@ -425,9 +637,11 @@ function goldenTouch(h: KnightMoveHost, tl: Timeline) {
   const t0 = h.target;
   const c = chest(t0);
   const TOUCH = 18;
-  const SHATTER = TOUCH + 22;
+  const SHATTER = TOUCH + 26;
+  const DIM = 0x0F0A02;
   tl.at(0, () => h.anim('RUN', true));
   travel(h, tl, 0, 12, HOME, strikeSpot(h, t0, 48), easeInOut);
+  tl.during(0, 12, (t) => h.dim(0.55 * t, DIM));
   tl.at(12, () => {
     h.anim('SKILL1');
     swingSound(h);
@@ -435,71 +649,109 @@ function goldenTouch(h: KnightMoveHost, tl: Timeline) {
   tl.at(TOUCH, () => {
     h.sound('holy', { rate: 1.4, vol: 0.6 });
     h.sound('impact_metal', { rate: 1.6, vol: 0.5 });
-    h.camera(1.25, c.x - 10, c.y, SHATTER - TOUCH + 10);
+    h.hitStop(3);
+    h.camera(1.3, c.x - 10, c.y, SHATTER - TOUCH + 10);
   });
-  // Gold creeping over the foe from the point of contact
+  // Gold creeping over the foe from the point of contact: a molten front, glints, the foe turning to metal
   tl.every(TOUCH, SHATTER, 2, () => h.flashTarget(0, 0xF2B636, 3));
-  drawSpan(h, tl, TOUCH, SHATTER, (g, t, f) => {
-    const r = 6 + 26 * easeOut(t);
-    g.circle(c.x, c.y, r).fill({ color: 0xF2B636, alpha: 0.12 + 0.18 * t });
+  lightSpan(h, tl, TOUCH, SHATTER, (g, t, f) => {
+    const r = 6 + 30 * easeOut(t);
+    glow(g, c.x, c.y, r * 1.3, 0xF2B636, 0.5 + 0.4 * t);
     g.circle(c.x, c.y, r).stroke({ width: 2, color: 0xFDE68A, alpha: 0.9 });
-    g.circle(c.x, c.y, r * 0.6).stroke({ width: 1, color: 0xFFFBEA, alpha: 0.5 });
     for (let k = 0; k < 8; k++) {
       const a = (k / 8) * Math.PI * 2 + f * 0.08;
-      const gx = c.x + Math.cos(a) * r;
-      const gy = c.y + Math.sin(a) * r;
-      g.rect(gx - 2, gy - 0.5, 5, 1).fill({ color: 0xFFFBEA }).rect(gx - 0.5, gy - 2, 1, 5).fill({ color: 0xFFFBEA });
+      glint(g, c.x + Math.cos(a) * r, c.y + Math.sin(a) * r, 5, 0, 0xFFFBEA, 0.8);
     }
   });
-  backstep(h, tl, SHATTER - 4, SHATTER + 10, 12);
-  hitFx(h, tl, SHATTER, c, P_GILT, 28, [0xFFFBEA, 0xF2B636, 0xB7791F]);
+  tl.every(TOUCH + 4, SHATTER, 5, (n) => h.sound('impact_metal', { rate: 1.8 + n * 0.1, vol: 0.25 }));
+  backstep(h, tl, SHATTER - 6, SHATTER + 8, 12);
+  // The statue cracks before it goes
+  drawSpan(h, tl, SHATTER - 6, SHATTER, (g, t) => {
+    for (let k = 0; k < 5; k++) {
+      const a = (k / 5) * Math.PI * 2 + 0.4;
+      g.moveTo(c.x, c.y).lineTo(c.x + Math.cos(a) * 24 * t, c.y + Math.sin(a) * 24 * t).stroke({ width: 1.5, color: 0xFFFBEA });
+    }
+  });
+  hitFx(h, tl, SHATTER, c, P_GILT, 30, [0xFFFBEA, 0xF2B636, 0xB7791F]);
+  shockSphere(h, tl, SHATTER, c, 60, 0xF2B636, 16, 0xFFFBEA);
   tl.at(SHATTER, () => {
-    land(h, 0, { scale: 1.4, tint: 0xFDE68A, flash: 0xFFFBEA, glare: 0.8, sfx: 'crack' });
-    h.camera(1.36, c.x, c.y, 10, true);
+    land(h, 0, { scale: 1.45, tint: 0xFDE68A, flash: 0xFFFBEA, glare: 0.2, sfx: 'crack' });
+    impactFrame(h, tl, c, { color: 0xF2B636, dim: [0.55, DIM] });
+    h.camera(1.38, c.x, c.y, 10, true);
     shards(h, c, 22);
-    h.emit(c.x, c.y, { count: 30, colors: [0xF2B636, 0xFDE68A, 0xB7791F], speed: [1.5, 4.5], spread: Math.PI, gravity: 0.25, size: 3, life: [16, 30] });
+    h.emit(c.x, c.y, { count: 36, colors: [0xF2B636, 0xFDE68A, 0xB7791F], speed: [1.5, 5], spread: Math.PI, gravity: 0.25, size: 3, life: [16, 30] });
     h.knock(0, 10, 4);
   });
-  tl.end(SHATTER + 22);
+  afterglow(h, tl, SHATTER + 2, SHATTER + 24, c.x, t0.y - 6, [0xFDE68A, 0xFFFBEA], 22);
+  tl.during(SHATTER + 8, SHATTER + 22, (t) => h.dim(0.55 * (1 - t), DIM));
+  tl.end(SHATTER + 24);
 }
 
 /** Treasury Rain: the bell is swung skyward and the vault opens overhead; a cascade of gold coins hammers the pack. */
 function treasuryRain(h: KnightMoveHost, tl: Timeline) {
   const foes = each(h);
   const SWING = 12;
+  const DIM = 0x0F0A02;
+  const cx = foes.reduce((s, t) => s + t.x, 0) / foes.length;
   tl.at(0, () => {
     h.anim('ATTACK3');
     swingSound(h, true);
-    h.camera(1.04, (h.home.x + foes[foes.length - 1].x) / 2, h.home.y - 56, 70);
+    h.camera(1.02, (h.home.x + foes[foes.length - 1].x) / 2 + 20, h.home.y - 64, 70);
   });
-  tl.at(SWING, () => h.sound('gears', { vol: 0.6 }));
-  // A golden rift opens above the pack
-  const cx = foes.reduce((s, t) => s + t.x, 0) / foes.length;
-  drawSpan(h, tl, SWING, SWING + 56, (g, t, f) => {
-    const w = 80 * easeOut(Math.min(1, f / 10)) * (t > 0.8 ? (1 - t) / 0.2 : 1);
-    g.ellipse(cx, 30, w, 10).fill({ color: 0xF2B636, alpha: 0.6 }).stroke({ width: 2, color: 0xFFFBEA });
+  tl.during(0, 10, (t) => h.dim(0.65 * t, DIM));
+  tl.at(SWING, () => {
+    h.sound('gears', { vol: 0.6 });
+    h.sound('holy', { rate: 1.3, vol: 0.4 });
   });
-  drawSpan(h, tl, SWING + 6, SWING + 44, (g, _t, f) => {
-    for (let k = 0; k < 36; k++) {
-      const start = (k * 7) % 30;
-      const u = (f - start) / 16;
-      if (u < 0 || u > 1) continue;
-      const x = cx - 80 + ((k * 37) % 160);
-      const y = lerp(30, h.home.y - 4, u * u);
+  // A golden rift opens above the pack, a vault door of light
+  const vaultW = (t: number, f: number) => 90 * easeOut(Math.min(1, f / 10)) * (t > 0.8 ? (1 - t) / 0.2 : 1);
+  lightSpan(h, tl, SWING, SWING + 60, (g, t, f) => {
+    const w = vaultW(t, f);
+    glow(g, cx, 26, w * 0.8, 0xF2B636, 0.7);
+    g.ellipse(cx, 26, w, 11).fill({ color: 0xF2B636, alpha: 0.5 });
+    g.ellipse(cx, 26, w * 0.7, 6).fill({ color: 0xFFFBEA, alpha: 0.6 });
+    runeCircle(g, cx, 26, w * 0.9, f * 0.05, P_GILT, 0.8);
+  });
+  const coinAt = (k: number, f: number) => {
+    const start = (k * 7) % 32;
+    const u = (f - start) / 16;
+    return { u, x: cx - 84 + ((k * 37) % 168), y: lerp(28, h.home.y - 4, u * u) };
+  };
+  drawSpan(h, tl, SWING + 6, SWING + 48, (g, _t, f) => {
+    for (let k = 0; k < 44; k++) {
+      const p = coinAt(k, f);
+      if (p.u < 0 || p.u > 1) continue;
       const spin = Math.abs(Math.cos(f * 0.5 + k));
-      g.ellipse(x, y, 1 + 3 * spin, 4).fill({ color: k % 3 ? 0xF2B636 : 0xFDE68A }).stroke({ width: 1, color: 0x7C4A03 });
+      g.ellipse(p.x, p.y, 1 + 3 * spin, 4).fill({ color: k % 3 ? 0xF2B636 : 0xFDE68A }).stroke({ width: 1, color: 0x7C4A03 });
     }
   });
-  tl.every(SWING + 8, SWING + 40, 4, (i) => h.sound('impact_metal', { rate: 1.8 + (i % 3) * 0.2, vol: 0.25 }));
-  foes.forEach((t, i) => {
-    const at = SWING + 20 + i * 4;
-    tl.at(at, () => {
-      land(h, h.targets.length ? i : undefined, { scale: 0.9, tint: 0xFDE68A, sfx: 'impact_metal' });
-      h.knock(i, 2, -4);
-      debris(h, { x: t.x, y: t.y }, 8, [0xF2B636, 0xFDE68A, 0xB7791F]);
-    });
+  lightSpan(h, tl, SWING + 6, SWING + 48, (g, _t, f) => {
+    for (let k = 0; k < 44; k += 4) {
+      const p = coinAt(k, f);
+      if (p.u < 0 || p.u > 1) continue;
+      if (Math.sin(f * 0.6 + k) > 0.5) glint(g, p.x, p.y, 5, 0, 0xFFFBEA, 0.9);
+    }
   });
-  tl.end(SWING + 60);
+  tl.every(SWING + 8, SWING + 44, 3, (i) => h.sound('impact_metal', { rate: 1.8 + (i % 3) * 0.2, vol: 0.25 }));
+  // Drifts of gold pile up under the foes
+  lightSpan(h, tl, SWING + 16, SWING + 64, (g, t) => {
+    const fade = t > 0.75 ? 1 - (t - 0.75) / 0.25 : 1;
+    for (const ft of foes) {
+      g.ellipse(ft.x, ft.y + 2, 18 * Math.min(1, t * 3), 4).fill({ color: 0xF2B636, alpha: 0.5 * fade });
+    }
+  }, 'ground');
+  foes.forEach((t, i) => {
+    const at = SWING + 22 + i * 4;
+    tl.at(at, () => {
+      land(h, h.targets.length ? i : undefined, { scale: 0.95, tint: 0xFDE68A, sfx: 'impact_metal', glare: i === 0 ? 0.2 : 0.6 });
+      if (i === 0) impactFrame(h, tl, chest(t), { color: 0xF2B636, dim: [0.65, DIM] });
+      h.knock(i, 2, -6);
+      debris(h, { x: t.x, y: t.y }, 10, [0xF2B636, 0xFDE68A, 0xB7791F]);
+    });
+    shockSphere(h, tl, at, chest(t), 30, 0xF2B636, 10);
+  });
+  tl.during(SWING + 50, SWING + 64, (t) => h.dim(0.65 * (1 - t), DIM));
+  tl.end(SWING + 66);
 }
 
 // =============================================================================================
@@ -509,78 +761,110 @@ function treasuryRain(h: KnightMoveHost, tl: Timeline) {
 function quench(h: KnightMoveHost, tl: Timeline) {
   const hits = h.targets.length ? [...h.targets] : [h.target];
   const far = hits[hits.length - 1];
-  const THRUST = 24;
+  const THRUST = 26;
+  const DIM = 0x140602;
   tl.at(0, () => {
     h.anim('DEFENSE');
     chargeSound(h, THRUST);
-    h.camera(1.1, h.home.x + 40, h.home.y - 30, THRUST);
   });
-  chargeFx(h, tl, 0, THRUST - 2, () => h.weaponTip(), P_FORGE, 34, 12);
-  tl.during(0, THRUST, (t) => h.tint(t > 0.5 ? 0xFFD9B0 : 0xFFFFFF));
+  windUp(h, tl, 0, THRUST - 2, 0xFB923C, { zoom: 1.24, sound: false, reach: 40 });
+  tl.during(0, 14, (t) => h.dim(0.6 * t, DIM));
+  // The steel heats: dull red to white, the knight lit by it
+  tl.during(0, THRUST, (t) => h.tint(mix(0xFFFFFF, 0xFFC08A, t)));
+  lightSpan(h, tl, 0, THRUST, (g, t) => glow(g, h.weaponTip().x, h.weaponTip().y, 10 + 18 * t, mix(0xB91C1C, 0xFFF7ED, t), 0.6 + 0.4 * t));
   tl.at(THRUST, () => {
     h.anim('ATTACK1');
     swingSound(h, true);
     h.tint(0xFFFFFF);
-    h.camera(1.2, (h.pos().x + far.x) / 2, far.y - 30, 20, true);
+    h.camera(1.14, (h.pos().x + far.x) / 2, far.y - 30, 20, true);
   });
   travel(h, tl, THRUST, THRUST + 6, here(h), strikeSpot(h, hits[0], 70), easeOut);
-  ghostTrail(h, tl, THRUST, THRUST + 6, 0xFB923C, 1, 0.5);
+  ghostTrail(h, tl, THRUST, THRUST + 6, 0xFB923C, 1, 0.55);
+  // The lance: a white-hot core in an orange sheath, steam boiling off it
+  lightSpan(h, tl, THRUST + 2, THRUST + 24, (g, t) => {
+    const k = kFront(h);
+    lance(g, k.x, k.y, far.x + 50, chest(far).y, 22 * (1 - t) + 4, P_FORGE, 0.5 * (1 - t));
+    glow(g, k.x, k.y, 20 * (1 - t), 0xFFF7ED, 1 - t);
+  });
   drawSpan(h, tl, THRUST + 2, THRUST + 22, (g, t) => {
     const k = kFront(h);
     lance(g, k.x, k.y, far.x + 40, chest(far).y, 10 * (1 - t) + 2, P_FORGE, 1 - t);
   });
-  tl.every(THRUST + 2, THRUST + 20, 2, () => {
+  tl.every(THRUST + 2, THRUST + 26, 2, () => {
     const k = kFront(h);
-    h.emit(lerp(k.x, far.x, Math.random()), chest(far).y + rand(-6, 6), { count: 1, colors: [0xF5F5F4, 0xFDE68A], speed: [0.3, 1], angle: -Math.PI / 2, spread: 1, gravity: -0.02, size: 3, life: [16, 28] });
+    h.emit(lerp(k.x, far.x, Math.random()), chest(far).y + rand(-6, 6), { count: 2, colors: [0xF5F5F4, 0xFDE68A, 0xE7E5E4], speed: [0.3, 1], angle: -Math.PI / 2, spread: 1, gravity: -0.03, size: 4, life: [18, 30] });
   });
   hits.forEach((t, k) => {
-    tl.at(THRUST + 4 + k * 3, () => {
-      land(h, h.targets.length ? k : undefined, { scale: 1, tint: 0xFED7AA, burst: 'fire', burstSize: 0.6, sfx: 'fire_burst' });
+    const at = THRUST + 4 + k * 3;
+    shockSphere(h, tl, at, chest(t), 36, 0xFB923C, 12, 0xFFF7ED);
+    tl.at(at, () => {
+      land(h, h.targets.length ? k : undefined, { scale: 1.05, tint: 0xFED7AA, burst: 'fire', burstSize: 0.7, sfx: 'fire_burst', glare: k === 0 ? 0.2 : 0.6 });
+      if (k === 0) impactFrame(h, tl, chest(t), { color: 0xFB923C, dim: [0.6, DIM] });
       h.sound('frost', { rate: 0.6, vol: 0.4 }); // the hiss of the quench
-      h.knock(k, 12, 2);
+      h.knock(k, 14, 2);
     });
   });
   backstep(h, tl, THRUST + 16, THRUST + 32, 14);
+  tl.during(THRUST + 18, THRUST + 34, (t) => h.dim(0.6 * (1 - t), DIM));
   tl.end(THRUST + 34);
 }
 
-/** Titan's Anvil: a spectral anvil slams down behind the foe and the knight hammers it onto the anvil, sparks raining. */
+/** Titan's Anvil: a spectral anvil slams down behind the foe and the knight hammers it against the anvil twice, sparks fountaining. */
 function titansAnvil(h: KnightMoveHost, tl: Timeline) {
   const t0 = h.target;
   const c = chest(t0);
-  const HITS = [30, 38];
+  const HITS = [30, 40];
+  const DIM = 0x140602;
   tl.at(0, () => h.anim('RUN', true));
   travel(h, tl, 0, 12, HOME, strikeSpot(h, t0, 56), easeInOut);
-  drawSpan(h, tl, 6, HITS[1] + 20, (g, t, f) => {
-    const y = lerp(-40, t0.y, easeIn(Math.min(1, f / 8)));
-    const fade = t > 0.8 ? 1 - (t - 0.8) / 0.2 : 0.85;
-    g.poly([t0.x - 30, y - 18, t0.x + 26, y - 18, t0.x + 36, y - 24, t0.x + 26, y - 12, t0.x + 12, y - 10, t0.x + 16, y, t0.x - 20, y, t0.x - 16, y - 10]).fill({ color: 0xEA580C, alpha: 0.55 * fade }).stroke({ width: 2, color: 0xFDE68A, alpha: fade });
-  });
+  tl.during(0, 12, (t) => h.dim(0.6 * t, DIM));
+  tl.at(0, () => h.camera(1.14, (h.home.x + t0.x) / 2 + 20, t0.y - 40, HITS[1]));
+  const anvilY = (f: number) => lerp(-40, t0.y, easeIn(Math.min(1, f / 8)));
+  const anvil = (g: Graphics, y: number, fade: number, fill: number, edge: number) =>
+    g.poly([t0.x - 30, y - 18, t0.x + 26, y - 18, t0.x + 38, y - 24, t0.x + 26, y - 12, t0.x + 12, y - 10, t0.x + 16, y, t0.x - 20, y, t0.x - 16, y - 10]).fill({ color: fill, alpha: 0.55 * fade }).stroke({ width: 2, color: edge, alpha: fade });
+  drawSpan(h, tl, 6, HITS[1] + 22, (g, t, f) => anvil(g, anvilY(f), t > 0.8 ? 1 - (t - 0.8) / 0.2 : 0.9, 0xEA580C, 0xFDE68A), 'back');
+  lightSpan(h, tl, 6, HITS[1] + 22, (g, t, f) => glow(g, t0.x, anvilY(f) - 12, 40, 0xEA580C, 0.5 * (t > 0.8 ? 1 - (t - 0.8) / 0.2 : 1)), 'back');
   tl.at(14, () => {
-    h.sound('impact_metal', { rate: 0.5, vol: 0.7 });
-    h.shake(4);
-    dust(h, { x: t0.x, y: t0.y }, 8, 0);
+    h.sound('impact_metal', { rate: 0.5, vol: 0.8 });
+    h.shake(6);
+    h.hitStop(2);
+    dust(h, { x: t0.x, y: t0.y }, 10, 0);
   });
+  shockSphere(h, tl, 14, { x: t0.x, y: t0.y - 6 }, 30, 0xEA580C, 10);
   HITS.forEach((at, k) => {
+    const big = k === HITS.length - 1;
     tl.at(at - 8, () => {
-      h.anim(k === 0 ? 'ATTACK4' : 'SKILL1');
-      swingSound(h, k === 1);
+      h.anim(big ? 'SKILL1' : 'ATTACK4');
+      swingSound(h, big);
     });
-    hitFx(h, tl, at, c, P_FORGE, k === 1 ? 26 : 16, [0xFDE68A, 0xFB923C, 0xFFFFFF]);
+    weaponTrail(h, tl, at - 6, at, P_FORGE, big ? 14 : 9, 5);
+    hitFx(h, tl, at, c, P_FORGE, big ? 28 : 16, [0xFDE68A, 0xFB923C, 0xFFFFFF]);
+    if (big) shockSphere(h, tl, at, c, 60, 0xFB923C, 16, 0xFDE68A);
+    // A fountain of sparks off the anvil
+    lightSpan(h, tl, at, at + 16, (g, u) => {
+      for (let s = 0; s < (big ? 14 : 8); s++) {
+        const a = -Math.PI / 2 + (hash(s + k * 9) - 0.5) * 2;
+        const r = (20 + 40 * hash(s * 3 + k)) * easeOut(u);
+        g.moveTo(c.x + Math.cos(a) * r * 0.6, c.y + Math.sin(a) * r * 0.6 + u * u * 10).lineTo(c.x + Math.cos(a) * r, c.y + Math.sin(a) * r + u * u * 16).stroke({ width: 1.5, color: s % 2 ? 0xFDE68A : 0xFB923C, alpha: 1 - u });
+      }
+    });
     tl.at(at, () => {
-      if (k === HITS.length - 1) {
-        land(h, 0, { scale: 1.35, tint: 0xFED7AA, burst: 'explosion', burstSize: 1, sfx: 'impact_metal' });
-        h.camera(1.3, c.x, c.y, 10, true);
+      if (big) {
+        land(h, 0, { scale: 1.4, tint: 0xFED7AA, burst: 'explosion', burstSize: 1, sfx: 'impact_metal', glare: 0.2 });
+        impactFrame(h, tl, c, { color: 0xFB923C, dim: [0.6, DIM] });
+        h.camera(1.34, c.x, c.y, 10, true);
         h.knock(0, 8, -4);
       } else {
         h.flashTarget(0, 0xFB923C, 4);
         h.sound('impact_metal', { rate: 1.2, vol: 0.7 });
-        h.shake(3);
+        h.shake(4);
+        h.hitStop(3);
       }
-      h.emit(c.x, c.y, { count: k === 1 ? 36 : 16, colors: [0xFDE68A, 0xFB923C, 0xFFFFFF], speed: [1.5, 4.5], angle: -Math.PI / 2, spread: 1.4, gravity: 0.25, size: 2, life: [12, 26] });
+      h.emit(c.x, c.y, { count: big ? 40 : 18, colors: [0xFDE68A, 0xFB923C, 0xFFFFFF], speed: [1.5, 5], angle: -Math.PI / 2, spread: 1.4, gravity: 0.25, size: 2, life: [12, 26] });
     });
   });
   backstep(h, tl, HITS[1] + 6, HITS[1] + 22, 14);
+  tl.during(HITS[1] + 10, HITS[1] + 24, (t) => h.dim(0.6 * (1 - t), DIM));
   tl.end(HITS[1] + 24);
 }
 
@@ -591,155 +875,230 @@ function titansAnvil(h: KnightMoveHost, tl: Timeline) {
 function stareBack(h: KnightMoveHost, tl: Timeline) {
   const t0 = h.target;
   const c = chest(t0);
-  const OPEN = 16;
+  const OPEN = 18;
   const HIT = OPEN + 16;
+  const DIM = 0x07020F;
   tl.at(0, () => {
     h.anim('DEFENSE');
-    h.camera(1.14, (h.home.x + t0.x) / 2, h.home.y - 46, HIT + 10);
+    h.camera(1.16, (h.home.x + t0.x) / 2, h.home.y - 56, OPEN);
     h.sound('portal', { vol: 0.6, rate: 0.7 });
   });
-  tl.during(0, 12, (t) => h.dim(0.65 * t, 0x07020F));
-  const at = { x: (h.home.x + t0.x) / 2, y: h.home.y - 86 };
-  drawSpan(h, tl, 4, HIT + 22, (g, t, f) => {
-    const open = f < OPEN ? 0 : Math.min(1, (f - OPEN + 2) / 6);
-    const fade = t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1;
-    eye(g, at.x, at.y, 22, open * fade, (c.x - at.x) / 60, P_SICK, fade);
-  });
+  tl.during(0, 12, (t) => h.dim(0.8 * t, DIM));
+  const at = { x: (h.home.x + t0.x) / 2, y: h.home.y - 90 };
+  const openAt = (f: number, t: number) => (f < OPEN ? 0 : Math.min(1, (f - OPEN + 2) / 6)) * (t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1);
+  lightSpan(h, tl, 4, HIT + 24, (g, t, f) => {
+    const o = openAt(f, t);
+    glow(g, at.x, at.y, 30 + 20 * o, 0xC084FC, 0.4 + 0.5 * o);
+    for (let k = 0; k < 10; k++) {
+      const a = (k / 10) * Math.PI * 2 + f * 0.02;
+      g.moveTo(at.x + Math.cos(a) * 26, at.y + Math.sin(a) * 16).lineTo(at.x + Math.cos(a) * (40 + 10 * o), at.y + Math.sin(a) * (26 + 6 * o)).stroke({ width: 1, color: 0x4ADE80, alpha: 0.4 * o });
+    }
+  }, 'back');
+  drawSpan(h, tl, 4, HIT + 24, (g, t, f) => eye(g, at.x, at.y, 24, openAt(f, t), (c.x - at.x) / 60, P_SICK, t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1));
   tl.at(OPEN, () => {
     h.sound('wail', { rate: 1.6, vol: 0.5 });
-    h.shake(2);
+    h.shake(4);
+    h.hitStop(3);
+    h.camera(1.06, (at.x + c.x) / 2, (at.y + c.y) / 2 + 10, HIT - OPEN);
   });
-  drawSpan(h, tl, OPEN + 6, HIT + 10, (g, t) => {
+  drawSpan(h, tl, OPEN + 2, HIT, (g, _t, f) => focusLines(g, c.x, c.y, Math.floor(f / 2), 0xC084FC, 0.3, { inner: 40, n: 18, width: 2 }));
+  lightSpan(h, tl, OPEN + 6, HIT + 12, (g, t) => {
+    const w = t < 0.4 ? 4 + 12 * (t / 0.4) : 16 * (1 - t);
+    lance(g, at.x, at.y, c.x, c.y, w * 2, P_HOLLOW, 0.4);
+    glow(g, c.x, c.y, 20 + w, 0xC084FC, 0.8);
+  });
+  drawSpan(h, tl, OPEN + 6, HIT + 12, (g, t) => {
     const w = t < 0.4 ? 4 + 10 * (t / 0.4) : 14 * (1 - t);
     lance(g, at.x, at.y, c.x, c.y, w, P_HOLLOW, 1);
   });
-  hitFx(h, tl, HIT, c, P_HOLLOW, 24);
+  hitFx(h, tl, HIT, c, P_HOLLOW, 26);
+  shockSphere(h, tl, HIT, c, 56, 0xC084FC, 16, 0x4ADE80);
   tl.at(HIT, () => {
-    land(h, 0, { scale: 1.35, tint: 0xE9D5FF, flash: 0xF3E8FF, glare: 0.7, burst: 'portal', burstSize: 1, sfx: 'portal' });
-    h.camera(1.3, c.x, c.y, 10, true);
-    shards(h, c, 16);
-    h.knock(0, 8, 2);
+    land(h, 0, { scale: 1.4, tint: 0xE9D5FF, flash: 0xF3E8FF, glare: 0.2, burst: 'portal', burstSize: 1, sfx: 'portal' });
+    impactFrame(h, tl, c, { color: 0xC084FC, dim: [0.8, DIM] });
+    h.camera(1.32, c.x, c.y, 10, true);
+    shards(h, c, 18);
+    h.knock(0, 10, 2);
   });
-  tl.during(HIT + 12, HIT + 26, (t) => h.dim(0.65 * (1 - t), 0x07020F));
-  tl.end(HIT + 28);
+  tl.during(HIT + 14, HIT + 28, (t) => h.dim(0.8 * (1 - t), DIM));
+  tl.end(HIT + 30);
 }
 
 /** Rift Hymn: the bell is circled round the head and sings; rifts tear open under every foe and tentacles seize them. */
 function riftHymn(h: KnightMoveHost, tl: Timeline) {
   const foes = each(h);
-  const SING = 16;
+  const SING = 18;
+  const DIM = 0x07020F;
   tl.at(0, () => {
     h.anim('SKILL2TULUC');
-    h.camera(1.04, (h.home.x + foes[foes.length - 1].x) / 2, h.home.y - 46, 70);
+    h.camera(1.2, h.home.x + 10, h.home.y - 40, SING);
   });
-  tl.during(0, 12, (t) => h.dim(0.6 * t, 0x07020F));
-  drawSpan(h, tl, 2, SING + 40, (g, t, f) => {
+  tl.during(0, 12, (t) => h.dim(0.75 * t, DIM));
+  lightSpan(h, tl, 2, SING + 44, (g, t, f) => {
     const p = h.pos();
-    runeCircle(g, p.x, p.y, 34, f * 0.06, P_HOLLOW, t > 0.8 ? 1 - (t - 0.8) / 0.2 : 0.8);
+    const a = t > 0.8 ? 1 - (t - 0.8) / 0.2 : Math.min(1, f / 8);
+    runeCircle(g, p.x, p.y, 36, f * 0.06, P_HOLLOW, a);
+    godRay(g, p.x, p.y - 90, p.y, 10, 30, 0xC084FC, 0.35 * a);
   }, 'ground');
+  // The hymn: rings of song rolling off the bell
+  lightSpan(h, tl, 4, SING + 30, (g, _t, f) => {
+    const p = h.weaponTip();
+    for (let k = 0; k < 3; k++) {
+      const u = ((f * 0.04 + k / 3) % 1);
+      g.circle(p.x, p.y, 8 + 50 * u).stroke({ width: 2 * (1 - u) + 0.5, color: k % 2 ? 0xC084FC : 0xF3E8FF, alpha: 1 - u });
+    }
+  });
+  tl.at(SING - 2, () => h.camera(1.04, (h.home.x + foes[foes.length - 1].x) / 2 + 20, h.home.y - 46, 60));
   tl.every(SING - 10, SING + 30, 5, (i) => h.sound('wail', { rate: 1.2 + (i % 4) * 0.15, vol: 0.25 }));
+  const last = foes.length - 1;
   foes.forEach((t, i) => {
     const open = SING + i * 5;
     const grab = open + 12;
-    drawSpan(h, tl, open, grab + 20, (g, u, f) => {
-      const w = 18 * easeOut(Math.min(1, f / 6)) * (u > 0.8 ? (1 - u) / 0.2 : 1);
+    const riftW = (u: number, f: number) => 22 * easeOut(Math.min(1, f / 6)) * (u > 0.8 ? (1 - u) / 0.2 : 1);
+    drawSpan(h, tl, open, grab + 22, (g, u, f) => {
+      const w = riftW(u, f);
       g.ellipse(t.x, t.y + 2, w + 2, w * 0.3 + 1).fill({ color: 0x07020F }).stroke({ width: 1.5, color: 0xA855F7 });
       if (f > 6) {
         const reach = Math.min(1, (f - 6) / 6);
-        for (const side of [-1, 1]) tentacle(g, t.x + side * w * 0.5, t.y, t.x + side * 4, t.y - 30 * reach, 4, side * 8, 0x3B0764, 0x7E22CE, false);
+        for (const side of [-1, 0, 1]) tentacle(g, t.x + side * w * 0.5, t.y, t.x + side * 4, t.y - (side ? 32 : 40) * reach, side ? 4 : 5, side * 8 + 3, 0x3B0764, 0x7E22CE, false);
       }
-    }, 'fx');
-    tl.at(grab, () => {
-      land(h, h.targets.length ? i : undefined, { scale: 0.9, tint: 0xE9D5FF, sfx: 'squelch' });
-      h.knock(i, 0, -6);
     });
+    lightSpan(h, tl, open, grab + 22, (g, u, f) => {
+      const w = riftW(u, f);
+      godRay(g, t.x, t.y - 60, t.y + 2, w * 0.6, w * 1.4, 0xA855F7, 0.5);
+    }, 'ground');
+    tl.at(grab, () => {
+      land(h, h.targets.length ? i : undefined, { scale: i === last ? 1 : 0.9, tint: 0xE9D5FF, sfx: 'squelch', glare: i === last ? 0.2 : 0.5 });
+      if (i === last) impactFrame(h, tl, chest(t), { color: 0xA855F7, dim: [0.75, DIM] });
+      h.knock(i, 0, -8);
+    });
+    shockSphere(h, tl, grab, chest(t), 30, 0xA855F7, 12);
   });
-  const last = SING + (foes.length - 1) * 5 + 12;
-  tl.during(last + 14, last + 28, (t) => h.dim(0.6 * (1 - t), 0x07020F));
-  tl.end(last + 30);
+  const end = SING + last * 5 + 12;
+  tl.during(end + 14, end + 28, (t) => h.dim(0.75 * (1 - t), DIM));
+  tl.end(end + 30);
 }
 
 // =============================================================================================
 // Excalibane: the shadow twin
 
-/** Eclipse Edge: a black sun rises behind the knight, and the blade cuts a crescent of night through the line. */
+/** Eclipse Edge: a black sun rises behind the knight, its corona blazing, and the blade cuts a crescent of night through the line. */
 function eclipseEdge(h: KnightMoveHost, tl: Timeline) {
   const hits = h.targets.length ? [...h.targets] : [h.target];
-  const CUT = 22;
+  const CUT = 26;
+  const DIM = 0x050208;
   tl.at(0, () => {
     h.anim('DEFENSE');
-    h.camera(1.08, h.home.x + 60, h.home.y - 44, CUT + 20);
+    h.camera(1.14, h.home.x + 10, h.home.y - 56, CUT - 6);
     h.sound('dark', { vol: 0.7 });
   });
-  tl.during(0, 14, (t) => h.dim(0.7 * t, 0x050208));
-  drawSpan(h, tl, 0, CUT + 30, (g, t, f) => {
-    const p = h.pos();
+  tl.during(0, 14, (t) => h.dim(0.85 * t, DIM));
+  const sunAt = once(() => ({ x: h.pos().x - 10, y: h.pos().y - 92 }));
+  lightSpan(h, tl, 0, CUT + 32, (g, t, f) => {
+    const s = sunAt();
     const fade = t > 0.8 ? 1 - (t - 0.8) / 0.2 : Math.min(1, f / 10);
-    blackHole(g, p.x - 10, p.y - 90, 22, f, P_BANE, fade);
+    glow(g, s.x, s.y, 50, 0xA78BFA, 0.6 * fade);
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2 + f * 0.02;
+      const len = 30 + 14 * Math.sin(f * 0.3 + k * 1.7);
+      g.poly([s.x + Math.cos(a - 0.08) * 22, s.y + Math.sin(a - 0.08) * 22, s.x + Math.cos(a) * len, s.y + Math.sin(a) * len, s.x + Math.cos(a + 0.08) * 22, s.y + Math.sin(a + 0.08) * 22]).fill({ color: 0xEDE9FE, alpha: 0.5 * fade });
+    }
   }, 'back');
+  drawSpan(h, tl, 0, CUT + 32, (g, t, f) => {
+    const s = sunAt();
+    const fade = t > 0.8 ? 1 - (t - 0.8) / 0.2 : Math.min(1, f / 10);
+    g.circle(s.x, s.y, 22).fill({ color: 0x000000, alpha: fade }).stroke({ width: 1.5, color: 0xEDE9FE, alpha: fade });
+  }, 'back');
+  windUp(h, tl, 4, CUT - 6, 0xA78BFA, { zoom: 1.22, sound: true, reach: 40 });
   tl.at(CUT - 6, () => {
     h.anim('ATTACK2');
     swingSound(h, true);
   });
   travel(h, tl, CUT - 6, CUT, HOME, strikeSpot(h, hits[0], 60), easeOut);
-  ghostTrail(h, tl, CUT - 6, CUT + 2, 0xA78BFA, 1, 0.45);
+  ghostTrail(h, tl, CUT - 6, CUT + 2, 0xA78BFA, 1, 0.5);
   const p0 = once(() => h.pos());
-  slashFx(h, tl, CUT, { x: p0().x + 50, y: p0().y - 30, r: 80, a0: -1.6, a1: 1.2, thick: 14, p: P_BANE, dur: 12 });
+  slashFx(h, tl, CUT, { x: p0().x + 50, y: p0().y - 30, r: 84, a0: -1.6, a1: 1.2, thick: 16, p: P_BANE, dur: 14 });
+  lightSpan(h, tl, CUT, CUT + 14, (g, u) => crescent(g, p0().x + 50, p0().y - 30, 92, -1.6, 1.2, 26 * (1 - u), P_BANE, 0.5 * (1 - u)));
   hits.forEach((t, k) => {
+    shockSphere(h, tl, CUT + 1 + k * 3, chest(t), 40, 0xA78BFA, 12);
     tl.at(CUT + 1 + k * 3, () => {
-      land(h, h.targets.length ? k : undefined, { scale: 1.05, tint: 0xDDD6FE, burst: 'slash', burstSize: 1, sfx: 'slash_heavy' });
-      h.knock(k, 10, 2);
+      land(h, h.targets.length ? k : undefined, { scale: 1.1, tint: 0xDDD6FE, burst: 'slash', burstSize: 1, sfx: 'slash_heavy', glare: k === 0 ? 0.2 : 0.6 });
+      if (k === 0) impactFrame(h, tl, chest(t), { color: 0xA78BFA, dim: [0.85, DIM], hold: 4 });
+      h.knock(k, 12, 2);
     });
   });
-  tl.at(CUT, () => h.camera(1.22, hits[0].x, hits[0].y - 30, 10, true));
+  tl.at(CUT, () => h.camera(1.24, hits[0].x, hits[0].y - 30, 10, true));
   backstep(h, tl, CUT + 12, CUT + 28, 14);
-  tl.during(CUT + 20, CUT + 34, (t) => h.dim(0.7 * (1 - t), 0x050208));
+  tl.during(CUT + 20, CUT + 34, (t) => h.dim(0.85 * (1 - t), DIM));
   tl.end(CUT + 36);
 }
 
-/** Twin Sovereigns: Excalibell's golden ghost rises beside the knight; light and shadow blades fall crossed on every foe. */
+/** Twin Sovereigns: Excalibell's golden ghost rises beside the knight; light and shadow greatswords fall crossed on every foe. */
 function twinSovereigns(h: KnightMoveHost, tl: Timeline) {
   const foes = each(h);
-  const DROP = 26;
+  const DROP = 28;
+  const DIM = 0x07040F;
+  const GOLDP = pal(0xFBBF24, 0xFFFBEA, 0x3B2205);
   raiseAndHold(h, tl, 0, DROP + 8);
   tl.at(0, () => {
-    h.camera(1.04, (h.home.x + foes[foes.length - 1].x) / 2, h.home.y - 56, 70);
+    h.camera(1.2, h.home.x + 8, h.home.y - 44, DROP - 6);
     h.sound('holy', { vol: 0.6 });
     h.sound('dark', { vol: 0.6, delay: 0.15 });
   });
-  tl.during(0, 14, (t) => h.dim(0.6 * t, 0x07040F));
+  tl.during(0, 14, (t) => h.dim(0.75 * t, DIM));
   // Wings of light and shadow behind the knight
-  drawSpan(h, tl, 4, DROP + 30, (g, t, f) => {
+  const openAt = (f: number, t: number) => easeOut(Math.min(1, f / 12)) * (t > 0.8 ? (1 - t) / 0.2 : 1);
+  drawSpan(h, tl, 4, DROP + 32, (g, t, f) => {
     const p = h.pos();
-    const open = easeOut(Math.min(1, f / 12)) * (t > 0.8 ? (1 - t) / 0.2 : 1);
-    wing(g, p.x - 6, p.y - 40, 40, -1, open, pal(0xFBBF24, 0xFFFBEA, 0x3B2205), 0.8);
-    wing(g, p.x + 6, p.y - 40, 40, 1, open, P_BANE, 0.8);
+    const open = openAt(f, t);
+    wing(g, p.x - 6, p.y - 40, 50, -1, open, GOLDP, 0.85);
+    wing(g, p.x + 6, p.y - 40, 50, 1, open, P_BANE, 0.85);
   }, 'back');
+  lightSpan(h, tl, 4, DROP + 32, (g, t, f) => {
+    const p = h.pos();
+    const open = openAt(f, t);
+    glow(g, p.x - 24, p.y - 56, 34 * open, 0xFBBF24, 0.5);
+    glow(g, p.x + 24, p.y - 56, 34 * open, 0xA78BFA, 0.5);
+  }, 'back');
+  tl.at(DROP - 6, () => h.camera(1.02, (h.home.x + foes[foes.length - 1].x) / 2 + 20, h.home.y - 56, 40));
+  const last = foes.length - 1;
   foes.forEach((t, i) => {
-    const at = DROP + i * 4;
+    const at = DROP + i * 5;
+    const c = chest(t);
     for (const [k, color] of [[0, 0xFBBF24], [1, 0xA78BFA]] as const) {
-      drawSpan(h, tl, at - 10, at + 1, (g, u) => {
-        const side = k ? 1 : -1;
-        const x = t.x + side * 20 * (1 - u);
-        const y = lerp(-30, t.y - 20, easeIn(u));
-        const tipX = x - side * 6 * (1 - u);
-        g.moveTo(x, y - 44).lineTo(tipX, y).stroke({ width: 8, color, alpha: 0.35 });
-        g.poly([x - 3, y - 40, x + 3, y - 40, tipX + 1, y, tipX - 1, y]).fill({ color }).stroke({ width: 1, color: INK });
-        g.moveTo(x, y - 40).lineTo(tipX, y - 2).stroke({ width: 1, color: 0xFFFFFF });
-        g.rect(x - 7, y - 42, 14, 3).fill({ color }).stroke({ width: 1, color: INK });
-        g.rect(x - 1.5, y - 52, 3, 10).fill({ color: 0x3F3F46 });
+      const side = k ? 1 : -1;
+      const bladeAt = (u: number) => ({ x: t.x + side * 22 * (1 - u), y: lerp(-40, t.y - 16, easeIn(u)) });
+      lightSpan(h, tl, at - 10, at + 1, (g, u) => {
+        const b = bladeAt(u);
+        godRay(g, b.x, -20, b.y - 40, 4, 10, color, 0.7);
+      });
+      drawSpan(h, tl, at - 10, at + 20, (g, _u, f) => {
+        const uu = Math.min(1, f / 10);
+        const b = bladeAt(uu);
+        const fade = f <= 12 ? 1 : 1 - (f - 12) / 8;
+        const tipX = b.x - side * 7 * (1 - uu);
+        g.poly([b.x - 4, b.y - 50, b.x + 4, b.y - 50, tipX + 1.5, b.y, tipX - 1.5, b.y]).fill({ color, alpha: fade }).stroke({ width: 1, color: INK, alpha: fade });
+        g.moveTo(b.x, b.y - 48).lineTo(tipX, b.y - 3).stroke({ width: 1, color: 0xFFFFFF, alpha: fade });
+        g.rect(b.x - 9, b.y - 53, 18, 4).fill({ color, alpha: fade }).stroke({ width: 1, color: INK, alpha: fade });
+        g.rect(b.x - 1.5, b.y - 65, 3, 12).fill({ color: 0x3F3F46, alpha: fade });
       });
     }
+    lightSpan(h, tl, at, at + 18, (g, u) => {
+      glint(g, c.x, c.y - 4, 34 * (1 - u) + 6, Math.PI / 4, 0xFFFBEA, 1 - u);
+      glow(g, c.x, c.y, 30 * (1 - u) + 8, 0xFBBF24, 0.6 * (1 - u));
+      glow(g, c.x, c.y, 24 * (1 - u) + 6, 0xA78BFA, 0.6 * (1 - u));
+    });
     tl.at(at, () => {
-      land(h, h.targets.length ? i : undefined, { scale: 1, tint: 0xFEF3C7, burst: 'slash', burstSize: 0.9, sfx: 'slash_heavy' });
+      land(h, h.targets.length ? i : undefined, { scale: i === last ? 1.1 : 1, tint: 0xFEF3C7, burst: 'slash', burstSize: 0.9, sfx: 'slash_heavy', glare: i === last ? 0.2 : 0.6 });
+      if (i === last) impactFrame(h, tl, c, { color: 0xFBBF24, dim: [0.75, DIM] });
       h.knock(i, 4, -4);
-      h.sparks(t.x, t.y - 20, 10, [0xFBBF24, 0xA78BFA, 0xFFFFFF]);
+      h.sparks(t.x, t.y - 20, 12, [0xFBBF24, 0xA78BFA, 0xFFFFFF]);
     });
   });
-  const last = DROP + (foes.length - 1) * 4;
-  tl.at(DROP, () => h.flash(0.25, 0xFFFBEA));
-  tl.during(last + 12, last + 26, (t) => h.dim(0.6 * (1 - t), 0x07040F));
-  tl.end(last + 28);
+  const end = DROP + last * 5;
+  tl.at(DROP, () => h.flash(0.2, 0xFFFBEA));
+  tl.during(end + 12, end + 26, (t) => h.dim(0.75 * (1 - t), DIM));
+  tl.end(end + 28);
 }
 
 /** One move per secret-weapon spell templateId. */

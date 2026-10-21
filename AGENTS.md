@@ -149,7 +149,10 @@ weapon. Each spell needs a choreography in `SPELL_MOVES` (src/tv/engine/spellMov
 (hide the hand-held one with `h.weaponShown(false)`), bells drive and press, maces crush, swords cut. Anchor VFX to the
 real weapon head with `h.weaponTip()`. Check with `kfilm:<id>` (the preview swaps in the granting weapon), `spellart`,
 and `WEAPON=<id> npm run balance`: a weapon's deck should stay within a few points of `WEAPON=` (none). Keep spell reps
-at 4–6 so big single hits don't overkill.
+at 4–6 so big single hits don't overkill. Spells are set pieces: build them with `engine/spellKit.ts` — one `impactFrame()`
+on the main contact (called inside the contact event after `land(…, { glare: 0.2 })`, with the move's ambient dim),
+element light as additive `lightSpan`/`glow`/`godRay`, and `windUp`/`weaponTrail`/`speedLines`/`shockSphere` for
+anticipation, travel and force. Secondary hits keep `glare` ≤ 0.5 so stacked flashes don't grey the frame.
 
 ## Monster moves
 

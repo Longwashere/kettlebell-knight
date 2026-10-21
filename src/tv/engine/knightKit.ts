@@ -91,8 +91,8 @@ export interface KnightMoveHost {
   fxSlot(name: string, color: number, alpha?: number): void;
   /** Shoves target `i` by `dx` px and/or launches it `lift` px up; it springs back on its own. */
   knock(i: number, dx: number, lift?: number): void;
-  /** Tints target `i`'s rig for a few frames (hit flash). */
-  flashTarget(i: number, color?: number, frames?: number): void;
+  /** Tints target `i`'s rig for a few frames (hit flash). `exact` skips the soft blend toward white (silhouettes). */
+  flashTarget(i: number, color?: number, frames?: number, exact?: boolean): void;
   /** Shows this card's Block as a ward in `color` (replaces the generic Block pulse after the move). */
   guard(color: number): void;
 

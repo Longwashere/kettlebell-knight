@@ -1430,7 +1430,8 @@ export class GameEngine {
 
     // 4. Fullscreen Screen Flash Overlay for Rep Impacts
     this.flashOverlay = new Graphics();
-    this.flashOverlay.rect(0, 0, 426, 240).fill({ color: 0xFFFFFF, alpha: 1 });
+    // Oversized so camera framings above the stage top (moveCamera allows 32px) and shake never show its edge
+    this.flashOverlay.rect(-60, -60, 546, 360).fill({ color: 0xFFFFFF, alpha: 1 });
     this.flashOverlay.alpha = 0;
     this.flashOverlay.y = SCENE_RAISE_Y; // cancel the effects-layer raise so the flash stays fullscreen
     this.effectsLayer.addChild(this.flashOverlay);
@@ -2872,10 +2873,10 @@ export class GameEngine {
         slot.kickX += dx;
         slot.kickY -= lift;
       },
-      flashTarget: (i, color = 0xFF5555, frames = 6) => {
+      flashTarget: (i, color = 0xFF5555, frames = 6, exact = false) => {
         const slot = targets[i] ? this.monsterSlots[targets[i].slot] : undefined;
         if (!slot?.spine || slot.spine.destroyed) return;
-        setSpineTint(slot.spine, color);
+        setSpineTint(slot.spine, color, exact);
         slot.flashFrames = frames;
       },
       guard: (color) => {
