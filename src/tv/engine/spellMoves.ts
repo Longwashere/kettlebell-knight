@@ -25,9 +25,10 @@ import {
 } from './choreo';
 import {
   pal, type Pal, crescent, starburst, groundRing, bolt, spike, crystal, pillar, runeCircle, orb, wing,
-  kettlebell, lance, scorch, hash, jaws,
+  kettlebell, lance, scorch, hash, jaws, tube, flameTongue,
 } from './fxKit';
 import { tentacle, dart, flier, crawler, graspingHand, beam, clawRake } from './monsterKit';
+import { stamp, stampPal, fxReady, seq } from './fxAtlas';
 import {
   type KnightMove, type KnightMoveHost, type KnightTarget, type P,
   each, once, strikeSpot, chest, kChest, kRaised, shoulders, land, travel, here, HOME, backstep, ghostTrail,
@@ -35,7 +36,7 @@ import {
   P_FIRE, P_EMBER, P_VOID, P_SUN, P_HOLY, P_JADE, P_LIME,
 } from './knightKit';
 import {
-  lightSpan, glow, godRay, glint, focusLines, speedLines, impactFrame, shockSphere, groundCracks, windUp, rubble, skyBolt,
+  lite, lightSpan, glow, godRay, glint, focusLines, speedLines, impactFrame, shockSphere, groundCracks, windUp, rubble, skyBolt,
   afterglow, mix, weaponTrail, targetRing,
   LOOK, themed, staged, chargeUp, castCircle, aura, motes, breath, dutch, signature,
 } from './spellKit';
@@ -57,6 +58,9 @@ const P_COSMOS = pal(0xC084FC, 0xFAF5FF, 0x0A0414);
 const P_GRAV = pal(0x7C3AED, 0xEDE9FE, 0x0B0218);
 const P_TOLL = pal(0x9CA3AF, 0xF9FAFB, 0x111827);
 const P_SPORE = pal(0xC084FC, 0x99F6E4, 0x2E1065);
+const P_FLAMEWAKE = pal(0xF97316, 0xFDE047, 0x7C1D06);
+const P_FLAMEWAKE_HOT = pal(0xFB923C, 0xFEF9C3, 0x9A3412);
+const P_PYRE = pal(0xEA580C, 0xFDE047, 0x450A0A);
 const P_TALON = pal(0xFCD34D, 0xFFFBEB, 0x422006);
 const P_BOLT_TALON = pal(0x7DD3FC, 0xFFFFFF, 0x0B1E3F);
 const P_WOOD = pal(0x4ADE80, 0xECFCCB, 0x14290E);
@@ -130,8 +134,18 @@ export function chain(g: Graphics, x0: number, y0: number, x1: number, y1: numbe
     const u = i / n;
     const x = lerp(x0, x1, u);
     const y = lerp(y0, y1, u) + Math.sin(u * Math.PI) * sag;
-    g.moveTo(px, py).lineTo(x, y).stroke({ width: 3, color: INK, alpha: 0.8 * alpha });
-    g.moveTo(px, py).lineTo(x, y).stroke({ width: 1.5, color: i % 2 ? link : 0xE2E8F0, alpha });
+    if (i % 2) {
+      // Face-on link: an inked ring, lit on its upper edge
+      const mx = (px + x) / 2;
+      const my = (py + y) / 2;
+      g.circle(mx, my, 2.2).stroke({ width: 2.2, color: INK, alpha: 0.8 * alpha });
+      g.circle(mx, my, 1.7).stroke({ width: 1, color: link, alpha });
+      g.rect(mx - 1, my - 2.2, 2, 1).fill({ color: 0xF1F5F9, alpha: 0.9 * alpha });
+    } else {
+      // Edge-on link: a short bar with a highlight
+      g.moveTo(px, py).lineTo(x, y).stroke({ width: 3, color: INK, alpha: 0.8 * alpha });
+      g.moveTo(px, py).lineTo(x, y).stroke({ width: 1.5, color: 0xCBD5E1, alpha });
+    }
     px = x;
     py = y;
   }
@@ -145,7 +159,12 @@ export function flailHead(g: Graphics, x: number, y: number, r: number, spin: nu
     const by = y + Math.sin(a) * r * 0.8;
     const px = -Math.sin(a) * r * 0.28;
     const py = Math.cos(a) * r * 0.28;
-    g.poly([bx + px, by + py, x + Math.cos(a) * r * 1.55, y + Math.sin(a) * r * 1.55, bx - px, by - py]).fill({ color: p.core, alpha }).stroke({ width: 1, color: p.ink, alpha });
+    const tx = x + Math.cos(a) * r * 1.55;
+    const ty = y + Math.sin(a) * r * 1.55;
+    // Two-facet spike: the half facing the upper-left light in the core colour, the other in the body
+    const lit = Math.cos(a) * -0.6 + Math.sin(a) * -0.8 > 0 ? 1 : -1;
+    g.poly([bx + px, by + py, tx, ty, bx - px, by - py]).fill({ color: p.body, alpha }).stroke({ width: 1, color: p.ink, alpha: 0.8 * alpha });
+    g.poly([bx + px * lit, by + py * lit, tx, ty, bx, by]).fill({ color: p.core, alpha });
   }
   orb(g, x, y, r, p, alpha);
 }
@@ -201,6 +220,15 @@ function beastHead(g: Graphics, x: number, y: number, s: number, kind: 'wolf' | 
   const Y = (dy: number) => y + dy * s;
   const fill = (pts: number[], color: number, a = alpha) => g.poly(pts).fill({ color, alpha: a }).stroke({ width: 1.5, color: p.ink, alpha });
   const jaw = open * 0.5;
+  // Spectral: a cold bloom around the head and a burning eye (drawn under / over the silhouette)
+  if (fxReady()) stamp(g, 'bloom', x + 0.2 * s * dir, y - 0.2 * s, s * 4, s * 3.4, { tint: p.body, alpha: 0.45 * alpha });
+  const eyeAt = kind === 'bull' ? null : { x: X(kind === 'dragon' ? 0.25 : kind === 'boar' ? 0.35 : 0.3), y: Y(kind === 'dragon' ? -0.4 : kind === 'boar' ? -0.45 : -0.35) };
+  const burnEye = () => {
+    if (eyeAt && fxReady()) {
+      stamp(g, 'bloomHot', eyeAt.x, eyeAt.y, s * 1.1, s * 1.1, { tint: p.core, alpha });
+      stamp(g, 'flare', eyeAt.x, eyeAt.y, s * 1.6, s * 1.6, { tint: 0xFFFFFF, alpha: 0.8 * alpha });
+    }
+  };
   if (kind === 'wolf') {
     fill([X(-1), Y(-0.2), X(-0.6), Y(-0.9), X(-0.35), Y(-0.45), X(0.1), Y(-0.6), X(1.3), Y(-0.15), X(1.35), Y(0.05), X(0.2), Y(0.2), X(-0.8), Y(0.5)], p.body);
     fill([X(-0.1), Y(-1.15), X(0.05), Y(-0.55), X(-0.35), Y(-0.5)], p.body); // ears
@@ -235,10 +263,30 @@ function beastHead(g: Graphics, x: number, y: number, s: number, kind: 'wolf' | 
     fill([X(-0.1), Y(-0.65), X(-0.8), Y(-1.4), X(-0.35), Y(-0.6)], p.core);
     g.rect(X(0.25) - 1, Y(-0.4) - 1, 4, 2).fill({ color: GOLD, alpha });
   }
+  burnEye();
 }
 
 /** Tapered fire / gas cone from (x,y) along `ang`, `len` long; flickers per frame. */
 function cone(g: Graphics, x: number, y: number, ang: number, len: number, spread: number, f: number, layers: number[], alpha = 1) {
+  if (fxReady() && len > 4) {
+    // Painted jet: haze blooms widening down the axis, then a stream of licking fireball sprites rushing out
+    const p = { ink: layers[0], body: layers[Math.min(1, layers.length - 1)], core: layers[layers.length - 1] };
+    for (let k = 0; k <= 5; k++) {
+      const d = (len * k) / 5;
+      const w = 10 + d * Math.tan(spread) * 2.6;
+      stamp(g, 'bloom', x + Math.cos(ang) * d, y + Math.sin(ang) * d, w * 1.4, w, { rot: ang, tint: layers[0], alpha: 0.4 * alpha });
+    }
+    const n = lite() ? 12 : 22;
+    for (let i = 0; i < n; i++) {
+      const ph = (f * 0.055 + i / n) % 1;
+      const d = len * (0.04 + 0.96 * ph);
+      const a = ang + (hash(i * 13 + 7) * 2 - 1) * spread * 0.85;
+      const w = 6 + d * Math.tan(spread) * 1.7;
+      stampPal(g, seq('fireball', 4, f + i, 3), x + Math.cos(a) * d, y + Math.sin(a) * d, w * 1.7, w, p, { rot: a, alpha: alpha * (1 - ph * 0.55) });
+    }
+    stamp(g, 'bloomHot', x, y, 22, 22, { tint: p.core, alpha });
+    return;
+  }
   layers.forEach((color, k) => {
     const s = spread * (1 - k * 0.22);
     const l = len * (1 - k * 0.08);
@@ -285,7 +333,22 @@ export function phantomBell(g: Graphics, x: number, y: number, w: number, p: Pal
     x - w * 0.5, y + hgt * 0.5, x - w * 0.42, y + hgt * 0.35, x - w * 0.3, y - hgt * 0.1, x - w * 0.24, y - hgt * 0.4,
     x, y - hgt * 0.52, x + w * 0.24, y - hgt * 0.4, x + w * 0.3, y - hgt * 0.1, x + w * 0.42, y + hgt * 0.35, x + w * 0.5, y + hgt * 0.5,
   ];
-  g.poly(pts).fill({ color: p.body, alpha: 0.16 * alpha }).stroke({ width: 3, color: p.ink, alpha: 0.5 * alpha });
+  if (fxReady()) {
+    // Spectral bronze: an inner bloom, light banded down the bell (bright shoulder, dim waist, glowing lip)
+    stamp(g, 'bloom', x, y, w * 2, w * 2, { tint: p.body, alpha: 0.5 * alpha });
+    g.poly(pts).fill({ color: p.body, alpha: 0.22 * alpha });
+    g.poly([x - w * 0.24, y - hgt * 0.4, x, y - hgt * 0.52, x - w * 0.05, y + hgt * 0.45, x - w * 0.42, y + hgt * 0.35, x - w * 0.3, y - hgt * 0.1])
+      .fill({ color: p.core, alpha: 0.18 * alpha });
+    // Volume: the bell's shadowed right flank, a lit shoulder band and the sound-bow ring near the lip
+    g.poly([x + w * 0.1, y - hgt * 0.48, x + w * 0.24, y - hgt * 0.4, x + w * 0.3, y - hgt * 0.1, x + w * 0.42, y + hgt * 0.35, x + w * 0.2, y + hgt * 0.4])
+      .fill({ color: p.ink, alpha: 0.3 * alpha });
+    g.moveTo(x - w * 0.27, y - hgt * 0.22).lineTo(x + w * 0.27, y - hgt * 0.22).stroke({ width: 2, color: p.core, alpha: 0.5 * alpha });
+    stamp(g, 'beam', x, y, hgt, w * 0.7, { rot: Math.PI / 2, tint: p.core, alpha: 0.25 * alpha });
+    stamp(g, 'beamCore', x, y + hgt * 0.42, w * 1.1, Math.max(4, w * 0.18), { tint: p.core, alpha: 0.8 * alpha });
+    g.poly(pts).stroke({ width: 3, color: p.body, alpha: 0.35 * alpha });
+  } else {
+    g.poly(pts).fill({ color: p.body, alpha: 0.16 * alpha }).stroke({ width: 3, color: p.ink, alpha: 0.5 * alpha });
+  }
   g.poly(pts).stroke({ width: 1.5, color: p.core, alpha });
   g.moveTo(x - w * 0.36, y + hgt * 0.22).lineTo(x + w * 0.36, y + hgt * 0.22).stroke({ width: 2, color: p.core, alpha: 0.8 * alpha });
   g.circle(x, y + hgt * 0.42, w * 0.07).fill({ color: p.core, alpha });
@@ -354,6 +417,12 @@ export function skull(g: Graphics, x: number, y: number, s: number, f: number, p
 /** Black hole: event horizon, tilted accretion disk and lensing ring. */
 export function blackHole(g: Graphics, x: number, y: number, r: number, f: number, p: Pal, alpha = 1) {
   if (r <= 0.5) return;
+  if (fxReady()) {
+    // Painted: a haze of infalling light, the disk's glowing band and a hot lensing ring around the hole
+    stamp(g, 'mist0', x, y, r * 6, r * 3, { tint: p.body, alpha: 0.6 * alpha, rot: f * 0.02 });
+    stamp(g, 'ringSoft', x, y, (r * 2.6 * 2) / 0.7, (r * 0.75 * 2) / 0.7, { tint: p.body, alpha: 0.85 * alpha });
+    stamp(g, 'ring', x, y, (r * 1.3 * 2) / 0.78, (r * 1.3 * 2) / 0.78, { tint: p.core, alpha: 0.9 * alpha });
+  }
   g.ellipse(x, y, r * 2.6, r * 0.75).stroke({ width: r * 0.5, color: p.body, alpha: 0.5 * alpha });
   for (let k = 0; k < 10; k++) {
     const a = f * 0.25 + (k / 10) * Math.PI * 2;
@@ -364,27 +433,40 @@ export function blackHole(g: Graphics, x: number, y: number, r: number, f: numbe
   // Front half of the disk passes over the hole
   g.ellipse(x, y + r * 0.18, r * 2.4, r * 0.32).fill({ color: p.body, alpha: 0.85 * alpha });
   g.ellipse(x, y + r * 0.18, r * 1.6, r * 0.16).fill({ color: p.core, alpha: 0.9 * alpha });
+  if (fxReady()) stamp(g, 'beamCore', x, y + r * 0.18, r * 4.4, r * 0.4, { tint: 0xFFFFFF, alpha: 0.7 * alpha });
 }
 
 /** Sun disk with rotating rays. */
 export function sun(g: Graphics, x: number, y: number, r: number, f: number, p: Pal, alpha = 1) {
   if (r <= 0.5) return;
+  if (fxReady()) {
+    // Painted: corona bloom, a slow-turning eight-point flare, then the rays and the disk over them
+    stamp(g, 'bloom', x, y, r * 7, r * 7, { tint: p.body, alpha: 0.65 * alpha });
+    stamp(g, 'flare8', x, y, r * 6.5, r * 6.5, { tint: p.core, alpha: 0.85 * alpha, rot: f * 0.01 });
+  }
   for (let k = 0; k < 12; k++) {
     const a = (k / 12) * Math.PI * 2 + f * 0.05;
     const len = r * (1.6 + 0.35 * Math.sin(f * 0.5 + k));
     g.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r).lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len).stroke({ width: 2, color: k % 2 ? p.body : p.core, alpha: 0.9 * alpha });
   }
   orb(g, x, y, r, pal(p.body, 0xFFFFFF, p.ink), alpha);
+  if (fxReady()) stamp(g, 'bloomHot', x, y, r * 2.6, r * 2.6, { tint: 0xFFFFFF, alpha });
 }
 
 /** Serpent body along `pts` (head first), thinning to the tail, with a dragon head at pts[0]. */
 function serpent(g: Graphics, pts: P[], w: number, p: Pal, f: number, dir: 1 | -1 = 1) {
   const n = pts.length;
   // Ink outline, body, then a hot belly stripe: segment strokes tapering to the tail
-  for (const [extra, color, scale] of [[3, p.ink, 1], [0, p.body, 1], [0, p.core, 0.35]] as const) {
-    for (let i = n - 1; i >= 1; i--) {
-      const wd = (w * 2 * (1 - i / n) + 2) * scale + extra;
-      g.moveTo(pts[i].x, pts[i].y).lineTo(pts[i - 1].x, pts[i - 1].y).stroke({ width: wd, color, cap: 'round' });
+  if (fxReady()) {
+    // Scaled body (fxKit.tube) under a heat bloom that runs down its spine
+    tube(g, pts, pts.map((_, i) => w * 2 * (1 - i / n) + 2), p);
+    for (let i = 0; i < n; i += 3) stamp(g, 'bloom', pts[i].x, pts[i].y, w * 3 * (1 - i / n) + 6, w * 3 * (1 - i / n) + 6, { tint: p.body, alpha: 0.3 });
+  } else {
+    for (const [extra, color, scale] of [[3, p.ink, 1], [0, p.body, 1], [0, p.core, 0.35]] as const) {
+      for (let i = n - 1; i >= 1; i--) {
+        const wd = (w * 2 * (1 - i / n) + 2) * scale + extra;
+        g.moveTo(pts[i].x, pts[i].y).lineTo(pts[i - 1].x, pts[i - 1].y).stroke({ width: wd, color, cap: 'round' });
+      }
     }
   }
   // Dorsal spines
@@ -1348,7 +1430,7 @@ function wyrmchainInferno(h: KnightMoveHost, tl: Timeline) {
     for (let k = 0; k < 12; k++) {
       const x = lerp(x0, far, (k / 12) * reach);
       const hgt = (6 + 8 * hash(k + Math.floor(f / 3))) * fade;
-      g.poly([x - 4, h.home.y + 2, x, h.home.y + 2 - hgt, x + 4, h.home.y + 2]).fill({ color: k % 2 ? 0xF97316 : 0xFDE047, alpha: 0.6 * fade });
+      flameTongue(g, x, h.home.y + 2, hgt * 1.3, 4, k % 2 ? P_FLAMEWAKE : P_FLAMEWAKE_HOT, f, k, 0.75 * fade);
     }
   }, 'ground');
   const last = foes.length - 1;
@@ -1685,11 +1767,21 @@ function mushroom(g: Graphics, x: number, y: number, s: number, grow: number, le
   g.moveTo(x, y).quadraticCurveTo(x + Math.sin(lean) * len * 0.3, y - len * 0.6, tx, ty).stroke({ width: s * 0.5, color: 0xF5E9FF, alpha });
   const cw = s * grow * (1 + 0.15 * (1 - squash));
   const ch = s * 0.62 * grow * squash;
+  // Bioluminescent glow under the cap, then a domed cap: dark rim, shadowed underside, lit crown, wet sheen
+  if (fxReady()) stamp(g, 'bloom', tx, ty + ch * 0.4, cw * 3, ch * 3, { tint: 0x2DD4BF, alpha: 0.45 * alpha });
   g.ellipse(tx, ty, cw + 1.5, ch + 1.5).fill({ color: INK, alpha });
-  g.ellipse(tx, ty, cw, ch).fill({ color: 0xA855F7, alpha });
-  g.ellipse(tx - cw * 0.2, ty - ch * 0.3, cw * 0.55, ch * 0.45).fill({ color: 0xD8B4FE, alpha });
-  g.rect(tx - cw, ty, cw * 2, Math.max(1, ch * 0.35)).fill({ color: 0x2DD4BF, alpha: 0.8 * alpha }); // gills
-  for (let k = 0; k < 3; k++) g.circle(tx - cw * 0.5 + k * cw * 0.5, ty - ch * 0.35 + (k % 2) * ch * 0.25, Math.max(0.8, s * 0.12)).fill({ color: 0x99F6E4, alpha });
+  g.ellipse(tx, ty, cw, ch).fill({ color: 0x6B21A8, alpha });
+  g.ellipse(tx - cw * 0.08, ty - ch * 0.12, cw * 0.88, ch * 0.78).fill({ color: 0x9333EA, alpha });
+  g.ellipse(tx - cw * 0.22, ty - ch * 0.3, cw * 0.58, ch * 0.48).fill({ color: 0xC084FC, alpha });
+  g.ellipse(tx - cw * 0.35, ty - ch * 0.45, cw * 0.22, ch * 0.18).fill({ color: 0xF3E8FF, alpha });
+  g.rect(tx - cw * 0.92, ty + ch * 0.1, cw * 1.84, Math.max(1, ch * 0.3)).fill({ color: 0x0F766E, alpha }); // gills in shadow
+  g.rect(tx - cw * 0.7, ty + ch * 0.1, cw * 1.4, 1).fill({ color: 0x5EEAD4, alpha: 0.9 * alpha }); // lit gill edge
+  for (let k = 0; k < 3; k++) {
+    const sx = tx - cw * 0.5 + k * cw * 0.5;
+    const sy = ty - ch * 0.35 + (k % 2) * ch * 0.25;
+    g.circle(sx, sy, Math.max(0.8, s * 0.12)).fill({ color: 0x99F6E4, alpha });
+    if (fxReady()) stamp(g, 'bloomHot', sx, sy, s * 0.8, s * 0.8, { tint: 0x99F6E4, alpha: 0.8 * alpha });
+  }
 }
 
 /**
@@ -3606,56 +3698,98 @@ function bloodMoonRequiem(h: KnightMoveHost, tl: Timeline) {
 // =============================================================================================
 // SWORDS
 
-/** Kettleburne's Oath: a sworn guard, a cut and a rising riposte, then the shield is raised again. */
+/** Kettleburne's Oath: a sworn guard, a five-cut flurry from every angle, an X-cut finisher, then the shield is raised again. */
 function kettleburneOath(h: KnightMoveHost, tl: Timeline) {
   const t0 = h.target;
   const c = chest(t0);
-  const CUT1 = 16;
-  const CUT2 = 30;
+  // Six swings: five cuts of the flurry (rig at 1.5x, so each ATTACK connects 8 frames in) and the finisher
+  const CUTS = [16, 25, 34, 43, 52];
+  const FIN = 68; // ATTACK2 at normal speed from 56 connects at 68
+  const ANIMS = ['ATTACK1', 'ATTACK3', 'ATTACK2', 'ATTACK4', 'ATTACK5'];
+  const ARCS: [number, number, number, number, number][] = [ // a0, a1, radius, dx, dy: alternating fore- and backhand
+    [-2.2, 0.6, 26, -6, -2],
+    [1.4, -1.5, 28, -8, 3],
+    [-1.6, 1.2, 24, -4, -6],
+    [2.3, -0.4, 27, -10, 0],
+    [-2.6, 0.2, 30, -6, 4],
+  ];
   const DIM = 0x0A0D14;
   tl.at(0, () => {
     h.anim('DEFENSE');
+    h.slashTrail(false); // plain steel: no fire smear on the ATTACK swings
     h.sound('equip', { rate: 1.2, vol: 0.6 }); // sworn: a ring of steel
     h.camera(1.22, h.home.x + 12, h.home.y - 34, 8);
   });
-  tl.during(0, 10, (t) => h.dim(0.4 * t, DIM));
+  tl.during(0, 10, (t) => h.dim(0.45 * t, DIM));
   lightSpan(h, tl, 2, 14, (g, t) => glint(g, h.weaponTip().x, h.weaponTip().y, 16 * arc(t) + 2, t * 2, 0xF8FAFC, arc(t)));
   tl.at(4, () => {
     h.anim('ATTACK1');
     h.sound('dash', { vol: 0.6 });
-    h.camera(1.16, (h.home.x + c.x) / 2 + 10, c.y - 10, CUT2 - 4);
+    h.camera(1.16, (h.home.x + c.x) / 2 + 10, c.y - 10, CUTS[1] - 4);
   });
-  travel(h, tl, 6, CUT1 - 2, HOME, strikeSpot(h, t0, 54), easeIn);
-  ghostTrail(h, tl, 6, CUT1, 0xCBD5E1, 2, 0.35);
-  dutch(h, tl, 6, 0.05, CUT1 - 6);
-  speedLines(h, tl, 6, CUT1, () => c, 0xE2E8F0, { alpha: 0.3 });
-  slashFx(h, tl, CUT1 - 1, { x: c.x - 6, y: c.y - 2, r: 26, a0: -2.2, a1: 0.6, thick: 7, p: P_STEELB, dur: 8 });
-  tl.at(CUT1, () => {
-    h.flashTarget(0, 0xF1F5F9, 3);
-    h.shake(4);
-    h.hitStop(2);
-    h.sparks(c.x, c.y, 8, [0xF1F5F9, 0xFBBF24]);
+  travel(h, tl, 6, CUTS[0] - 2, HOME, strikeSpot(h, t0, 54), easeIn);
+  ghostTrail(h, tl, 6, CUTS[0], 0xCBD5E1, 2, 0.35);
+  dutch(h, tl, 6, 0.05, CUTS[0] - 6);
+  speedLines(h, tl, 6, CUTS[0], () => c, 0xE2E8F0, { alpha: 0.3 });
+
+  // --- The flurry: five cuts, each a different angle, each harder and closer -----------------------
+  tl.at(CUTS[0] + 1, () => h.animSpeed(1.5));
+  CUTS.forEach((at, k) => {
+    if (k > 0) tl.at(at - 8, () => h.anim(ANIMS[k]));
+    const [a0, a1, r, dx, dy] = ARCS[k];
+    slashFx(h, tl, at - 1, { x: c.x + dx, y: c.y + dy, r, a0, a1, thick: 6 + k, p: P_STEELB, dur: 7, sound: false });
+    tl.at(at, () => {
+      h.sound(k % 2 ? 'slash' : 'slash_heavy', { rate: 1 + k * 0.08, vol: 0.7 });
+      h.flashTarget(0, 0xF1F5F9, 2);
+      h.shake(2 + k);
+      h.hitStop(1);
+      h.knock(0, 3 + k, 0);
+      h.sparks(c.x + dx * 0.5, c.y + dy, 5 + k, [0xF1F5F9, 0xFBBF24, 0xFFFFFF]);
+      h.camera(1.18 + k * 0.025, c.x - 12, c.y - 8, 9);
+      if (k % 2) h.roll(k % 4 === 1 ? 0.04 : -0.04, 6, true);
+    });
   });
-  tl.at(CUT1 + 2, () => h.anim('ATTACK2'));
-  slashFx(h, tl, CUT2 - 1, { x: c.x - 8, y: c.y + 4, r: 30, a0: 1.3, a1: -1.6, thick: 9, p: P_STEELB });
-  lightSpan(h, tl, CUT2 - 1, CUT2 + 10, (g, u) => crescent(g, c.x - 8, c.y + 4, 36, 1.3, -1.6, 16 * (1 - u), P_STEELB, 0.4 * (1 - u)));
-  hitFx(h, tl, CUT2, c, P_STEELB, 17, [0xF1F5F9, 0xFBBF24, 0xFFFFFF]);
-  tl.at(CUT2, () => {
+  ghostTrail(h, tl, CUTS[0], CUTS[4] + 2, 0xCBD5E1, 3, 0.28);
+  tl.every(CUTS[0], CUTS[4] + 1, 3, () => h.emit(c.x - 4, c.y, { count: 2, colors: [0xF1F5F9, 0xFBBF24], speed: [1.5, 3], angle: -Math.PI / 2, spread: 1.4, gravity: 0.12, size: 2, life: [10, 16], kind: 'spark' }));
+
+  // --- The held beat, then the finisher: an X-cut through the foe ---------------------------------
+  tl.at(CUTS[4] + 4, () => {
+    h.animSpeed(1);
+    h.sound('charge', { rate: 1.9, vol: 0.4 });
+  });
+  lightSpan(h, tl, CUTS[4] + 2, FIN, (g, t) => {
+    const p = h.weaponTip();
+    glow(g, p.x, p.y, 8 + 16 * t, 0xE2E8F0, 0.5 + 0.5 * t, 0xFFFBEB);
+    glint(g, p.x, p.y, 6 + 20 * easeIn(t), t * 1.5, 0xFFFFFF, 0.4 + 0.6 * t);
+  });
+  tl.at(FIN - 12, () => {
+    h.anim('ATTACK2');
+    swingSound(h, true);
+  });
+  slashFx(h, tl, FIN - 1, { x: c.x - 8, y: c.y + 4, r: 34, a0: 1.3, a1: -1.6, thick: 11, p: P_STEELB });
+  slashFx(h, tl, FIN + 1, { x: c.x - 4, y: c.y - 4, r: 34, a0: -1.9, a1: 1.1, thick: 10, p: P_STEELB, sound: false });
+  lightSpan(h, tl, FIN - 1, FIN + 12, (g, u) => {
+    crescent(g, c.x - 8, c.y + 4, 40, 1.3, -1.6, 18 * (1 - u), P_STEELB, 0.45 * (1 - u));
+    crescent(g, c.x - 4, c.y - 4, 40, -1.9, 1.1, 16 * (1 - u), P_STEELB, 0.45 * (1 - u));
+  });
+  hitFx(h, tl, FIN, c, P_STEELB, 20, [0xF1F5F9, 0xFBBF24, 0xFFFFFF]);
+  tl.at(FIN, () => {
     land(h, 0, { tint: 0xF1F5F9, glare: 0.2 });
-    impactFrame(h, tl, c, { hold: 2, dim: [0.4, DIM] });
+    impactFrame(h, tl, c, { hold: 3, dim: [0.45, DIM] });
     h.roll(-0.09, 10, true);
-    signature(h, tl, tl.frame, c, L_OATH, 40);
-    h.camera(1.28, c.x, c.y, 10, true);
-    h.knock(0, 14, 4);
+    signature(h, tl, tl.frame, c, L_OATH, 46);
+    h.camera(1.3, c.x, c.y, 12, true);
+    h.knock(0, 16, 6);
   });
-  backstep(h, tl, CUT2 + 6, CUT2 + 22, 14);
-  tl.at(CUT2 + 22, () => {
+  shockSphere(h, tl, FIN, c, 44, 0xE2E8F0, 14, 0xFBBF24);
+  backstep(h, tl, FIN + 8, FIN + 24, 14);
+  tl.at(FIN + 24, () => {
     h.anim('DEFENSE');
     h.guard(0xCBD5E1);
   });
-  lightSpan(h, tl, CUT2 + 22, CUT2 + 32, (g, t) => glint(g, h.weaponTip().x, h.weaponTip().y, 14 * (1 - t) + 2, 0, 0xF8FAFC, 1 - t));
-  tl.during(CUT2 + 14, CUT2 + 28, (t) => h.dim(0.4 * (1 - t), DIM));
-  tl.end(CUT2 + 32);
+  lightSpan(h, tl, FIN + 24, FIN + 34, (g, t) => glint(g, h.weaponTip().x, h.weaponTip().y, 14 * (1 - t) + 2, 0, 0xF8FAFC, 1 - t));
+  tl.during(FIN + 16, FIN + 30, (t) => h.dim(0.45 * (1 - t), DIM));
+  tl.end(FIN + 34);
 }
 
 /** Lunar Hunt: under a cold moon the knight runs the pack down, a spectral wolf leaping ahead of every cut. */
@@ -3916,7 +4050,7 @@ function dragonheartRend(h: KnightMoveHost, tl: Timeline) {
     for (let k = 0; k < 14; k++) {
       const x = lerp(x0, far, (k / 14) * reach);
       const hgt = (5 + 7 * hash(k + Math.floor(f / 3))) * fade;
-      g.poly([x - 3, h.home.y + 2, x, h.home.y + 2 - hgt, x + 3, h.home.y + 2]).fill({ color: k % 2 ? 0xF97316 : 0xFDE047, alpha: 0.6 * fade });
+      flameTongue(g, x, h.home.y + 2, hgt * 1.3, 3.5, k % 2 ? P_FLAMEWAKE : P_FLAMEWAKE_HOT, f, k, 0.75 * fade);
     }
   }, 'ground');
   foes.forEach((t, i) => {
@@ -3971,9 +4105,12 @@ function scorchedEarth(h: KnightMoveHost, tl: Timeline) {
       for (let k = -2; k <= 2; k++) {
         const x = t.x + k * 10;
         const hgt = (40 + 16 * hash(k + Math.floor(f / 2) + i * 5)) * up * (k === 0 ? 1.4 : 1);
-        g.poly([x - 7, t.y + 4, x, t.y + 4 - hgt, x + 7, t.y + 4]).fill({ color: BLOOD, alpha: 0.85 });
-        g.poly([x - 5, t.y + 4, x, t.y + 4 - hgt * 0.7, x + 5, t.y + 4]).fill({ color: EMBER });
-        g.poly([x - 2, t.y + 4, x, t.y + 4 - hgt * 0.4, x + 2, t.y + 4]).fill({ color: 0xFDE047 });
+        if (fxReady()) flameTongue(g, x, t.y + 4, hgt, 8, P_PYRE, f, k + i * 3);
+        else {
+          g.poly([x - 7, t.y + 4, x, t.y + 4 - hgt, x + 7, t.y + 4]).fill({ color: BLOOD, alpha: 0.85 });
+          g.poly([x - 5, t.y + 4, x, t.y + 4 - hgt * 0.7, x + 5, t.y + 4]).fill({ color: EMBER });
+          g.poly([x - 2, t.y + 4, x, t.y + 4 - hgt * 0.4, x + 2, t.y + 4]).fill({ color: 0xFDE047 });
+        }
       }
     });
     lightSpan(h, tl, at, at + 36, (g, u, f) => {
@@ -4182,6 +4319,15 @@ const HOLY_WHITE = 0xFFFBEA;
 /** Angelic halo ring seen slightly from above, with a spark running round it. */
 function halo(g: Graphics, x: number, y: number, r: number, f: number, alpha = 1) {
   if (r <= 1 || alpha <= 0) return;
+  if (fxReady()) {
+    stamp(g, 'bloom', x, y, r * 2.6, r * 0.9, { tint: HOLY_GOLD, alpha: 0.45 * alpha });
+    stamp(g, 'ringSoft', x, y, (r * 2) / 0.7, (r * 0.6) / 0.7, { tint: HOLY_GOLD, alpha: 0.8 * alpha });
+    g.ellipse(x, y, r, r * 0.3).stroke({ width: 1.5, color: HOLY_PALE, alpha });
+    g.ellipse(x, y - 0.5, r, r * 0.3).stroke({ width: 0.8, color: 0xFFFFFF, alpha });
+    const a = f * 0.2;
+    stamp(g, 'twinkle', x + Math.cos(a) * r, y + Math.sin(a) * r * 0.3, 7, 7, { tint: 0xFFFFFF, alpha });
+    return;
+  }
   g.ellipse(x, y, r + 2, r * 0.3 + 2).stroke({ width: 5, color: HOLY_GOLD, alpha: 0.25 * alpha });
   g.ellipse(x, y, r, r * 0.3).stroke({ width: 2, color: HOLY_PALE, alpha });
   g.ellipse(x, y - 0.5, r, r * 0.3).stroke({ width: 1, color: 0xFFFFFF, alpha });
@@ -4194,10 +4340,21 @@ function holyBlade(g: Graphics, x: number, tip: number, len: number, alpha = 1) 
   if (alpha <= 0) return;
   const guardY = tip - len * 0.7;
   const w = Math.max(3, len * 0.085);
-  g.poly([x, tip, x + w, tip - len * 0.16, x + w, guardY, x - w, guardY, x - w, tip - len * 0.16])
-    .fill({ color: 0xE2E8F0, alpha }).stroke({ width: 1.5, color: INK, alpha });
-  g.poly([x, tip - 3, x + w * 0.4, tip - len * 0.16, x + w * 0.4, guardY, x - w * 0.4, guardY, x - w * 0.4, tip - len * 0.16])
-    .fill({ color: 0xFFFFFF, alpha });
+  if (fxReady()) {
+    // Radiance along the blade, then a two-facet edge: lit left facet, cool right facet, white fuller
+    stamp(g, 'beam', x, (tip + guardY) / 2, len * 0.75, w * 6, { rot: Math.PI / 2, tint: HOLY_GOLD, alpha: 0.45 * alpha });
+    g.poly([x, tip, x + w, tip - len * 0.16, x + w, guardY, x - w, guardY, x - w, tip - len * 0.16])
+      .fill({ color: 0x94A3B8, alpha }).stroke({ width: 1.5, color: INK, alpha });
+    g.poly([x, tip, x - w, tip - len * 0.16, x - w, guardY, x, guardY]).fill({ color: 0xF1F5F9, alpha });
+    g.poly([x, tip - 3, x + w * 0.25, tip - len * 0.16, x + w * 0.25, guardY, x - w * 0.25, guardY, x - w * 0.25, tip - len * 0.16])
+      .fill({ color: 0xFFFFFF, alpha });
+    stamp(g, 'flare', x, tip, w * 7, w * 7, { tint: HOLY_PALE, alpha });
+  } else {
+    g.poly([x, tip, x + w, tip - len * 0.16, x + w, guardY, x - w, guardY, x - w, tip - len * 0.16])
+      .fill({ color: 0xE2E8F0, alpha }).stroke({ width: 1.5, color: INK, alpha });
+    g.poly([x, tip - 3, x + w * 0.4, tip - len * 0.16, x + w * 0.4, guardY, x - w * 0.4, guardY, x - w * 0.4, tip - len * 0.16])
+      .fill({ color: 0xFFFFFF, alpha });
+  }
   const span = len * 0.3;
   g.poly([x - span, guardY - 7, x - w * 1.3, guardY + 1, x + w * 1.3, guardY + 1, x + span, guardY - 7, x + w * 1.3, guardY - 3, x - w * 1.3, guardY - 3])
     .fill({ color: HOLY_GOLD, alpha }).stroke({ width: 1.5, color: INK, alpha });
@@ -4214,6 +4371,7 @@ function hexTile(g: Graphics, x: number, y: number, r: number, squash: number, a
     const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
     pts.push(x + Math.cos(a) * r * squash, y + Math.sin(a) * r);
   }
+  if (fxReady()) stamp(g, 'bloom', x, y, r * 2.6 * squash, r * 2.6, { tint: HOLY_GOLD, alpha: 0.5 * alpha });
   g.poly(pts).fill({ color: HOLY_GOLD, alpha: 0.45 * alpha }).stroke({ width: 3, color: HOLY_GOLD, alpha: 0.6 * alpha });
   g.poly(pts).stroke({ width: 1, color: 0xFFFFFF, alpha });
   g.circle(x, y, 1.5).fill({ color: 0xFFFFFF, alpha });

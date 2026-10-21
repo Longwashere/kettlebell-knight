@@ -19,7 +19,12 @@ export interface EmitOptions {
   gravity?: number; // per-frame vy increase (negative rises)
   size?: number;
   life?: [number, number]; // frames
+  /** Painted look (fxAtlas); inferred from colour, size and gravity when omitted. */
+  kind?: ParticleKind;
 }
+
+/** ember/spark glow (additive), smoke puffs, rock chunks, ice shards, droplets. */
+export type ParticleKind = 'ember' | 'spark' | 'smoke' | 'chunk' | 'shard' | 'drop';
 
 /** Frame-based scheduler. `during` callbacks always receive a final t=1 call. */
 export class Timeline {

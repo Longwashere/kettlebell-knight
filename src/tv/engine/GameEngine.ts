@@ -11,6 +11,8 @@ import { Timeline, lerp, type EmitOptions } from './choreo';
 import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { MoveTracer, type Box, type MoveTraceReport } from './moveTrace';
 import { VFX_RIGS, VFX_NAMES, type VfxName, type VfxOpts } from './vfx';
+import { retainFxAtlas, releaseFxAtlas } from './fxAtlas';
+import { inferKind, makeParticleView, updateParticleView, type ParticleView } from './particleSprites';
 import { OutlineFilter } from './outlineFilter';
 import { isPerformanceMode } from '../graphicsMode';
 import { RepStamp, type RepCardTarget } from './repStamp';
@@ -33,7 +35,8 @@ interface FloatingCombatText {
 }
 
 interface Particle {
-  graphics: Graphics;
+  graphics: Container;
+  look?: ParticleView; // painted sprite (particleSprites.ts); absent for the square-pixel fallback
   x: number;
   y: number;
   vx: number;
@@ -2184,7 +2187,7 @@ export class GameEngine {
     this.activeProjectiles = [];
 
     for (const p of this.particles) {
-      p.graphics.destroy();
+      p.graphics.destroy({ children: true });
     }
     this.particles = [];
 
@@ -2231,6 +2234,7 @@ export class GameEngine {
     if (this.holdsVfx) return;
     this.holdsVfx = true;
     vfxRefs++;
+    void retainFxAtlas();
     void this.trackLoad(
       Promise.all(VFX_NAMES.map((n) => loadSpineRig(VFX_RIGS[n].skeleton, VFX_RIGS[n].atlas)))
         .then(() => {
@@ -2244,6 +2248,7 @@ export class GameEngine {
     if (!this.holdsVfx) return;
     this.holdsVfx = false;
     this.vfxReady = false;
+    releaseFxAtlas();
     this.debugVfx?.destroy();
     this.debugVfx = null;
     if (--vfxRefs <= 0) {
@@ -3260,7 +3265,8 @@ export class GameEngine {
     }
   }
 
-  /** Square pixel particles with configurable direction, speed, gravity and size. */
+  /** Particles with configurable direction, speed, gravity and size: painted sprites (particleSprites.ts) once
+   *  the fx pages are up, square pixels before. */
   private emitParticles(x: number, y: number, o: EmitOptions): void {
     if (!this.effectsLayer) return;
     const [minSpeed, maxSpeed] = o.speed ?? [1, 3];
@@ -3268,8 +3274,15 @@ export class GameEngine {
     const size = o.size ?? 3;
     for (let i = 0; i < o.count; i++) {
       const color = o.colors[Math.floor(Math.random() * o.colors.length)];
-      const g = new Graphics();
-      g.rect(-size / 2, -size / 2, size, size).fill({ color });
+      const look = makeParticleView(inferKind(o, color), color, size);
+      let g: Container;
+      if (look) {
+        g = look.view;
+      } else {
+        const sq = new Graphics();
+        sq.rect(-size / 2, -size / 2, size, size).fill({ color });
+        g = sq;
+      }
       g.x = x;
       g.y = y;
       this.effectsLayer.addChild(g);
@@ -3285,6 +3298,7 @@ export class GameEngine {
         maxLife: minLife + Math.floor(Math.random() * (maxLife - minLife)),
         color,
         gravity: o.gravity,
+        look: look ?? undefined,
       });
     }
   }
@@ -3740,9 +3754,17 @@ export class GameEngine {
     const colors = customColors || [0xF4B41A, 0x38B6FF, 0xFF3366, 0xFFFFFF];
 
     for (let i = 0; i < count; i++) {
-      const g = new Graphics();
       const color = colors[Math.floor(Math.random() * colors.length)];
-      g.rect(-2, -2, 4, 4).fill({ color });
+      // Hot streaks for the bright colours, tumbling chunks for greys/darks
+      const look = makeParticleView(inferKind({ count: 1, colors, gravity: 0.15, size: 3, kind: (color & 0xFFFFFF) === 0xFFFFFF || ((color >> 16) & 255) + ((color >> 8) & 255) + (color & 255) > 330 ? 'spark' : undefined }, color), color, 3);
+      let g: Container;
+      if (look) {
+        g = look.view;
+      } else {
+        const sq = new Graphics();
+        sq.rect(-2, -2, 4, 4).fill({ color });
+        g = sq;
+      }
 
       g.x = x;
       g.y = y;
@@ -3760,6 +3782,7 @@ export class GameEngine {
         life: 0,
         maxLife: 20 + Math.floor(Math.random() * 15),
         color,
+        look: look ?? undefined,
       });
     }
   }
@@ -3913,13 +3936,15 @@ export class GameEngine {
 
         p.graphics.x = p.x;
         p.graphics.y = p.y;
-        p.graphics.alpha = 1 - (p.life / p.maxLife);
+        p.graphics.alpha = p.look
+          ? updateParticleView(p.look, p.vx, p.vy, Math.min(1, p.life / p.maxLife), delta)
+          : 1 - (p.life / p.maxLife);
 
         if (p.life >= p.maxLife) {
           if (this.effectsLayer) {
             this.effectsLayer.removeChild(p.graphics);
           }
-          p.graphics.destroy();
+          p.graphics.destroy({ children: true });
           this.particles.splice(i, 1);
         }
       }

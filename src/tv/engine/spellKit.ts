@@ -13,11 +13,15 @@
  *
  * Light layers thin out under the PERFORMANCE graphics setting (the stick is GPU-bound): glow draws fewer rings
  * and focus lines fewer spokes.
+ *
+ * With the painted sprite pages up (fxAtlas.ts) the light shapes, motifs, rune circles, aura flames and element
+ * bursts stamp soft blooms, flares, beams and shaded sprites; the vector drawing stays as the loading fallback.
  */
 import type { Graphics } from 'pixi.js';
 import { isPerformanceMode } from '../graphicsMode';
 import { Timeline, type SfxName, shifted, lerp, easeIn, easeOut, arc, rand, INK } from './choreo';
-import { type Pal, pal, hash, starburst } from './fxKit';
+import { type Pal, pal, palOf, blend, hash, starburst } from './fxKit';
+import { stamp, stampPal, fxReady, seq } from './fxAtlas';
 import { type KnightMove, type KnightMoveHost, type P, drawSpan, once, chargeSound } from './knightKit';
 
 /** PERFORMANCE graphics: fewer light layers. */
@@ -39,6 +43,12 @@ export function lightSpan(h: KnightMoveHost, tl: Timeline, from: number, to: num
 /** Soft bloom: concentric discs fading out from a hot core. Best on an additive Graphics (lightSpan). */
 export function glow(g: Graphics, x: number, y: number, r: number, color: number, alpha = 1, core = 0xFFFFFF) {
   if (r <= 0.5 || alpha <= 0) return;
+  if (fxReady()) {
+    stamp(g, 'bloom', x, y, r * 2.4, r * 2.4, { tint: color, alpha: 0.85 * alpha });
+    if (!lite()) stamp(g, 'bloom', x, y, r * 1.1, r * 1.1, { tint: blend(color, core, 0.3), alpha: 0.55 * alpha });
+    stamp(g, 'bloomHot', x, y, r * 0.95, r * 0.95, { tint: core, alpha: 0.9 * alpha });
+    return;
+  }
   const rings = lite() ? 2 : 4;
   for (let k = 0; k < rings; k++) {
     const u = k / rings;
@@ -50,6 +60,16 @@ export function glow(g: Graphics, x: number, y: number, r: number, color: number
 /** Soft shaft of light from `top` to `bottom`, `wTop`/`wBot` wide: a wide haze, a body and a white core. */
 export function godRay(g: Graphics, x: number, top: number, bottom: number, wTop: number, wBot: number, color: number, alpha = 1) {
   if (alpha <= 0 || wBot <= 0.3) return;
+  if (fxReady()) {
+    // A haze beam, the widening shaft, a white-hot core and a pool of light where it lands
+    const len = bottom - top;
+    const my = (top + bottom) / 2;
+    stamp(g, 'beam', x, my, len, Math.max(wTop, wBot) * 2.4, { rot: Math.PI / 2, tint: color, alpha: 0.4 * alpha });
+    g.poly([x - wTop / 2, top, x + wTop / 2, top, x + wBot / 2, bottom, x - wBot / 2, bottom]).fill({ color, alpha: 0.22 * alpha });
+    stamp(g, 'beamCore', x, my, len, Math.max(2, Math.min(wTop, wBot) * 0.9 + 2), { rot: Math.PI / 2, tint: 0xFFFFFF, alpha: 0.85 * alpha });
+    stamp(g, 'bloom', x, bottom, wBot * 2.6, Math.max(5, wBot * 0.75), { tint: color, alpha: 0.7 * alpha });
+    return;
+  }
   for (const [s, a, c] of [[2.2, 0.1, color], [1, 0.32, color], [0.3, 0.85, 0xFFFFFF]] as const) {
     g.poly([x - (wTop * s) / 2, top, x + (wTop * s) / 2, top, x + (wBot * s) / 2, bottom, x - (wBot * s) / 2, bottom]).fill({ color: c, alpha: a * alpha });
   }
@@ -59,6 +79,12 @@ export function godRay(g: Graphics, x: number, top: number, bottom: number, wTop
 /** Four-point sparkle (long vertical spike): a glint of light. */
 export function glint(g: Graphics, x: number, y: number, r: number, rot: number, color: number, alpha = 1) {
   if (r <= 0.5 || alpha <= 0) return;
+  if (fxReady()) {
+    stamp(g, 'flare', x, y, r * 2.6, r * 2.6, { tint: color, alpha: 0.9 * alpha, rot });
+    stamp(g, 'flare', x, y, r * 1.5, r * 1.5, { tint: 0xFFFFFF, alpha, rot });
+    stamp(g, 'bloomHot', x, y, r * 0.8, r * 0.8, { tint: 0xFFFFFF, alpha });
+    return;
+  }
   const star = (rr: number, w: number, c: number, a: number) => {
     const pts: number[] = [];
     for (let i = 0; i < 8; i++) {
@@ -148,6 +174,15 @@ export function shockSphere(h: KnightMoveHost, tl: Timeline, at: number, where: 
     const c = pt();
     const r = r1 * easeOut(t);
     const a = 1 - t;
+    if (fxReady()) {
+      // A bright soft shell and a crisp chromatic rim
+      stamp(g, 'bloom', c.x, c.y, r * 2.2, r * 2.2, { tint: color, alpha: 0.3 * a });
+      stamp(g, 'ringSoft', c.x, c.y, (r * 2) / 0.7, (r * 2) / 0.7, { tint: color, alpha: 0.75 * a });
+      g.circle(c.x - 1, c.y, r).stroke({ width: 1.5 * a + 0.5, color, alpha: 0.7 * a });
+      g.circle(c.x + 1, c.y, r * 0.98).stroke({ width: a + 0.5, color: rim, alpha: 0.9 * a });
+      if (t < 0.35) glow(g, c.x, c.y, r1 * 0.5 * (1 - t / 0.35), color, 1 - t / 0.35);
+      return;
+    }
     g.circle(c.x, c.y, r).fill({ color, alpha: 0.16 * a });
     g.circle(c.x - 1.5, c.y, r).stroke({ width: 3 * a + 1, color, alpha: 0.8 * a });
     g.circle(c.x + 1.5, c.y, r * 0.97).stroke({ width: 1.5 * a + 0.5, color: rim, alpha: 0.9 * a });
@@ -186,6 +221,11 @@ export function skyBolt(g: Graphics, x0: number, y0: number, x1: number, y1: num
   g.stroke({ width: width + 2, color: p.body, alpha: 0.85 * alpha });
   path();
   g.stroke({ width: Math.max(1, width * 0.5), color: 0xFFFFFF, alpha });
+  if (fxReady()) {
+    if (!lite()) for (let i = 2; i < pts.length - 2; i += 4) stamp(g, 'bloom', pts[i], pts[i + 1], width * 6, width * 6, { tint: p.body, alpha: 0.35 * alpha });
+    stamp(g, 'flare', x1, y1, width * 8, width * 8, { tint: p.core, alpha, rot: hash(seed) * 3 });
+    stamp(g, 'bloomHot', x0, y0, width * 4, width * 4, { tint: p.core, alpha: 0.8 * alpha });
+  }
   // Forks off the main channel
   for (let b = 0; b < 3; b++) {
     const i = 1 + Math.floor(hash(seed * 5 + b) * (segs - 2));
@@ -228,13 +268,15 @@ export function groundCracks(g: Graphics, x: number, y: number, r: number, n: nu
     path();
     g.stroke({ width: 0.8, color: p.core, alpha });
   }
-  g.ellipse(x, y, r * 0.35 * grow, r * 0.1 * grow).fill({ color: p.body, alpha: 0.5 * alpha });
+  if (fxReady()) stamp(g, 'bloom', x, y, r * 1.1 * grow, r * 0.32 * grow, { tint: p.body, alpha: 0.75 * alpha });
+  else g.ellipse(x, y, r * 0.35 * grow, r * 0.1 * grow).fill({ color: p.body, alpha: 0.5 * alpha });
 }
 
 /** Tapered ribbon through `pts` (head first): comet tails, wakes, sword trails. */
 export function ribbon(g: Graphics, pts: readonly P[], w: number, p: Pal, alpha = 1) {
   const n = pts.length;
   if (n < 2 || alpha <= 0) return;
+  if (fxReady()) stamp(g, 'bloom', pts[0].x, pts[0].y, w * 3.5, w * 3.5, { tint: p.body, alpha: 0.5 * alpha });
   for (const [scale, color, a] of [[1.6, p.ink, 0.5], [1, p.body, 0.85], [0.35, p.core, 1]] as const) {
     for (let i = n - 1; i >= 1; i--) {
       const u = 1 - i / n;
@@ -389,6 +431,46 @@ export function motif(g: Graphics, m: Motif, x: number, y: number, s: number, ro
   const P = (u: number, v: number): [number, number] => [x + (u * c - v * sn) * s, y + (u * sn + v * c) * s];
   const poly = (pts: [number, number][], col = color, a = alpha) => g.poly(pts.flat()).fill({ color: col, alpha: a });
   const line = (a: [number, number], b: [number, number], w: number, col = color, al = alpha) => g.moveTo(a[0], a[1]).lineTo(b[0], b[1]).stroke({ width: w, color: col, alpha: al, cap: 'round' });
+  if (fxReady()) {
+    // Painted glyphs where a sprite fits; everything gets a bloom behind it so it reads as light
+    if (!lite()) stamp(g, 'bloom', x, y, s * 1.9, s * 1.9, { tint: color, alpha: 0.4 * alpha });
+    const pk = palOf(color);
+    const frame = Math.floor(hash(Math.round(x * 3 + y * 7)) * 4);
+    switch (m) {
+      case 'flame':
+        stamp(g, `flame${frame}.body`, x, y + s * 0.45, s * 0.75, s * 1.4, { ax: 0.5, ay: 1, rot, tint: color, alpha });
+        stamp(g, `flame${frame}.core`, x, y + s * 0.45, s * 0.75, s * 1.4, { ax: 0.5, ay: 1, rot, tint: pk.core, alpha });
+        stamp(g, `flame${frame}.hot`, x, y + s * 0.45, s * 0.75, s * 1.4, { ax: 0.5, ay: 1, rot, tint: 0xFFFFFF, alpha });
+        return;
+      case 'shard':
+        stampPal(g, 'iceShard', x, y, s * 0.6, s * 1.3, pk, { rot, alpha });
+        return;
+      case 'leaf':
+        stampPal(g, 'leaf', x, y, s * 1.15, s * 1.15, pk, { rot, alpha });
+        return;
+      case 'feather':
+        stampPal(g, 'feather', x, y, s * 0.5, s * 1.6, pk, { rot, alpha });
+        return;
+      case 'coin':
+        stampPal(g, `coin${Math.floor(Math.abs(rot * 2.5)) % 4}`, x, y, s * 0.95, s * 0.95, pk, { alpha });
+        return;
+      case 'bubble':
+        stampPal(g, 'bubble', x, y, s, s, pk, { alpha });
+        return;
+      case 'flake':
+        for (let k = 0; k < 3; k++) {
+          const a = rot + (k * Math.PI) / 3;
+          line(P(Math.cos(a - rot) * 0.6, Math.sin(a - rot) * 0.6), P(-Math.cos(a - rot) * 0.6, -Math.sin(a - rot) * 0.6), Math.max(0.6, s * 0.08), pk.core);
+        }
+        stamp(g, 'twinkleBig', x, y, s * 0.9, s * 0.9, { tint: 0xFFFFFF, alpha });
+        return;
+      case 'star':
+        glint(g, x, y, s * 0.7, rot, color, alpha);
+        return;
+      default:
+        break; // vector glyph below, over its bloom
+    }
+  }
   switch (m) {
     case 'flame':
       poly([P(0, -1), P(0.35, -0.2), P(0.4, 0.25), P(0, 0.55), P(-0.4, 0.25), P(-0.3, -0.25)]);
@@ -523,6 +605,12 @@ export function castCircle(h: KnightMoveHost, tl: Timeline, from: number, to: nu
     const rr = r * open * (1 + 0.25 * flare);
     const sq = 0.3; // floor perspective
     const a = (0.55 + 0.25 * Math.sin(f * 0.4)) * fade;
+    if (fxReady() && rr > 2) {
+      // Painted glyph rings under the turning spokes and motifs
+      stamp(g, 'bloom', c.x, c.y, rr * 2.6, rr * 2.6 * sq, { tint: look.light, alpha: (0.25 + 0.5 * flare) * fade });
+      stamp(g, 'runeFloor', c.x, c.y, rr * 2, rr * 2 * 0.325, { tint: look.light, alpha: a * 1.2 });
+      if (!lite()) stamp(g, 'runeFloor', c.x, c.y, rr * 1.15, rr * 1.15 * 0.325, { tint: look.core, alpha: a * 0.7 });
+    } else
     g.ellipse(c.x, c.y, rr, rr * sq).fill({ color: look.light, alpha: (0.1 + 0.35 * flare) * fade });
     g.ellipse(c.x, c.y, rr, rr * sq).stroke({ width: 2, color: look.light, alpha: a });
     g.ellipse(c.x, c.y, rr * 0.82, rr * 0.82 * sq).stroke({ width: 1, color: look.core, alpha: a * 0.8 });
@@ -569,6 +657,14 @@ export function aura(h: KnightMoveHost, tl: Timeline, from: number, to: number, 
       const len = (14 + 18 * flick) * s * grow * (0.6 + 0.4 * Math.sin(u * Math.PI));
       const lean = (u - 0.5) * 0.6 + (flick - 0.5) * 0.3;
       const w = 3.5 * s;
+      if (fxReady()) {
+        // Painted flame tongues, flickering through their frames
+        const fr = seq('flame', 4, f + k * 3, 3);
+        const rot = Math.atan2(lean * len, len);
+        stamp(g, `${fr}.body`, bx, by + 2, w * 3.2, len * 1.15, { ax: 0.5, ay: 1, rot, tint: look.light, alpha: 0.75 * grow });
+        stamp(g, `${fr}.core`, bx, by + 2, w * 3.2, len * 1.15, { ax: 0.5, ay: 1, rot, tint: look.core, alpha: 0.7 * grow });
+        continue;
+      }
       g.poly([bx - w, by, bx + w, by, bx + lean * len, by - len]).fill({ color: look.light, alpha: 0.7 * grow });
       g.poly([bx - w * 0.4, by, bx + w * 0.4, by, bx + lean * len * 0.6, by - len * 0.6]).fill({ color: look.core, alpha: 0.8 * grow });
     }
@@ -654,6 +750,13 @@ export function signature(h: KnightMoveHost, tl: Timeline, at: number, where: P 
         const x1 = c.x + Math.cos(a) * len;
         const y1 = c.y + Math.sin(a) * len;
         const w = 5 * fade + 1;
+        if (fxReady()) {
+          const fr = seq('flame', 4, f + k, 3);
+          stamp(g, `${fr}.body`, c.x, c.y, w * 3, len * 1.2, { ax: 0.5, ay: 1, rot: a + Math.PI / 2, tint: look.light, alpha: 0.85 * fade });
+          stamp(g, `${fr}.core`, c.x, c.y, w * 3, len * 1.2, { ax: 0.5, ay: 1, rot: a + Math.PI / 2, tint: look.core, alpha: fade });
+          stamp(g, `${fr}.hot`, c.x, c.y, w * 3, len * 1.2, { ax: 0.5, ay: 1, rot: a + Math.PI / 2, tint: 0xFFFFFF, alpha: fade });
+          continue;
+        }
         const nx = -Math.sin(a) * w;
         const ny = Math.cos(a) * w;
         g.poly([c.x + nx, c.y + ny, c.x - nx, c.y - ny, x1, y1]).fill({ color: look.light, alpha: 0.75 * fade });
@@ -669,6 +772,11 @@ export function signature(h: KnightMoveHost, tl: Timeline, at: number, where: P 
         const ny = Math.cos(a) * w;
         const x1 = c.x + Math.cos(a) * len;
         const y1 = c.y + Math.sin(a) * len;
+        if (fxReady()) {
+          stampPal(g, 'crystal', c.x, c.y, Math.max(4, len * 0.32), len, palOf(look.light), { ax: 0.5, ay: 1, rot: a + Math.PI / 2, alpha: fade });
+          glint(g, x1, y1, 6 * fade + 2, f * 0.1, look.core, fade);
+          continue;
+        }
         g.poly([c.x + nx, c.y + ny, x1, y1, c.x - nx, c.y - ny]).fill({ color: look.light, alpha: 0.7 * fade });
         g.moveTo(c.x, c.y).lineTo(x1, y1).stroke({ width: 1, color: 0xFFFFFF, alpha: fade });
         glint(g, x1, y1, 6 * fade + 2, f * 0.1, look.core, fade);
@@ -685,7 +793,8 @@ export function signature(h: KnightMoveHost, tl: Timeline, at: number, where: P 
       for (let k = 0; k < n; k++) {
         const a = -Math.PI / 2 + ((k / (n - 1)) - 0.5) * 2.6;
         const len = size * (0.45 + 0.35 * hash(k * 3)) * grow;
-        motif(g, 'shard', c.x + Math.cos(a) * len, c.y + Math.sin(a) * len, 8 * (1 - t * 0.4), a + Math.PI / 2, look.light, fade);
+        if (fxReady()) stampPal(g, `rock${k % 3}`, c.x + Math.cos(a) * len, c.y + Math.sin(a) * len, 9 * (1 - t * 0.3), 8 * (1 - t * 0.3), palOf(look.light), { rot: a + t * 4, alpha: fade });
+        else motif(g, 'shard', c.x + Math.cos(a) * len, c.y + Math.sin(a) * len, 8 * (1 - t * 0.4), a + Math.PI / 2, look.light, fade);
       }
       g.ellipse(c.x, c.y + size * 0.2, size * grow, size * 0.25 * grow).stroke({ width: 3 * fade + 0.5, color: look.core, alpha: 0.7 * fade });
     } else if (m === 'leaf') {

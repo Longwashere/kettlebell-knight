@@ -8,6 +8,7 @@ import type { Graphics } from 'pixi.js';
 import { Timeline, lerp, easeIn, easeOut, easeInOut, arc, rand, INK } from './choreo';
 import { pal, crescent, scorch, runeCircle, orb, wing, lance, hash } from './fxKit';
 import { tentacle } from './monsterKit';
+import { stamp, stampPal, fxReady } from './fxAtlas';
 import {
   type KnightMove, type KnightMoveHost, type P, each, once, strikeSpot, chest, land, travel, here, HOME, backstep,
   ghostTrail, swingSound, chargeSound, drawSpan, slashFx, hitFx, ringFx, debris, dust, shards,
@@ -19,6 +20,7 @@ import {
   LOOK, themed, staged, chargeUp, motes, breath, dutch, signature,
 } from './spellKit';
 
+const P_FANG = pal(0xE7E5E4, 0xFFFFFF, 0x1C1917);
 const P_BRASS = pal(0xF2B636, 0xFFF7D6, 0x3B2205);
 const P_CIRCUS = pal(0xF472B6, 0xFFF1F7, 0x3B0A24);
 const P_DEEP = pal(0x2DD4BF, 0xCCFBF1, 0x042F2E);
@@ -390,11 +392,18 @@ function leviathansMaw(h: KnightMoveHost, tl: Timeline) {
     for (const side of [-1, 1]) {
       const bx = t0.x + side * (30 - shut * 20);
       const top = t0.y - 80 * up;
-      g.poly([bx, t0.y + 2, bx + side * 8, top + 10, bx - side * 5, top]).fill({ color: 0x164E63, alpha: fade }).stroke({ width: 2, color: 0x02161D, alpha: fade });
+      // A jaw of the deep: dark wet hide with a lit ridge along its inner edge, gums, and a rank of curved fangs
+      g.poly([bx, t0.y + 2, bx + side * 8, top + 10, bx - side * 5, top]).fill({ color: 0x0E3A4A, alpha: fade }).stroke({ width: 2, color: 0x02161D, alpha: fade });
+      g.poly([bx, t0.y + 2, bx - side * 5, top, bx - side * 1, top + 6, bx + side * 2, t0.y]).fill({ color: 0x2C7A85, alpha: fade });
+      g.moveTo(bx - side * 4.5, top + 2).lineTo(bx + side * 0.5, t0.y).stroke({ width: 1, color: 0x99F6E4, alpha: 0.8 * fade });
+      g.poly([bx, t0.y + 2, bx - side * 2.5, t0.y - 76 * up, bx - side * 0.5, t0.y - 76 * up, bx + side * 1, t0.y + 2]).fill({ color: 0x7F1D1D, alpha: 0.85 * fade });
       for (let k = 0; k < 6; k++) {
         const y = t0.y - k * 12 * up;
-        g.poly([bx, y, bx - side * 9, y - 4, bx, y - 7]).fill({ color: 0xF0FDFA, alpha: fade });
+        if (!stampPal(g, 'iceShard', bx - side * 1, y - 3, 6, 12, P_FANG, { ax: 0.5, ay: 1, rot: -side * (Math.PI / 2 + 0.25), alpha: fade })) {
+          g.poly([bx, y, bx - side * 9, y - 4, bx, y - 7]).fill({ color: 0xF0FDFA, alpha: fade });
+        }
       }
+      if (fxReady()) stamp(g, 'bloom', bx, t0.y - 40 * up, 30, 90 * up, { tint: 0x2DD4BF, alpha: 0.25 * fade });
     }
   });
   lightSpan(h, tl, HIT - 12, HIT, (g, t) => godRay(g, t0.x, t0.y - 90 * t, t0.y + 2, 20, 40, 0x2DD4BF, 0.5 * t));

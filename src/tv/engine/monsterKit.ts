@@ -6,6 +6,8 @@
 import type { Container, Graphics } from 'pixi.js';
 import type { Spine } from '@esotericsoftware/spine-pixi-v8';
 import { sparkAnim, themeColor, type VfxName, type VfxOpts } from './vfx';
+import { tube, blend } from './fxKit';
+import { stamp, fxReady } from './fxAtlas';
 import {
   Timeline, type EmitOptions, type SfxName, type SoundOpts,
   lerp, easeIn, easeOut, easeInOut, arc, rand,
@@ -376,6 +378,18 @@ export function beam(g: Graphics, x0: number, y0: number, x1: number, y1: number
     g.poly([x0 + nx * hw, y0 + ny * hw, x1 + nx * hw, y1 + ny * hw, x1 - nx * hw, y1 - ny * hw, x0 - nx * hw, y0 - ny * hw]).fill({ color, alpha: a });
     g.circle(x1, y1, hw * 1.3).fill({ color, alpha: a });
   };
+  if (fxReady()) {
+    // Painted: a soft haze along the beam, a slim ink edge, the bands, a white-hot thread, flares at both ends
+    const rot = Math.atan2(y1 - y0, x1 - x0);
+    stamp(g, 'beam', (x0 + x1) / 2, (y0 + y1) / 2, len, w * 3, { rot, tint: colors[0], alpha: 0.5 * alpha });
+    band(w / 2 + 1, INK, 0.35 * alpha);
+    band(w / 2, colors[0], 0.75 * alpha);
+    band(w * 0.3, colors[1], 0.95 * alpha);
+    stamp(g, 'beamCore', (x0 + x1) / 2, (y0 + y1) / 2, len, Math.max(2, w * 0.45), { rot, tint: colors[2], alpha });
+    stamp(g, 'flare', x1, y1, w * 3.4 + 6, w * 3.4 + 6, { tint: colors[1], alpha, rot });
+    stamp(g, 'bloomHot', x0, y0, w * 3, w * 3, { tint: colors[1], alpha: 0.9 * alpha });
+    return;
+  }
   band(w / 2 + 2, INK, 0.5 * alpha);
   band(w / 2, colors[0], 0.8 * alpha);
   band(w * 0.3, colors[1], 0.95 * alpha);
@@ -393,12 +407,8 @@ export function tentacle(g: Graphics, x0: number, y0: number, x1: number, y1: nu
     const u = i / n;
     pts.push({ x: (1 - u) * (1 - u) * x0 + 2 * (1 - u) * u * mx + u * u * x1, y: (1 - u) * (1 - u) * y0 + 2 * (1 - u) * u * my + u * u * y1 });
   }
-  for (const [extra, color] of [[3, INK], [0, body]] as const) {
-    for (let i = 0; i < n; i++) {
-      const ww = (w * (1 - i / n) + 1.5) + extra;
-      g.moveTo(pts[i].x, pts[i].y).lineTo(pts[i + 1].x, pts[i + 1].y).stroke({ width: ww, color, cap: 'round' });
-    }
-  }
+  // Shaded flesh: ink contour, body, a dark underside and a wet highlight (fxKit.tube), thick at the root
+  tube(g, [...pts].reverse(), pts.map((_, i) => w * (1 - i / n) + 1.5).reverse(), { ink: INK, body, core: blend(body, under, 0.5) });
   if (suckers) {
     for (let i = 2; i < n - 1; i += 2) g.circle(pts[i].x, pts[i].y + w * 0.2 * (1 - i / n), Math.max(1, w * 0.18 * (1 - i / n))).fill({ color: under });
   }

@@ -122,13 +122,23 @@ export function resolveCard(
         if (behind !== undefined) strike(behind, BALANCE.pierceFalloff);
         break;
       }
-      case 'CHAIN':
+      case 'CHAIN': {
+        // Bounces through every living foe once (random order) before any is struck again, and never strikes
+        // the one just hit while another is still standing
+        let last = -1;
+        let struck = new Set<number>();
         for (let h = 0; h < (card.hits ?? 3); h++) {
           const alive = depthOrder(next);
           if (alive.length === 0) break;
-          strike(alive[Math.floor(rng() * alive.length)], 1);
+          if (alive.every((i) => struck.has(i))) struck = new Set();
+          let pool = alive.filter((i) => !struck.has(i) && i !== last);
+          if (pool.length === 0) pool = alive.length > 1 ? alive.filter((i) => i !== last) : alive;
+          last = pool[Math.floor(rng() * pool.length)];
+          struck.add(last);
+          strike(last, 1);
         }
         break;
+      }
       case 'ALL':
         for (const i of order) strike(i, 1);
         break;
