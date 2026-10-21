@@ -1578,6 +1578,8 @@ export class GameEngine {
       }
       spine.state.data.defaultMix = 0.08;
       spine.state.setAnimation(0, 'IDLE', true);
+      // Same dark silhouette as the monsters: the downscaled painted art goes soft against busy backgrounds.
+      if (!isPerformanceMode()) spine.filters = [this.monsterOutline];
 
       this.knightSpine = spine;
       this.knightContainer.addChild(spine);
