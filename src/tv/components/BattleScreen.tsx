@@ -1026,15 +1026,17 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         size: m.sizeClass,
         scale: m.scaleMultiplier,
         alive: m.isAlive,
+        lane: m.lane, // battlefield position, 0 = nearest the knight (what PIERCE/BACK/CHAIN target by)
         intent: { name: m.intent.name, type: m.intent.type, remaining: Number(m.intent.remainingSeconds.toFixed(2)) },
       })),
-      hand: hand.map((c) => ({ name: c.name, exercise: c.exercise, currentReps: c.currentReps, requiredReps: c.requiredReps,
+      hand: hand.map((c) => ({ templateId: c.templateId, target: c.target, hits: c.hits, name: c.name, exercise: c.exercise, currentReps: c.currentReps, requiredReps: c.requiredReps,
         baseReps: c.baseReps, damage: c.damage, element: c.element, infusion: c.infusion, level: c.level, dmgPct: c.dmgPct })),
       highlightedCard: focusedCardIndex,
       manualFocus,
       // Card that remote actions (Enter / Space / __kk.rep()) target
       focusedCard: hand[actionCardIndex]
-        ? { index: actionCardIndex, name: hand[actionCardIndex].name, exercise: hand[actionCardIndex].exercise,
+        ? { index: actionCardIndex, templateId: hand[actionCardIndex].templateId, target: hand[actionCardIndex].target, hits: hand[actionCardIndex].hits,
+            name: hand[actionCardIndex].name, exercise: hand[actionCardIndex].exercise,
             currentReps: hand[actionCardIndex].currentReps, requiredReps: hand[actionCardIndex].requiredReps }
         : null,
       frozen: atbFrozenRef.current,
