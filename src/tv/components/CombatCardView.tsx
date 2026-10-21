@@ -203,7 +203,7 @@ export const CardFront: React.FC<{ card: CombatCard | CardTemplate; newPip?: num
           <div className="kk-loop__img pixelated" />
         </div>
         <div className="kk-card__how">
-          <div className="kk-card__exercise">{card.exerciseLabel}</div>
+          <div className={`kk-card__exercise ${card.exerciseLabel.length > 18 ? 'kk-card__exercise--long' : ''}`}>{card.exerciseLabel}</div>
           <div className="kk-loop__steps">
             <div className="kk-loop__track">
               {guide.frames.map((f, i) => (

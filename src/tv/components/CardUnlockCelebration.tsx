@@ -78,7 +78,7 @@ export const CardUnlockCelebration: React.FC<CardUnlockCelebrationProps> = ({
 
         <div className="flex items-center gap-8">
           {/* The card at its in-hand size, so the exercise figure and rep pips have room */}
-          <div key={currentDef.cardId} className="relative w-[228px] h-[330px] shrink-0 animate-fadeIn" style={cardStyleVars(cardTemplate)}>
+          <div key={currentDef.cardId} className="relative w-[228px] h-[342px] shrink-0 animate-fadeIn" style={cardStyleVars(cardTemplate)}>
             <CardFront card={cardTemplate} />
           </div>
 

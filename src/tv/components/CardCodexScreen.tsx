@@ -448,7 +448,7 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
           {/* ============================================================== */}
           <section
             aria-label="Card Carousel"
-            className="relative w-full h-[360px] bg-[#08070D] border-2 border-[#2D2A42] rounded-lg overflow-hidden flex items-center justify-center shadow-2xl"
+            className="relative w-full h-[372px] bg-[#08070D] border-2 border-[#2D2A42] rounded-lg overflow-hidden flex items-center justify-center shadow-2xl"
           >
             {/* Dynamic Ambient Background Glow matched to focused card */}
             <div
@@ -502,7 +502,7 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
             {/* Overlapping 3D Card Stack Container */}
             <div
               ref={carouselContainerRef}
-              className="relative w-[228px] h-[330px] flex items-center justify-center"
+              className="relative w-[228px] h-[342px] flex items-center justify-center"
             >
               {displayedCards.map((item, index) => {
                 const offset = index - selectedIndex;
@@ -573,7 +573,7 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
                         audioManager.play('ui_select');
                       }
                     }}
-                    className="absolute top-0 left-0 w-[228px] h-[330px] cursor-pointer"
+                    className="absolute top-0 left-0 w-[228px] h-[342px] cursor-pointer"
                     style={{
                       transform: `translateX(${xOffset}px) translateY(${yOffset}px) scale(${scale}) rotate(${rotation}deg)`,
                       zIndex,
@@ -600,7 +600,7 @@ export const CardCodexScreen: React.FC<CardCodexScreenProps> = ({
                       </div>
                     )}
 
-                    {/* Full Battle-Width Card Front (228px x 330px) */}
+                    {/* Full Battle-Width Card Front (228px x 342px) */}
                     <div className="relative w-full h-full">
                       <CardFront card={item.card} />
 

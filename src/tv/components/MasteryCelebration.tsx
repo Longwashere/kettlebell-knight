@@ -235,13 +235,13 @@ export const MasteryCelebration: React.FC<MasteryCelebrationProps> = ({ levelUps
 
         <div className="flex items-center gap-8">
           {card ? (
-            <div key={page.id} className="relative w-[228px] h-[330px] shrink-0 animate-fadeIn" style={cardStyleVars(card)}>
+            <div key={page.id} className="relative w-[228px] h-[342px] shrink-0 animate-fadeIn" style={cardStyleVars(card)}>
               <CardFront card={card} />
             </div>
           ) : weapon ? (
             <div
               key={page.id}
-              className="relative w-[228px] h-[330px] shrink-0 animate-fadeIn"
+              className="relative w-[228px] h-[342px] shrink-0 animate-fadeIn"
               style={cardStyleVars({ colorHex: weapon.colorHex, rarity: weapon.rarity ?? 'common' })}
             >
               <WeaponCardFront weapon={weapon} level={page.to} knightLevel={loadout.level} />

@@ -98,13 +98,13 @@ canvas,
   align-items: flex-end;
   gap: 8px;
   padding-top: 22px;
-  margin-bottom: -20px;
+  margin-bottom: -4px;
 }
 
 .kk-card-slot {
   position: relative;
   width: 228px;
-  height: 330px;
+  height: 342px;
   flex: none;
   transform: translateY(var(--fan-y)) rotate(var(--fan-rot));
   transform-origin: 50% 130%;
@@ -226,7 +226,7 @@ canvas,
     radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.85) 0 2px, transparent 3px),
     radial-gradient(circle at 40% 35%, var(--accent) 0%, rgba(var(--accent-rgb), 0.55) 55%, #0a0910 120%);
   font-family: "Press Start 2P", monospace;
-  font-size: 15px;
+  font-size: 16px;
   color: #fff;
   text-shadow: 1px 1px 0 #000, -1px 0 0 #000, 0 -1px 0 #000;
 }
@@ -290,7 +290,7 @@ canvas,
 
 /* Type line */
 .kk-card__type {
-  height: 19px;
+  height: 21px;
   flex: none;
   display: flex;
   align-items: center;
@@ -299,23 +299,27 @@ canvas,
   background: linear-gradient(90deg, rgba(var(--accent-rgb), 0.45), #15131f 75%);
   border: 1px solid #000;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  font-family: "Press Start 2P", monospace;
-  font-size: 8px;
+  font-family: "VT323", monospace;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: 1px;
   color: #F3E9CF;
   text-shadow: 1px 1px 0 #000;
   text-transform: uppercase;
 }
 .kk-card__glyph {
-  font-size: 11px;
+  font-size: 14px;
   color: var(--accent);
 }
 .kk-card__spell {
   position: absolute;
   right: 3px;
   top: 3px;
-  padding: 1px 4px;
-  font-size: 8px;
-  letter-spacing: 0.08em;
+  padding: 0 4px;
+  font-family: "VT323", monospace;
+  font-size: 18px;
+  line-height: 14px;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #FDE68A;
   background: rgba(15, 14, 23, 0.85);
@@ -327,8 +331,10 @@ canvas,
 .kk-card__power {
   position: absolute;
   left: 3px;
-  padding: 1px 4px;
-  font-size: 8px;
+  padding: 0 4px;
+  font-family: "VT323", monospace;
+  font-size: 18px;
+  line-height: 14px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   background: rgba(15, 14, 23, 0.85);
@@ -339,7 +345,7 @@ canvas,
   top: 3px;
 }
 .kk-card__element {
-  top: 17px;
+  top: 21px;
 }
 .kk-card__power {
   color: #F3E9CF;
@@ -350,15 +356,15 @@ canvas,
 }
 .kk-stat__infuse {
   display: block;
-  font-size: 7px;
-  line-height: 1;
-  margin-top: 1px;
+  font-family: "VT323", monospace;
+  font-size: 16px;
+  line-height: 12px;
 }
 .kk-card__rarity {
   display: flex;
   align-items: center;
   gap: 4px;
-  color: var(--rim);
+  color: #F3E9CF;
 }
 .kk-card__gem {
   display: inline-block;
@@ -391,7 +397,7 @@ canvas,
 
 /* Technique band: looping exercise figure + exercise name, current step, rep pips */
 .kk-card__foot {
-  height: 80px;
+  height: 88px;
   flex: none;
   display: flex;
   align-items: center;
@@ -421,10 +427,10 @@ canvas,
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 .kk-loop__steps {
-  height: 15px;
+  height: 16px;
   overflow: hidden;
 }
 .kk-loop__track {
@@ -433,22 +439,23 @@ canvas,
   animation: kkSteps var(--dur) steps(var(--n)) infinite;
 }
 .kk-loop__track span {
-  height: 15px;
+  height: 16px;
   display: flex;
   align-items: center;
-  gap: 3px;
-  font-family: "Press Start 2P", monospace;
-  font-size: 9px;
+  gap: 4px;
+  font-family: "VT323", monospace;
+  font-size: 20px;
+  text-transform: uppercase;
   color: #F3E9CF;
   text-shadow: 1px 1px 0 #000;
 }
 .kk-loop__track b {
   display: grid;
   place-items: center;
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
   font-weight: normal;
-  font-size: 8px;
+  font-size: 18px;
   color: #000;
   text-shadow: none;
   background: var(--accent);
@@ -457,21 +464,23 @@ canvas,
   width: 100%;
   text-align: center;
   font-family: "Silkscreen", "Press Start 2P", monospace;
-  font-weight: 700;
-  font-size: 10px;
-  line-height: 12px;
-  letter-spacing: 0.3px;
-  color: #FDE68A;
+  font-size: 16px;
+  line-height: 16px;
+  color: #FFF1C2;
   text-shadow: 1px 1px 0 #000;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(var(--accent-rgb), 0.55);
+  background: #0a0910;
+  border: 1px solid rgba(var(--accent-rgb), 0.7);
   border-radius: 4px;
-  padding: 2px 4px;
+  padding: 2px 3px;
   box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.5);
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+/* Labels like AROUND-THE-BODY PASS: tighter tracking keeps them to two lines */
+.kk-card__exercise--long {
+  letter-spacing: -1px;
 }
 .kk-card-slot--focused .kk-card__exercise {
   color: #FFFFFF;
@@ -499,33 +508,34 @@ canvas,
 }
 .kk-card__count {
   font-family: "VT323", monospace;
-  font-size: 17px;
-  line-height: 13px;
-  color: #A7A9BE;
+  font-size: 20px;
+  line-height: 14px;
+  color: #D4D2E0;
 }
 
 /* Heraldic stat plaques on the bottom corners */
 .kk-stat {
   position: absolute;
-  top: 95px; /* lower corners of the art window */
-  width: 38px;
-  height: 42px;
+  top: 88px; /* lower corners of the art window */
+  width: 46px;
+  height: 50px;
   padding: 2px;
   background: #000;
   clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%);
 }
-.kk-stat--dmg { left: 4px; }
-.kk-stat--block { right: 4px; }
+.kk-stat--dmg { left: 3px; }
+.kk-stat--block { right: 3px; }
 .kk-stat__inner {
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 4px;
+  padding-top: 3px;
   clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%);
-  font-family: "Press Start 2P", monospace;
-  font-size: 11px;
+  font-family: "Silkscreen", "Press Start 2P", monospace;
+  font-size: 16px;
+  line-height: 16px;
   color: #fff;
   text-shadow: 1px 1px 0 #000;
 }
@@ -536,8 +546,8 @@ canvas,
   background: linear-gradient(180deg, #BAE6FD 0 1px, #2563EB 1px, #1E3A8A 100%);
 }
 .kk-stat__glyph {
-  font-size: 11px;
-  line-height: 14px;
+  font-size: 12px;
+  line-height: 13px;
   font-family: serif;
 }
 
@@ -1259,8 +1269,8 @@ canvas,
 
 /* Faceted gem socket (for level badge) */
 .kk-hud-gem {
-  width: 26px;
-  height: 28px;
+  width: 32px;
+  height: 34px;
   display: grid;
   place-items: center;
   background: #000;
@@ -1268,16 +1278,16 @@ canvas,
   flex: none;
 }
 .kk-hud-gem span {
-  width: 22px;
-  height: 24px;
+  width: 28px;
+  height: 30px;
   display: grid;
   place-items: center;
   clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
   background:
     radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.85) 0 1.5px, transparent 2px),
     radial-gradient(circle at 40% 35%, var(--accent) 0%, rgba(var(--accent-rgb), 0.55) 55%, #0a0910 120%);
-  font-family: "Press Start 2P", monospace;
-  font-size: 8px;
+  font-family: "Silkscreen", "Press Start 2P", monospace;
+  font-size: 16px;
   color: #fff;
   text-shadow: 1px 1px 0 #000;
 }
@@ -1391,7 +1401,7 @@ canvas,
 
 /* Monster nameplate: a slim HUD card per foe, short enough that the squad below stays in view */
 .kk-hud-plate {
-  width: min(200px, 15.5vw);
+  width: min(248px, 19vw);
   padding: 6px 7px 7px;
   transition: transform 150ms ease-out, opacity 150ms;
 }
@@ -1403,7 +1413,7 @@ canvas,
 }
 .kk-hud-plate__flag {
   position: absolute;
-  top: -7px;
+  top: -9px;
   left: 50%;
   transform: translateX(-50%);
   padding: 1px 5px;
@@ -1412,8 +1422,8 @@ canvas,
   border: 1px solid #000;
   border-radius: 2px;
   font-family: "Press Start 2P", monospace;
-  font-size: 6px;
-  line-height: 8px;
+  font-size: 8px;
+  line-height: 10px;
   box-shadow: 1px 1px 0 #000, 0 0 6px rgba(244, 180, 26, 0.6);
   z-index: 1;
 }
@@ -1421,38 +1431,38 @@ canvas,
   display: grid;
   place-items: center;
   flex: none;
-  width: 13px;
-  height: 13px;
+  width: 18px;
+  height: 18px;
   border: 1px solid;
   border-radius: 3px;
   background: rgba(0, 0, 0, 0.55);
-  font-size: 8px;
+  font-size: 11px;
   line-height: 1;
 }
 .kk-hud-plate__affix {
   position: absolute;
-  bottom: -6px;
+  bottom: -8px;
   right: 8px;
   padding: 0 4px;
   border: 1px solid;
   border-radius: 2px;
   background: #0F0E17;
   font-family: "Press Start 2P", monospace;
-  font-size: 6px;
-  line-height: 9px;
+  font-size: 8px;
+  line-height: 11px;
   text-transform: uppercase;
 }
 .kk-hud-plate__size {
   position: absolute;
-  bottom: -6px;
+  bottom: -8px;
   left: 8px;
   padding: 0 4px;
   border: 1px solid;
   border-radius: 2px;
   background: #0F0E17;
   font-family: "Press Start 2P", monospace;
-  font-size: 6px;
-  line-height: 9px;
+  font-size: 8px;
+  line-height: 11px;
 }
 .kk-hud-plate__size--giant {
   border-color: #FF3366;
@@ -1463,23 +1473,26 @@ canvas,
   color: #00EB88;
 }
 .kk-hud-gem--sm {
-  width: 18px;
-  height: 20px;
+  width: 22px;
+  height: 24px;
 }
 .kk-hud-gem--sm span {
-  width: 15px;
-  height: 17px;
-  font-size: 6px;
+  width: 19px;
+  height: 21px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
 }
 .kk-hud-vial__label {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
-  font-family: "Press Start 2P", monospace;
-  font-size: 6px;
+  font-family: "VT323", monospace;
+  font-size: 20px;
+  line-height: 1;
   color: #fff;
-  text-shadow: 1px 0 0 #000, -1px 0 0 #000, 0 1px 0 #000, 0 -1px 0 #000;
+  text-shadow: 1px 0 0 #000, -1px 0 0 #000, 0 1px 0 #000, 0 -1px 0 #000,
+    1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
 }
 
 /* ---------- Stage cinematic (StageCinematic.tsx) ---------- */

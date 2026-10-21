@@ -1214,12 +1214,12 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
               <span>{knightLevel}</span>
             </div>
             <div className="kk-hud-banner">
-              <span className="font-pixel text-[10px] text-[#F4B41A] truncate tracking-wide">
+              <span className="font-pixel text-[16px] leading-none text-[#F4B41A] truncate">
                 {profileManager.getActiveProfile()?.name ?? 'SIR KETTLEBURNE'}
               </span>
               {playerBlock > 0 && (
-                <div className="flex items-center space-x-1 bg-[#38B6FF] text-[#0F0E17] px-1.5 py-0.5 rounded font-pixel text-[8px] font-bold shadow-sm animate-pulse flex-shrink-0">
-                  <Shield className="w-2.5 h-2.5" />
+                <div className="flex items-center space-x-1 bg-[#38B6FF] text-[#0F0E17] px-1.5 rounded font-retro text-[20px] leading-[18px] shadow-sm animate-pulse flex-shrink-0">
+                  <Shield className="w-3.5 h-3.5" />
                   <span>{playerBlock}</span>
                 </div>
               )}
@@ -1228,9 +1228,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
           {/* HP Bar Vial */}
           <div className="space-y-1">
-            <div className="flex justify-between text-[9px] font-mono text-[#A7A9BE] px-0.5">
-              <span className="font-pixel text-[8px] text-[#38B6FF] tracking-wider">HEALTH</span>
-              <span className="font-bold text-white text-[10px]">{playerHp} / {playerMaxHp}</span>
+            <div className="flex justify-between items-baseline font-retro text-[20px] leading-none px-0.5">
+              <span className="text-[#5CC8FF] tracking-wider">HEALTH</span>
+              <span className="text-white text-[22px]">{playerHp} / {playerMaxHp}</span>
             </div>
             <div className="kk-hud-vial h-3.5">
               <div
@@ -1268,7 +1268,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                   <div className="kk-hud-gem kk-hud-gem--sm" title={`Level ${m.level}`}>
                     <span>{m.level}</span>
                   </div>
-                  <span className={`font-pixel text-[8px] leading-tight truncate flex-1 min-w-0 ${isTargeted && !isDead ? 'text-[#F4B41A]' : 'text-white'}`}>
+                  <span className={`font-display text-[16px] leading-none truncate flex-1 min-w-0 ${isTargeted && !isDead ? 'text-[#F4B41A]' : 'text-white'}`}>
                     {m.name}
                   </span>
                   {m.element && !isDead && (
@@ -1281,14 +1281,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                     </span>
                   )}
                   {m.block > 0 && !isDead && (
-                    <span className="flex items-center gap-0.5 bg-[#38B6FF] text-[#0F0E17] px-1 rounded font-pixel text-[7px] font-bold flex-shrink-0">
-                      <Shield className="w-2 h-2" />
+                    <span className="flex items-center gap-0.5 bg-[#38B6FF] text-[#0F0E17] px-1 rounded font-retro text-[18px] leading-[16px] flex-shrink-0">
+                      <Shield className="w-3 h-3" />
                       {m.block}
                     </span>
                   )}
                   {isDead && (
-                    <span className="font-pixel text-[7px] text-[#A7A9BE] flex items-center gap-1 flex-shrink-0">
-                      <Skull className="w-2.5 h-2.5" /> SLAIN
+                    <span className="font-pixel text-[8px] text-[#D4D2E0] flex items-center gap-1 flex-shrink-0">
+                      <Skull className="w-3 h-3" /> SLAIN
                     </span>
                   )}
                 </div>
@@ -1296,7 +1296,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                 {!isDead && (
                   <>
                     {/* HP vial with the numbers set into it */}
-                    <div className="kk-hud-vial h-[11px] mt-1">
+                    <div className="kk-hud-vial h-[18px] mt-1">
                       <div
                         className="kk-hud-vial__bar kk-hud-vial__bar--monster"
                         style={{ width: `${Math.max(0, Math.min(100, (hp / m.maxHp) * 100))}%` }}
@@ -1306,10 +1306,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
                     {/* Intent: what lands when the charge bar fills */}
                     <div className="kk-hud-intent mt-1">
-                      <div className="flex items-center justify-between gap-1 text-[7px] font-pixel text-[#E6E4EE] mb-0.5">
+                      <div className="flex items-center justify-between gap-1 font-retro text-[20px] leading-[18px] text-[#E6E4EE] mb-0.5">
                         <span className="flex items-center gap-1 min-w-0">
                           {m.intent.type === 'DEFEND' ? (
-                            <Shield className="w-2.5 h-2.5 text-[#38B6FF] flex-shrink-0" />
+                            <Shield className="w-3 h-3 text-[#38B6FF] flex-shrink-0" />
                           ) : m.intent.type === 'BUFF' ? (
                             <span className="text-[#F4B41A] flex-shrink-0">✦</span>
                           ) : (
@@ -1317,7 +1317,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                           )}
                           <span className="truncate">{m.intent.name}</span>
                         </span>
-                        <span className={`font-bold flex-shrink-0 ${m.intent.type === 'DEFEND' ? 'text-[#38B6FF]' : 'text-[#F4B41A]'}`}>
+                        <span className={`flex-shrink-0 ${m.intent.type === 'DEFEND' ? 'text-[#38B6FF]' : 'text-[#F4B41A]'}`}>
                           {m.intent.type === 'DEFEND' ? `+${m.intent.block ?? 25}` : m.intent.damage}
                         </span>
                       </div>
@@ -1589,11 +1589,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
       {/* BOTTOM SLAY THE SPIRE 5-CARD HAND */}
       <div className="w-full mx-auto">
-        <div className={`flex items-end justify-between gap-4 px-2 -mb-3 ${introHudClass(intro.step, intro.short, 'up')}`}>
+        <div className={`flex items-end justify-between gap-4 px-2 mb-4 ${introHudClass(intro.step, intro.short, 'up')}`}>
           {/* BATTLE DISPATCH: where we are and what just happened */}
           <div className="kk-hud-dispatch px-3 py-1.5 min-w-0 max-w-[45%]">
-            <span className="font-pixel text-[7px] text-[#A7A9BE] flex items-center gap-1.5 mb-0.5 truncate">
-              <Users className="w-2.5 h-2.5 text-[#FF3366] flex-shrink-0" />
+            <span className="font-retro text-[20px] leading-none text-[#D4D2E0] flex items-center gap-2 mb-0.5 truncate">
+              <Users className="w-3.5 h-3.5 text-[#FF3366] flex-shrink-0" />
               {isExpeditionMode ? (
                 <>
                   <span className="text-[#F4B41A]">{currentMap.replace(/_/g, ' ')} • LVL {currentLevel}</span>
@@ -1610,9 +1610,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                 </>
               )}
             </span>
-            <p className="font-mono text-[11px] leading-tight text-[#F4B41A] truncate">{recentCombatLog}</p>
+            <p className="font-retro text-[22px] leading-[20px] text-[#F4B41A] line-clamp-2">{recentCombatLog}</p>
           </div>
-          <span className="font-pixel text-[9px] text-[#38B6FF] bg-[#0F0E17]/80 px-2 py-1 border border-[#2E2B44] flex-shrink-0">
+          <span className="font-retro text-[22px] leading-none text-[#5CC8FF] bg-[#0F0E17]/85 px-2 py-1 border border-[#2E2B44] flex-shrink-0">
             {monsters.filter(m => m.currentHp > 0).length > 1 && <>[▲ / ▼] TARGET • </>}
             [◀ / ▶] SELECT • [ENTER] HOW TO • [SPACE] DEMO REP
           </span>
@@ -1652,7 +1652,7 @@ const KnightStatLine: React.FC<{ loadout: Loadout; runXp: number; fightGold: num
       <div className="kk-hud-vial h-1.5" title={`Experience to next level: ${Math.round(xpPct)}%`}>
         <div className="kk-hud-vial__bar bg-gradient-to-r from-[#9333EA] to-[#C084FC]" style={{ width: `${xpPct}%` }} />
       </div>
-      <div className="flex items-center justify-between font-pixel text-[7px] text-[#A7A9BE] px-0.5">
+      <div className="flex items-center justify-between font-retro text-[20px] leading-none text-[#D4D2E0] px-0.5">
         <span style={{ color: STAT_INFO.str.color }}>ATK {loadout.attack}</span>
         {w.element && (
           <span style={{ color: ELEMENT_INFO[w.element].color }}>
