@@ -25,6 +25,7 @@ npm run vfx:shrink            # TV-sized copies of the Spine VFX: public/assets/
 npm run sfx [-- ids]          # render the procedural sound bank to work/sfx/*.wav + index.html to audition
 npm run music                 # render the Electric Pow Wow workout soundtrack & stems to work/music/ + web asset
 python3 scripts/build_phone_armor.py  # cut the knight's armour parts from the Spine atlas for the phone AR overlay
+python3 scripts/build_store_art.py   # Amazon Appstore art (store/amazon/) + Fire TV banner & launcher icons from store/cover.png
 npm run build:pages  # GitHub Pages build: phone PWA + /tv demo (see Deploy)
 npm run tv:sync    # build + copy dist/ into the Capacitor Android (Fire TV) project in android/
 (cd android && JAVA_HOME=$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home ./gradlew assembleRelease)  # signed APK → android/app/build/outputs/apk/release/ (needs android/keystore.properties; Gradle 8.14 can't run on JDK 25)
