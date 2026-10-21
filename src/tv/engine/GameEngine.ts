@@ -1603,6 +1603,9 @@ export class GameEngine {
 
   /** Knight hit reaction; cycles HIT1-3 so repeated hits don't look identical. */
   public playKnightHit(): void {
+    // Mid-cast the knight move owns the rig: a flinch would replace its animation and the spell would play
+    // around a knight standing idle. The knockback slide, hurt sound and damage label still show the hit.
+    if (this.activeKnightMove) return;
     this.playKnightAnimation(KNIGHT_HIT_REACTIONS[this.hitReactionIndex++ % KNIGHT_HIT_REACTIONS.length]);
   }
 
