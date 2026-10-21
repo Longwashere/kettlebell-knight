@@ -1489,6 +1489,12 @@ export class GameEngine {
       // placing combatants (y=128) firmly 16px deep onto the stone floor tiles.
       bgSprite.y = Math.round(102 - 144 * scale);
 
+      // The shift leaves the bottom ~33px uncovered: continue the floor with a mirrored copy (same texture, no VRAM).
+      const floorMirror = new Sprite(texture);
+      floorMirror.scale.set(bgSprite.scale.x, -bgSprite.scale.y);
+      floorMirror.x = bgSprite.x;
+      floorMirror.y = bgSprite.y + bgSprite.height * 2;
+
       const darkBase = new Graphics();
       darkBase.rect(-50, -30, 526, 300).fill({ color: 0x12101E });
 
@@ -1497,6 +1503,7 @@ export class GameEngine {
       }
       this.bgLayer.removeChildren();
       this.bgLayer.addChild(darkBase);
+      this.bgLayer.addChild(floorMirror);
       this.bgLayer.addChild(bgSprite);
     } catch (err) {
       console.warn('[GameEngine] Failed to load battle background texture:', err);
