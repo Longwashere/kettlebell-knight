@@ -84,7 +84,7 @@ Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test
   or per-rep updates.
 - **Unload textures when you're done with them** (`Assets.unload`) on scene changes and equipment previews,
   to avoid WebGL context loss.
-- **Graphics setting** (title menu, `src/tv/graphicsMode.ts`; the Fire TV app defaults to PERFORMANCE): the stick is
+- **Graphics setting** (title menu, `src/tv/graphicsMode.ts`; defaults to PERFORMANCE on low-end Fire TVs by model code / RAM, QUALITY on high-end ones and browsers): the stick is
   GPU-bound, not JS-bound. Put new GPU-heavy overlay effects (backdrop-filter, blend modes, CSS filters, animated
   background-position, big translucent layers) behind a `:root[data-gfx='performance']` override in src/index.css, and
   engine-side extras behind `isPerformanceMode()`. Animate HUD bars with transforms, not width. Profile on the stick with
