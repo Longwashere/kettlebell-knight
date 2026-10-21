@@ -6,7 +6,7 @@
  * Graphics-based VFX. `h.impact()` is the frame where damage/block lands; the engine calls back
  * into BattleScreen there. If the monster dies mid-move, the move is cancelled and never lands.
  *
- * Coordinates are battlefield (gameLayer) space: knight feet ≈ (130, 168), monsters to the right,
+ * Coordinates are battlefield (gameLayer) space: knight feet ≈ (122, 174), monsters to the right,
  * facing left. Everything here draws with Graphics into move-owned containers that the engine
  * destroys when the move ends, so moves can't leak display objects.
  *

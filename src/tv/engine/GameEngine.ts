@@ -81,7 +81,7 @@ const KNIGHT_ATLAS_KEY = `${ASSET_ROOT}/spine/knight/HulkForm2.atlas`;
 /** Knight rig slots a move may hide or recolour (weapon, built-in effects); reset after every move, mirrored on afterimages. */
 const KNIGHT_FX_SLOTS = ['sword', 'Normal_Slash', 'Light', 'PunchFx_Skill3', 'Dash_Mash'];
 const KNIGHT_SCALE = 0.15;
-const KNIGHT_HOME = { x: 130, y: 168 }; // knight feet at rest (battlefield coords)
+const KNIGHT_HOME = { x: 122, y: 174 }; // knight feet at rest (battlefield coords)
 const MAX_QUEUED_KNIGHT_MOVES = 3; // casts waiting behind the playing move before it gets cut short
 
 /** playKnightMove() options: who it hits, what it shows, and what runs when it lands and ends. */
@@ -1571,8 +1571,8 @@ export class GameEngine {
     if (!this.gameLayer) return;
 
     this.knightContainer = new Container();
-    this.knightContainer.x = 130;
-    this.knightContainer.y = 168;
+    this.knightContainer.x = KNIGHT_HOME.x;
+    this.knightContainer.y = KNIGHT_HOME.y;
 
     // Shadow
     const shadow = new Graphics();
@@ -2469,7 +2469,7 @@ export class GameEngine {
     const spine = slot.spine;
     const rig = slot.rig;
     const restScale = spine ? { x: spine.scale.x, y: spine.scale.y } : { x: 1, y: 1 };
-    const knight = { x: this.knightContainer?.x ?? 130, y: this.knightContainer?.y ?? 168 };
+    const knight = { x: this.knightContainer?.x ?? KNIGHT_HOME.x, y: this.knightContainer?.y ?? KNIGHT_HOME.y };
     let impacted = false;
     let finished = false;
     const tl = new Timeline();
@@ -3204,7 +3204,7 @@ export class GameEngine {
   /** Floating label above the knight (healing). */
   public spawnKnightText(content: string, color: number): void {
     const k = this.knightContainer;
-    this.spawnFloatingText(content, (k?.x ?? 130) - 10, (k?.y ?? 168) - 60, color, 10);
+    this.spawnFloatingText(content, (k?.x ?? KNIGHT_HOME.x) - 10, (k?.y ?? KNIGHT_HOME.y) - 60, color, 10);
   }
 
   /** Knight flinch with a short knockback slide of the rig. */
@@ -3221,7 +3221,7 @@ export class GameEngine {
       this.spawnFloatingText(result.label, slot.baseX - 10, slot.baseY - (slot.rig?.height ?? 40) - 14, color, 10);
     } else {
       const k = this.knightContainer;
-      this.spawnFloatingText(result.label, (k?.x ?? 130) - 6, (k?.y ?? 168) - 72, color, 12);
+      this.spawnFloatingText(result.label, (k?.x ?? KNIGHT_HOME.x) - 6, (k?.y ?? KNIGHT_HOME.y) - 72, color, 12);
     }
   }
 

@@ -7,7 +7,7 @@
  * monster and calls back into BattleScreen (damage numbers, deaths). Hits a move never lands are landed
  * when it ends, so a move can't swallow damage.
  *
- * Coordinates are battlefield (gameLayer) space: knight feet at home ≈ (130, 168), monsters to the
+ * Coordinates are battlefield (gameLayer) space: knight feet at home ≈ (122, 174), monsters to the
  * right at their formation slots (`h.targets`, in hit order). The knight is ~50px tall and faces right.
  *
  * Feel: anticipation → fast travel → contact → hold → recovery. Contact is always sold with `land()`
