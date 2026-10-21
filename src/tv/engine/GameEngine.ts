@@ -12,6 +12,7 @@ import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { MoveTracer, type Box, type MoveTraceReport } from './moveTrace';
 import { VFX_RIGS, VFX_NAMES, type VfxName, type VfxOpts } from './vfx';
 import { OutlineFilter } from './outlineFilter';
+import { isPerformanceMode } from '../graphicsMode';
 import { RepStamp, type RepCardTarget } from './repStamp';
 import { TRIAL_SCENES, type TrialScene } from './trialScenes';
 import type { SecretTrialId, TrialRepResult } from '../../shared/secretTrials';
@@ -1966,7 +1967,8 @@ export class GameEngine {
           const customFilter = new OutlineFilter({ color: outlineColor });
           slot.customOutline = customFilter;
           spine.filters = [customFilter];
-        } else {
+        } else if (!isPerformanceMode()) {
+          // The plain dark outline is an extra filter pass per monster; PERFORMANCE skips it (coloured ones stay).
           spine.filters = [this.monsterOutline];
         }
 

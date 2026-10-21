@@ -1,9 +1,12 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import { installNativeBackButton } from './tv/native';
+import { installNativeBackButton, installTvViewport } from './tv/native';
+import { installGraphicsMode } from './tv/graphicsMode';
 import './index.css';
 
+installTvViewport();
+installGraphicsMode();
 installNativeBackButton();
 
 // GitHub Pages phone companion: register the service worker so it can be installed to the home screen

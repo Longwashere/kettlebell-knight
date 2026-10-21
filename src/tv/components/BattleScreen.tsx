@@ -1313,7 +1313,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                       <div className="kk-hud-intent__charge">
                         <div
                           className={`kk-hud-intent__bar ${intentCritical ? 'kk-hud-intent__bar--critical' : ''}`}
-                          style={{ width: `${intentProgress}%` }}
+                          style={{ transform: `scaleX(${intentProgress / 100})` }}
                         />
                       </div>
                     </div>

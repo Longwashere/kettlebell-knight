@@ -5,6 +5,7 @@ import { networkManager, NetworkConnectionState } from '../../shared/NetworkMana
 import { discoveryManager } from '../../shared/DiscoveryManager';
 import { phonePairUrl } from '../../shared/deployConfig';
 import { exitApp } from '../native';
+import { getGraphicsMode, setGraphicsMode, GraphicsMode } from '../graphicsMode';
 import { HubMenu, HUB_NODES } from './HubMenu';
 import { BlacksmithShop, SHOP_ITEMS } from './BlacksmithShop';
 import { BattleScreen } from './BattleScreen';
@@ -97,6 +98,7 @@ export const GameScreen: React.FC = () => {
     return new Set(active?.equippedItems ? Object.values(active.equippedItems).filter(Boolean) as string[] : ['iron_kettlebell']);
   });
   const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [graphicsMode, setGraphicsModeState] = useState<GraphicsMode>(getGraphicsMode);
 
   // High-level workout session counters (updated periodically or on reps)
   const [sessionReps, setSessionReps] = useState<number>(0);
@@ -543,6 +545,8 @@ export const GameScreen: React.FC = () => {
           setCurrentView('SANCTUARY');
         } else if (selectedNode === 'TITLE') {
           handleGoToTitle();
+        } else if (selectedNode === 'GRAPHICS') {
+          toggleGraphicsMode();
         }
       } else if (currentView === 'BLACKSMITH') {
         handleEquipShopItem(SHOP_ITEMS[shopIndex]);
@@ -567,6 +571,14 @@ export const GameScreen: React.FC = () => {
   const toggleMute = () => {
     const muted = audioManager.toggleMute();
     setIsMuted(muted);
+  };
+
+  // Same setting as the title menu's GRAPHICS item. The CSS savers apply at once; the monster outline from the next fight.
+  const toggleGraphicsMode = () => {
+    const next: GraphicsMode = getGraphicsMode() === 'QUALITY' ? 'PERFORMANCE' : 'QUALITY';
+    setGraphicsMode(next);
+    setGraphicsModeState(next);
+    audioManager.play('ui_select');
   };
 
   return (
@@ -729,6 +741,7 @@ export const GameScreen: React.FC = () => {
               selectedIndex={hubIndex}
               isFocused={hubFocusArea === 'CAROUSEL'}
               quickPlayStage={latestUnlockedStage(profile)}
+              graphicsMode={graphicsMode}
               onSelectNode={(node) => {
                 if (node === 'BLACKSMITH') {
                   setCurrentView('BLACKSMITH');
@@ -740,6 +753,8 @@ export const GameScreen: React.FC = () => {
                   handleQuickPlay();
                 } else if (node === 'SANCTUARY') {
                   setCurrentView('SANCTUARY');
+                } else if (node === 'GRAPHICS') {
+                  toggleGraphicsMode();
                 }
               }}
               onHoverNode={(idx) => setHubIndex(idx)}

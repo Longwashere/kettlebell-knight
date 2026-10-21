@@ -3,6 +3,7 @@ import { HubLocation } from '../../types/game';
 import { BattleMapId } from '../../types/battle';
 import { CAMPAIGN_MAPS, CAMPAIGN_MAP_ORDER, latestUnlockedStage } from '../../shared/expeditionEngine';
 import { profileManager } from '../../shared/ProfileManager';
+import type { GraphicsMode } from '../graphicsMode';
 
 /**
  * Pixel-art sprites as character grids, drawn as crisp SVG rects (one per horizontal run).
@@ -162,6 +163,30 @@ const ICON_DOOR = [
   '....................',
 ];
 
+/** Antenna TV for the graphics setting plaque. */
+const ICON_TV = [
+  '....kk........kk....',
+  '......k......k......',
+  '.......k....k.......',
+  '........k..k........',
+  '.........xx.........',
+  '.kkkkkkkkkkkkkkkkkk.',
+  'kaaaaaaaaaaaaaaaaaak',
+  'kakkkkkkkkkkkkaaaaak',
+  'kakcbbbbbbbbBkaaaaak',
+  'kakcbbbbbbbBBkaayyak',
+  'kakbbbbbbbbBBkaayyak',
+  'kakbbbbbbbBBBkaaaaak',
+  'kakbbbbbbBBBBkaaxxak',
+  'kakbbbbbBBBBqkaaxxak',
+  'kakbbbbBBBBqqkaaaaak',
+  'kakkkkkkkkkkkkaallak',
+  'kaaaaaaaaaaaaaaaaaak',
+  '.kkkkkkkkkkkkkkkkkk.',
+  '...kk..........kk...',
+  '....................',
+];
+
 /** Horned skull crest that sits on each plaque's top edge. */
 const CREST_SKULL = [
   '.....kkkkkkk.....',
@@ -242,6 +267,14 @@ export const HUB_NODES: HubNodeInfo[] = [
     icon: ICON_DOOR,
     accentColor: '#A7A9BE',
   },
+  {
+    id: 'GRAPHICS',
+    title: 'GRAPHICS',
+    subtitle: 'VIDEO SETTING',
+    desc: 'Select to switch Quality / Performance.',
+    icon: ICON_TV,
+    accentColor: '#C084FC',
+  },
 ];
 
 const CORNERS = ['tl', 'tr', 'bl', 'br'] as const;
@@ -252,6 +285,7 @@ interface HubMenuProps {
   onHoverNode: (index: number) => void;
   isFocused?: boolean;
   quickPlayStage?: { mapId: BattleMapId; level: number };
+  graphicsMode: GraphicsMode;
 }
 
 export const HubMenu: React.FC<HubMenuProps> = ({
@@ -260,6 +294,7 @@ export const HubMenu: React.FC<HubMenuProps> = ({
   onHoverNode,
   isFocused = true,
   quickPlayStage,
+  graphicsMode,
 }) => {
   const stage = quickPlayStage ?? latestUnlockedStage(profileManager.getActiveProfile());
   const stageIndex = CAMPAIGN_MAP_ORDER.indexOf(stage.mapId) + 1;
@@ -282,13 +317,15 @@ export const HubMenu: React.FC<HubMenuProps> = ({
         </span>
       </div>
 
-      {/* 5 hub plaques (Fire TV 10-foot navigation) */}
+      {/* Hub plaques (Fire TV 10-foot navigation) */}
       <div className="kk-hub__row">
         {HUB_NODES.map((node, index) => {
           const isSelected = isFocused && selectedIndex === index;
           const isQuickPlay = node.id === 'QUICK_PLAY';
           const subtitle = isQuickPlay
             ? `STAGE ${stageNum} • LVL ${stage.level}${isBoss ? ' (BOSS)' : ''}`
+            : node.id === 'GRAPHICS'
+            ? graphicsMode
             : node.subtitle;
 
           const descContent = isQuickPlay ? (

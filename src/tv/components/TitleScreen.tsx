@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTVRemote } from '../hooks/useTVRemote';
 import { exitApp } from '../native';
+import { getGraphicsMode, setGraphicsMode, GraphicsMode } from '../graphicsMode';
 import { audioManager } from '../../shared/AudioManager';
 import { profileManager, PlayerProfile, DEFAULT_KNIGHT_NAME, TOTAL_SAVE_SLOTS } from '../../shared/ProfileManager';
 import { 
@@ -14,7 +15,8 @@ import {
   Trash2, 
   ArrowLeft,
   Sparkles,
-  Play
+  Play,
+  MonitorCog
 } from 'lucide-react';
 
 interface TitleScreenProps {
@@ -22,6 +24,8 @@ interface TitleScreenProps {
 }
 
 type TitleMode = 'MAIN_MENU' | 'NAME_ENTRY' | 'LOAD_SLOTS';
+
+const MENU_ITEMS = 4;
 
 // 90s Console RPG on-screen keypad grid
 const KEYPAD_ROWS = [
@@ -34,8 +38,9 @@ const KEYPAD_ROWS = [
 export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
   const [mode, setMode] = useState<TitleMode>('MAIN_MENU');
   
-  // Menu navigation index: 0 = NEW GAME, 1 = CONTINUE, 2 = LOAD GAME
+  // Menu navigation index: 0 = NEW GAME, 1 = CONTINUE, 2 = LOAD GAME, 3 = GRAPHICS
   const [menuIndex, setMenuIndex] = useState<number>(0);
+  const [graphicsMode, setGraphicsModeState] = useState<GraphicsMode>(getGraphicsMode);
 
   // Keypad state for character creation
   const [knightName, setKnightName] = useState<string>('KETTLEBURNE');
@@ -95,6 +100,13 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
     }
   }, [onStartGame]);
 
+  const toggleGraphicsMode = useCallback(() => {
+    const next: GraphicsMode = getGraphicsMode() === 'QUALITY' ? 'PERFORMANCE' : 'QUALITY';
+    setGraphicsMode(next);
+    setGraphicsModeState(next);
+    audioManager.play('ui_select');
+  }, []);
+
   const handleDeleteSlot = useCallback((slotId: string) => {
     profileManager.deleteProfile(slotId);
     setSlots(profileManager.getAllSlots());
@@ -134,7 +146,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
     onUp: () => {
       if (mode === 'MAIN_MENU') {
         setMenuIndex((prev) => {
-          const next = prev === 0 ? 2 : prev - 1;
+          const next = prev === 0 ? MENU_ITEMS - 1 : prev - 1;
           audioManager.play('ui_move');
           return next;
         });
@@ -159,7 +171,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
     onDown: () => {
       if (mode === 'MAIN_MENU') {
         setMenuIndex((prev) => {
-          const next = prev === 2 ? 0 : prev + 1;
+          const next = prev === MENU_ITEMS - 1 ? 0 : prev + 1;
           audioManager.play('ui_move');
           return next;
         });
@@ -182,7 +194,9 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
       }
     },
     onLeft: () => {
-      if (mode === 'NAME_ENTRY') {
+      if (mode === 'MAIN_MENU' && menuIndex === 3) {
+        toggleGraphicsMode();
+      } else if (mode === 'NAME_ENTRY') {
         setKeypadCol((c) => {
           const cols = KEYPAD_ROWS[keypadRow].length;
           const next = c === 0 ? cols - 1 : c - 1;
@@ -198,7 +212,9 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
       }
     },
     onRight: () => {
-      if (mode === 'NAME_ENTRY') {
+      if (mode === 'MAIN_MENU' && menuIndex === 3) {
+        toggleGraphicsMode();
+      } else if (mode === 'NAME_ENTRY') {
         setKeypadCol((c) => {
           const cols = KEYPAD_ROWS[keypadRow].length;
           const next = (c + 1) % cols;
@@ -226,6 +242,8 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
         } else if (menuIndex === 2) {
           setMode('LOAD_SLOTS');
           audioManager.play('ui_select');
+        } else if (menuIndex === 3) {
+          toggleGraphicsMode();
         }
       } else if (mode === 'NAME_ENTRY') {
         const key = KEYPAD_ROWS[keypadRow][keypadCol];
@@ -293,6 +311,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
         if (menuIndex === 0) handleStartNewGameMode();
         else if (menuIndex === 1 && hasActiveSave) handleContinueGame();
         else if (menuIndex === 2) setMode('LOAD_SLOTS');
+        else if (menuIndex === 3) toggleGraphicsMode();
       }
     },
   });
@@ -329,7 +348,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
               </p>
             </div>
 
-            {/* 3 Main Menu Options */}
+            {/* Main Menu Options */}
             <div className="flex flex-col gap-3.5 w-full max-w-xs pt-2">
               {/* 1. NEW GAME */}
               <button
@@ -399,6 +418,30 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
                   LOAD GAME
                 </span>
                 {menuIndex === 2 && <span className="text-[10px] animate-pulse">▶</span>}
+              </button>
+
+              {/* 4. GRAPHICS: Select or Left/Right toggles QUALITY / PERFORMANCE */}
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuIndex(3);
+                  toggleGraphicsMode();
+                }}
+                className={`p-3.5 font-pixel text-xs tracking-wider flex items-center justify-between border-4 transition-all duration-150 ${
+                  menuIndex === 3
+                    ? 'bg-[#A7A9BE] text-[#0F0E17] border-white shadow-pixel-box scale-105'
+                    : 'bg-[#1A1926]/95 text-[#A7A9BE] border-[#2E2B44] hover:border-[#A7A9BE]/70 shadow-pixel-box'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <MonitorCog className="w-3.5 h-3.5" />
+                  GRAPHICS
+                </span>
+                <span className="text-[9px]">
+                  {menuIndex === 3 && '◀ '}
+                  {graphicsMode === 'QUALITY' ? 'QUALITY' : 'PERFORMANCE'}
+                  {menuIndex === 3 && ' ▶'}
+                </span>
               </button>
             </div>
           </div>

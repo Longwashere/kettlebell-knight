@@ -27,6 +27,7 @@ npm run music                 # render the Electric Pow Wow workout soundtrack &
 python3 scripts/build_phone_armor.py  # cut the knight's armour parts from the Spine atlas for the phone AR overlay
 npm run build:pages  # GitHub Pages build: phone PWA + /tv demo (see Deploy)
 npm run tv:sync    # build + copy dist/ into the Capacitor Android (Fire TV) project in android/
+(cd android && JAVA_HOME=$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home ./gradlew assembleRelease)  # signed APK → android/app/build/outputs/apk/release/ (needs android/keystore.properties; Gradle 8.14 can't run on JDK 25)
 npm run tv:open    # open android/ in Android Studio to build the APK
 ```
 
@@ -81,6 +82,11 @@ Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test
   or per-rep updates.
 - **Unload textures when you're done with them** (`Assets.unload`) on scene changes and equipment previews,
   to avoid WebGL context loss.
+- **Graphics setting** (title menu, `src/tv/graphicsMode.ts`; the Fire TV app defaults to PERFORMANCE): the stick is
+  GPU-bound, not JS-bound. Put new GPU-heavy overlay effects (backdrop-filter, blend modes, CSS filters, animated
+  background-position, big translucent layers) behind a `:root[data-gfx='performance']` override in src/index.css, and
+  engine-side extras behind `isPerformanceMode()`. Animate HUD bars with transforms, not width. Profile on the stick with
+  `CAP_WEBVIEW_DEBUG=1 npm run tv:sync` + `chrome://inspect`; ship without it.
 - **Remote input:** every interactive TV UI must be reachable with the D-pad. Key codes: 13 Enter, 37–40 arrows,
   4 Fire OS Back, 27 Vega OS Back/Escape, 179 or Space = demo-mode swing (battle only, not the town hub).
   Don't depend on mouse/hover.

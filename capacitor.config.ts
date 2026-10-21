@@ -15,8 +15,9 @@ const config: CapacitorConfig = {
   backgroundColor: '#0F0E17',
   server: serverUrl ? { url: serverUrl, cleartext: false } : { androidScheme: 'https' },
   android: {
-    // The phone talks to the TV over WebRTC; no WebView debugging in release builds.
-    webContentsDebuggingEnabled: false,
+    // The phone talks to the TV over WebRTC; no WebView debugging in release builds. CAP_WEBVIEW_DEBUG=1 npm run
+    // tv:sync turns it on, to profile on the stick via chrome://inspect (or adb forward + CDP).
+    webContentsDebuggingEnabled: process.env.CAP_WEBVIEW_DEBUG === '1',
   },
 };
 
