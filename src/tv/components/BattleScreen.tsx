@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { CombatCard, MonsterState, BattleState, MonsterIntent, MONSTER_CATALOG, ENCOUNTERS, EncounterTemplate, CARD_CATALOG, BattleMapId } from '../../types/battle';
 import { MOVESETS, rollIntent } from '../../shared/monsterMovesets';
 import { resolveCard, frontTarget } from '../../shared/combat';
-import { createStageEncounter, expeditionClearXp } from '../../shared/stageScaling';
+import { createStageEncounter, expeditionClearXp, rollHorde } from '../../shared/stageScaling';
 import { repGold } from '../../shared/combatRules';
 import { STAT_INFO, type Loadout } from '../../shared/progression';
 import { ELEMENT_INFO } from '../../shared/elements';
@@ -13,7 +13,7 @@ import { CardDeckManager } from '../../shared/CardDeckManager';
 import { networkManager } from '../../shared/NetworkManager';
 import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
 import { audioManager } from '../../shared/AudioManager';
-import { GameEngine, BATTLE_MAPS, getMapBattleMusic } from '../engine/GameEngine';
+import { GameEngine, BATTLE_MAPS, getMapBattleMusic, formationLanes } from '../engine/GameEngine';
 import { useTVRemote } from '../hooks/useTVRemote';
 import { registerDebug } from '../debug/agentBridge';
 import { getMapConfig, getExpeditionEncounters, getNextCampaignMap, mapTier } from '../../shared/expeditionEngine';
@@ -61,6 +61,13 @@ interface BattleScreenProps {
     playerHp: number;
     playerBlock: number;
   }) => void;
+}
+
+/** Stamps each foe's battlefield lane (left to right) on a new encounter, so targeting matches the screen. */
+function withLanes(monsters: MonsterState[]): MonsterState[] {
+  if (monsters.every((m) => m.lane !== undefined)) return monsters;
+  const lanes = formationLanes(monsters);
+  return monsters.map((m, i) => ({ ...m, lane: lanes[i] }));
 }
 
 export const BattleScreen: React.FC<BattleScreenProps> = ({
@@ -199,7 +206,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       const list = getExpeditionEncounters(expeditionMapId, expeditionLevel);
       if (list.length > 0) {
         const first = list[0];
-        const newMonsters = createStageEncounter(first, expeditionLevel, expeditionMapId);
+        const newMonsters = spawnFight(first, expeditionLevel, expeditionMapId, expeditionLevel >= 5 && list.length === 1);
         commitMonsters(newMonsters);
         clearShownHp();
         setPlayerBlock(0);
@@ -221,21 +228,31 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   }, [expeditionMapId, expeditionLevel]);
 
   const [currentEncounterIndex, setCurrentEncounterIndex] = useState<number>(safeEncounterIndex);
+  // This fight's horde ("Goblin Horde"), or null for its usual encounter
+  const [hordeName, setHordeName] = useState<string | null>(null);
+  /** A fight's monsters: the template's, or by chance (rollHorde) a horde of one of the stage's monsters. */
+  const spawnFight = (template: EncounterTemplate, level?: number, map?: BattleMapId, boss = false, horde = true) => {
+    const fight = horde ? rollHorde(template, map ?? template.map, level, boss) : template;
+    setHordeName(fight.horde ? fight.name : null);
+    if (fight.horde) audioManager.play('roar', { vol: 0.6, delay: 0.5 });
+    return createStageEncounter(fight, level, map);
+  };
   const [monsters, setMonsters] = useState<MonsterState[]>(() => {
     if (expeditionMapId && expeditionLevel) {
       const list = getExpeditionEncounters(expeditionMapId, expeditionLevel);
-      if (list.length > 0) return createStageEncounter(list[0], expeditionLevel, expeditionMapId);
+      if (list.length > 0) return withLanes(createStageEncounter(list[0], expeditionLevel, expeditionMapId));
     }
-    return createStageEncounter(ENCOUNTERS[safeEncounterIndex]);
+    return withLanes(createStageEncounter(ENCOUNTERS[safeEncounterIndex]));
   });
-  const [targetedMonsterIndex, setTargetedMonsterIndex] = useState<number>(0);
+  // The knight always attacks the living foe nearest him, so foes fall left to right. No manual targeting on a TV.
+  const targetedMonsterIndex = Math.max(0, frontTarget(monsters));
 
   // References for real-time timer calculations
   // Latest monsters. The ATB loop, card casts and monster moves all read and write through this ref
   // (commitMonsters) so a 50ms timer tick can never overwrite a change with a stale copy.
   const monstersRef = useRef<MonsterState[]>(monsters);
   const commitMonsters = useCallback((next: MonsterState[] | ((prev: MonsterState[]) => MonsterState[])) => {
-    monstersRef.current = typeof next === 'function' ? next(monstersRef.current) : next;
+    monstersRef.current = withLanes(typeof next === 'function' ? next(monstersRef.current) : next);
     setMonsters(monstersRef.current);
   }, []);
   // Nameplate HP while a cast's hits are on their way (by slot): a card resolves when it fires, but each
@@ -246,8 +263,6 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     pendingHitsRef.current = {};
     setShownHp({});
   }, []);
-  const targetedIndexRef = useRef<number>(targetedMonsterIndex);
-  targetedIndexRef.current = targetedMonsterIndex;
   const playerHpRef = useRef<number>(playerHp);
   playerHpRef.current = playerHp;
   const playerBlockRef = useRef<number>(playerBlock);
@@ -626,7 +641,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
       // Resolve the card against the current formation (targeting, Block, stagger, kills)
       const before = monstersRef.current;
-      const res = resolveCard(card, before, targetedIndexRef.current, { power: result.power, form: result.form });
+      const res = resolveCard(card, before, frontTarget(before), { power: result.power, form: result.form });
       const engine = engineRef.current;
       const primary = res.hits[0];
       const fatalHit = res.hits.slice().reverse().find((h) => h.killed) || primary;
@@ -731,10 +746,6 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             triggerVictoryModal();
           }, 10000);
         };
-      } else if (res.monsters[targetedIndexRef.current]?.currentHp <= 0) {
-        // Target died: move to the next living foe, front row first
-        const next = frontTarget(res.monsters);
-        if (next !== -1) setTargetedMonsterIndex(next);
       }
 
       // The attack plays at the foes hit, in order (e.g. the back row for BACK cards). The knight move
@@ -834,10 +845,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     if (nextStep < expeditionEncounters.length) {
       setExpeditionStep(nextStep);
       const nextTemplate = expeditionEncounters[nextStep];
-      const newMonsters = createStageEncounter(nextTemplate, currentLevel, currentMap);
+      const newMonsters = spawnFight(nextTemplate, currentLevel, currentMap, isBossEncounter(nextStep));
       commitMonsters(newMonsters);
       clearShownHp();
-      setTargetedMonsterIndex(0);
       setPlayerBlock(0); // block resets between fights, but HP carries over!
       setBattleStatus('FIGHTING');
       battleStatusRef.current = 'FIGHTING';
@@ -861,10 +871,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     }
     setExpeditionStep(0);
     const firstTemplate = expeditionEncounters[0];
-    const newMonsters = createStageEncounter(firstTemplate, currentLevel, currentMap);
+    const newMonsters = spawnFight(firstTemplate, currentLevel, currentMap, isBossEncounter(0));
     commitMonsters(newMonsters);
     clearShownHp();
-    setTargetedMonsterIndex(0);
     resetRun();
     setPlayerBlock(0);
     playerBlockRef.current = 0;
@@ -892,10 +901,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       setExpeditionStep(0);
       const nextList = getExpeditionEncounters(currentMap, nextLvl);
       const firstTemplate = nextList[0];
-      const newMonsters = createStageEncounter(firstTemplate, nextLvl, currentMap);
+      const newMonsters = spawnFight(firstTemplate, nextLvl, currentMap, nextLvl >= 5 && nextList.length === 1);
       commitMonsters(newMonsters);
       clearShownHp();
-      setTargetedMonsterIndex(0);
       resetRun();
       setPlayerBlock(0);
       playerBlockRef.current = 0;
@@ -946,12 +954,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       victoryFallbackTimerRef.current = null;
     }
     setCurrentEncounterIndex(index);
-    const newMonsters = createStageEncounter(template);
+    const newMonsters = spawnFight(template, undefined, undefined, false, withIntro);
 
     commitMonsters(newMonsters);
 
     clearShownHp();
-    setTargetedMonsterIndex(0);
     resetRun();
     setPlayerBlock(0);
     playerBlockRef.current = 0;
@@ -1101,7 +1108,6 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         setFocusedCardIndex(actionCardIndex);
         toggleFlip(hand[actionCardIndex]?.id);
       },
-      target: (index: number) => setTargetedMonsterIndex(index),
       // Queues spell/weapon level-ups as if cast this fight (shown after the card unlocks), e.g.
       // mastery([{ kind: 'card', id: 'starter_swing', level: 2 }, { kind: 'weapon', id: 'iron_bell', level: 3 }])
       mastery: (ups: MasteryLevelUp[]) => announceMastery(ups),
@@ -1112,34 +1118,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     },
   ));
 
-  // TV Remote D-Pad Navigation for Hand Cards & Target Switching
+  // TV Remote D-Pad Navigation for Hand Cards
   useTVRemote({
-    onUp: () => {
-      // Target previous alive monster
-      setTargetedMonsterIndex((prev) => {
-        const aliveIndices = monstersRef.current
-          .map((m, idx) => ({ idx, isAlive: m.isAlive && m.currentHp > 0 }))
-          .filter(m => m.isAlive)
-          .map(m => m.idx);
-        if (aliveIndices.length <= 1) return prev;
-        const currentPos = aliveIndices.indexOf(prev);
-        if (currentPos <= 0) return aliveIndices[aliveIndices.length - 1];
-        return aliveIndices[currentPos - 1];
-      });
-    },
-    onDown: () => {
-      // Target next alive monster
-      setTargetedMonsterIndex((prev) => {
-        const aliveIndices = monstersRef.current
-          .map((m, idx) => ({ idx, isAlive: m.isAlive && m.currentHp > 0 }))
-          .filter(m => m.isAlive)
-          .map(m => m.idx);
-        if (aliveIndices.length <= 1) return prev;
-        const currentPos = aliveIndices.indexOf(prev);
-        if (currentPos === -1 || currentPos >= aliveIndices.length - 1) return aliveIndices[0];
-        return aliveIndices[currentPos + 1];
-      });
-    },
     onLeft: () => {
       setFocusedCardIndex((prev) => Math.max(0, prev - 1));
     },
@@ -1242,10 +1222,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           </div>
         </div>
 
-        {/* MONSTER NAMEPLATES (TOP RIGHT): one slim plate per foe, left-to-right in formation order, kept
+        {/* MONSTER NAMEPLATES (TOP RIGHT): one slim plate per foe, left to right as they stand (lane), kept
             short so the squad standing below them stays in view */}
         <div className="flex items-start justify-end gap-2 flex-1 min-w-0 pl-4">
-          {monsters.map((m, idx) => {
+          {monsters
+            .map((m, idx) => ({ m, idx }))
+            .sort((a, b) => (a.m.lane ?? a.idx) - (b.m.lane ?? b.idx))
+            .map(({ m, idx }, pos) => {
             const isTargeted = idx === targetedMonsterIndex;
             const hp = shownHp[idx] ?? m.currentHp;
             const isDead = hp <= 0;
@@ -1257,9 +1240,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             return (
               <div
                 key={m.instanceId || idx}
-                onClick={() => !isDead && setTargetedMonsterIndex(idx)}
-                className={`kk-hud-card kk-hud-plate ${cardClass} cursor-pointer ${introHudClass(intro.step, intro.short, 'right')}`}
-                style={{ '--intro-delay': `${120 + idx * 90}ms` } as React.CSSProperties}
+                className={`kk-hud-card kk-hud-plate ${monsters.length > 3 ? 'kk-hud-plate--crowd' : ''} ${cardClass} ${introHudClass(intro.step, intro.short, 'right')}`}
+                style={{ '--intro-delay': `${120 + pos * 90}ms` } as React.CSSProperties}
               >
                 {isTargeted && !isDead && <span className="kk-hud-plate__flag">TARGET</span>}
 
@@ -1564,6 +1546,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           bossName={intro.boss
             ? getMapConfig(currentMap).levels.find((l) => l.level === 5)?.title.replace(/^[^:]*:\s*/, '').toUpperCase()
             : undefined}
+          hordeName={hordeName ?? undefined}
         />
       )}
 
@@ -1613,7 +1596,6 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             <p className="font-retro text-[22px] leading-[20px] text-[#F4B41A] line-clamp-2">{recentCombatLog}</p>
           </div>
           <span className="font-retro text-[22px] leading-none text-[#5CC8FF] bg-[#0F0E17]/85 px-2 py-1 border border-[#2E2B44] flex-shrink-0">
-            {monsters.filter(m => m.currentHp > 0).length > 1 && <>[▲ / ▼] TARGET • </>}
             [◀ / ▶] SELECT • [ENTER] HOW TO • [SPACE] DEMO REP
           </span>
         </div>

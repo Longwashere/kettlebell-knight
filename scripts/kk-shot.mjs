@@ -17,7 +17,7 @@
  *   freeze | unfreeze         pause/resume monster ATB timers
  *   rep[:EXERCISE[:power]]    inject one rep via the telemetry path (defaults to focused card)
  *   cast                      send reps until the focused card fires
- *   card:<i> | target:<i>     focus hand card i / target monster slot i
+ *   card:<i>                  focus hand card i
  *   key:<name>                Enter, ArrowLeft/Right/Up/Down, Escape, Space
  *   wait:<ms>                 fixed delay
  *   rate:<x>                  CSS animation playback rate (e.g. rate:0.1 for slow-motion captures)
@@ -282,9 +282,6 @@ async function runStep(step) {
     }
     case 'card':
       await kk(`__kk.call('focusCard', ${Number(arg)})`);
-      return arg;
-    case 'target':
-      await kk(`__kk.call('target', ${Number(arg)})`);
       return arg;
     case 'key': {
       const code = KEYS[arg];

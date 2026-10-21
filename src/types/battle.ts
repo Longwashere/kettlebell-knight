@@ -206,6 +206,7 @@ export interface MonsterState {
   level: number;
   spriteType: MonsterSprite;
   slotIndex?: number;
+  lane?: number; // left-to-right battlefield position, 0 = nearest the knight (GameEngine formationLanes)
   instanceId?: string;
   isAlive?: boolean;
   damageScale?: number; // pack × affix × stage scaling applied to rolled intents' damage
@@ -516,6 +517,8 @@ export interface EncounterTemplate {
   map?: BattleMapId;
   background?: string;
   monsterIds: (string | MonsterVariantSpec)[]; // references MONSTER_CATALOG id or a customized variant spec
+  /** Five of one monster (stageScaling rollHorde). */
+  horde?: boolean;
 }
 
 export { ENCOUNTERS } from './encounters';

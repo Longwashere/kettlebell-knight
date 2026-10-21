@@ -72,6 +72,8 @@ interface BattleIntroProps {
   epithet?: string;
   /** The level's apex: the title plate turns to a boss warning */
   bossName?: string;
+  /** A horde fight's name ("Goblin Horde"), shown in place of the stage on the title plate. */
+  hordeName?: string;
   quote?: BattleQuote;
   /** Heading over the quote: where in the campaign, e.g. "ACT V • STAGE 9" */
   chapter?: string;
@@ -117,12 +119,13 @@ const QuoteCard: React.FC<{ quote: BattleQuote }> = ({ quote }) => {
   );
 };
 
-export const BattleIntro: React.FC<BattleIntroProps> = ({ step, short, map, kicker, stageName, epithet, bossName, quote, chapter, levelLine }) => {
+export const BattleIntro: React.FC<BattleIntroProps> = ({ step, short, map, kicker, stageName, epithet, bossName, hordeName, quote, chapter, levelLine }) => {
   if (step === 'done') return null;
   const theme = THEMES[map] ?? THEMES.VERDANT_FOREST;
   const vars = { '--intro-accent': theme.accent, '--intro-deep': theme.deep, '--intro-ember': theme.ember } as React.CSSProperties;
   const framing = !short && (step === 'scene' || step === 'quote' || step === 'title');
   const boss = Boolean(bossName);
+  const horde = !boss && Boolean(hordeName);
 
   return (
     <div className="absolute inset-0 z-40 pointer-events-none overflow-hidden" style={vars}>
@@ -160,7 +163,7 @@ export const BattleIntro: React.FC<BattleIntroProps> = ({ step, short, map, kick
       )}
 
       {step === 'title' && (
-        <div className={`kk-intro__plate ${short ? 'kk-intro__plate--short' : ''} ${boss ? 'kk-intro__plate--boss' : ''}`}>
+        <div className={`kk-intro__plate ${short ? 'kk-intro__plate--short' : ''} ${boss || horde ? 'kk-intro__plate--boss' : ''}`}>
           <div className="kk-intro__band" />
           <div className="kk-intro__embers" aria-hidden>
             {EMBERS.map((e, i) => (
@@ -171,19 +174,19 @@ export const BattleIntro: React.FC<BattleIntroProps> = ({ step, short, map, kick
           <div className="relative flex flex-col items-center">
             <div className="kk-intro__kicker flex items-center gap-3">
               <Rule />
-              <span className="font-pixel">{boss ? 'APEX ENCOUNTER' : short ? stageName : kicker}</span>
+              <span className="font-pixel">{boss ? 'APEX ENCOUNTER' : horde ? 'HORDE ENCOUNTER' : short ? stageName : kicker}</span>
               <Rule flip />
             </div>
 
             {short ? (
-              <h1 className="kk-intro__title kk-intro__title--short font-gothic font-bold">{kicker}</h1>
+              <h1 className="kk-intro__title kk-intro__title--short font-gothic font-bold">{horde ? hordeName : kicker}</h1>
             ) : (
               <>
-                <h1 className="kk-intro__title font-gothic font-bold">{boss ? 'BEWARE' : 'GET READY'}</h1>
+                <h1 className="kk-intro__title font-gothic font-bold">{boss ? 'BEWARE' : horde ? 'HORDE!' : 'GET READY'}</h1>
                 <div className="kk-intro__stage">
-                  <span className="font-gothic font-bold">{boss ? bossName : stageName}</span>
-                  {(boss || epithet) && (
-                    <span className="kk-intro__epithet font-tome italic">{boss ? `awaits in the ${stageName.toLowerCase()}` : epithet}</span>
+                  <span className="font-gothic font-bold">{boss ? bossName : horde ? hordeName : stageName}</span>
+                  {(boss || horde || epithet) && (
+                    <span className="kk-intro__epithet font-tome italic">{boss ? `awaits in the ${stageName.toLowerCase()}` : horde ? `swarms the ${stageName.toLowerCase()}` : epithet}</span>
                   )}
                 </div>
               </>

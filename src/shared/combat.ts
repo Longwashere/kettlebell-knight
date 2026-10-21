@@ -6,21 +6,18 @@ import type { CombatCard, MonsterState } from '../types/battle';
 import { BALANCE } from './cardBalance';
 import { effectiveness, elementMultiplier, type Effectiveness } from './elements';
 
-/**
- * Formation depth, front to back, by encounter size. Matches the slot positions in
- * GameEngine.setMonsters (3 monsters: slot 0 front, slot 2 middle, slot 1 back).
- */
-const FORMATION_DEPTH: Record<number, number[]> = { 1: [0], 2: [0, 1], 3: [0, 2, 1] };
-
 const isAlive = (m: MonsterState | undefined): m is MonsterState => !!m && m.isAlive !== false && m.currentHp > 0;
 
-/** Indices of living monsters, front row first. */
+/** Indices of living monsters, left to right: nearest the knight first (by `lane`, else encounter order). */
 export function depthOrder(monsters: MonsterState[]): number[] {
-  const order = FORMATION_DEPTH[monsters.length] ?? monsters.map((_, i) => i);
-  return order.filter((i) => isAlive(monsters[i]));
+  return monsters
+    .map((m, i) => ({ i, lane: m.lane ?? i }))
+    .sort((a, b) => a.lane - b.lane)
+    .map(({ i }) => i)
+    .filter((i) => isAlive(monsters[i]));
 }
 
-/** Front-most living monster (the default target when playing hands-free). */
+/** Living monster nearest the knight: the knight always targets it. */
 export function frontTarget(monsters: MonsterState[]): number {
   return depthOrder(monsters)[0] ?? -1;
 }

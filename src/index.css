@@ -1405,6 +1405,11 @@ canvas,
   padding: 6px 7px 7px;
   transition: transform 150ms ease-out, opacity 150ms;
 }
+/* A horde's five plates share the strip the usual three fill */
+.kk-hud-plate--crowd {
+  width: min(150px, 11.5vw);
+  padding: 5px 5px 6px;
+}
 .kk-hud-plate.kk-hud-card--targeted {
   transform: translateY(2px);
 }

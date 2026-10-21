@@ -24,4 +24,7 @@ export const PACK_SCALING: Record<number, { hp: number; damage: number }> = {
   1: { hp: 1, damage: 1 },
   2: { hp: 0.75, damage: 0.7 },
   3: { hp: 0.6, damage: 0.55 },
+  4: { hp: 0.48, damage: 0.42 },
+  // Horde (stageScaling rollHorde): 2.25× a solo's HP and 1.8× its damage in all; AOE cards shine against it
+  5: { hp: 0.45, damage: 0.36 },
 };

@@ -1125,6 +1125,63 @@ export type MonsterInputItem =
       element?: Element;
     };
 
+interface FormationSpot { x: number; y: number; zIndex: number }
+
+// Battlefield spots by encounter size. Higher zIndex stands nearer the camera.
+const FORMATIONS: FormationSpot[][] = [
+  // 1 monster (Solo boss/target)
+  [{ x: 310, y: 178, zIndex: 10 }],
+  // 2 monsters (Diagonal depth: front & back)
+  [
+    { x: 285, y: 185, zIndex: 20 },
+    { x: 345, y: 170, zIndex: 10 },
+  ],
+  // 3 monsters (Staggered triangle formation)
+  [
+    { x: 280, y: 186, zIndex: 30 },
+    { x: 330, y: 168, zIndex: 10 },
+    { x: 370, y: 180, zIndex: 20 },
+  ],
+  // 4 monsters (two staggered pairs)
+  [
+    { x: 276, y: 188, zIndex: 40 },
+    { x: 314, y: 168, zIndex: 10 },
+    { x: 346, y: 184, zIndex: 30 },
+    { x: 384, y: 170, zIndex: 20 },
+  ],
+  // 5 monsters (horde: a zigzag front and back rank)
+  [
+    { x: 268, y: 190, zIndex: 50 },
+    { x: 298, y: 169, zIndex: 20 },
+    { x: 328, y: 186, zIndex: 40 },
+    { x: 360, y: 166, zIndex: 10 },
+    { x: 390, y: 182, zIndex: 30 },
+  ],
+];
+
+type FormationMember = { spriteType: MonsterSprite; scaleMultiplier?: number };
+
+/**
+ * Where each monster of an encounter stands, by size: the tallest takes the rearmost spot and the
+ * smallest the front one, so nobody hides behind a bigger foe. Slot order stays the encounter's order.
+ */
+export function formationSpots(monsters: FormationMember[]): FormationSpot[] {
+  const count = Math.min(FORMATIONS.length, Math.max(1, monsters.length));
+  const spots = [...FORMATIONS[count - 1]].sort((a, b) => a.zIndex - b.zIndex);
+  const sizeOf = (i: number) => MONSTER_RIGS[monsters[i].spriteType].height * (monsters[i].scaleMultiplier ?? 1);
+  const coords: FormationSpot[] = [];
+  [...Array(count).keys()]
+    .sort((a, b) => sizeOf(b) - sizeOf(a) || a - b)
+    .forEach((monster, rank) => { coords[monster] = spots[rank]; });
+  return coords;
+}
+
+/** Each monster's lane: its left-to-right rank on the battlefield (0 = nearest the knight). */
+export function formationLanes(monsters: FormationMember[]): number[] {
+  const xs = formationSpots(monsters).map((spot) => spot.x);
+  return xs.map((x) => xs.filter((other) => other < x).length);
+}
+
 export interface MonsterSlot {
   container: Container;
   shadow: Graphics;
@@ -1857,7 +1914,7 @@ export class GameEngine {
 
     if (!this.gameLayer) return;
 
-    const count = Math.min(3, Math.max(1, requestedTypes.length));
+    const count = Math.min(FORMATIONS.length, Math.max(1, requestedTypes.length));
 
     // Retain the new rigs before releasing the old ones so a rig shared by both encounters is
     // never unloaded and immediately reloaded. Each ref passes to its slot once the slot is created.
@@ -1865,22 +1922,12 @@ export class GameEngine {
     this.clearAllMonsters();
     this.retainVfx();
 
-    const formations: { x: number; y: number; zIndex: number }[][] = [
-      // 1 monster (Solo boss/target)
-      [{ x: 310, y: 168, zIndex: 10 }],
-      // 2 monsters (Diagonal depth: front & back)
-      [
-        { x: 285, y: 175, zIndex: 20 },
-        { x: 345, y: 160, zIndex: 10 },
-      ],
-      // 3 monsters (Staggered triangle formation)
-      [
-        { x: 280, y: 176, zIndex: 30 },
-        { x: 330, y: 158, zIndex: 10 },
-        { x: 370, y: 170, zIndex: 20 },
-      ],
-    ];
-    const coords = formations[count - 1];
+    const coords = formationSpots(
+      requestedTypes.slice(0, count).map((spriteType, i) => {
+        const input = monstersInput[i];
+        return { spriteType, scaleMultiplier: typeof input === 'object' && input !== null ? input.scaleMultiplier : undefined };
+      }),
+    );
 
     // Pick appropriate arena background
     const bg = customBg ?? MONSTER_BACKGROUNDS[requestedTypes[0]] ?? BATTLE_MAPS.CATHEDRAL_CRYPT;
@@ -2064,7 +2111,8 @@ export class GameEngine {
     this.monsterSpine = this.monsterSlots[0]?.spine ?? null;
     this.monsterRig = this.monsterSlots[0]?.rig ?? null;
     this.monsterSprite = requestedTypes[0];
-    this.targetSlotIndex = 0;
+    // Start on the foe nearest the knight (leftmost spot), as BattleScreen's frontTarget does
+    this.targetSlotIndex = coords.indexOf(coords.reduce((a, b) => (b.x < a.x ? b : a)));
   }
 
   /**

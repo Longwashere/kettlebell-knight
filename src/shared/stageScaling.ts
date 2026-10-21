@@ -16,7 +16,8 @@
  * Tune with `npm run balance` (scripts/balance-sim.ts) and keep its targets.
  */
 import { ENCOUNTERS, type BattleMapId, type EncounterTemplate } from '../types/battle';
-import { MOVESETS, createEncounterFromTemplate, rollMonsterSize, type StageScaling } from './monsterMovesets';
+import { MAP_NON_BOSS_POOL, MOVESETS, createEncounterFromTemplate, rollMonsterSize, type StageScaling } from './monsterMovesets';
+import { resolveMonsterVariant } from './monsterVariants';
 import { CAMPAIGN_MAP_ORDER, getMapConfig, mapTier, recommendedLevel } from './expeditionEngine';
 
 export { mapTier, recommendedLevel };
@@ -102,8 +103,48 @@ export function stageScaling(map: BattleMapId | undefined, level = 1): StageScal
 
 /** A stage's monsters, scaled, each with a random size for this fight (Miniature / Giant; `sized = false` skips it). */
 export function createStageEncounter(template: EncounterTemplate, level = 1, map: BattleMapId | undefined = template.map, sized = true): ReturnType<typeof createEncounterFromTemplate> {
-  const monsters = createEncounterFromTemplate(template, stageScaling(map, level), map);
+  const monsters = createEncounterFromTemplate(template, stageScaling(map, level), map)
+    // A horde stands five abreast, so its members start a size smaller to fit the battlefield
+    .map((m) => (template.horde ? { ...m, scaleMultiplier: (m.scaleMultiplier ?? 1) * HORDE.scale } : m));
   return sized ? monsters.map((m) => rollMonsterSize(m)) : monsters;
+}
+
+export const HORDE = {
+  /** Chance that a fight is a horde instead of its usual encounter (never the map boss). */
+  chance: 0.1,
+  size: 5,
+  scale: 0.85,
+};
+
+/**
+ * Rolls whether this fight is a horde: five of one non-boss monster from the stage's encounters (or, when the
+ * stage has none, from the map's pool), in place of the template. Otherwise returns the template unchanged.
+ */
+export function rollHorde(
+  template: EncounterTemplate,
+  map: BattleMapId | undefined = template.map,
+  level = 1,
+  boss = false,
+  chance = HORDE.chance,
+): EncounterTemplate {
+  if (boss || template.id === 'debug' || template.horde || Math.random() >= chance) return template;
+  const mapId = map ?? 'VERDANT_FOREST';
+  const pool = MAP_NON_BOSS_POOL[mapId] ?? MAP_NON_BOSS_POOL.VERDANT_FOREST;
+  const levelIds = getMapConfig(mapId).levels.find((l) => l.level === level)?.encounterIds ?? [];
+  const stageMonsters = ENCOUNTERS.filter((e) => levelIds.includes(e.id))
+    .flatMap((e) => e.monsterIds.map((spec) => (typeof spec === 'string' ? spec : spec.id)))
+    .filter((id) => pool.includes(id));
+  const candidates = stageMonsters.length > 0 ? stageMonsters : pool;
+  const id = candidates[Math.floor(Math.random() * candidates.length)];
+  const name = resolveMonsterVariant(id).name.toUpperCase();
+  return {
+    ...template,
+    id: `${template.id}_horde`,
+    name: `${name} HORDE`,
+    description: `${HORDE.size} of ${name} swarm the knight.`,
+    monsterIds: Array(HORDE.size).fill(id),
+    horde: true,
+  };
 }
 
 /** Experience for clearing an expedition level, on top of the kills. */

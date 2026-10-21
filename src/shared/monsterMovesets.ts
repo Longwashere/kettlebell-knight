@@ -454,7 +454,7 @@ export function createEncounterFromTemplate(
   }
 
   const counts: Record<string, number> = {};
-  const pack = PACK_SCALING[Math.min(3, monsterIds.length)] ?? PACK_SCALING[1];
+  const pack = PACK_SCALING[Math.min(5, monsterIds.length)] ?? PACK_SCALING[1];
   return monsterIds.map((specOrId, slotIndex) => {
     const variant = resolveMonsterVariant(specOrId);
     const mId = variant.id;

@@ -26,7 +26,7 @@ import { CARD_CATALOG, ENCOUNTERS, LEGACY_CARD_IDS, STARTER_CARD_IDS, type Battl
 import { ALL_WEAPON_SPELLS } from '../src/types/weaponSpells';
 import { BLOCK_DECAY_PER_SECOND, IMPACT_DELAY_SECONDS } from '../src/shared/combatRules';
 import { CAMPAIGN_MAP_ORDER, getExpeditionEncounters } from '../src/shared/expeditionEngine';
-import { createStageEncounter, expeditionClearXp, recommendedLevel, xpToNext } from '../src/shared/stageScaling';
+import { HORDE, createStageEncounter, expeditionClearXp, recommendedLevel, rollHorde, xpToNext } from '../src/shared/stageScaling';
 import {
   BASE_STATS, EXPECTED_KNIGHT, buildLoadout, castsForCardLevel, castsForWeaponLevel, expectedStats, rollLevelUp, weaponLevelReq,
   weaponStats, MAX_LEVEL, CARD_MAX_LEVEL, type KnightStats, type Loadout, type StatKey,
@@ -44,6 +44,8 @@ const DMG = Number(process.env.DMG ?? 1);
 const HP = Number(process.env.HP ?? 1);
 const FORCE_WEAPON = process.env.WEAPON;
 const STARTER = process.env.STARTER === '1';
+/** Chance a non-boss fight is a horde (HORDE=1 makes every one a horde; HORDE=0 none). */
+const HORDE_CHANCE = Number(process.env.HORDE ?? HORDE.chance);
 const MAPS = process.env.MAPS ? (process.env.MAPS.split(',') as BattleMapId[]) : CAMPAIGN_MAP_ORDER;
 /** Share of max HP restored between the encounters of an expedition (BattleScreen does the same). */
 const BREATHER_HEAL = 0.2;
@@ -214,7 +216,8 @@ function expedition(map: BattleMapId, level: number, loadout: Loadout, effort: E
   let xp = 0;
   const casts: string[] = [];
   for (const [i, enc] of encounters.entries()) {
-    const r = fight(createStageEncounter(enc, level, map), loadout, hp, effort);
+    const boss = level >= 5 && i === encounters.length - 1;
+    const r = fight(createStageEncounter(rollHorde(enc, map, level, boss, HORDE_CHANCE), level, map), loadout, hp, effort);
     time += r.time;
     xp += r.xp;
     casts.push(...r.casts);
