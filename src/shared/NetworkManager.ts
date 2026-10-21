@@ -15,6 +15,11 @@ export type HandCallback = (cards: CombatCard[] | null, mode?: HandSyncMode) => 
  */
 const TV_ROOM_KEY = 'kk_tv_room';
 const PHONE_ROOM_KEY = 'kk_phone_last_room';
+/** TV: backoff between attempts to re-register the room after losing the signalling server. */
+const RECONNECT_MIN_MS = 1000;
+const RECONNECT_MAX_MS = 30000;
+/** PeerJS errors about the signalling server itself; a paired phone's direct link survives them. */
+const SIGNALLING_ERRORS = new Set(['network', 'server-error', 'socket-error', 'socket-closed']);
 
 function readStored(key: string): string | null {
   try {
@@ -50,6 +55,8 @@ export class NetworkManager {
   private hand: CombatCard[] | null = null;
   private handMode?: HandSyncMode;
   private isHost: boolean = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectDelay = RECONNECT_MIN_MS;
 
   private constructor() {}
 
@@ -127,20 +134,33 @@ export class NetworkManager {
       this.cleanup();
 
       // PeerJS with reliable WebRTC DataChannel; signalling server and STUN/TURN from deployConfig
-      this.peer = new Peer(this.roomId, options);
+      const peer = new Peer(this.roomId, options);
+      this.peer = peer;
+      let registered = false;
 
-      this.peer.on('open', (id) => {
+      // Also fires after each successful reconnect
+      peer.on('open', (id) => {
+        registered = true;
+        this.reconnectDelay = RECONNECT_MIN_MS;
         this.roomId = id;
         writeStored(TV_ROOM_KEY, id);
-        this.setState('WAITING_FOR_PEER', `Room ready: ${id}`);
+        if (!this.connection?.open) this.setState('WAITING_FOR_PEER', `Room ready: ${id}`);
         resolve(id);
       });
 
-      this.peer.on('connection', (conn) => {
+      // Lost the signalling server (outage, Wi-Fi blip, Fire TV sleep): without the room registered, phones
+      // can't find the TV. A failed reconnect emits 'disconnected' again, which schedules the next try.
+      peer.on('disconnected', () => this.scheduleReconnect(peer));
+
+      peer.on('connection', (conn) => {
         this.setupConnectionHandlers(conn);
       });
 
-      this.peer.on('error', (err) => {
+      peer.on('error', (err) => {
+        if (registered && SIGNALLING_ERRORS.has(err.type)) {
+          console.warn('[NetworkManager] Signalling server lost, reconnecting:', err.message);
+          return;
+        }
         console.error('[NetworkManager] Host Peer error:', err);
         // If room ID already in use, try regenerating
         if (err.type === 'unavailable-id') {
@@ -295,6 +315,15 @@ export class NetworkManager {
     });
   }
 
+  private scheduleReconnect(peer: Peer): void {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (peer === this.peer && peer.disconnected && !peer.destroyed) peer.reconnect();
+    }, this.reconnectDelay);
+    this.reconnectDelay = Math.min(this.reconnectDelay * 2, RECONNECT_MAX_MS);
+  }
+
   public cleanup(): void {
     this.hand = null;
     if (this.connection) {
@@ -310,6 +339,11 @@ export class NetworkManager {
       } catch (e) {}
       this.peer = null;
     }
+
+    // After destroy(), which emits 'disconnected' and so schedules a reconnect
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    this.reconnectDelay = RECONNECT_MIN_MS;
 
     this.setState('DISCONNECTED');
   }
