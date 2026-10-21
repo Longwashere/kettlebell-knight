@@ -7,7 +7,8 @@ import { repGold } from '../../shared/combatRules';
 import { STAT_INFO, type Loadout } from '../../shared/progression';
 import { ELEMENT_INFO } from '../../shared/elements';
 import type { ImpactResult } from '../engine/monsterMoves';
-import { ExerciseType, RepTelemetry } from '../../types/game';
+import { ExerciseType, RepTelemetry, EXERCISE_SKILLS } from '../../types/game';
+import { EXERCISE_PROFILE } from '../../shared/cardBalance';
 import { CardDeckManager } from '../../shared/CardDeckManager';
 import { networkManager } from '../../shared/NetworkManager';
 import { ALL_WEAPON_SPELLS } from '../../types/weaponSpells';
@@ -97,6 +98,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const [lastBankedGold, setLastBankedGold] = useState<number>(0);
   const [runGold, setRunGold] = useState<number>(0);
   const [forfeitedGold, setForfeitedGold] = useState<number>(0);
+  // Reps per exercise this fight, and the tally the victory screen shows (the fight's, or the whole level's)
+  const fightRepsRef = useRef<Partial<Record<ExerciseType, number>>>({});
+  const [victoryReps, setVictoryReps] = useState<Partial<Record<ExerciseType, number>>>({});
   const [playerBlock, setPlayerBlock] = useState<number>(0);
   const [hand, setHand] = useState<CombatCard[]>([]);
   // Highlighted card. The game is played hands-free, so by default the highlight follows progress:
@@ -203,6 +207,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         setRunLevelUps([]);
         setRunGold(0);
         levelRepsRef.current = {};
+        fightRepsRef.current = {};
         fightGoldRef.current = 0;
         setFightGold(0);
         setBattleStatus('FIGHTING');
@@ -489,6 +494,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const settleFightGold = (bank: boolean) => {
     const gold = fightGoldRef.current;
     fightGoldRef.current = 0;
+    fightRepsRef.current = {};
     setFightGold(0);
     setLastBankedGold(bank ? gold : 0);
     setForfeitedGold(bank ? 0 : gold);
@@ -510,6 +516,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     fightGoldRef.current = 0;
     setFightGold(0);
     levelRepsRef.current = {};
+    fightRepsRef.current = {};
     setSecretCall(null);
   };
 
@@ -594,6 +601,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     fightGoldRef.current += Math.round(repGold(power) * (1 + goldBonus));
     setFightGold(fightGoldRef.current);
     levelRepsRef.current[exercise] = (levelRepsRef.current[exercise] ?? 0) + 1;
+    fightRepsRef.current[exercise] = (fightRepsRef.current[exercise] ?? 0) + 1;
     if (repUnlocks.length > 0) {
       setPendingCardUnlocks((prev) => [...prev, ...repUnlocks]);
     }
@@ -648,6 +656,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         const triggerVictoryModal = () => {
           isAwaitingVictoryRef.current = false;
           if (battleStatusRef.current !== 'FIGHTING') return; // already displayed
+          // A conquered level tallies every fight in it; otherwise just this fight
+          const levelDone = isExpeditionMode && expeditionStep >= expeditionEncounters.length - 1;
+          setVictoryReps({ ...(levelDone ? levelRepsRef.current : fightRepsRef.current) });
           settleFightGold(true);
           victoryModalOpenedAtRef.current = Date.now();
           networkManager.sendHand(null, 'VICTORY');
@@ -1368,6 +1379,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                   )}
                   <span className="block text-[11px] font-pixel text-[#F4B41A] mt-1">🪙 +{lastBankedGold} GOLD BANKED</span>
                   <RunXpLine xp={runXp} levelUps={runLevelUps} />
+                  <RepTally reps={victoryReps} title="REPS THIS BATTLE" />
                 </div>
                 <div className="flex gap-3">
                   <button
@@ -1408,6 +1420,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                     {getMapConfig(currentMap).levels.find((l) => l.level === currentLevel)?.goldReward || 200} CLEAR REWARD • {runGold} FROM REPS
                   </span>
                   <RunXpLine xp={runXp} levelUps={runLevelUps} />
+                  <RepTally reps={victoryReps} title="REPS THIS EXPEDITION" />
                 </div>
                 {secretCall && onSecretTrial ? (
                   <>
@@ -1462,6 +1475,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                 <div className="bg-[#0F0E17] border-2 border-[#F4B41A] p-3 rounded text-center mb-6">
                   <span className="block text-[11px] font-pixel text-[#F4B41A]">🪙 +{lastBankedGold} GOLD BANKED</span>
                   <RunXpLine xp={runXp} levelUps={runLevelUps} />
+                  <RepTally reps={victoryReps} title="REPS THIS BATTLE" />
                 </div>
                 <div className="flex gap-3">
                   <button
@@ -1666,3 +1680,24 @@ const RunXpLine: React.FC<{ xp: number; levelUps: LevelUpEvent[] }> = ({ xp, lev
     )}
   </span>
 );
+
+/** Reps of each exercise, most first, with the total. */
+const RepTally: React.FC<{ reps: Partial<Record<ExerciseType, number>>; title: string }> = ({ reps, title }) => {
+  const rows = (Object.entries(reps) as [ExerciseType, number][]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+  if (rows.length === 0) return null;
+  const total = rows.reduce((sum, [, n]) => sum + n, 0);
+  return (
+    <div className="mt-2 pt-2 border-t border-[#2E2B44] text-left">
+      <span className="flex justify-between text-[9px] font-pixel text-[#A7A9BE] mb-1">
+        <span>{title}</span>
+        <span className="text-white">{total} TOTAL</span>
+      </span>
+      {rows.map(([exercise, n]) => (
+        <span key={exercise} className="flex justify-between text-[9px] font-pixel">
+          <span style={{ color: EXERCISE_SKILLS[exercise].colorHex }}>{EXERCISE_PROFILE[exercise].label}</span>
+          <span className="text-white">×{n}</span>
+        </span>
+      ))}
+    </div>
+  );
+};
