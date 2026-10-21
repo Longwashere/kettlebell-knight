@@ -66,6 +66,23 @@ export class Timeline {
   }
 }
 
+/**
+ * A view of `tl` that runs `n` frames later: every frame passed in is shifted by `n` and `frame` reads back
+ * relative, so a move written from frame 0 (including helpers that schedule from `tl.frame` at run time) plays
+ * unchanged after a prelude.
+ */
+export function shifted(tl: Timeline, n: number): Timeline {
+  return {
+    get frame() { return tl.frame - n; },
+    get length() { return tl.length - n; },
+    at: (f: number, fn: () => void) => tl.at(f + n, fn),
+    during: (a: number, b: number, fn: (t: number, f: number) => void) => tl.during(a + n, b + n, fn),
+    every: (a: number, b: number, step: number, fn: (i: number) => void) => tl.every(a + n, b + n, step, fn),
+    end: (f: number) => tl.end(f + n),
+    tick: (d: number) => tl.tick(d),
+  } as unknown as Timeline;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Easing & math
 

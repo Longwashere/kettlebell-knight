@@ -98,6 +98,8 @@ export interface KnightMoveHost {
 
   /** `snap` cuts straight to the framing (impact punch-in) instead of easing. */
   camera(zoom: number, x: number, y: number, holdFrames: number, snap?: boolean): void;
+  /** Dutch angle: rolls the camera (radians, ±0.12 max, positive = clockwise) for `holdFrames`, then eases it level. */
+  roll(radians: number, holdFrames: number, snap?: boolean): void;
   shake(intensity: number): void;
   flash(alpha: number, color?: number): void;
   hitStop(frames: number): void;

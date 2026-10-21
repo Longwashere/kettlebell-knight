@@ -16,6 +16,7 @@ import { whirl, raiseAndHold, chain, eye, phantomBell, anchor } from './spellMov
 import {
   lightSpan, glow, glint, godRay, focusLines, speedLines, impactFrame, shockSphere, skyBolt, groundCracks,
   weaponTrail, windUp, afterglow, mix,
+  LOOK, themed, staged, chargeUp, motes, breath, dutch, signature,
 } from './spellKit';
 
 const P_BRASS = pal(0xF2B636, 0xFFF7D6, 0x3B2205);
@@ -30,6 +31,23 @@ const P_FORGE = pal(0xFB923C, 0xFEF3C7, 0x431407);
 const P_HOLLOW = pal(0xC084FC, 0xF3E8FF, 0x12021F);
 const P_SICK = pal(0x4ADE80, 0xDCFCE7, 0x052E16);
 const P_BANE = pal(0xA78BFA, 0xEDE9FE, 0x0B0218);
+
+// Each spell's look for the director beats (spellKit chargeUp / signature): element, colour, motif, voice.
+const L_STRONG = themed(LOOK.EARTH, 0xF2B636, 'bell', { core: 0xFFF7D6, deep: 0x0B0716, sound: 'impact_metal' });
+const L_CIRCUS = themed(LOOK.EARTH, 0xF472B6, 'star', { core: 0xFFF1F7, deep: 0x0B0716, sound: 'explosion' });
+const L_DEEP = themed(LOOK.FROST, 0x2DD4BF, 'wave', { core: 0xCCFBF1, deep: 0x02161D, sound: 'wave' });
+const L_MAW = themed(LOOK.FROST, 0x22D3EE, 'wave', { core: 0xCCFBF1, deep: 0x02161D, sound: 'chomp' });
+const L_CENSER = themed(LOOK.HOLY, 0x7DD3FC, 'cross', { core: 0xF0F9FF, deep: 0x06121C });
+const L_CANDLE = themed(LOOK.HOLY, 0xFDE68A, 'flame', { core: 0xFFFBEB, deep: 0x0A0703, sound: 'fire_burst' });
+const L_PEAL = themed(LOOK.STORM, 0x67E8F9, 'bolt', { deep: 0x050A18, sound: 'thunder' });
+const L_STORMBELL = themed(LOOK.STORM, 0x93C5FD, 'bell', { deep: 0x050A18, sound: 'thunder' });
+const L_GOLD = themed(LOOK.EARTH, 0xF2B636, 'coin', { core: 0xFFFBEA, deep: 0x0F0A02, sound: 'impact_metal' });
+const L_QUENCH = themed(LOOK.FIRE, 0xFB923C, 'flame', { core: 0xFEF3C7, deep: 0x140602, sound: 'hiss' });
+const L_ANVIL = themed(LOOK.FIRE, 0xEA580C, 'star', { core: 0xFEF3C7, deep: 0x140602, sound: 'impact_metal' });
+const L_HOLLOW = themed(LOOK.VOID, 0xC084FC, 'eye', { core: 0xF3E8FF, deep: 0x07020F, sound: 'portal' });
+const L_HYMN = themed(LOOK.VOID, 0x4ADE80, 'note', { core: 0xDCFCE7, deep: 0x07020F, sound: 'wail' });
+const L_ECLIPSE = themed(LOOK.VOID, 0xA78BFA, 'moon', { deep: 0x050208 });
+const L_SOVEREIGN = themed(LOOK.VOID, 0xFBBF24, 'cross', { core: 0xFFFBEA, deep: 0x07040F, sound: 'holy' });
 /** In front of the knight's chest, where a thrust leaves from. */
 const kFront = (h: KnightMoveHost) => ({ x: h.pos().x + 24, y: h.pos().y - 26 });
 
@@ -54,6 +72,7 @@ function testYourStrength(h: KnightMoveHost, tl: Timeline) {
   const BULBS = 9;
   tl.at(0, () => h.anim('RUN', true));
   travel(h, tl, 0, 12, HOME, strikeSpot(h, t0, 54), easeInOut);
+  ghostTrail(h, tl, 0, 12, 0xF2B636, 2, 0.35);
   tl.every(0, 12, 6, () => h.sound('step', { vol: 0.4 }));
   tl.during(0, 12, (t) => h.dim(0.55 * t, DIM));
   const puckY = (t: number) => lerp(t0.y - 4, pole.top + 6, easeOut(t));
@@ -81,6 +100,8 @@ function testYourStrength(h: KnightMoveHost, tl: Timeline) {
     h.animSpeed(0.5);
   });
   windUp(h, tl, 12, PAD - 3, 0xF2B636, { zoom: 1.2, reach: 34 });
+  chargeUp(h, tl, 12, PAD - 3, L_STRONG, { motes: false, breath: 5, freeze: false, circle: 30 });
+  dutch(h, tl, PAD, 0.07, DING - PAD);
   tl.during(14, PAD - 3, (t) => h.lift(easeOut(t) * 10));
   tl.at(PAD - 3, () => {
     h.animSpeed(1.8);
@@ -126,6 +147,8 @@ function testYourStrength(h: KnightMoveHost, tl: Timeline) {
   tl.at(HIT, () => {
     land(h, 0, { scale: 1.35, tint: 0xFDE68A, burst: 'crater', burstSize: 1, sfx: 'impact_metal', glare: 0.2 });
     impactFrame(h, tl, { x: c.x, y: c.y - 20 }, { color: 0xF2B636, dim: [0.55, DIM] });
+    h.roll(-0.1, 10, true);
+    signature(h, tl, HIT, { x: c.x, y: c.y - 20 }, L_STRONG, 48);
     h.sound('impact_metal', { rate: 1.4, vol: 0.7, delay: 0.05 });
     h.camera(1.32, c.x, c.y - 10, 10, true);
     h.knock(0, 4, -8);
@@ -156,6 +179,8 @@ function bigTopFinale(h: KnightMoveHost, tl: Timeline) {
     h.sound('victory', { vol: 0.35, rate: 1.2 });
   });
   tl.during(0, 12, (t) => h.dim(0.7 * t, DIM));
+  chargeUp(h, tl, 2, TOLL, L_CIRCUS, { breath: 5, freeze: false, circle: 38 });
+  dutch(h, tl, TOLL, -0.06, 20, false);
   // Spotlights sweep the arena, then all swing onto the knight for the toll
   lightSpan(h, tl, 0, TOLL + 60, (g, t, f) => {
     const fade = t > 0.85 ? 1 - (t - 0.85) / 0.15 : Math.min(1, f / 8);
@@ -212,7 +237,11 @@ function bigTopFinale(h: KnightMoveHost, tl: Timeline) {
     });
     tl.at(at, () => {
       land(h, h.targets.length ? i : undefined, { scale: i === last ? 1 : 0.9, tint: 0xFBCFE8, burst: 'explosion', burstSize: 0.7, sfx: 'explosion', glare: i === last ? 0.2 : 0.5 });
-      if (i === last) impactFrame(h, tl, c, { color: 0xF472B6, dim: [0.7, DIM] });
+      if (i === last) {
+        impactFrame(h, tl, c, { color: 0xF472B6, dim: [0.7, DIM] });
+        h.roll(0.1, 10, true);
+        signature(h, tl, tl.frame, c, L_CIRCUS, 50);
+      }
       h.knock(i, 4, 10);
       h.emit(c.x, c.y - 10, { count: 20, colors: LIGHTS, speed: [1.5, 4], spread: Math.PI, gravity: 0.15, size: 2, life: [16, 30] });
     });
@@ -239,6 +268,8 @@ function undertow(h: KnightMoveHost, tl: Timeline) {
     head: (g, x, y, f) => anchor(g, x, y, 1, f * 0.3, P_DEEP),
   });
   tl.at(0, () => h.camera(1.2, h.home.x + 10, h.home.y - 40, 14));
+  chargeUp(h, tl, 0, 14, L_DEEP, { breath: 4, freeze: false, circle: 34 });
+  dutch(h, tl, OUT, 0.06, HAUL - OUT, false);
   tl.during(0, 12, (t) => h.dim(0.6 * t, DIM));
   tl.at(2, () => h.weaponShown(false));
   tl.at(14, () => {
@@ -296,7 +327,11 @@ function undertow(h: KnightMoveHost, tl: Timeline) {
     shockSphere(h, tl, at, chest(t), 30, 0x2DD4BF, 10);
     tl.at(at, () => {
       land(h, h.targets.length ? i : undefined, { scale: 0.95, tint: 0xA5F3FC, sfx: 'splash', glare: n === 0 ? 0.2 : 0.5 });
-      if (n === 0) impactFrame(h, tl, chest(t), { color: 0x2DD4BF, dim: [0.6, DIM] });
+      if (n === 0) {
+        impactFrame(h, tl, chest(t), { color: 0x2DD4BF, dim: [0.6, DIM] });
+        h.roll(-0.09, 10, true);
+        signature(h, tl, tl.frame, chest(t), L_DEEP, 44);
+      }
       h.knock(i, -18, 6);
     });
   });
@@ -318,6 +353,7 @@ function leviathansMaw(h: KnightMoveHost, tl: Timeline) {
     h.camera(1.1, (h.home.x + t0.x) / 2, h.home.y - 50, 24);
   });
   tl.during(0, 12, (t) => h.dim(0.7 * t, DIM));
+  dutch(h, tl, HIT - 6, 0.08, 6);
   // Up and out of frame
   drawSpan(h, tl, 4, 18, (g, t, f) => anchor(g, lerp(h.pos().x + 10, c.x, t), lerp(h.pos().y - 50, -30, easeOut(t)), 1.3, f * 0.5, P_ABYSS));
   // A swirl of black water opens under the foe, and something looks up out of it
@@ -369,6 +405,8 @@ function leviathansMaw(h: KnightMoveHost, tl: Timeline) {
   tl.at(HIT, () => {
     land(h, 0, { scale: 1.45, tint: 0xA5F3FC, flash: 0xCCFBF1, burst: 'ice', burstSize: 1.2, sfx: 'chomp', glare: 0.2 });
     impactFrame(h, tl, c, { color: 0x22D3EE, dim: [0.7, DIM], hold: 4 });
+    h.roll(-0.12, 12, true);
+    signature(h, tl, HIT, c, L_MAW, 56, 24);
     h.sound('roar', { rate: 0.6, vol: 0.6 });
     h.sound('splash', { vol: 0.8 });
     h.camera(1.36, c.x, c.y, 12, true);
@@ -393,6 +431,8 @@ function sanctifiedSmoke(h: KnightMoveHost, tl: Timeline) {
   const DIM = 0x06121C;
   tl.at(0, () => h.camera(1.2, h.home.x + 8, h.home.y - 38, THROW));
   tl.during(0, 12, (t) => h.dim(0.55 * t, DIM));
+  chargeUp(h, tl, 0, THROW, L_CENSER, { breath: 6, freeze: false, circle: 36 });
+  dutch(h, tl, THROW, 0.06, 10);
   const head = whirl(h, tl, 0, THROW, P_CENSER, {
     reach: 24, link: 0xCBD5E1, trail: [0xE0F2FE, 0x7DD3FC],
     head: (g, x, y, f) => {
@@ -438,6 +478,8 @@ function sanctifiedSmoke(h: KnightMoveHost, tl: Timeline) {
   tl.at(HIT, () => {
     land(h, 0, { scale: 1.15, tint: 0xE0F2FE, burst: 'portal', burstSize: 0.9, sfx: 'holy', glare: 0.2 });
     impactFrame(h, tl, c, { color: 0x7DD3FC, dim: [0.55, DIM] });
+    h.roll(-0.08, 10, true);
+    signature(h, tl, HIT, c, L_CENSER, 44);
     h.camera(1.28, c.x, c.y, 10, true);
     h.knock(0, 10, 2);
     h.emit(c.x, c.y, { count: 24, colors: [0xE0F2FE, 0xFDE68A], speed: [0.5, 2.2], spread: Math.PI, gravity: -0.03, size: 3, life: [16, 28] });
@@ -458,6 +500,7 @@ function candlemass(h: KnightMoveHost, tl: Timeline) {
     h.camera(1.04, (h.home.x + foes[foes.length - 1].x) / 2, h.home.y - 50, 70);
   });
   tl.during(0, 10, (t) => h.dim(0.7 * t, DIM));
+  dutch(h, tl, SWEEP, 0.06, 20, false);
   tl.at(SWEEP, () => h.sound('holy', { vol: 0.7 }));
   // The censer's sweep leaves a line of embers along the floor that the candles grow from
   lightSpan(h, tl, SWEEP - 4, SWEEP + 30, (g, t, f) => {
@@ -493,7 +536,11 @@ function candlemass(h: KnightMoveHost, tl: Timeline) {
     });
     tl.at(flare, () => {
       land(h, h.targets.length ? i : undefined, { scale: i === last ? 1.05 : 0.9, tint: 0xFEF3C7, burst: 'fire', burstSize: 0.7, sfx: 'fire_burst', glare: i === last ? 0.2 : 0.5 });
-      if (i === last) impactFrame(h, tl, c, { color: 0xFBBF24, dim: [0.7, DIM] });
+      if (i === last) {
+        impactFrame(h, tl, c, { color: 0xFBBF24, dim: [0.7, DIM] });
+        h.roll(-0.1, 10, true);
+        signature(h, tl, tl.frame, c, L_CANDLE, 48);
+      }
       h.knock(i, 2, 10);
       h.emit(t.x, t.y - 20, { count: 16, colors: [0xFDE68A, 0xFFFBEB, 0xF59E0B], speed: [0.6, 2.4], angle: -Math.PI / 2, spread: 0.6, gravity: -0.03, size: 2, life: [18, 30] });
     });
@@ -519,6 +566,8 @@ function pealOfThunder(h: KnightMoveHost, tl: Timeline) {
   tl.during(0, 14, (t) => h.dim(0.7 * t, DIM));
   stormClouds(h, tl, 0, TOLL + 40 + hits.length * 5);
   windUp(h, tl, 2, TOLL, 0x67E8F9, { zoom: 1.22, sound: false });
+  chargeUp(h, tl, 2, TOLL, L_PEAL, { motes: false, breath: 5, freeze: false, circle: 38 });
+  dutch(h, tl, TOLL, -0.07, 14);
   // A bolt from the clouds strikes the raised bell and charges it
   lightSpan(h, tl, TOLL - 4, TOLL + 4, (g, _t, f) => {
     const p = h.weaponTip();
@@ -545,7 +594,11 @@ function pealOfThunder(h: KnightMoveHost, tl: Timeline) {
     });
     tl.at(at, () => {
       land(h, h.targets.length ? k : undefined, { scale: last ? 1.05 : 0.85, tint: 0xA5F3FC, sfx: 'zap', glare: last ? 0.2 : 0.6 });
-      if (last) impactFrame(h, tl, c, { color: 0x67E8F9, dim: [0.7, DIM] });
+      if (last) {
+        impactFrame(h, tl, c, { color: 0x67E8F9, dim: [0.7, DIM] });
+        h.roll(0.1, 10, true);
+        signature(h, tl, tl.frame, c, L_PEAL, 48);
+      }
       h.knock(k, 8, 2);
       h.sparks(c.x, c.y, 10, [0xA5F3FC, 0xFFFFFF]);
     });
@@ -582,6 +635,8 @@ function stormToll(h: KnightMoveHost, tl: Timeline) {
     h.sound('thunder', { vol: 0.5, rate: 0.8 });
   });
   tl.during(0, 12, (t) => h.dim(0.75 * t, DIM));
+  chargeUp(h, tl, 2, STRIKE, L_STORMBELL, { breath: 6, freeze: false, circle: 38 });
+  dutch(h, tl, STRIKE, 0.08, 14);
   stormClouds(h, tl, 0, STRIKE + 44);
   const bellY = (f: number) => lerp(-60, h.home.y - 96, easeOut(Math.min(1, f / 18)));
   const ring = (f: number) => (f > STRIKE - 4 ? Math.sin((f - STRIKE + 4) * 1.2) * 4 * Math.max(0, 1 - (f - STRIKE) / 20) : 0);
@@ -619,7 +674,11 @@ function stormToll(h: KnightMoveHost, tl: Timeline) {
     }, 'ground');
     tl.at(at, () => {
       land(h, h.targets.length ? i : undefined, { scale: 1, tint: 0xA5F3FC, burst: 'crater', burstSize: 0.8, sfx: 'thunder', glare: i === 0 ? 0.2 : 0.6 });
-      if (i === 0) impactFrame(h, tl, chest(t), { color: 0x67E8F9, dim: [0.75, DIM] });
+      if (i === 0) {
+        impactFrame(h, tl, chest(t), { color: 0x67E8F9, dim: [0.75, DIM] });
+        h.roll(-0.1, 10, true);
+        signature(h, tl, tl.frame, chest(t), L_STORMBELL, 48);
+      }
       h.knock(i, 4, 8);
       h.sparks(t.x, t.y - 10, 12, [0xA5F3FC, 0xFFFFFF]);
     });
@@ -641,6 +700,10 @@ function goldenTouch(h: KnightMoveHost, tl: Timeline) {
   const DIM = 0x0F0A02;
   tl.at(0, () => h.anim('RUN', true));
   travel(h, tl, 0, 12, HOME, strikeSpot(h, t0, 48), easeInOut);
+  ghostTrail(h, tl, 0, 12, 0xF2B636, 2, 0.35);
+  dutch(h, tl, TOUCH, 0.06, SHATTER - TOUCH, false);
+  motes(h, tl, TOUCH, SHATTER - 6, L_GOLD, { at: () => c, reach: 50 });
+  breath(h, tl, SHATTER - 6, 6, L_GOLD, { where: () => c, freeze: false });
   tl.during(0, 12, (t) => h.dim(0.55 * t, DIM));
   tl.at(12, () => {
     h.anim('SKILL1');
@@ -677,6 +740,8 @@ function goldenTouch(h: KnightMoveHost, tl: Timeline) {
   tl.at(SHATTER, () => {
     land(h, 0, { scale: 1.45, tint: 0xFDE68A, flash: 0xFFFBEA, glare: 0.2, sfx: 'crack' });
     impactFrame(h, tl, c, { color: 0xF2B636, dim: [0.55, DIM] });
+    h.roll(-0.12, 12, true);
+    signature(h, tl, SHATTER, c, L_GOLD, 54, 24);
     h.camera(1.38, c.x, c.y, 10, true);
     shards(h, c, 22);
     h.emit(c.x, c.y, { count: 36, colors: [0xF2B636, 0xFDE68A, 0xB7791F], speed: [1.5, 5], spread: Math.PI, gravity: 0.25, size: 3, life: [16, 30] });
@@ -699,6 +764,7 @@ function treasuryRain(h: KnightMoveHost, tl: Timeline) {
     h.camera(1.02, (h.home.x + foes[foes.length - 1].x) / 2 + 20, h.home.y - 64, 70);
   });
   tl.during(0, 10, (t) => h.dim(0.65 * t, DIM));
+  dutch(h, tl, SWING, -0.06, 30, false);
   tl.at(SWING, () => {
     h.sound('gears', { vol: 0.6 });
     h.sound('holy', { rate: 1.3, vol: 0.4 });
@@ -744,7 +810,11 @@ function treasuryRain(h: KnightMoveHost, tl: Timeline) {
     const at = SWING + 22 + i * 4;
     tl.at(at, () => {
       land(h, h.targets.length ? i : undefined, { scale: 0.95, tint: 0xFDE68A, sfx: 'impact_metal', glare: i === 0 ? 0.2 : 0.6 });
-      if (i === 0) impactFrame(h, tl, chest(t), { color: 0xF2B636, dim: [0.65, DIM] });
+      if (i === 0) {
+        impactFrame(h, tl, chest(t), { color: 0xF2B636, dim: [0.65, DIM] });
+        h.roll(0.09, 10, true);
+        signature(h, tl, tl.frame, chest(t), L_GOLD, 46);
+      }
       h.knock(i, 2, -6);
       debris(h, { x: t.x, y: t.y }, 10, [0xF2B636, 0xFDE68A, 0xB7791F]);
     });
@@ -768,6 +838,8 @@ function quench(h: KnightMoveHost, tl: Timeline) {
     chargeSound(h, THRUST);
   });
   windUp(h, tl, 0, THRUST - 2, 0xFB923C, { zoom: 1.24, sound: false, reach: 40 });
+  chargeUp(h, tl, 0, THRUST - 2, L_QUENCH, { motes: false, breath: 6, circle: 34, aura: 1.1 });
+  dutch(h, tl, THRUST, 0.09, 10);
   tl.during(0, 14, (t) => h.dim(0.6 * t, DIM));
   // The steel heats: dull red to white, the knight lit by it
   tl.during(0, THRUST, (t) => h.tint(mix(0xFFFFFF, 0xFFC08A, t)));
@@ -799,7 +871,11 @@ function quench(h: KnightMoveHost, tl: Timeline) {
     shockSphere(h, tl, at, chest(t), 36, 0xFB923C, 12, 0xFFF7ED);
     tl.at(at, () => {
       land(h, h.targets.length ? k : undefined, { scale: 1.05, tint: 0xFED7AA, burst: 'fire', burstSize: 0.7, sfx: 'fire_burst', glare: k === 0 ? 0.2 : 0.6 });
-      if (k === 0) impactFrame(h, tl, chest(t), { color: 0xFB923C, dim: [0.6, DIM] });
+      if (k === 0) {
+        impactFrame(h, tl, chest(t), { color: 0xFB923C, dim: [0.6, DIM] });
+        h.roll(-0.1, 10, true);
+        signature(h, tl, tl.frame, chest(t), L_QUENCH, 46);
+      }
       h.sound('frost', { rate: 0.6, vol: 0.4 }); // the hiss of the quench
       h.knock(k, 14, 2);
     });
@@ -817,6 +893,9 @@ function titansAnvil(h: KnightMoveHost, tl: Timeline) {
   const DIM = 0x140602;
   tl.at(0, () => h.anim('RUN', true));
   travel(h, tl, 0, 12, HOME, strikeSpot(h, t0, 56), easeInOut);
+  ghostTrail(h, tl, 0, 12, 0xEA580C, 2, 0.35);
+  chargeUp(h, tl, 12, HITS[0] - 2, L_ANVIL, { breath: 5, freeze: false, circle: 32, aura: 1.1 });
+  dutch(h, tl, HITS[0], 0.06, 8);
   tl.during(0, 12, (t) => h.dim(0.6 * t, DIM));
   tl.at(0, () => h.camera(1.14, (h.home.x + t0.x) / 2 + 20, t0.y - 40, HITS[1]));
   const anvilY = (f: number) => lerp(-40, t0.y, easeIn(Math.min(1, f / 8)));
@@ -852,6 +931,8 @@ function titansAnvil(h: KnightMoveHost, tl: Timeline) {
       if (big) {
         land(h, 0, { scale: 1.4, tint: 0xFED7AA, burst: 'explosion', burstSize: 1, sfx: 'impact_metal', glare: 0.2 });
         impactFrame(h, tl, c, { color: 0xFB923C, dim: [0.6, DIM] });
+        h.roll(-0.11, 10, true);
+        signature(h, tl, tl.frame, c, L_ANVIL, 52);
         h.camera(1.34, c.x, c.y, 10, true);
         h.knock(0, 8, -4);
       } else {
@@ -884,6 +965,8 @@ function stareBack(h: KnightMoveHost, tl: Timeline) {
     h.sound('portal', { vol: 0.6, rate: 0.7 });
   });
   tl.during(0, 12, (t) => h.dim(0.8 * t, DIM));
+  chargeUp(h, tl, 0, OPEN, L_HOLLOW, { breath: 5, circle: 36 });
+  dutch(h, tl, OPEN, -0.06, HIT - OPEN, false);
   const at = { x: (h.home.x + t0.x) / 2, y: h.home.y - 90 };
   const openAt = (f: number, t: number) => (f < OPEN ? 0 : Math.min(1, (f - OPEN + 2) / 6)) * (t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1);
   lightSpan(h, tl, 4, HIT + 24, (g, t, f) => {
@@ -916,6 +999,8 @@ function stareBack(h: KnightMoveHost, tl: Timeline) {
   tl.at(HIT, () => {
     land(h, 0, { scale: 1.4, tint: 0xE9D5FF, flash: 0xF3E8FF, glare: 0.2, burst: 'portal', burstSize: 1, sfx: 'portal' });
     impactFrame(h, tl, c, { color: 0xC084FC, dim: [0.8, DIM] });
+    h.roll(0.11, 10, true);
+    signature(h, tl, HIT, c, L_HOLLOW, 52);
     h.camera(1.32, c.x, c.y, 10, true);
     shards(h, c, 18);
     h.knock(0, 10, 2);
@@ -934,6 +1019,8 @@ function riftHymn(h: KnightMoveHost, tl: Timeline) {
     h.camera(1.2, h.home.x + 10, h.home.y - 40, SING);
   });
   tl.during(0, 12, (t) => h.dim(0.75 * t, DIM));
+  chargeUp(h, tl, 0, SING, L_HYMN, { breath: 4, freeze: false, circle: 38 });
+  dutch(h, tl, SING - 2, 0.06, 30, false);
   lightSpan(h, tl, 2, SING + 44, (g, t, f) => {
     const p = h.pos();
     const a = t > 0.8 ? 1 - (t - 0.8) / 0.2 : Math.min(1, f / 8);
@@ -969,7 +1056,11 @@ function riftHymn(h: KnightMoveHost, tl: Timeline) {
     }, 'ground');
     tl.at(grab, () => {
       land(h, h.targets.length ? i : undefined, { scale: i === last ? 1 : 0.9, tint: 0xE9D5FF, sfx: 'squelch', glare: i === last ? 0.2 : 0.5 });
-      if (i === last) impactFrame(h, tl, chest(t), { color: 0xA855F7, dim: [0.75, DIM] });
+      if (i === last) {
+        impactFrame(h, tl, chest(t), { color: 0xA855F7, dim: [0.75, DIM] });
+        h.roll(-0.1, 10, true);
+        signature(h, tl, tl.frame, chest(t), L_HYMN, 46);
+      }
       h.knock(i, 0, -8);
     });
     shockSphere(h, tl, grab, chest(t), 30, 0xA855F7, 12);
@@ -1010,6 +1101,8 @@ function eclipseEdge(h: KnightMoveHost, tl: Timeline) {
     g.circle(s.x, s.y, 22).fill({ color: 0x000000, alpha: fade }).stroke({ width: 1.5, color: 0xEDE9FE, alpha: fade });
   }, 'back');
   windUp(h, tl, 4, CUT - 6, 0xA78BFA, { zoom: 1.22, sound: true, reach: 40 });
+  chargeUp(h, tl, 4, CUT - 6, L_ECLIPSE, { motes: false, breath: 5, freeze: false, circle: 36, aura: 1.1 });
+  dutch(h, tl, CUT - 6, 0.08, 10);
   tl.at(CUT - 6, () => {
     h.anim('ATTACK2');
     swingSound(h, true);
@@ -1023,7 +1116,11 @@ function eclipseEdge(h: KnightMoveHost, tl: Timeline) {
     shockSphere(h, tl, CUT + 1 + k * 3, chest(t), 40, 0xA78BFA, 12);
     tl.at(CUT + 1 + k * 3, () => {
       land(h, h.targets.length ? k : undefined, { scale: 1.1, tint: 0xDDD6FE, burst: 'slash', burstSize: 1, sfx: 'slash_heavy', glare: k === 0 ? 0.2 : 0.6 });
-      if (k === 0) impactFrame(h, tl, chest(t), { color: 0xA78BFA, dim: [0.85, DIM], hold: 4 });
+      if (k === 0) {
+        impactFrame(h, tl, chest(t), { color: 0xA78BFA, dim: [0.85, DIM], hold: 4 });
+        h.roll(-0.11, 12, true);
+        signature(h, tl, tl.frame, chest(t), L_ECLIPSE, 52);
+      }
       h.knock(k, 12, 2);
     });
   });
@@ -1046,6 +1143,8 @@ function twinSovereigns(h: KnightMoveHost, tl: Timeline) {
     h.sound('dark', { vol: 0.6, delay: 0.15 });
   });
   tl.during(0, 14, (t) => h.dim(0.75 * t, DIM));
+  chargeUp(h, tl, 2, DROP - 6, L_SOVEREIGN, { breath: 5, freeze: false, circle: 40, aura: 1.15 });
+  dutch(h, tl, DROP, 0.08, 14);
   // Wings of light and shadow behind the knight
   const openAt = (f: number, t: number) => easeOut(Math.min(1, f / 12)) * (t > 0.8 ? (1 - t) / 0.2 : 1);
   drawSpan(h, tl, 4, DROP + 32, (g, t, f) => {
@@ -1090,7 +1189,11 @@ function twinSovereigns(h: KnightMoveHost, tl: Timeline) {
     });
     tl.at(at, () => {
       land(h, h.targets.length ? i : undefined, { scale: i === last ? 1.1 : 1, tint: 0xFEF3C7, burst: 'slash', burstSize: 0.9, sfx: 'slash_heavy', glare: i === last ? 0.2 : 0.6 });
-      if (i === last) impactFrame(h, tl, c, { color: 0xFBBF24, dim: [0.75, DIM] });
+      if (i === last) {
+        impactFrame(h, tl, c, { color: 0xFBBF24, dim: [0.75, DIM] });
+        h.roll(-0.1, 10, true);
+        signature(h, tl, tl.frame, c, L_SOVEREIGN, 52);
+      }
       h.knock(i, 4, -4);
       h.sparks(t.x, t.y - 20, 12, [0xFBBF24, 0xA78BFA, 0xFFFFFF]);
     });
@@ -1106,13 +1209,13 @@ export const SECRET_SPELL_MOVES: Record<string, KnightMove> = {
   spell_test_your_strength: testYourStrength,
   spell_big_top_finale: bigTopFinale,
   spell_undertow: undertow,
-  spell_leviathans_maw: leviathansMaw,
+  spell_leviathans_maw: staged(14, L_MAW, leviathansMaw, { circle: 36 }),
   spell_sanctified_smoke: sanctifiedSmoke,
-  spell_candlemass: candlemass,
+  spell_candlemass: staged(14, L_CANDLE, candlemass, { circle: 38 }),
   spell_peal: pealOfThunder,
   spell_storm_toll: stormToll,
-  spell_golden_touch: goldenTouch,
-  spell_treasury_rain: treasuryRain,
+  spell_golden_touch: staged(14, L_GOLD, goldenTouch, { circle: 32 }),
+  spell_treasury_rain: staged(16, L_GOLD, treasuryRain, { circle: 38 }),
   spell_quench: quench,
   spell_titans_anvil: titansAnvil,
   spell_stare_back: stareBack,

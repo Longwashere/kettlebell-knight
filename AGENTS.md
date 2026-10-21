@@ -153,6 +153,10 @@ at 4–6 so big single hits don't overkill. Spells are set pieces: build them wi
 on the main contact (called inside the contact event after `land(…, { glare: 0.2 })`, with the move's ambient dim),
 element light as additive `lightSpan`/`glow`/`godRay`, and `windUp`/`weaponTrail`/`speedLines`/`shockSphere` for
 anticipation, travel and force. Secondary hits keep `glare` ≤ 0.5 so stacked flashes don't grey the frame.
+Give every spell a `Look` (its element, colour and motif: `themed(LOOK.X, …)`) and the director beats from the
+`anime-spine-spell-director` skill: `chargeUp` (rune circle, aura, motes, held breath) over its charge, or `staged(n, …)`
+in `SPELL_MOVES` when it snaps too fast for one; `h.roll()`/`dutch()` camera rolls on the release and impact; and
+`signature()` (the element's burst) on the main contact.
 
 ## Monster moves
 

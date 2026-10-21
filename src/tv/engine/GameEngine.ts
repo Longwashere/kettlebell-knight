@@ -1259,6 +1259,10 @@ export class GameEngine {
 
   // Dynamic Camera & Zoom (late 90s dark fantasy cinematic action)
   private cameraZoom: number = 1.0;
+  // Dutch-angle roll (radians) eased toward its target; it springs back to 0 once rollHold runs out
+  private cameraRoll: number = 0;
+  private targetCameraRoll: number = 0;
+  private rollHold: number = 0;
   private targetCameraZoom: number = 1.0;
   private cameraFocusX: number = 213; // default screen center (426 / 2)
   private cameraFocusY: number = 120; // default screen center (240 / 2)
@@ -1872,6 +1876,7 @@ export class GameEngine {
     this.cameraZoom = 1.0;
     this.cameraFocusX = 213;
     this.cameraFocusY = 120;
+    this.cameraRoll = this.targetCameraRoll = this.rollHold = 0;
     if (this.knightSpine && !this.knightSpine.destroyed) {
       this.knightSpine.state.timeScale = 1.0;
       this.knightSpine.state.setAnimation(0, 'IDLE', true);
@@ -2886,6 +2891,7 @@ export class GameEngine {
         if (ctx.heal > 0 && knight) this.spawnVfx(fx, 'heal', knight.x + 4, knight.y - 30, { size: 1.1 });
       },
       camera: (zoom, x, y, holdFrames, snap) => this.moveCamera(zoom, x, y, holdFrames, snap),
+      roll: (radians, holdFrames, snap) => this.rollCamera(radians, holdFrames, snap),
       shake: (intensity) => this.moveShake(intensity),
       flash: (alpha, color) => this.moveFlash(alpha, color),
       hitStop: (frames) => {
@@ -3082,6 +3088,34 @@ export class GameEngine {
         return false;
       },
     });
+  }
+
+  /**
+   * Places the scene for the current zoom / focus / roll. The stage pivots on the focus point, so a roll turns the
+   * view about the screen centre. While rolled, the turned frame's corners reach past the unrolled one; the
+   * backdrop's ~20px overscan absorbs that, and the zoom only rises when the corners would pass it.
+   */
+  private applyCamera(shakeX: number, shakeY: number): void {
+    if (!this.rootStage) return;
+    const roll = this.cameraRoll;
+    let zoom = this.cameraZoom;
+    if (roll !== 0) {
+      const c = Math.cos(roll);
+      const sn = Math.abs(Math.sin(roll));
+      const OVERSCAN = 20;
+      zoom = Math.max(zoom, (213 * c + 120 * sn) / (213 / zoom + OVERSCAN), (213 * sn + 120 * c) / (120 / zoom + OVERSCAN));
+    }
+    this.rootStage.pivot.set(this.cameraFocusX, this.cameraFocusY);
+    this.rootStage.position.set(213 + shakeX, 120 + shakeY);
+    this.rootStage.rotation = roll;
+    this.rootStage.scale.set(zoom);
+  }
+
+  /** Dutch angle: roll the camera to `radians` (clamped to ±0.12; positive = clockwise), easing back after `holdFrames`. */
+  private rollCamera(radians: number, holdFrames: number, snap = false): void {
+    this.targetCameraRoll = Math.max(-0.12, Math.min(0.12, radians));
+    this.rollHold = holdFrames;
+    if (snap) this.cameraRoll = this.targetCameraRoll;
   }
 
   /** Move camera: battlefield → stage coords, clamped so the zoomed view stays over the background. */
@@ -3746,10 +3780,9 @@ export class GameEngine {
       if (this.hitStopFrames > 0) {
         this.hitStopFrames -= delta;
         if (!this.spinesFrozen) this.setSpinesFrozen(true);
-        if (this.rootStage && this.shakeIntensity > 0) {
-          this.rootStage.scale.set(this.cameraZoom); // a snapped camera cut can land during hit-stop
-          this.rootStage.x = (213 - this.cameraFocusX * this.cameraZoom) + (Math.random() - 0.5) * this.shakeIntensity * 2;
-          this.rootStage.y = (120 - this.cameraFocusY * this.cameraZoom) + (Math.random() - 0.5) * this.shakeIntensity * 2;
+        if (this.shakeIntensity > 0) {
+          // a snapped camera cut can land during hit-stop
+          this.applyCamera((Math.random() - 0.5) * this.shakeIntensity * 2, (Math.random() - 0.5) * this.shakeIntensity * 2);
         }
         return;
       }
@@ -3827,25 +3860,27 @@ export class GameEngine {
       this.cameraFocusX += (this.targetCameraFocusX - this.cameraFocusX) * Math.min(1, zoomEase);
       this.cameraFocusY += (this.targetCameraFocusY - this.cameraFocusY) * Math.min(1, zoomEase);
 
+      if (this.rollHold > 0) {
+        this.rollHold -= delta;
+        if (this.rollHold <= 0) this.targetCameraRoll = 0;
+      }
+      this.cameraRoll += (this.targetCameraRoll - this.cameraRoll) * Math.min(1, 0.2 * delta);
+      if (this.targetCameraRoll === 0 && Math.abs(this.cameraRoll) < 0.002) this.cameraRoll = 0;
+
       if (this.targetCameraZoom === 1.0 && Math.abs(this.cameraZoom - 1.0) < 0.005) {
         this.cameraZoom = 1.0;
         this.cameraFocusX = 213;
         this.cameraFocusY = 120;
       }
 
-      if (this.rootStage) {
-        let shakeOffsetX = 0;
-        let shakeOffsetY = 0;
-        if (this.shakeIntensity > 0) {
-          shakeOffsetX = (Math.random() - 0.5) * this.shakeIntensity * 2;
-          shakeOffsetY = (Math.random() - 0.5) * this.shakeIntensity * 2;
-          this.shakeIntensity = Math.max(0, this.shakeIntensity - 0.6 * delta);
-        }
-
-        this.rootStage.scale.set(this.cameraZoom);
-        this.rootStage.x = (213 - this.cameraFocusX * this.cameraZoom) + shakeOffsetX;
-        this.rootStage.y = (120 - this.cameraFocusY * this.cameraZoom) + shakeOffsetY;
+      let shakeOffsetX = 0;
+      let shakeOffsetY = 0;
+      if (this.shakeIntensity > 0) {
+        shakeOffsetX = (Math.random() - 0.5) * this.shakeIntensity * 2;
+        shakeOffsetY = (Math.random() - 0.5) * this.shakeIntensity * 2;
+        this.shakeIntensity = Math.max(0, this.shakeIntensity - 0.6 * delta);
       }
+      this.applyCamera(shakeOffsetX, shakeOffsetY);
 
       this.repStamp?.update(delta);
 
@@ -3977,6 +4012,7 @@ export class GameEngine {
       this.shakeIntensity === 0 &&
       this.targetCameraZoom === 1.0 &&
       this.cameraZoom === 1.0 &&
+      this.cameraRoll === 0 &&
       (this.knightLocked || knightAnimation === null || knightAnimation === 'IDLE') &&
       this.monsterSlots.every((s, i) => s.isLocked || !s.spine || monsters[i].animation === s.rig?.idle) &&
       this.monsterSlots.every((s) => s.lungeT >= 1 && s.shakeX === 0 && s.kickX === 0 && s.kickY === 0);

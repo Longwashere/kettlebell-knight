@@ -8,15 +8,17 @@
  *   glow / godRay / glint / skyBolt / shockSphere / groundCracks / ribbon / focusLines   light and force shapes
  *   speedLines    focus lines streaming in on a point (dashes, wind-ups, dives)
  *   windUp        the anticipation beat: camera pushes in, the weapon swells with light, motes converge
+ *   chargeUp / castCircle / aura / motes / breath / dutch / signature   the director beats (bottom of file):
+ *                 the element's look through the charge, the held breath, a camera roll, the element's burst
  *
  * Light layers thin out under the PERFORMANCE graphics setting (the stick is GPU-bound): glow draws fewer rings
  * and focus lines fewer spokes.
  */
 import type { Graphics } from 'pixi.js';
 import { isPerformanceMode } from '../graphicsMode';
-import { Timeline, lerp, easeIn, easeOut, rand, INK } from './choreo';
-import { type Pal, hash } from './fxKit';
-import { type KnightMoveHost, type P, drawSpan, once, chargeSound } from './knightKit';
+import { Timeline, type SfxName, shifted, lerp, easeIn, easeOut, arc, rand, INK } from './choreo';
+import { type Pal, pal, hash, starburst } from './fxKit';
+import { type KnightMove, type KnightMoveHost, type P, drawSpan, once, chargeSound } from './knightKit';
 
 /** PERFORMANCE graphics: fewer light layers. */
 export const lite = () => isPerformanceMode();
@@ -328,4 +330,473 @@ export function targetRing(h: KnightMoveHost, tl: Timeline, from: number, to: nu
     g.ellipse(x, y, rr * 0.6, rr * 0.17).stroke({ width: 1, color: 0xFFFFFF, alpha: pulse * 0.8 });
     g.ellipse(x, y, rr * 0.9, rr * 0.25).fill({ color, alpha: 0.12 * t });
   }, 'ground');
+}
+
+// =============================================================================================
+// DIRECTOR: the element's signature and the sakuga beats around a spell (anime-spine-spell-director skill)
+//
+//   Look / LOOK     a spell's light, core and deep colours plus its motif (flame, snowflake, bolt, shard, leaf,
+//                   cross, crescent, chevron), so every beat below reads as that element
+//   castCircle      a rotating rune circle under the caster, ringed with the motif; it flares as the charge peaks
+//   aura            a power-up aura: tongues of light licking up around the knight (behind the rig)
+//   motes           motif glyphs spiralling into the weapon head during the charge
+//   breath          the held breath before the snap: the rig freezes at the top, a glint flares on the weapon
+//   dutch           a camera roll on the release (Dutch angle), springing level on its own
+//   signature       the element's own burst on contact (flame crown, ice star, forked bolts, rock crown,
+//                   petal storm, cross of light, implosion)
+//
+// All additive; the motif count thins under PERFORMANCE graphics.
+
+export type Motif =
+  | 'flame' | 'flake' | 'bolt' | 'shard' | 'leaf' | 'cross' | 'crescent' | 'chevron' // the elements
+  | 'bubble' | 'coin' | 'note' | 'eye' | 'skull' | 'feather' | 'moon' | 'sun' | 'wave' | 'web' | 'bell' | 'star'; // spell themes
+
+export interface Look {
+  light: number; // the element's light
+  core: number; // white-hot centre
+  deep: number; // the shadow it casts / dim colour
+  motif: Motif;
+  sound: SfxName; // the element's voice (castCircle flare, signature)
+}
+
+export const LOOK = {
+  FIRE: { light: 0xF97316, core: 0xFDE047, deep: 0x2A0A04, motif: 'flame', sound: 'fire_burst' },
+  FROST: { light: 0x7DD3FC, core: 0xE0F2FE, deep: 0x06182A, motif: 'flake', sound: 'frost' },
+  STORM: { light: 0x67E8F9, core: 0xFFFFFF, deep: 0x0A1230, motif: 'bolt', sound: 'zap' },
+  EARTH: { light: 0xD97706, core: 0xFDE68A, deep: 0x1C1208, motif: 'shard', sound: 'rock' },
+  NATURE: { light: 0x4ADE80, core: 0xD9F99D, deep: 0x06180C, motif: 'leaf', sound: 'magic' },
+  HOLY: { light: 0xFBBF24, core: 0xFFFBEA, deep: 0x1F1404, motif: 'cross', sound: 'holy' },
+  VOID: { light: 0xA855F7, core: 0xF5D0FE, deep: 0x0E0418, motif: 'crescent', sound: 'dark' },
+  STEEL: { light: 0xCBD5E1, core: 0xFFFFFF, deep: 0x0A0D14, motif: 'chevron', sound: 'charge' },
+} as const satisfies Record<string, Look>;
+
+/** An element's look recoloured to the spell's own colour (keeps the motif, sound and white core). */
+export function tinted(look: Look, light: number, deep = look.deep): Look {
+  return { ...look, light, deep };
+}
+
+/** A spell's own look: its element's, with the spell's colour, motif and (optionally) voice. */
+export function themed(look: Look, light: number, m: Motif, o: { core?: number; deep?: number; sound?: SfxName } = {}): Look {
+  return { light, core: o.core ?? look.core, deep: o.deep ?? look.deep, motif: m, sound: o.sound ?? look.sound };
+}
+
+/** One motif glyph, `s` px tall, at (x, y). Additive-friendly (light shapes only). */
+export function motif(g: Graphics, m: Motif, x: number, y: number, s: number, rot: number, color: number, alpha = 1) {
+  if (alpha <= 0 || s <= 0.4) return;
+  const c = Math.cos(rot);
+  const sn = Math.sin(rot);
+  // Local (u, v) → world, u right / v down in the glyph's frame
+  const P = (u: number, v: number): [number, number] => [x + (u * c - v * sn) * s, y + (u * sn + v * c) * s];
+  const poly = (pts: [number, number][], col = color, a = alpha) => g.poly(pts.flat()).fill({ color: col, alpha: a });
+  const line = (a: [number, number], b: [number, number], w: number, col = color, al = alpha) => g.moveTo(a[0], a[1]).lineTo(b[0], b[1]).stroke({ width: w, color: col, alpha: al, cap: 'round' });
+  switch (m) {
+    case 'flame':
+      poly([P(0, -1), P(0.35, -0.2), P(0.4, 0.25), P(0, 0.55), P(-0.4, 0.25), P(-0.3, -0.25)]);
+      poly([P(0, -0.35), P(0.18, 0.15), P(0, 0.4), P(-0.18, 0.15)], 0xFFFFFF, alpha * 0.8);
+      break;
+    case 'flake':
+      for (let k = 0; k < 3; k++) {
+        const a = (k * Math.PI) / 3;
+        line(P(Math.cos(a) * 0.6, Math.sin(a) * 0.6), P(-Math.cos(a) * 0.6, -Math.sin(a) * 0.6), Math.max(0.8, s * 0.12));
+      }
+      g.circle(x, y, Math.max(0.6, s * 0.12)).fill({ color: 0xFFFFFF, alpha });
+      break;
+    case 'bolt':
+      poly([P(0.15, -1), P(-0.35, 0.05), P(0, 0.05), P(-0.15, 1), P(0.35, -0.1), P(0, -0.1)]);
+      break;
+    case 'shard':
+      poly([P(0, -0.8), P(0.35, 0), P(0, 0.6), P(-0.3, 0.05)]);
+      poly([P(0, -0.8), P(0.35, 0), P(0, 0)], 0xFFFFFF, alpha * 0.5);
+      break;
+    case 'leaf':
+      poly([P(0, -0.7), P(0.32, -0.25), P(0.3, 0.2), P(0, 0.6), P(-0.3, 0.2), P(-0.32, -0.25)]);
+      line(P(0, -0.55), P(0, 0.55), Math.max(0.6, s * 0.06), 0xFFFFFF, alpha * 0.6);
+      break;
+    case 'cross':
+      poly([P(0, -1), P(0.12, -0.12), P(1, 0), P(0.12, 0.12), P(0, 1), P(-0.12, 0.12), P(-1, 0), P(-0.12, -0.12)]);
+      g.circle(x, y, Math.max(0.6, s * 0.15)).fill({ color: 0xFFFFFF, alpha });
+      break;
+    case 'crescent': {
+      const pts: [number, number][] = [];
+      for (let i = 0; i <= 8; i++) {
+        const a = -Math.PI / 2 + (i / 8) * Math.PI;
+        pts.push(P(Math.cos(a) * 0.6, Math.sin(a) * 0.6));
+      }
+      for (let i = 8; i >= 0; i--) {
+        const a = -Math.PI / 2 + (i / 8) * Math.PI;
+        pts.push(P(Math.cos(a) * 0.25, Math.sin(a) * 0.5));
+      }
+      poly(pts);
+      break;
+    }
+    case 'chevron':
+      poly([P(-0.5, -0.5), P(0.5, 0), P(-0.5, 0.5), P(-0.2, 0)]);
+      break;
+    case 'bubble':
+      g.circle(x, y, s * 0.45).stroke({ width: Math.max(0.8, s * 0.1), color, alpha });
+      g.circle(x - s * 0.15, y - s * 0.15, Math.max(0.5, s * 0.1)).fill({ color: 0xFFFFFF, alpha });
+      break;
+    case 'coin':
+      g.ellipse(x, y, s * 0.45 * Math.max(0.15, Math.abs(Math.cos(rot * 2))), s * 0.45).fill({ color, alpha });
+      g.ellipse(x, y, s * 0.2 * Math.max(0.15, Math.abs(Math.cos(rot * 2))), s * 0.2).fill({ color: 0xFFFFFF, alpha: alpha * 0.7 });
+      break;
+    case 'note':
+      g.ellipse(x - s * 0.18, y + s * 0.35, s * 0.24, s * 0.17).fill({ color, alpha });
+      line([x + s * 0.04, y + s * 0.35], [x + s * 0.04, y - s * 0.55], Math.max(0.8, s * 0.1));
+      poly([[x + s * 0.04, y - s * 0.55], [x + s * 0.4, y - s * 0.3], [x + s * 0.04, y - s * 0.25]]);
+      break;
+    case 'eye':
+      poly([[x - s * 0.6, y], [x - s * 0.2, y - s * 0.32], [x + s * 0.2, y - s * 0.32], [x + s * 0.6, y], [x + s * 0.2, y + s * 0.32], [x - s * 0.2, y + s * 0.32]]);
+      g.circle(x, y, s * 0.18).fill({ color: 0xFFFFFF, alpha });
+      break;
+    case 'skull':
+      g.circle(x, y - s * 0.12, s * 0.38).fill({ color, alpha });
+      g.rect(x - s * 0.2, y + s * 0.15, s * 0.4, s * 0.25).fill({ color, alpha });
+      g.circle(x - s * 0.14, y - s * 0.1, s * 0.1).fill({ color: 0xFFFFFF, alpha });
+      g.circle(x + s * 0.14, y - s * 0.1, s * 0.1).fill({ color: 0xFFFFFF, alpha });
+      break;
+    case 'feather':
+      poly([P(0, -0.8), P(0.22, -0.3), P(0.15, 0.4), P(0, 0.8), P(-0.15, 0.4), P(-0.22, -0.3)]);
+      line(P(0, -0.7), P(0, 0.9), Math.max(0.6, s * 0.06), 0xFFFFFF, alpha * 0.7);
+      break;
+    case 'moon': {
+      const pts: [number, number][] = [];
+      for (let i = 0; i <= 10; i++) {
+        const a = Math.PI * 0.3 + (i / 10) * Math.PI * 1.4;
+        pts.push(P(Math.cos(a) * 0.55, Math.sin(a) * 0.55));
+      }
+      for (let i = 10; i >= 0; i--) {
+        const a = Math.PI * 0.3 + (i / 10) * Math.PI * 1.4;
+        pts.push(P(0.22 + Math.cos(a) * 0.42, Math.sin(a) * 0.42));
+      }
+      poly(pts);
+      break;
+    }
+    case 'sun':
+      for (let k = 0; k < 8; k++) {
+        const a = rot + (k / 8) * Math.PI * 2;
+        line([x + Math.cos(a) * s * 0.35, y + Math.sin(a) * s * 0.35], [x + Math.cos(a) * s * 0.65, y + Math.sin(a) * s * 0.65], Math.max(0.7, s * 0.08));
+      }
+      g.circle(x, y, s * 0.28).fill({ color, alpha });
+      g.circle(x, y, s * 0.14).fill({ color: 0xFFFFFF, alpha });
+      break;
+    case 'wave':
+      g.moveTo(x - s * 0.6, y + s * 0.15);
+      for (let i = 1; i <= 8; i++) g.lineTo(x - s * 0.6 + (i / 8) * s * 1.2, y + s * 0.15 - Math.sin((i / 8) * Math.PI * 2) * s * 0.25);
+      g.stroke({ width: Math.max(0.8, s * 0.12), color, alpha, cap: 'round' });
+      g.circle(x + s * 0.3, y - s * 0.15, s * 0.1).fill({ color: 0xFFFFFF, alpha });
+      break;
+    case 'web':
+      for (let k = 0; k < 4; k++) {
+        const a = rot + (k / 4) * Math.PI;
+        line([x + Math.cos(a) * s * 0.6, y + Math.sin(a) * s * 0.6], [x - Math.cos(a) * s * 0.6, y - Math.sin(a) * s * 0.6], Math.max(0.5, s * 0.05));
+      }
+      g.circle(x, y, s * 0.3).stroke({ width: Math.max(0.5, s * 0.05), color, alpha });
+      break;
+    case 'bell':
+      poly([P(-0.15, -0.55), P(0.15, -0.55), P(0.3, -0.1), P(0.5, 0.35), P(-0.5, 0.35), P(-0.3, -0.1)]);
+      g.circle(P(0, 0.5)[0], P(0, 0.5)[1], s * 0.12).fill({ color: 0xFFFFFF, alpha });
+      break;
+    case 'star':
+      glint(g, x, y, s * 0.7, rot, color, alpha);
+      break;
+  }
+}
+
+/**
+ * A rune circle on the floor under the caster over [from, to] (perspective ellipse, `r` px wide): two rings
+ * turning against each other, the motif around the rim, spokes to the centre. It opens over the first quarter
+ * and flares (bright fill, a ring thrown outward, the element's sound) over the last 15%. Follows `at`
+ * (default: the knight's feet).
+ */
+export function castCircle(h: KnightMoveHost, tl: Timeline, from: number, to: number, look: Look, o: { r?: number; at?: () => P; flare?: boolean; sound?: boolean } = {}) {
+  const r = o.r ?? 34;
+  const at = o.at ?? (() => h.pos());
+  const n = lite() ? 6 : 8;
+  if (o.sound !== false) tl.at(from, () => h.sound('rune', { vol: 0.45 }));
+  if (o.flare !== false && o.sound !== false) tl.at(Math.round(lerp(from, to, 0.85)), () => h.sound(look.sound, { vol: 0.5, rate: 1.2 }));
+  lightSpan(h, tl, from, to, (g, t, f) => {
+    const c = at();
+    const open = easeOut(Math.min(1, t / 0.25));
+    const flare = o.flare === false ? 0 : Math.max(0, (t - 0.85) / 0.15);
+    const fade = t > 0.94 ? 1 - (t - 0.94) / 0.06 : 1;
+    const rr = r * open * (1 + 0.25 * flare);
+    const sq = 0.3; // floor perspective
+    const a = (0.55 + 0.25 * Math.sin(f * 0.4)) * fade;
+    g.ellipse(c.x, c.y, rr, rr * sq).fill({ color: look.light, alpha: (0.1 + 0.35 * flare) * fade });
+    g.ellipse(c.x, c.y, rr, rr * sq).stroke({ width: 2, color: look.light, alpha: a });
+    g.ellipse(c.x, c.y, rr * 0.82, rr * 0.82 * sq).stroke({ width: 1, color: look.core, alpha: a * 0.8 });
+    g.ellipse(c.x, c.y, rr * 0.45, rr * 0.45 * sq).stroke({ width: 1.5, color: look.light, alpha: a * 0.9 });
+    // Spokes and rim glyphs, turning
+    const spin = f * 0.05;
+    for (let k = 0; k < n; k++) {
+      const ang = spin + (k / n) * Math.PI * 2;
+      const gx = c.x + Math.cos(ang) * rr * 0.91;
+      const gy = c.y + Math.sin(ang) * rr * 0.91 * sq;
+      motif(g, look.motif, gx, gy, 4 + 2 * open, 0, look.light, a);
+      const ia = -spin * 1.6 + (k / n) * Math.PI * 2;
+      g.moveTo(c.x + Math.cos(ia) * rr * 0.45, c.y + Math.sin(ia) * rr * 0.45 * sq).lineTo(c.x + Math.cos(ia) * rr * 0.8, c.y + Math.sin(ia) * rr * 0.8 * sq).stroke({ width: 1, color: look.core, alpha: a * 0.6 });
+    }
+    if (flare > 0) {
+      const fr = r * (1 + 1.2 * easeOut(flare));
+      g.ellipse(c.x, c.y, fr, fr * sq).stroke({ width: 3 * (1 - flare) + 0.5, color: look.core, alpha: 1 - flare });
+      // A column of light rising off the circle
+      godRay(g, c.x, c.y - 70 * flare - 20, c.y, rr * 0.5, rr * 1.1, look.light, 0.5 * (1 - flare * 0.5) * fade);
+    }
+  }, 'ground');
+}
+
+/**
+ * The power-up aura over [from, to]: tongues of the element's light licking up around the knight's body,
+ * behind the rig, with a soft halo; motif sparks peel off the top. `scale` grows it for bigger casters/poses.
+ */
+export function aura(h: KnightMoveHost, tl: Timeline, from: number, to: number, look: Look, o: { scale?: number; sparks?: boolean } = {}) {
+  const s = o.scale ?? 1;
+  const n = lite() ? 7 : 11;
+  lightSpan(h, tl, from, to, (g, t, f) => {
+    const p = h.pos();
+    const grow = easeOut(Math.min(1, t / 0.2)) * (t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1);
+    if (grow <= 0) return;
+    const cx = p.x - 2;
+    const cy = p.y - 24 * s;
+    glow(g, cx, cy, 32 * s * grow, look.light, 0.6 * grow, look.core);
+    for (let k = 0; k < n; k++) {
+      const u = (k + 0.5) / n; // round the body from one side to the other
+      const ang = Math.PI * (1 + u); // lower-left → top → lower-right
+      const bx = cx + Math.cos(ang) * 15 * s;
+      const by = cy + Math.sin(ang) * 26 * s * 0.75 + 12 * s;
+      const flick = hash(k * 31 + Math.floor(f / 2));
+      const len = (14 + 18 * flick) * s * grow * (0.6 + 0.4 * Math.sin(u * Math.PI));
+      const lean = (u - 0.5) * 0.6 + (flick - 0.5) * 0.3;
+      const w = 3.5 * s;
+      g.poly([bx - w, by, bx + w, by, bx + lean * len, by - len]).fill({ color: look.light, alpha: 0.7 * grow });
+      g.poly([bx - w * 0.4, by, bx + w * 0.4, by, bx + lean * len * 0.6, by - len * 0.6]).fill({ color: look.core, alpha: 0.8 * grow });
+    }
+  }, 'back');
+  if (o.sparks !== false) {
+    lightSpan(h, tl, from, to, (g, t, f) => {
+      const p = h.pos();
+      const grow = Math.min(1, t / 0.2) * (t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1);
+      for (let k = 0; k < (lite() ? 3 : 5); k++) {
+        const ph = ((f + k * 11) % 30) / 30;
+        const x = p.x - 14 * s + 28 * s * hash(k * 7 + Math.floor((f + k * 11) / 30));
+        const y = p.y - 8 - ph * 52 * s;
+        motif(g, look.motif, x, y, 3.5 * (1 - ph * 0.5), ph * 2, look.core, grow * (1 - ph));
+      }
+    });
+  }
+}
+
+/** Motif glyphs spiralling into `at` (default the weapon head) over [from, to], faster as the charge peaks. */
+export function motes(h: KnightMoveHost, tl: Timeline, from: number, to: number, look: Look, o: { at?: () => P; reach?: number; n?: number } = {}) {
+  const at = o.at ?? (() => h.weaponTip());
+  const reach = o.reach ?? 60;
+  const n = Math.round((o.n ?? 9) * (lite() ? 0.6 : 1));
+  lightSpan(h, tl, from, to, (g, t, f) => {
+    const c = at();
+    const speed = 1 + 2 * t;
+    for (let k = 0; k < n; k++) {
+      const ph = ((f * speed) / 40 + k / n) % 1;
+      const r = reach * (1 - easeIn(ph));
+      const a = k * 2.39 + ph * 2.2; // golden-angle spread, swirling as it falls in
+      const x = c.x + Math.cos(a) * r;
+      const y = c.y + Math.sin(a) * r * 0.75;
+      const tx = c.x + Math.cos(a - 0.35) * (r + 10);
+      const ty = c.y + Math.sin(a - 0.35) * (r + 10) * 0.75;
+      g.moveTo(tx, ty).lineTo(x, y).stroke({ width: 1, color: look.light, alpha: 0.5 * ph });
+      motif(g, look.motif, x, y, 3 + 2 * (1 - ph), a, ph > 0.8 ? look.core : look.light, Math.min(1, ph * 2));
+    }
+  });
+}
+
+/**
+ * The held breath before the snap, over [at, at + frames]: the rig freezes in its pose, the scene leans in,
+ * and a glint swells and pops on the weapon head. Restores `resume` (rig speed) at the end.
+ */
+export function breath(h: KnightMoveHost, tl: Timeline, at: number, frames: number, look: Look, o: { where?: () => P; resume?: number; freeze?: boolean } = {}) {
+  const where = o.where ?? (() => h.weaponTip());
+  if (o.freeze !== false) {
+    tl.at(at, () => h.animSpeed(0));
+    tl.at(at + frames, () => h.animSpeed(o.resume ?? 1));
+  }
+  tl.at(at, () => h.sound('charge', { rate: 1.8, vol: 0.35 }));
+  lightSpan(h, tl, at, at + frames + 3, (g, t, f) => {
+    const c = where();
+    const u = easeIn(Math.min(1, t * 1.15));
+    glow(g, c.x, c.y, 6 + 14 * u, look.light, 0.6 + 0.4 * u, look.core);
+    glint(g, c.x, c.y, 6 + 22 * u, f * 0.04 + 0.4, look.core, t > 0.9 ? (1 - t) * 10 : 0.5 + 0.5 * u);
+  });
+}
+
+/** Camera roll (Dutch angle) at frame `at`: snaps to `radians` and holds `hold` frames before easing level. */
+export function dutch(h: KnightMoveHost, tl: Timeline, at: number, radians: number, hold = 10, snap = true) {
+  tl.at(at, () => h.roll(radians, hold, snap));
+}
+
+/**
+ * The element's own burst at `where` on frame `at`, `size` px across: flame crown, ice star, forked bolts, rock
+ * crown, petal storm, cross of light or a void implosion. Plays the element's sound. Use with land()'s spark.
+ */
+export function signature(h: KnightMoveHost, tl: Timeline, at: number, where: P | (() => P), look: Look, size = 40, dur = 20) {
+  const pt = once(where);
+  const m = look.motif;
+  tl.at(at, () => h.sound(look.sound, { vol: 0.55 }));
+  const n = lite() ? 6 : 9;
+  lightSpan(h, tl, at, at + dur, (g, t, f) => {
+    const c = pt();
+    const fade = 1 - t;
+    const grow = easeOut(Math.min(1, t * 2.2));
+    if (m === 'flame') {
+      // A crown of flame tongues bursting up and out
+      for (let k = 0; k < n; k++) {
+        const a = -Math.PI / 2 + ((k / (n - 1)) - 0.5) * 2.4;
+        const len = size * (0.6 + 0.5 * hash(k * 13)) * grow;
+        const x1 = c.x + Math.cos(a) * len;
+        const y1 = c.y + Math.sin(a) * len;
+        const w = 5 * fade + 1;
+        const nx = -Math.sin(a) * w;
+        const ny = Math.cos(a) * w;
+        g.poly([c.x + nx, c.y + ny, c.x - nx, c.y - ny, x1, y1]).fill({ color: look.light, alpha: 0.75 * fade });
+        g.poly([c.x + nx * 0.4, c.y + ny * 0.4, c.x - nx * 0.4, c.y - ny * 0.4, lerp(c.x, x1, 0.6), lerp(c.y, y1, 0.6)]).fill({ color: look.core, alpha: fade });
+      }
+    } else if (m === 'flake') {
+      // A six-pointed ice star of long shards, each with a frost sparkle at its tip
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2 + 0.26;
+        const len = size * 0.75 * grow;
+        const w = 4;
+        const nx = -Math.sin(a) * w;
+        const ny = Math.cos(a) * w;
+        const x1 = c.x + Math.cos(a) * len;
+        const y1 = c.y + Math.sin(a) * len;
+        g.poly([c.x + nx, c.y + ny, x1, y1, c.x - nx, c.y - ny]).fill({ color: look.light, alpha: 0.7 * fade });
+        g.moveTo(c.x, c.y).lineTo(x1, y1).stroke({ width: 1, color: 0xFFFFFF, alpha: fade });
+        glint(g, x1, y1, 6 * fade + 2, f * 0.1, look.core, fade);
+      }
+    } else if (m === 'bolt') {
+      // Forked bolts thrown out radially, re-rolled every other frame so they crackle
+      for (let k = 0; k < (lite() ? 4 : 6); k++) {
+        const a = (k / 6) * Math.PI * 2 + hash(k) * 0.5;
+        const len = size * (0.7 + 0.4 * hash(k * 5 + Math.floor(f / 2))) * grow;
+        skyBolt(g, c.x, c.y, c.x + Math.cos(a) * len, c.y + Math.sin(a) * len, k * 17 + Math.floor(f / 2), pal(look.light, look.core), 2, fade);
+      }
+    } else if (m === 'shard') {
+      // A crown of rock shards and a ring of dust light
+      for (let k = 0; k < n; k++) {
+        const a = -Math.PI / 2 + ((k / (n - 1)) - 0.5) * 2.6;
+        const len = size * (0.45 + 0.35 * hash(k * 3)) * grow;
+        motif(g, 'shard', c.x + Math.cos(a) * len, c.y + Math.sin(a) * len, 8 * (1 - t * 0.4), a + Math.PI / 2, look.light, fade);
+      }
+      g.ellipse(c.x, c.y + size * 0.2, size * grow, size * 0.25 * grow).stroke({ width: 3 * fade + 0.5, color: look.core, alpha: 0.7 * fade });
+    } else if (m === 'leaf') {
+      // A spiral of leaves/petals blown outward
+      for (let k = 0; k < n + 3; k++) {
+        const a = (k / (n + 3)) * Math.PI * 2 + t * 2.4;
+        const r = size * (0.3 + 0.7 * grow) * (0.7 + 0.3 * hash(k * 7));
+        motif(g, 'leaf', c.x + Math.cos(a) * r, c.y + Math.sin(a) * r * 0.8, 5 + 2 * hash(k), a + t * 6, k % 3 ? look.light : look.core, fade);
+      }
+      g.circle(c.x, c.y, size * 0.6 * grow).stroke({ width: 2 * fade + 0.5, color: look.light, alpha: 0.6 * fade });
+    } else if (m === 'cross') {
+      // A cross of light: long vertical shaft, shorter arms, and a halo ellipse
+      const v = size * 1.4 * grow;
+      const hz = size * 0.9 * grow;
+      godRay(g, c.x, c.y - v, c.y + v * 0.4, 3, 8 * fade + 2, look.light, fade);
+      g.poly([c.x - hz, c.y, c.x, c.y - 3, c.x + hz, c.y, c.x, c.y + 3]).fill({ color: look.core, alpha: fade });
+      g.ellipse(c.x, c.y - size * 0.55, size * 0.5 * grow, size * 0.14 * grow).stroke({ width: 2, color: look.core, alpha: fade });
+      glow(g, c.x, c.y, size * 0.5, look.light, fade);
+    } else if (m === 'crescent') {
+      // Implosion: a ring collapsing onto the point, then a void star tearing outward
+      if (t < 0.35) {
+        const u = t / 0.35;
+        const r = size * (1 - easeIn(u));
+        g.circle(c.x, c.y, r).stroke({ width: 2 + 3 * u, color: look.light, alpha: 0.9 });
+        for (let k = 0; k < n; k++) {
+          const a = (k / n) * Math.PI * 2 + u * 2;
+          g.moveTo(c.x + Math.cos(a) * (r + 12), c.y + Math.sin(a) * (r + 12)).lineTo(c.x + Math.cos(a) * r, c.y + Math.sin(a) * r).stroke({ width: 1, color: look.core, alpha: 0.7 });
+        }
+      } else {
+        const u = (t - 0.35) / 0.65;
+        glint(g, c.x, c.y, size * 0.9 * easeOut(u) + 4, 0.3, look.light, 1 - u);
+        glint(g, c.x, c.y, size * 0.6 * easeOut(u) + 3, 1.1, look.core, 1 - u);
+        g.circle(c.x, c.y, size * 0.8 * easeOut(u)).stroke({ width: 2 * (1 - u) + 0.5, color: look.light, alpha: 1 - u });
+      }
+    } else if (m === 'chevron') {
+      starburst(g, c.x, c.y, size * 0.6 * grow, 8, f * 0.05, pal(look.light, look.core), fade);
+    } else {
+      // The spell's own glyphs flung out of the contact on a ring of light
+      for (let k = 0; k < n + 2; k++) {
+        const a = (k / (n + 2)) * Math.PI * 2 + hash(k * 3) * 0.5;
+        const r = size * (0.25 + 0.75 * grow) * (0.75 + 0.25 * hash(k * 7));
+        motif(g, m, c.x + Math.cos(a) * r, c.y + Math.sin(a) * r * 0.85, 5 + 3 * hash(k) * (1 - t * 0.4), a + t * 3, k % 3 ? look.light : look.core, fade);
+      }
+      g.circle(c.x, c.y, size * 0.7 * grow).stroke({ width: 2.5 * fade + 0.5, color: look.light, alpha: 0.8 * fade });
+      glow(g, c.x, c.y, size * 0.45 * (1 - t), look.light, fade);
+    }
+  });
+  if (m === 'crescent') {
+    // A hole in the world at the centre while it collapses (normal blend, so it really darkens)
+    drawSpan(h, tl, at, at + Math.round(dur * 0.5), (g, t) => {
+      const c = pt();
+      g.circle(c.x, c.y, size * 0.22 * arc(t)).fill({ color: look.deep, alpha: 0.95 });
+    });
+  }
+}
+
+/**
+ * The full cinematic charge over [from, to] in one call: rune circle underfoot, aura, motes into the weapon, and
+ * (unless `breath` is 0) the held breath over the last `breath` frames. `release` rolls the camera on the snap.
+ */
+export function chargeUp(h: KnightMoveHost, tl: Timeline, from: number, to: number, look: Look, o: { breath?: number; freeze?: boolean; resume?: number; circle?: number | false; aura?: number | false; motes?: boolean; at?: () => P; roll?: number; rollHold?: number } = {}) {
+  const b = o.breath ?? 0;
+  if (o.circle !== false) castCircle(h, tl, from, to + 4, look, { r: o.circle ?? 34 });
+  if (o.aura !== false) aura(h, tl, from, to + 2, look, { scale: o.aura ?? 1 });
+  if (o.motes !== false) motes(h, tl, from, to - b, look, { at: o.at });
+  if (b > 0) breath(h, tl, to - b, b, look, { where: o.at, freeze: o.freeze, resume: o.resume });
+  if (o.roll) dutch(h, tl, to, o.roll, o.rollHold ?? 10);
+}
+
+export interface PreludeOpts {
+  /** Knight pose held through the charge: 'BUFF' (crouched, gathering), 'DEFENSE' (braced) or 'SKILL2TULUC' (arm raised). */
+  pose?: string;
+  /** Frame of `pose` to freeze on. */
+  hold?: number;
+  /** Where the power gathers (default the weapon head). */
+  at?: () => P;
+  circle?: number | false;
+  aura?: number | false;
+  /** Camera roll held through the charge (eases in), radians. */
+  lean?: number;
+  zoom?: number;
+}
+
+/**
+ * A spell's opening charge over [0, n]: the knight sinks into a gathering pose and freezes, the camera pushes
+ * in (leaning into a slight roll), the element's circle opens underfoot, the aura climbs and motes pour into
+ * the weapon; the breath is held over the last frames and pops as the move proper starts.
+ */
+export function prelude(h: KnightMoveHost, tl: Timeline, n: number, look: Look, o: PreludeOpts = {}) {
+  const pose = o.pose ?? 'BUFF';
+  const hold = o.hold ?? 9;
+  tl.at(0, () => {
+    h.anim(pose);
+    const p = h.pos();
+    h.camera(o.zoom ?? 1.24, p.x + 18, p.y - 30, n + 2);
+    if (o.lean !== 0) h.roll(o.lean ?? -0.035, n, false);
+    chargeSound(h, n, 0.5);
+  });
+  tl.at(Math.min(hold, n - 2), () => h.animSpeed(0));
+  tl.during(0, n, (t) => h.dim(0.3 * easeOut(Math.min(1, t * 2)) * (t > 0.8 ? 1 - (t - 0.8) / 0.2 : 1), look.deep));
+  chargeUp(h, tl, 0, n, look, { at: o.at, breath: Math.min(8, Math.round(n / 3)), freeze: false, circle: o.circle, aura: o.aura });
+  tl.at(n, () => {
+    h.animSpeed(1);
+    h.roll(0, 1, false);
+  });
+}
+
+/** Wraps a spell with a `n`-frame prelude (the spell plays after it, unchanged). */
+export function staged(n: number, look: Look, move: KnightMove, o: PreludeOpts = {}): KnightMove {
+  return (h, tl) => {
+    prelude(h, tl, n, look, o);
+    move(h, shifted(tl, n));
+  };
 }
