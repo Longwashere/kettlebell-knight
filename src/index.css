@@ -96,9 +96,53 @@ canvas,
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  gap: 8px;
   padding-top: 22px;
   margin-bottom: -4px;
+}
+/* Cards overlap a little at the base (the fan opens them up at the top) so five fit beside the control legend */
+.kk-hand > * + * {
+  margin-left: -8px;
+}
+
+/* End-of-fight modal: the button the D-pad has focused */
+.kk-modal-choice--focused {
+  outline: 2px solid #fffffe;
+  outline-offset: 2px;
+  transform: translateY(-2px);
+}
+
+/* Remote control legend: a narrow column right of the hand, below the fanned last card's lean */
+.kk-hand-legend {
+  flex: none;
+  width: 76px;
+  margin-left: 6px;
+  margin-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 5px 3px;
+  background: rgba(15, 14, 23, 0.85);
+  border: 1px solid #2E2B44;
+  font-family: 'VT323', monospace;
+  font-size: 15px;
+  line-height: 1;
+  color: #A7A9BE;
+  text-align: center;
+}
+.kk-hand-legend__row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  column-gap: 0;
+  margin-inline: 0; /* overlap a little at the base, the fan opens them up at the top */
+}
+.kk-hand-legend kbd {
+  font-family: inherit;
+  font-size: 14px;
+  color: #5CC8FF;
+  padding: 1px 4px;
+  border: 1px solid #5CC8FF;
+  border-bottom-width: 2px;
 }
 
 .kk-card-slot {
@@ -899,7 +943,8 @@ canvas,
 /* Card targeting diagram (front → back) and highlighted rules keywords */
 .kk-target-pips {
   display: inline-flex;
-  gap: 2px;
+  column-gap: 0;
+  margin-inline: 0; /* overlap a little at the base, the fan opens them up at the top */
   margin-left: 2px;
 }
 .kk-target-pips i {
@@ -1724,7 +1769,8 @@ canvas,
 .kk-pause__row--on .kk-pause__arrow { color: #F4B41A; }
 .kk-pause__pips {
   display: flex;
-  gap: 2px;
+  column-gap: 0;
+  margin-inline: 0; /* overlap a little at the base, the fan opens them up at the top */
   padding: 3px;
   background: #0a0910;
   border: 1px solid #000;
@@ -2498,7 +2544,8 @@ canvas,
 .kk-forge__tabs {
   display: flex;
   align-items: stretch;
-  gap: 2px;
+  column-gap: 0;
+  margin-inline: 0; /* overlap a little at the base, the fan opens them up at the top */
   padding: 8px 0 0;
   border-top: 1px solid #3A2A16;
   border-bottom: 1px solid #3A2A16;

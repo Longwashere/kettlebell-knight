@@ -166,6 +166,10 @@ const MONSTER_BACKGROUNDS: Record<MonsterSprite, string> = {
 };
 // Lifts combatants + effects so they stand above the battle card hand (which covers the lower half).
 const SCENE_RAISE_Y = 50; // lifts the fighters above the card hand at the bottom of the screen
+// Resting shot of the battlefield: the fighter and effects layers shrink about the feet line at screen centre, so
+// the fight reads wider while the backdrop stays full-screen. Camera moves still punch in from here.
+const FIELD_ZOOM = 0.85;
+const FIELD_PIVOT = { x: 213, y: 170 };
 let knightAssetRefs = 0; // engines currently holding the shared knight assets
 const KNIGHT_HIT_REACTIONS = ['HIT1', 'HIT2', 'HIT3'];
 
@@ -1419,8 +1423,7 @@ export class GameEngine {
     this.effectsLayer = new Container();
     this.uiLayer = new Container();
 
-    this.gameLayer.y = -SCENE_RAISE_Y;
-    this.effectsLayer.y = -SCENE_RAISE_Y;
+    this.layoutField(FIELD_ZOOM);
 
     this.rootStage.addChild(this.bgLayer);
     this.rootStage.addChild(this.gameLayer);
@@ -1439,9 +1442,9 @@ export class GameEngine {
     // 4. Fullscreen Screen Flash Overlay for Rep Impacts
     this.flashOverlay = new Graphics();
     // Oversized so camera framings above the stage top (moveCamera allows 32px) and shake never show its edge
-    this.flashOverlay.rect(-60, -60, 546, 360).fill({ color: 0xFFFFFF, alpha: 1 });
+    // (and wide enough to still cover the screen with the effects layer at FIELD_ZOOM)
+    this.flashOverlay.rect(-160, -110, 746, 480).fill({ color: 0xFFFFFF, alpha: 1 });
     this.flashOverlay.alpha = 0;
-    this.flashOverlay.y = SCENE_RAISE_Y; // cancel the effects-layer raise so the flash stays fullscreen
     this.effectsLayer.addChild(this.flashOverlay);
 
     // 5. Rep stamp, screen-fixed above the camera-transformed scene
@@ -1839,6 +1842,7 @@ export class GameEngine {
       this.showcaseHidden = [...this.monsterSlots.map((s) => s.container), this.enemyDummy, this.targetReticle]
         .filter((c): c is Container => !!c && c.visible);
       this.showcaseHidden.forEach((c) => (c.visible = false));
+      this.layoutField(1); // the fitting room is framed at full size
       this.showcase = new ForgeShowcase(this.gameLayer, SHOWCASE_KNIGHT.x, SHOWCASE_KNIGHT.y, SCENE_RAISE_Y, isPerformanceMode(), knight);
       knight.position.set(SHOWCASE_KNIGHT.x, SHOWCASE_KNIGHT.y);
       knight.scale.set(SHOWCASE_KNIGHT.scale);
@@ -1848,6 +1852,7 @@ export class GameEngine {
       this.showcaseHidden = [];
       this.showcase?.destroy();
       this.showcase = null;
+      this.layoutField(FIELD_ZOOM);
       knight.position.set(KNIGHT_HOME.x, KNIGHT_HOME.y);
       knight.scale.set(1);
       if (this.knightShadow) this.knightShadow.visible = true;
@@ -3141,12 +3146,24 @@ export class GameEngine {
     if (snap) this.cameraRoll = this.targetCameraRoll;
   }
 
+  /** Raises the fighter and effects layers above the card hand and scales them about the feet line. */
+  private layoutField(zoom: number): void {
+    for (const layer of [this.gameLayer, this.effectsLayer]) {
+      layer?.pivot.set(FIELD_PIVOT.x, FIELD_PIVOT.y);
+      layer?.position.set(FIELD_PIVOT.x, FIELD_PIVOT.y - SCENE_RAISE_Y);
+      layer?.scale.set(zoom);
+    }
+  }
+
   /** Move camera: battlefield → stage coords, clamped so the zoomed view stays over the background. */
   private moveCamera(zoom: number, x: number, y: number, holdFrames: number, snap = false): void {
     const halfW = 213 / zoom;
     const halfH = 120 / zoom;
-    const fx = Math.min(Math.max(x, halfW), 426 - halfW);
-    const fy = Math.min(Math.max(y - SCENE_RAISE_Y, halfH - 32), 240 - halfH);
+    const field = this.gameLayer?.scale.x ?? 1;
+    const sx = FIELD_PIVOT.x + (x - FIELD_PIVOT.x) * field;
+    const sy = FIELD_PIVOT.y - SCENE_RAISE_Y + (y - FIELD_PIVOT.y) * field;
+    const fx = Math.min(Math.max(sx, halfW), 426 - halfW);
+    const fy = Math.min(Math.max(sy, halfH - 32), 240 - halfH);
     this.triggerCameraZoom(zoom, fx, fy, holdFrames);
     if (snap) {
       // Hard cut (impact punch-in) instead of easing toward the framing

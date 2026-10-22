@@ -4,6 +4,15 @@ import { App } from '@capacitor/app';
 /** True inside the packaged Fire TV app (Capacitor Android shell), false in a browser. */
 export const IS_NATIVE_APP = Capacitor.isNativePlatform();
 
+/**
+ * True on a Fire TV (the app, or /tv opened in Silk, whose UA carries an AFT model code): the player has the
+ * remote, not a keyboard. `?controls=remote` forces it in a browser, for previews.
+ */
+export const IS_FIRE_TV =
+  IS_NATIVE_APP ||
+  /\bAFT[A-Z0-9]+\b/.test(navigator.userAgent) ||
+  new URLSearchParams(window.location.search).get('controls') === 'remote';
+
 /** CSS width the TV screens are laid out for (a 1080p desktop browser, as `npm run shot` renders them). */
 const TV_LAYOUT_WIDTH = 1920;
 

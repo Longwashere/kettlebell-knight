@@ -30,6 +30,7 @@ import { CombatCardView, cardRepTarget } from './CombatCardView';
 import { rollSecretTrial, type SecretTrialId } from '../../shared/secretTrials';
 import { SECRET_TRIAL_COPY } from './secretTrialCopy';
 import { TRIAL_SCENES } from '../engine/trialScenes';
+import { IS_FIRE_TV } from '../native';
 import { 
   Shield, 
   Swords, 
@@ -144,6 +145,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   // Card showing its technique side (Enter flips the focused card); flips back on its own
   const [flippedCardId, setFlippedCardId] = useState<string | null>(null);
   const [battleStatus, setBattleStatus] = useState<'FIGHTING' | 'VICTORY' | 'DEFEAT' | 'ENCOUNTER_CLEARED' | 'EXPEDITION_VICTORY'>('FIGHTING');
+  // End-of-fight modal: which button the D-pad has focused (0 = the primary action, 1 = TOWN HUB)
+  const [modalChoice, setModalChoice] = useState(0);
+  useEffect(() => setModalChoice(0), [battleStatus]);
   const [recentCombatLog, setRecentCombatLog] = useState<string>('Battle commenced! Perform exercises to cast cards.');
   // Cards unlocked during the fight, then spells and weapons that levelled up; shown one by one after the
   // reward screen, before its action runs
@@ -1121,11 +1125,36 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   ));
 
   // TV Remote D-Pad Navigation for Hand Cards
+  // The end-of-fight modal's buttons, in on-screen order (the secret trial's call has only its own)
+  const modalActions = (): (() => void)[] => {
+    const hub = () => continueReward(onExitBattle);
+    switch (battleStatus) {
+      case 'ENCOUNTER_CLEARED': return [() => continueReward(handleNextExpeditionEncounter), hub];
+      case 'EXPEDITION_VICTORY':
+        if (secretCall && onSecretTrial) return [() => continueReward(() => onSecretTrial(secretCall))];
+        return [currentLevel < 5 ? () => continueReward(handleNextLevelExpedition) : hub, hub];
+      case 'DEFEAT': return [() => continueReward(isExpeditionMode ? handleRetryExpedition : handleNextEncounter), hub];
+      default: return [() => continueReward(handleNextEncounter), hub];
+    }
+  };
+  const choiceRing = (i: number) => (modalChoice === i ? 'kk-modal-choice--focused' : '');
+
   useTVRemote({
     onLeft: () => {
+      if (battleStatus !== 'FIGHTING') {
+        if (modalChoice > 0) audioManager.play('ui_move');
+        setModalChoice((c) => Math.max(0, c - 1));
+        return;
+      }
       setFocusedCardIndex((prev) => Math.max(0, prev - 1));
     },
     onRight: () => {
+      if (battleStatus !== 'FIGHTING') {
+        const last = modalActions().length - 1;
+        if (modalChoice < last) audioManager.play('ui_move');
+        setModalChoice((c) => Math.min(last, c + 1));
+        return;
+      }
       setFocusedCardIndex((prev) => Math.min(hand.length - 1, prev + 1));
     },
     onSelect: () => {
@@ -1135,15 +1164,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         return;
       }
       if (battleStatus !== 'FIGHTING') {
-        if (battleStatus === 'ENCOUNTER_CLEARED') {
-          continueReward(handleNextExpeditionEncounter);
-        } else if (battleStatus === 'EXPEDITION_VICTORY') {
-          continueReward(secretCall && onSecretTrial ? () => onSecretTrial(secretCall) : currentLevel < 5 ? handleNextLevelExpedition : onExitBattle);
-        } else if (battleStatus === 'DEFEAT') {
-          continueReward(isExpeditionMode ? handleRetryExpedition : handleNextEncounter);
-        } else {
-          continueReward(handleNextEncounter);
-        }
+        const actions = modalActions();
+        actions[Math.min(modalChoice, actions.length - 1)]();
       } else {
         setFocusedCardIndex(actionCardIndex);
         toggleFlip(hand[actionCardIndex]?.id);
@@ -1368,13 +1390,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                 <div className="flex gap-3">
                   <button
                     onClick={() => continueReward(handleNextExpeditionEncounter)}
-                    className="flex-1 bg-[#00EB88] hover:bg-[#55ffaa] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
+                    className={`flex-1 bg-[#00EB88] hover:bg-[#55ffaa] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box ${choiceRing(0)}`}
                   >
                     NEXT BATTLE ▶
                   </button>
                   <button
                     onClick={() => continueReward(onExitBattle)}
-                    className="bg-[#2E2B44] text-white font-pixel text-xs py-3 px-4 border-2 border-black shadow-pixel-box"
+                    className={`bg-[#2E2B44] text-white font-pixel text-xs py-3 px-4 border-2 border-black shadow-pixel-box ${choiceRing(1)}`}
                   >
                     TOWN HUB
                   </button>
@@ -1417,7 +1439,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                     </div>
                     <button
                       onClick={() => continueReward(() => onSecretTrial(secretCall))}
-                      className="w-full hover:brightness-110 text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
+                      className={`w-full hover:brightness-110 text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box ${choiceRing(0)}`}
                       style={{ background: SECRET_TRIAL_COPY[secretCall].bar[1] }}
                     >
                       {SECRET_TRIAL_COPY[secretCall].callButton}
@@ -1428,21 +1450,21 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                   {currentLevel < 5 ? (
                     <button
                       onClick={() => continueReward(handleNextLevelExpedition)}
-                      className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
+                      className={`flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box ${choiceRing(0)}`}
                     >
                       LEVEL {currentLevel + 1} ▶
                     </button>
                   ) : (
                     <button
                       onClick={() => continueReward(onExitBattle)}
-                      className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
+                      className={`flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box ${choiceRing(0)}`}
                     >
                       WORLD MAP ▶
                     </button>
                   )}
                   <button
                     onClick={() => continueReward(onExitBattle)}
-                    className="bg-[#2E2B44] text-white font-pixel text-xs py-3 px-4 border-2 border-black shadow-pixel-box"
+                    className={`bg-[#2E2B44] text-white font-pixel text-xs py-3 px-4 border-2 border-black shadow-pixel-box ${choiceRing(1)}`}
                   >
                     TOWN HUB
                   </button>
@@ -1464,13 +1486,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                 <div className="flex gap-3">
                   <button
                     onClick={() => continueReward(handleNextEncounter)}
-                    className="flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
+                    className={`flex-1 bg-[#F4B41A] hover:bg-[#ffe175] text-[#0F0E17] font-pixel text-xs py-3 border-2 border-black shadow-pixel-box ${choiceRing(0)}`}
                   >
                     NEXT BATTLE ▶
                   </button>
                   <button
                     onClick={() => continueReward(onExitBattle)}
-                    className="bg-[#2E2B44] text-white font-pixel text-xs py-3 px-4 border-2 border-black shadow-pixel-box"
+                    className={`bg-[#2E2B44] text-white font-pixel text-xs py-3 px-4 border-2 border-black shadow-pixel-box ${choiceRing(1)}`}
                   >
                     TOWN HUB
                   </button>
@@ -1497,13 +1519,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                 <div className="flex gap-3">
                   <button
                     onClick={() => continueReward(isExpeditionMode ? handleRetryExpedition : handleNextEncounter)}
-                    className="flex-1 bg-[#FF3366] hover:bg-[#ff5588] text-white font-pixel text-xs py-3 border-2 border-black shadow-pixel-box"
+                    className={`flex-1 bg-[#FF3366] hover:bg-[#ff5588] text-white font-pixel text-xs py-3 border-2 border-black shadow-pixel-box ${choiceRing(0)}`}
                   >
                     RETRY EXPEDITION
                   </button>
                   <button
                     onClick={() => continueReward(onExitBattle)}
-                    className="bg-[#2E2B44] text-white font-pixel text-xs py-3 px-4 border-2 border-black shadow-pixel-box"
+                    className={`bg-[#2E2B44] text-white font-pixel text-xs py-3 px-4 border-2 border-black shadow-pixel-box ${choiceRing(1)}`}
                   >
                     TOWN HUB
                   </button>
@@ -1521,7 +1543,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                 </div>
               )}
               <div className="flex items-center justify-center gap-3 text-[8px] font-pixel text-[#A7A9BE]">
-                <span className="text-[#F4B41A]">[ENTER] {battleStatus === 'DEFEAT' ? 'RETRY' : 'CONTINUE'}</span>
+                <span className="text-[#5CC8FF]">[◀ / ▶] CHOOSE</span>
+                <span>•</span>
+                <span className="text-[#F4B41A]">[ENTER] SELECT</span>
                 <span>•</span>
                 <span className="text-white">[BACK / ESC] TOWN HUB</span>
               </div>
@@ -1597,13 +1621,12 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             </span>
             <p className="font-retro text-[22px] leading-[20px] text-[#F4B41A] line-clamp-2">{recentCombatLog}</p>
           </div>
-          <span className="font-retro text-[22px] leading-none text-[#5CC8FF] bg-[#0F0E17]/85 px-2 py-1 border border-[#2E2B44] flex-shrink-0">
-            [◀ / ▶] SELECT • [ENTER] HOW TO • [SPACE] DEMO REP
-          </span>
         </div>
 
-        {/* Hand of cards (CombatCardView), fanned; the focused card lifts */}
-        <div className="kk-hand">
+        {/* Hand of cards (CombatCardView), fanned; the focused card lifts. The control legend sits in a narrow
+            column to its right, clear of the monsters and the spell animations above */}
+        <div className="flex items-end">
+        <div className="kk-hand flex-1 min-w-0">
           {/* Not mounted until the HUD enters, so the hand deals in then */}
           {introHudClass(intro.step, intro.short, 'up') !== 'kk-intro-hidden' && hand.map((card, index) => (
             <CombatCardView
@@ -1620,12 +1643,25 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             />
           ))}
         </div>
+        <div className={`kk-hand-legend ${introHudClass(intro.step, intro.short, 'up')}`}>
+          {CONTROL_LEGEND.map(([key, label]) => (
+            <span key={key} className="kk-hand-legend__row">
+              <kbd>{key}</kbd>
+              {label}
+            </span>
+          ))}
+        </div>
+        </div>
       </div>
     </div>
   );
 };
 
-/** STR / SPD (rep cut and dodge) / Attack under the knight's HP bar, the run's experience and the fight's gold purse. */
+/** The hand's control legend: the remote's buttons on a Fire TV, the keyboard's in a browser. */
+const CONTROL_LEGEND: readonly (readonly [key: string, label: string])[] = IS_FIRE_TV
+  ? [['◀ ▶', 'SELECT'], ['OK', 'HOW TO'], ['▶❚❚', 'DEMO REP']]
+  : [['← →', 'SELECT'], ['ENTER', 'HOW TO'], ['SPACE', 'DEMO REP']];
+
 /** STR / SPD (rep cut and dodge) / Attack under the knight's HP bar, the run's experience and the fight's gold purse. */
 const KnightStatLine: React.FC<{ loadout: Loadout; runXp: number; fightGold: number }> = ({ loadout, runXp, fightGold }) => {
   const profile = profileManager.getActiveProfile();
