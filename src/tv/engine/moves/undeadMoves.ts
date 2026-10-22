@@ -764,7 +764,7 @@ const skknightPhantomTrample: MoveFn = (h, tl) => {
       g.ellipse(p.x, p.y, 2, 0.8).fill({ color: 0xDCFCE7, alpha: 1 - t });
     }
   }, 'ground');
-  tl.at(50, () => {
+  tl.at(55, () => {
     land(h, { kb: 18, shake: 16, stop: 7, flash: 0.55, color: 0x4ADE80, colors: [...GRAVEFIRE, BONE], ring: 0x22C55E, sound: 'impact_crit' });
     h.camera(1.28, h.knight.x, h.knight.y - 30, 20);
   });

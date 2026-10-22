@@ -191,6 +191,7 @@ interface MonsterRig {
   height: number; // approximate on-screen height in px, used to aim move VFX at heads/mouths
   skin?: string;
   offY?: number;
+  centerRoot?: boolean; // root bone is exported off the origin: zero it so the feet sit on the slot
 }
 
 // Spine 4.2 monster rigs (public/assets/spine/monsters).
@@ -292,8 +293,8 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
   BONE_GOLEM: {
     skeleton: `${MONSTER_DIR}/bone-golem/Boss_Swamp_golem.json`,
     atlas: `${MONSTER_TV_DIR}/bone-golem/Boss_Swamp_golem.atlas`,
-    scale: 0.058,
-    height: 68,
+    scale: 0.07,
+    height: 82,
     idle: 'Idle',
     attack: 'Attack01',
     heavyAttack: 'Attack01',
@@ -345,6 +346,7 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
     heavyAttack: 'skill1',
     hit: 'hurt',
     death: 'death',
+    flipX: false, // authored facing left
   },
   DEMON_ARCHBISHOP: {
     skeleton: `${MONSTER_DIR}/demon-monk/Boss_Archbishop.json`,
@@ -562,6 +564,8 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
     heavyAttack: 'movement_ide',
     hit: 'movement_ide',
     death: 'movement_ide',
+    flipX: false, // authored facing left
+    centerRoot: true,
   },
   SKELETON_WARRIOR: {
     skeleton: `${MONSTER_DIR}/skeleton-warrior/skeleton_worrior.json`,
@@ -630,7 +634,6 @@ const MONSTER_RIGS: Record<MonsterSprite, MonsterRig> = {
     heavyAttack: 'Attack01',
     hit: 'Hit',
     death: 'Dead',
-    flipX: false, // authored facing left
   },
   WRAITH: {
     skeleton: `${MONSTER_DIR}/wraith/specter.json`,
@@ -2078,6 +2081,13 @@ export class GameEngine {
         if (this.app) spine.ticker = this.app.ticker;
         if (rig.flipX !== false) {
           spine.scale.x *= -1; // face knight on the left
+        }
+        if (rig.centerRoot) {
+          const root = spine.skeleton.getRootBone();
+          if (root) {
+            root.data.x = root.data.y = 0; // shared skeleton data; idempotent across instances
+            root.setToSetupPose();
+          }
         }
 
         // Variant Skin or default rig skin
