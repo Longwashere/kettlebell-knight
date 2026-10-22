@@ -2253,6 +2253,179 @@ canvas,
 .kk-intro-enter--right { --intro-from: 60px, 0; }
 .kk-intro-enter--up { --intro-from: 0, 40px; }
 
+/* Secret trial won: the new-weapon banner pops in under a crest, with a pulsing aura and a light sweep in the
+   trial's accent (--kk-accent). The aura pulses its opacity, not the shadow, so it stays a compositor animation. */
+.kk-new-weapon {
+  position: relative;
+  isolation: isolate;
+  animation: kkNewWeaponIn 520ms cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+.kk-new-weapon::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 14px 2px var(--kk-accent), 0 0 40px 10px var(--kk-accent);
+  animation: kkNewWeaponAura 1.6s ease-in-out infinite;
+}
+.kk-new-weapon__sweep {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.kk-new-weapon__sweep::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  background: linear-gradient(105deg, transparent 20%, rgba(255, 255, 255, 0.2) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: kkNewWeaponSweep 2.8s ease-in-out 0.5s infinite;
+}
+.kk-new-weapon__crest {
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--kk-accent);
+  box-shadow: 0 0 12px 2px var(--kk-accent), 2px 2px 0 0 #000;
+  animation: kkNewWeaponCrest 1.6s ease-in-out infinite;
+}
+@keyframes kkNewWeaponIn {
+  0% { opacity: 0; transform: translateY(24px) scale(0.92); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes kkNewWeaponAura {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.9; }
+}
+@keyframes kkNewWeaponSweep {
+  0% { transform: translateX(-100%); }
+  45%, 100% { transform: translateX(260%); }
+}
+@keyframes kkNewWeaponCrest {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.06); }
+}
+
+/* New spell unlocked (CardUnlockCelebration): the card lands with a flash, then glows in its own colour over
+   turning gold rays, with a light sweep, rising sparks and a NEW! stamp, so it can't pass for a level-up.
+   Card vars (--accent-rgb) come from cardStyleVars on the same element. Everything animates transform/opacity. */
+.kk-new-spell {
+  position: relative;
+  isolation: isolate;
+  animation: kkNewSpellIn 640ms cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+.kk-new-spell::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: 10px;
+  pointer-events: none;
+  box-shadow: 0 0 16px 4px rgba(var(--accent-rgb), 0.95), 0 0 46px 16px rgba(var(--accent-rgb), 0.55),
+    0 0 90px 30px rgba(244, 180, 26, 0.35);
+  animation: kkNewWeaponAura 1.4s ease-in-out infinite;
+}
+.kk-new-spell__rays {
+  position: absolute;
+  inset: -90px;
+  z-index: -2;
+  pointer-events: none;
+  border-radius: 50%;
+  background: repeating-conic-gradient(rgba(244, 180, 26, 0.38) 0deg 9deg, transparent 9deg 30deg);
+  -webkit-mask-image: radial-gradient(circle, #000 25%, transparent 70%);
+  mask-image: radial-gradient(circle, #000 25%, transparent 70%);
+  animation: kkNewSpellRays 14s linear infinite;
+}
+.kk-new-spell__shine {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  border-radius: 8px;
+  pointer-events: none;
+}
+.kk-new-spell__shine::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 45%;
+  background: linear-gradient(105deg, transparent 15%, rgba(255, 255, 255, 0.45) 50%, transparent 85%);
+  transform: translateX(-120%);
+  animation: kkNewSpellSweep 2.4s ease-in-out 0.7s infinite;
+}
+.kk-new-spell__flash {
+  position: absolute;
+  inset: -40px;
+  z-index: 3;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(var(--accent-rgb), 0.6) 35%, transparent 70%);
+  opacity: 0;
+  animation: kkNewSpellFlash 700ms ease-out 120ms both;
+}
+.kk-new-spell__spark {
+  position: absolute;
+  bottom: 10%;
+  z-index: 3;
+  width: 6px;
+  height: 6px;
+  background: #FDE68A;
+  box-shadow: 0 0 6px 2px rgba(var(--accent-rgb), 0.9);
+  pointer-events: none;
+  opacity: 0;
+  animation: kkNewSpellSpark 2.2s ease-out infinite;
+}
+.kk-new-spell__tag {
+  position: absolute;
+  top: -14px;
+  right: -18px;
+  z-index: 4;
+  background: #F4B41A;
+  color: #0F0E17;
+  border: 2px solid #000;
+  box-shadow: 0 0 12px 3px rgba(244, 180, 26, 0.8), 2px 2px 0 0 #000;
+  animation: kkNewSpellTag 1.2s ease-in-out 0.6s infinite;
+}
+.kk-new-spell-crest {
+  animation: kkNewSpellCrest 1.4s ease-in-out infinite;
+  box-shadow: 0 0 16px 4px rgba(244, 180, 26, 0.75), 2px 2px 0 0 #000;
+}
+@keyframes kkNewSpellIn {
+  0% { opacity: 0; transform: translateY(40px) scale(0.6) rotate(-6deg); }
+  60% { opacity: 1; transform: translateY(-6px) scale(1.06) rotate(1deg); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes kkNewSpellRays {
+  to { transform: rotate(360deg); }
+}
+@keyframes kkNewSpellSweep {
+  0% { transform: translateX(-120%); }
+  40%, 100% { transform: translateX(280%); }
+}
+@keyframes kkNewSpellFlash {
+  0% { opacity: 0; transform: scale(0.4); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.5); }
+}
+@keyframes kkNewSpellSpark {
+  0% { opacity: 0; transform: translateY(0) scale(1); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-260px) scale(0.4); }
+}
+@keyframes kkNewSpellTag {
+  0%, 100% { transform: rotate(12deg) scale(1); }
+  50% { transform: rotate(8deg) scale(1.15); }
+}
+@keyframes kkNewSpellCrest {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.08); }
+}
+
 @keyframes kkIntroFadeIn { from { opacity: 0; } }
 @keyframes kkIntroBarTop { from { transform: translateY(-100%); } }
 @keyframes kkIntroBarBottom { from { transform: translateY(100%); } }
@@ -3152,6 +3325,7 @@ canvas,
 .kk-forge__act--owned { background: linear-gradient(180deg, #BDE6FF 0%, #5CC3FF 45%, #1E6FA8 100%); box-shadow: inset 0 1px 0 #EAF7FF, inset 0 -2px 0 #0E3E62, 0 0 0 1px #1E3A5F, 0 0 22px rgba(92, 195, 255, 0.4); }
 .kk-forge__act--equipped,
 .kk-forge__act--locked,
+.kk-forge__act--trophy,
 .kk-forge__act--sealed,
 .kk-forge__act--short {
   color: #C9BFAE;
@@ -3160,8 +3334,10 @@ canvas,
 }
 .kk-forge__act--equipped { color: #3DF2A0; }
 .kk-forge__act--locked,
+.kk-forge__act--trophy,
 .kk-forge__act--short { color: #FF5C7A; }
-.kk-forge__act--sealed { font-size: 12px; }
+.kk-forge__act--sealed,
+.kk-forge__act--trophy { font-size: 12px; }
 .kk-forge__hints {
   display: flex;
   gap: 14px;
@@ -3298,4 +3474,14 @@ canvas,
 :root[data-gfx='performance'] .kk-plaque__embers { display: none; }
 :root[data-gfx='performance'] .kk-forge__embers { display: none; }
 :root[data-gfx='performance'] .kk-forge__title { filter: drop-shadow(0 2px 0 #1A0F06); }
+/* New-weapon banner: a steady aura, no sweep or pulse over the trial scene */
+:root[data-gfx='performance'] .kk-new-weapon::before,
+:root[data-gfx='performance'] .kk-new-weapon__crest { animation: none; }
+:root[data-gfx='performance'] .kk-new-weapon::before { opacity: 0.7; }
+:root[data-gfx='performance'] .kk-new-weapon__sweep { display: none; }
 :root[data-gfx='performance'] .kk-forge__card { filter: none; }
+/* New spell: keep the aura, flash and stamp; drop the masked rotating rays, the sweep and the sparks */
+:root[data-gfx='performance'] .kk-new-spell::before { animation: none; opacity: 0.85; }
+:root[data-gfx='performance'] .kk-new-spell__rays,
+:root[data-gfx='performance'] .kk-new-spell__shine,
+:root[data-gfx='performance'] .kk-new-spell__spark { display: none; }

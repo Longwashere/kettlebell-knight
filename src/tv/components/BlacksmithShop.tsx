@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { EquipmentItem } from '../../types/game';
 import type { CardTemplate } from '../../types/battle';
-import { SHOP_ITEMS } from '../../shared/shopItems';
+import { SHOP_ITEMS, trophyLocked, trophyMonsterNames } from '../../shared/shopItems';
 import { isSecretTrialId } from '../../shared/secretTrials';
 import { SECRET_TRIAL_COPY } from './secretTrialCopy';
 import { ELEMENT_INFO } from '../../shared/elements';
@@ -92,6 +92,7 @@ type Status =
   | { kind: 'sealed'; text: string; accent: string }
   | { kind: 'equipped' }
   | { kind: 'locked'; level: number }
+  | { kind: 'trophy'; monsters: string }
   | { kind: 'owned' }
   | { kind: 'price'; price: number; afford: boolean };
 
@@ -115,9 +116,11 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
     const owned = ownedIds.has(it.id);
     if (it.stoneBound && !owned) return { kind: 'sealed', text: sealedCopy(it.id).sealed, accent: sealedCopy(it.id).accent };
     if (equippedIds.has(it.id)) return { kind: 'equipped' };
-    const req = it.slot === 'weapon' && !it.stoneBound ? weaponLevelReq(it.level) : 1;
+    // A monster's weapon waits on its monster, not the knight's level: slay one and it's for sale
+    const req = it.slot === 'weapon' && !it.stoneBound && !it.trophyOf ? weaponLevelReq(it.level) : 1;
     if (knightLevel < req) return { kind: 'locked', level: req };
     if (owned) return { kind: 'owned' };
+    if (trophyLocked(it, profile?.unlockStats?.monsterKills)) return { kind: 'trophy', monsters: trophyMonsterNames(it) };
     return { kind: 'price', price: it.price, afford: playerGold >= it.price };
   };
 
@@ -217,7 +220,7 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
                     if (r === row) el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
                   }}
                   onClick={() => (r === row ? onSelectItem(it) : onHoverItem(it))}
-                  className={`kk-forge__row ${r === row ? 'kk-forge__row--on' : ''} ${st.kind === 'sealed' || st.kind === 'locked' ? 'kk-forge__row--dim' : ''}`}
+                  className={`kk-forge__row ${r === row ? 'kk-forge__row--on' : ''} ${st.kind === 'sealed' || st.kind === 'locked' || st.kind === 'trophy' ? 'kk-forge__row--dim' : ''}`}
                   style={{ '--rarity': RARITY[it.rarity].color } as React.CSSProperties}
                 >
                   <div className="kk-forge__well">
@@ -239,6 +242,7 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
                         {st.kind === 'sealed' && <span style={{ color: st.accent }}>Sealed</span>}
                         {st.kind === 'equipped' && <span className="kk-forge__equipped">✦ Wielded</span>}
                         {st.kind === 'locked' && <span className="kk-forge__locked">Lv {st.level}</span>}
+                        {st.kind === 'trophy' && <span className="kk-forge__locked">Slay</span>}
                         {st.kind === 'owned' && <span className="kk-forge__owned">Owned</span>}
                         {st.kind === 'price' && (
                           <span className={st.afford ? 'kk-forge__price' : 'kk-forge__price kk-forge__price--short'}>
@@ -355,6 +359,7 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
             {status.kind === 'sealed' && <span style={{ color: status.accent }}>{status.text}</span>}
             {status.kind === 'equipped' && <span>✦ Wielded by thy knight</span>}
             {status.kind === 'locked' && <span>🔒 Requires knight level {status.level}</span>}
+            {status.kind === 'trophy' && <span>🗡 Slay a {status.monsters} first</span>}
             {status.kind === 'owned' && <span><kbd>Enter</kbd> Equip</span>}
             {status.kind === 'price' && (status.afford
               ? <span><kbd>Enter</kbd> Forge for {status.price > 0 ? `${status.price} GP` : 'free'}</span>

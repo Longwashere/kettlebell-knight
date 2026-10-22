@@ -1,8 +1,10 @@
 import type { EquipmentItem } from '../types/game';
+import { MONSTER_CATALOG } from '../types/battle';
 
 /**
  * Blacksmith catalog. `level` is the weapon's tier (1–10): it sets the weapon's Attack and elemental
- * damage and the knight level needed to wield it (src/shared/progression.ts weaponStats / weaponLevelReq).
+ * damage and the knight level needed to wield it (src/shared/progression.ts weaponStats / weaponLevelReq); a
+ * monster's weapon (`trophyOf`) needs its monster slain instead of that level.
  * `element` makes it an elemental weapon: less raw Attack, plus elemental damage on every hit.
  */
 export const SHOP_ITEMS: EquipmentItem[] = [
@@ -35,6 +37,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'common',
     description: '24kg bubbling caustic slime bell suspended by dripping ooze strands.',
     colorHex: '#22C55E',
+    trophyOf: ['green_slime'],
   },
   {
     id: 'spider_morningstar',
@@ -50,6 +53,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'rare',
     description: '28kg venomous egg-sac kettlebell hanging on tensile braided spider-silk.',
     colorHex: '#A855F7',
+    trophyOf: ['giant_spider'],
   },
   {
     id: 'crypt_morningstar',
@@ -80,6 +84,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'epic',
     description: '44kg volcanic slag bell swinging on white-hot chain links. Smells of sulfur and hellfire.',
     colorHex: '#EF4444',
+    trophyOf: ['hellhound'],
   },
   {
     id: 'frost_morningstar',
@@ -110,6 +115,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'epic',
     description: '68kg river-carved boulder bell lashed with brutal warpaint onto logging chains.',
     colorHex: '#78716C',
+    trophyOf: ['troll'],
   },
   {
     id: 'kraken_morningstar',
@@ -125,6 +131,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'legendary',
     description: '80kg barnacled deep-sea anchor bell swinging from a muscular kraken tentacle chain.',
     colorHex: '#14B8A6',
+    trophyOf: ['kraken'],
   },
   {
     id: 'excalibur_morningstar',
@@ -155,6 +162,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'legendary',
     description: '64kg molten spiked bell connected by searing dragon inferno chains.',
     colorHex: '#EF4444',
+    trophyOf: ['magma_dragon'],
   },
   {
     id: 'void_morningstar',
@@ -201,6 +209,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'common',
     description: '20kg bioluminescent mushroom cap bell with fungal horn arch. Emits gentle spores on swings.',
     colorHex: '#C084FC',
+    trophyOf: ['mushroom'],
   },
   {
     id: 'harpy_bell',
@@ -216,6 +225,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'rare',
     description: '30kg aerodynamic mountain-bronze bell gripped by razor raptor talons. Slices high altitude air.',
     colorHex: '#FCD34D',
+    trophyOf: ['harpy'],
   },
   {
     id: 'treemon_bell',
@@ -231,6 +241,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'rare',
     description: '36kg ancient ironwood bell rooted with forest moss and sprouting leaves. Carved by Treants.',
     colorHex: '#4ADE80',
+    trophyOf: ['treemon', 'ancient_treant'],
   },
   {
     id: 'golem_bell',
@@ -246,6 +257,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'epic',
     description: '72kg chiseled tectonic boulder bell reinforced with rebar and glowing runic cyan ley-cracks.',
     colorHex: '#38BDF8',
+    trophyOf: ['golem', 'bone_golem'],
   },
   {
     id: 'eldritch_bell',
@@ -261,6 +273,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'legendary',
     description: '120kg cosmic flesh bell with writhing tentacle handle and a giant unblinking golden eye.',
     colorHex: '#9333EA',
+    trophyOf: ['eldritch_horror'],
   },
   {
     id: 'excalibur_bell',
@@ -291,6 +304,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'legendary',
     description: '64kg molten dragon core. Emits searing flames with each explosive drive.',
     colorHex: '#DC2626',
+    trophyOf: ['magma_dragon'],
   },
   {
     id: 'void_bell',
@@ -322,6 +336,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'common',
     description: 'Crude 16kg scrap kettlebell lashed with hemp to a spiked bough. Dropped by Cave Goblins.',
     colorHex: '#A3E635',
+    trophyOf: ['goblin'],
   },
   {
     id: 'iron_mace',
@@ -351,6 +366,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'rare',
     description: '32kg skull-carved ossuary kettlebell mounted on a bleached femur shaft. Dropped by Skeleton Warriors.',
     colorHex: '#E2E8F0',
+    trophyOf: ['skeleton_warrior', 'skeleton_archer', 'skeleton_knight'],
   },
   {
     id: 'cemetery_mace',
@@ -427,6 +443,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'common',
     description: '24kg blue-steel kettlebell basket guard forged into a curved predator hunting blade.',
     colorHex: '#60A5FA',
+    trophyOf: ['wolf'],
   },
   {
     id: 'boar_sword',
@@ -442,6 +459,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'rare',
     description: '32kg rugged iron kettlebell core flanked by ivory boar tusks and a serrated hunting blade.',
     colorHex: '#F87171',
+    trophyOf: ['boar'],
   },
   {
     id: 'minotaur_sword',
@@ -456,6 +474,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'epic',
     description: '50kg solid bronze kettlebell core with curving bull horns driving a brutal executioner cleaver.',
     colorHex: '#F59E0B',
+    trophyOf: ['minotaur'],
   },
   {
     id: 'dragon_sword',
@@ -471,6 +490,7 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     rarity: 'legendary',
     description: '88kg draconic heart kettlebell radiating dragon fire into a scorch-etched broadsword.',
     colorHex: '#DC2626',
+    trophyOf: ['magma_dragon'],
   },
   {
     id: 'void_sword',
@@ -690,3 +710,22 @@ export const SHOP_ITEMS: EquipmentItem[] = [
     colorHex: '#D97706',
   },
 ];
+
+/** A monster's weapon the knight can't buy yet: none of its monsters slain (PlayerProfile.unlockStats.monsterKills). */
+export const trophyLocked = (item: EquipmentItem, monsterKills: Record<string, number> = {}): boolean =>
+  Boolean(item.trophyOf?.length) && !item.trophyOf!.some((id) => (monsterKills[id] ?? 0) > 0);
+
+/** Who to slay for a monster's weapon, as the shop reads it: "Green Slime", or "Skeleton Warrior or kin" for a family. */
+export const trophyMonsterNames = (item: EquipmentItem): string => {
+  const [first, ...rest] = item.trophyOf ?? [];
+  const name = (MONSTER_CATALOG.find((m) => m.id === first)?.name ?? first ?? '').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  return rest.length > 0 ? `${name} or kin` : name;
+};
+
+/** Monster weapons a kill just put up for sale: locked under `before`'s kills, unlocked under `after`'s, not owned. */
+export const newTrophies = (
+  before: Record<string, number> = {},
+  after: Record<string, number> = {},
+  owned: readonly string[] = [],
+): EquipmentItem[] =>
+  SHOP_ITEMS.filter((i) => i.trophyOf && !owned.includes(i.id) && trophyLocked(i, before) && !trophyLocked(i, after));

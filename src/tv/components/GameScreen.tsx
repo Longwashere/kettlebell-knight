@@ -9,6 +9,7 @@ import { exitApp } from '../native';
 import { getGraphicsMode, setGraphicsMode, cycledGraphicsMode, GraphicsMode } from '../graphicsMode';
 import { HubMenu, HUB_NODES } from './HubMenu';
 import { BlacksmithShop, SHOP_ITEMS, forgeNavigate } from './BlacksmithShop';
+import { trophyLocked } from '../../shared/shopItems';
 import { BattleScreen } from './BattleScreen';
 import { TitleScreen } from './TitleScreen';
 import { MapSelectScreen } from './MapSelectScreen';
@@ -423,7 +424,12 @@ export const GameScreen: React.FC = () => {
   const handleEquipShopItem = (item: EquipmentItem) => {
     const owned = ownedItems.has(item.id) || equippedItems.has(item.id);
     // Stone-bound weapons (secret trials) are never sold: only their owner can equip them, at any level
-    if (item.stoneBound ? !owned : item.slot === 'weapon' && (profile?.level ?? 1) < weaponLevelReq(item.level)) {
+    // A monster's weapon is sold once one of its monsters has been slain, at any knight level
+    if (
+      item.stoneBound ? !owned
+        : item.trophyOf ? !owned && trophyLocked(item, profile?.unlockStats?.monsterKills)
+        : item.slot === 'weapon' && (profile?.level ?? 1) < weaponLevelReq(item.level)
+    ) {
       audioManager.play('warn');
       return;
     }

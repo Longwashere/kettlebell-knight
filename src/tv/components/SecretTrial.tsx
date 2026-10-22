@@ -307,7 +307,15 @@ export const SecretTrial: React.FC<SecretTrialProps> = ({ trialId, engineRef, is
         // Won: a low banner, so the raised weapon stays the picture. Lost: the scene fades behind the card.
         <div className={`absolute inset-0 z-40 flex justify-center ${phase === 'WON' ? 'items-end pb-6' : 'items-center bg-black/70 backdrop-blur-sm'}`}>
           {phase === 'WON' ? (
-            <div className="bg-[#1A1926]/90 border-4 px-5 py-3 max-w-3xl w-full rounded flex items-center gap-5" style={panel}>
+            // A new weapon, not a level-up: the banner glows in the trial's accent under a crest
+            <div
+              className="kk-new-weapon bg-[#1A1926]/90 border-4 px-5 pt-5 pb-3 max-w-3xl w-full rounded flex items-center gap-5"
+              style={{ ...panel, '--kk-accent': copy.accent } as React.CSSProperties}
+            >
+              <div className="kk-new-weapon__crest font-pixel text-xs text-[#0F0E17] px-4 py-1.5 rounded-full border-2 border-black whitespace-nowrap">
+                ✦ NEW WEAPON ACQUIRED! ✦
+              </div>
+              <div className="kk-new-weapon__sweep" />
               <div className="flex-1 text-left">
                 <h2 className="font-pixel text-base" style={{ color: copy.accent }}>{copy.wonTitle}</h2>
                 <p className="text-[11px] text-[#A7A9BE] font-mono mt-1">{fillCopy(copy.wonLine, vars)}</p>

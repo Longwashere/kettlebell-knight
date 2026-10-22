@@ -18,15 +18,17 @@ import { useTVRemote } from '../hooks/useTVRemote';
 import { registerDebug } from '../debug/agentBridge';
 import { getMapConfig, getExpeditionEncounters, getNextCampaignMap, mapTier } from '../../shared/expeditionEngine';
 import { profileManager, loadoutFor, type LevelUpEvent, type MasteryLevelUp } from '../../shared/ProfileManager';
-import { SHOP_ITEMS } from '../../shared/shopItems';
+import { SHOP_ITEMS, newTrophies } from '../../shared/shopItems';
+import type { EquipmentItem } from '../../types/game';
 import { CardUnlockCelebration } from './CardUnlockCelebration';
 import { MasteryCelebration } from './MasteryCelebration';
+import { WeaponUnlockCelebration } from './WeaponUnlockCelebration';
 import { PauseMenu } from './PauseMenu';
 import { BattleIntro, introTimeline, introHudClass, type IntroStep } from './BattleIntro';
 import { nextGameTip, tipHoldMs, TIPS, type GameTip } from '../../shared/gameTips';
 import { BATTLE_QUOTES, nextBattleQuote, quoteHoldMs, type BattleQuote } from './battleQuotes';
 import { STAGE_LORE } from '../../shared/stageLore';
-import type { CardUnlockDef } from '../../shared/cardUnlocks';
+import { CARD_UNLOCK_REGISTRY, type CardUnlockDef } from '../../shared/cardUnlocks';
 import { CombatCardView, cardRepTarget } from './CombatCardView';
 import { rollSecretTrial, type SecretTrialId } from '../../shared/secretTrials';
 import { SECRET_TRIAL_COPY } from './secretTrialCopy';
@@ -151,24 +153,33 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const [modalChoice, setModalChoice] = useState(0);
   useEffect(() => setModalChoice(0), [battleStatus]);
   const [recentCombatLog, setRecentCombatLog] = useState<string>('Battle commenced! Perform exercises to cast cards.');
-  // Cards unlocked during the fight, then spells and weapons that levelled up; shown one by one after the
-  // reward screen, before its action runs
+  // Cards unlocked during the fight, then spells and weapons that levelled up, then monster weapons the kills
+  // put up for sale at the blacksmith; shown one by one after the reward screen, before its action runs
   const [pendingCardUnlocks, setPendingCardUnlocks] = useState<CardUnlockDef[]>([]);
   const [pendingMastery, setPendingMastery] = useState<MasteryLevelUp[]>([]);
-  const [rewardStep, setRewardStep] = useState<'unlocks' | 'mastery' | null>(null);
+  const [pendingWeapons, setPendingWeapons] = useState<EquipmentItem[]>([]);
+  type RewardStep = 'unlocks' | 'mastery' | 'weapons';
+  const [rewardStep, setRewardStep] = useState<RewardStep | null>(null);
   const showingUnlocks = rewardStep !== null;
   // Spells and weapons that levelled up (several levels of one count once, like their celebration pages)
   const masteryCount = new Set(pendingMastery.map((u) => `${u.kind}:${u.id}`)).size;
   const afterUnlocksRef = useRef<(() => void) | null>(null);
+  /** The first reward step after `from` that has something to show. */
+  const nextRewardStep = (from: RewardStep | null): RewardStep | null => {
+    const steps: [RewardStep, number][] = [['unlocks', pendingCardUnlocks.length], ['mastery', pendingMastery.length], ['weapons', pendingWeapons.length]];
+    const start = from ? steps.findIndex(([s]) => s === from) + 1 : 0;
+    return steps.slice(start).find(([, n]) => n > 0)?.[0] ?? null;
+  };
   const continueReward = (action: () => void) => {
-    if (pendingCardUnlocks.length === 0 && pendingMastery.length === 0) return action();
+    const first = nextRewardStep(null);
+    if (!first) return action();
     afterUnlocksRef.current = action;
-    setRewardStep(pendingCardUnlocks.length > 0 ? 'unlocks' : 'mastery');
+    setRewardStep(first);
   };
   const finishUnlocks = () => {
-    if (rewardStep === 'unlocks' && pendingMastery.length > 0) {
-      setPendingCardUnlocks([]);
-      setRewardStep('mastery');
+    const next = nextRewardStep(rewardStep);
+    if (next) {
+      setRewardStep(next);
       return;
     }
     const action = afterUnlocksRef.current;
@@ -176,6 +187,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     setRewardStep(null);
     setPendingCardUnlocks([]);
     setPendingMastery([]);
+    setPendingWeapons([]);
     action?.();
   };
 
@@ -660,7 +672,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         .filter((h) => h.killed && before[h.index])
         .map((h) => before[h.index].id);
       if (killedMonsterIds.length > 0) {
+        const killsBefore = profileManager.getActiveProfile()?.unlockStats?.monsterKills;
         const killUnlocks = profileManager.recordMonsterKills(killedMonsterIds, currentMap);
+        // A monster's first kill puts its weapon up for sale at the blacksmith
+        const after = profileManager.getActiveProfile();
+        const trophies = newTrophies(killsBefore, after?.unlockStats?.monsterKills, after?.unlockedItems);
+        if (trophies.length > 0) {
+          setPendingWeapons((prev) => [...prev, ...trophies.filter((t) => !prev.some((w) => w.id === t.id))]);
+        }
         if (killUnlocks.length > 0) {
           setPendingCardUnlocks((prev) => [...prev, ...killUnlocks]);
         }
@@ -1131,6 +1150,16 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         setPendingMastery(ups);
         setRewardStep('mastery');
       },
+      // Shows the new-spell reward page for unlockable cards, e.g. showUnlocks(['art_echo_shriek'])
+      showUnlocks: (ids: string[]) => {
+        setPendingCardUnlocks(ids.map((id) => CARD_UNLOCK_REGISTRY[id]).filter((d): d is CardUnlockDef => Boolean(d)));
+        setRewardStep('unlocks');
+      },
+      // Shows the new-weapon reward page for monster weapons, e.g. showWeapons(['slime_morningstar', 'skeleton_mace'])
+      showWeapons: (ids: string[]) => {
+        setPendingWeapons(ids.map((id) => SHOP_ITEMS.find((i) => i.id === id)).filter((i): i is EquipmentItem => Boolean(i)));
+        setRewardStep('weapons');
+      },
     },
   ));
 
@@ -1370,12 +1399,17 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           <div className="bg-[#1A1926] border-4 border-[#F4B41A] p-8 max-w-md w-full text-center rounded shadow-pixel-box-gold">
             {pendingCardUnlocks.length > 0 && (
               <div className="mb-3 text-[10px] font-pixel text-[#F4B41A] animate-pulse">
-                ✦ {pendingCardUnlocks.length} NEW CARD{pendingCardUnlocks.length > 1 ? 'S' : ''} UNLOCKED ✦
+                ✦ {pendingCardUnlocks.length} NEW SPELL{pendingCardUnlocks.length > 1 ? 'S' : ''} UNLOCKED ✦
               </div>
             )}
             {masteryCount > 0 && (
               <div className="mb-3 text-[10px] font-pixel text-[#00EB88] animate-pulse">
                 ✦ {masteryCount} MASTERY LEVEL UP{masteryCount > 1 ? 'S' : ''} ✦
+              </div>
+            )}
+            {pendingWeapons.length > 0 && (
+              <div className="mb-3 text-[10px] font-pixel animate-pulse" style={{ color: pendingWeapons[0].colorHex }}>
+                ✦ {pendingWeapons.length} NEW WEAPON{pendingWeapons.length > 1 ? 'S' : ''} AT THE FORGE ✦
               </div>
             )}
             {battleStatus === 'ENCOUNTER_CLEARED' ? (
@@ -1612,6 +1646,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       {/* Reward step three: spells and weapons that levelled up this fight */}
       {rewardStep === 'mastery' && pendingMastery.length > 0 && (
         <MasteryCelebration levelUps={pendingMastery} loadout={loadoutRef.current} onDismiss={finishUnlocks} />
+      )}
+      {/* Reward step four: monster weapons this fight's kills put up for sale at the blacksmith */}
+      {rewardStep === 'weapons' && pendingWeapons.length > 0 && (
+        <WeaponUnlockCelebration weapons={pendingWeapons} knightLevel={loadoutRef.current.level} onDismiss={finishUnlocks} />
       )}
 
       {/* BOTTOM SLAY THE SPIRE 5-CARD HAND */}

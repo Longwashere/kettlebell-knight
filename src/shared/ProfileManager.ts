@@ -469,6 +469,8 @@ class ProfileManager {
   public canWield(weaponId: string): boolean {
     const profile = this.getActiveProfile();
     if (SHOP_ITEMS.find((i) => i.id === weaponId)?.stoneBound) return Boolean(profile?.unlockedItems.includes(weaponId));
+    // A monster's weapon needs no level: slaying its monster earned it
+    if (SHOP_ITEMS.find((i) => i.id === weaponId)?.trophyOf) return true;
     return (profile?.level ?? 1) >= weaponLevelReq(weaponStats(weaponId).tier);
   }
 

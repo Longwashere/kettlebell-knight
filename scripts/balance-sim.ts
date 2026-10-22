@@ -31,7 +31,7 @@ import {
   BASE_STATS, EXPECTED_KNIGHT, buildLoadout, castsForCardLevel, castsForWeaponLevel, expectedStats, rollLevelUp, weaponLevelReq,
   weaponStats, MAX_LEVEL, CARD_MAX_LEVEL, type KnightStats, type Loadout, type StatKey,
 } from '../src/shared/progression';
-import { SHOP_ITEMS } from '../src/shared/shopItems';
+import { SHOP_ITEMS, trophyLocked } from '../src/shared/shopItems';
 import { elementMultiplier } from '../src/shared/elements';
 
 const args = process.argv.slice(2);
@@ -84,9 +84,12 @@ function stageElements(map: BattleMapId, level: number) {
 }
 
 /** The best weapon a knight of `level` may wield for these foes: highest damage over their elements. */
-function pickWeapon(level: number, foes: ReturnType<typeof stageElements>, owned?: Set<string>): string {
+function pickWeapon(level: number, foes: ReturnType<typeof stageElements>, owned?: Set<string>, kills?: Record<string, number>): string {
   if (FORCE_WEAPON) return FORCE_WEAPON;
-  const candidates = SHOP_ITEMS.filter((i) => i.slot === 'weapon' && !i.stoneBound && level >= weaponLevelReq(i.level) && (!owned || owned.has(i.id)));
+  const candidates = SHOP_ITEMS.filter((i) =>
+    i.slot === 'weapon' && !i.stoneBound && (!owned || owned.has(i.id)) &&
+    // A monster's weapon needs its monster slain instead of a level (the stage table, without kills, keeps the level)
+    (kills && i.trophyOf ? !trophyLocked(i, kills) : level >= weaponLevelReq(i.level)));
   const score = (id: string) => {
     const w = weaponStats(id, EXPECTED_KNIGHT.weaponLevel);
     return foes.reduce((sum, el) => sum + w.atk + w.elemDmg * elementMultiplier(w.element, el), 0);
@@ -296,6 +299,8 @@ function campaign() {
     let bag: StatKey[] = [];
     const cardCasts: Record<string, number> = {};
     const weaponCasts: Record<string, number> = {};
+    // Monsters slain so far (a won expedition stage counts its roster): gates the monsters' weapons
+    const kills: Record<string, number> = {};
     let stuck = false;
     for (const map of MAPS) {
       if (stuck) break;
@@ -309,7 +314,7 @@ function campaign() {
         let tries = 0;
         for (;;) {
           tries++;
-          weaponId = pickWeapon(level, stageElements(map, lvl));
+          weaponId = pickWeapon(level, stageElements(map, lvl), undefined, kills);
           const lo = buildLoadout({ level, stats, weaponId, cardCasts, weaponCasts });
           const r = expedition(map, lvl, lo, EFFORT);
           fights += r.reached + (r.win ? 0 : 1);
@@ -326,7 +331,10 @@ function campaign() {
             stats = roll.stats;
             bag = roll.bag;
           }
-          if (r.win) break;
+          if (r.win) {
+            for (const e of getExpeditionEncounters(map, lvl)) for (const m of e.monsterIds) kills[typeof m === 'string' ? m : m.id] = 1;
+            break;
+          }
           if (tries >= 25) {
             stuck = true;
             break;

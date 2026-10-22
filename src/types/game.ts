@@ -197,6 +197,12 @@ export interface EquipmentItem {
    * at any knight level; its tier follows the bearer (stoneBoundTier in src/shared/progression.ts).
    */
   stoneBound?: boolean;
+  /**
+   * A monster's weapon: the blacksmith sells it only once the knight has slain one of these monsters
+   * (MONSTER_CATALOG ids; affixed variants keep their monster's id), at any knight level. See trophyLocked in
+   * src/shared/shopItems.ts.
+   */
+  trophyOf?: string[];
   /** Extra share of gold from every rep while equipped (the Midas Bell: 0.5 = +50%). */
   repGoldBonus?: number;
 }
