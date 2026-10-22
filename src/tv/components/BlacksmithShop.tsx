@@ -10,6 +10,7 @@ import { loadoutFor, type PlayerProfile } from '../../shared/ProfileManager';
 import { spellsForWeapon } from '../../types/weaponSpells';
 import { TARGET_LABEL } from '../../shared/cardBalance';
 import { ASSET_ROOT } from '../../shared/assetRoot';
+import { useDesignZoom } from '../hooks/useDesignZoom';
 import { CardFront, cardStyleVars } from './CombatCardView';
 
 export { SHOP_ITEMS };
@@ -63,19 +64,6 @@ const RARITY = {
 
 const TYPE_LABEL: Record<string, string> = { morningstar: 'Morning Star', bell: 'Kettlebell', mace: 'Mace', sword: 'Sword' };
 const SLOT_GLYPH: Record<string, string> = { shield: '⛨', helmet: '♛', armor: '⛊' };
-
-/** The design height the forge is laid out at; it zooms to the real viewport so 720p and the TV's 1080p match. */
-const DESIGN_H = 720;
-
-function useDesignZoom(): number {
-  const [zoom, setZoom] = useState(() => window.innerHeight / DESIGN_H);
-  useEffect(() => {
-    const onResize = () => setZoom(window.innerHeight / DESIGN_H);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-  return zoom;
-}
 
 /** A weapon as the knight holds it (cut from his atlas by scripts/build_forge_icons.py); armour gets its heraldic glyph. */
 const ItemIcon: React.FC<{ item: EquipmentItem; className?: string }> = ({ item, className }) =>

@@ -201,7 +201,7 @@ export interface EquipmentItem {
   repGoldBonus?: number;
 }
 
-export type HubLocation = 'QUICK_PLAY' | 'GATE' | 'BLACKSMITH' | 'SANCTUARY' | 'TITLE' | 'GRAPHICS';
+export type HubLocation = 'QUICK_PLAY' | 'GATE' | 'BLACKSMITH' | 'SANCTUARY' | 'GRAPHICS';
 
 export interface KnightStats {
   level: number;

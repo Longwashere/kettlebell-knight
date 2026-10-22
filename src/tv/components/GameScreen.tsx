@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GameEngine } from '../engine/GameEngine';
 import { useTVRemote } from '../hooks/useTVRemote';
+import { useDesignZoom } from '../hooks/useDesignZoom';
 import { networkManager, NetworkConnectionState } from '../../shared/NetworkManager';
 import { discoveryManager } from '../../shared/DiscoveryManager';
 import { FOLLOW_URL, phonePairUrl } from '../../shared/deployConfig';
@@ -26,19 +27,7 @@ import type { VfxName } from '../engine/vfx';
 import { BATTLE_MAPS } from '../engine/GameEngine';
 import { CAMPAIGN_MAPS, latestUnlockedStage } from '../../shared/expeditionEngine';
 import { SPELL_MASTERY_LEVEL, STAT_INFO, castsForWeaponLevel, weaponLevelReq } from '../../shared/progression';
-import { 
-  Tv, 
-  Smartphone, 
-  Sparkles, 
-  Volume2, 
-  VolumeX, 
-  Swords, 
-  Award, 
-  Activity, 
-  Shield, 
-  Wifi, 
-  LogOut 
-} from 'lucide-react';
+import { PixelSprite, ICON_BELL, ICON_BELL_MUTED, ICON_DOOR, ICON_HELM, ICON_PHONE } from './pixelSprites';
 
 export type TVScreenView = 'HUB' | 'BLACKSMITH' | 'COMBAT' | 'SANCTUARY' | 'TITLE' | 'MAP_SELECT' | 'TRIAL';
 
@@ -74,9 +63,10 @@ export const GameScreen: React.FC = () => {
 
   // Navigation indices
   const [hubIndex, setHubIndex] = useState<number>(0); // Quick Play
+  const zoom = useDesignZoom();
   const [shopIndex, setShopIndex] = useState<number>(0);
   const [hubFocusArea, setHubFocusArea] = useState<'CAROUSEL' | 'TOP_BAR'>('CAROUSEL');
-  const [topBarIndex, setTopBarIndex] = useState<number>(0); // 0: Mobile Pair, 1: Title Screen, 2: Mute
+  const [topBarIndex, setTopBarIndex] = useState<number>(0); // 0: Phone, 1: Title Screen, 2: Mute
 
   // Networking state
   const [roomId, setRoomId] = useState<string>('');
@@ -558,8 +548,6 @@ export const GameScreen: React.FC = () => {
           handleQuickPlay();
         } else if (selectedNode === 'SANCTUARY') {
           setCurrentView('SANCTUARY');
-        } else if (selectedNode === 'TITLE') {
-          handleGoToTitle();
         } else if (selectedNode === 'GRAPHICS') {
           toggleGraphicsMode();
         }
@@ -645,113 +633,73 @@ export const GameScreen: React.FC = () => {
           onExit={handleLeaveSecretTrial}
         />
       ) : (
-        <div className="relative z-10 w-full h-full flex flex-col justify-between p-6 pointer-events-auto">
+        <div className="relative z-10 w-full h-full flex flex-col justify-between pointer-events-auto" style={{ padding: 24 * zoom }}>
           {currentView === 'HUB' && <div className="kk-hub-vignette absolute inset-0 -z-10 pointer-events-none" />}
-          {/* Top TV HUD Header */}
-          <header className="flex items-center justify-between">
-          {/* RPG Knight Profile & Health/XP */}
-          <div className="flex items-center space-x-4 bg-[#1A1926]/90 border-4 border-[#2E2B44] px-4 py-2.5 rounded shadow-pixel-box backdrop-blur-sm">
-            <div className="w-10 h-10 rounded bg-[#F4B41A] text-[#0F0E17] flex items-center justify-center font-bold text-xl font-pixel shadow-pixel-box">
-              ⚔
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-pixel text-xs text-[#F4B41A]">
-                  {profile?.name || 'SIR KETTLEBURNE'}
-                </span>
-                <span className="bg-[#38B6FF]/20 text-[#38B6FF] border border-[#38B6FF] text-[9px] font-pixel px-1.5">
-                  LVL {profile?.level || 1}
-                </span>
-                <span className="text-[9px] font-mono text-[#F4B41A] ml-1">
-                  🪙 {playerGold} GP
-                </span>
-              </div>
-              {/* Experience bar and the knight's stats */}
-              <div className="flex items-center gap-3 mt-1.5">
-                <div className="flex items-center gap-1" title={`${profile?.xp ?? 0} / ${profile?.maxXp ?? 0} XP to next level`}>
-                  <Sparkles className="w-3.5 h-3.5 text-[#C084FC]" />
-                  <div className="w-24 h-2.5 bg-[#0F0E17] border border-[#2E2B44] overflow-hidden">
-                    <div className="h-full bg-[#C084FC]" style={{ width: `${Math.min(100, ((profile?.xp ?? 0) / Math.max(1, profile?.maxXp ?? 1)) * 100)}%` }} />
-                  </div>
+          {/* Top HUD: the knight's nameplate, this sitting's tally, and the phone/settings bar */}
+          <header className="kk-hud-top" style={{ zoom }}>
+            <div className="kk-nameplate">
+              <span className="kk-nameplate__portrait">
+                <PixelSprite grid={ICON_HELM} px={3} />
+              </span>
+              <div className="kk-nameplate__body">
+                <div className="kk-nameplate__row">
+                  <span className="kk-nameplate__name">{profile?.name || 'Sir Kettleburne'}</span>
+                  <span className="kk-nameplate__lvl">Lv {profile?.level || 1}</span>
                 </div>
-                {(['str', 'hp', 'spd'] as const).map((k) => (
-                  <span key={k} className="font-pixel text-[9px]" style={{ color: STAT_INFO[k].color }} title={STAT_INFO[k].hint}>
-                    {STAT_INFO[k].icon} {STAT_INFO[k].label} {profile?.stats?.[k] ?? (k === 'str' ? 20 : k === 'hp' ? 100 : 0)}
+                <div className="kk-nameplate__xp" title={`${profile?.xp ?? 0} / ${profile?.maxXp ?? 0} XP to next level`}>
+                  <i style={{ transform: `scaleX(${Math.min(1, (profile?.xp ?? 0) / Math.max(1, profile?.maxXp ?? 1))})` }} />
+                </div>
+                <div className="kk-nameplate__stats">
+                  {(['str', 'hp', 'spd'] as const).map((k) => (
+                    <span key={k} title={STAT_INFO[k].hint}>
+                      <small>{STAT_INFO[k].label}</small> {profile?.stats?.[k] ?? (k === 'str' ? 20 : k === 'hp' ? 100 : 0)}
+                    </span>
+                  ))}
+                  <span className="kk-nameplate__gold">
+                    <span className="kk-forge__coin" /> {playerGold}
                   </span>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Session Workout Counters & Pairing Pill (the forge takes the whole right side) */}
-          <div className={`flex items-center space-x-3 ${currentView === 'BLACKSMITH' ? 'invisible' : ''}`}>
-            {/* Live Rep Counter Pill */}
-            <div className="bg-[#1A1926]/90 border-4 border-[#F4B41A] px-4 py-2 rounded shadow-pixel-box flex items-center gap-3">
-              <Activity className="w-5 h-5 text-[#F4B41A] animate-pulse" />
-              <div>
-                <span className="text-[9px] font-pixel text-[#A7A9BE] block">SESSION REPS</span>
-                <span className="text-sm font-pixel text-[#F4B41A]">{sessionReps}</span>
+                </div>
               </div>
             </div>
 
-            {/* Max Power Pill */}
-            <div className="bg-[#1A1926]/90 border-4 border-[#38B6FF] px-4 py-2 rounded shadow-pixel-box flex items-center gap-3">
-              <Award className="w-5 h-5 text-[#38B6FF]" />
-              <div>
-                <span className="text-[9px] font-pixel text-[#A7A9BE] block">MAX POWER</span>
-                <span className="text-sm font-pixel text-[#38B6FF]">{highestPower || '--'}</span>
-              </div>
-            </div>
-
-            {/* WebRTC Mobile Pairing Pill Button */}
-            <button
-              onClick={() => setIsQrModalOpen(true)}
-              className={`bg-[#1A1926]/90 hover:bg-[#242138] border-4 px-4 py-2 rounded shadow-pixel-box flex items-center gap-2.5 transition-all active:scale-95 ${
-                currentView === 'HUB' && hubFocusArea === 'TOP_BAR' && topBarIndex === 0
-                  ? 'border-[#F4B41A] ring-2 ring-[#F4B41A] scale-105'
-                  : 'border-[#38B6FF]'
-              }`}
-            >
-              <Smartphone className="w-5 h-5 text-[#38B6FF]" />
-              <div className="text-left">
-                <span className="text-[9px] font-pixel text-[#A7A9BE] block">MOBILE PAIR</span>
-                <span className="text-[11px] font-pixel text-[#38B6FF]">
-                  {netState === 'CONNECTED' ? '● LINKED' : roomId || 'CONNECT'}
+            {/* The forge takes the whole right side */}
+            <div className={`kk-hud-top__right ${currentView === 'BLACKSMITH' ? 'invisible' : ''}`}>
+              <div className="kk-tally">
+                <span className="kk-tally__over">This sitting</span>
+                <span className="kk-tally__line">
+                  <b>{sessionReps}</b> reps <i>·</i> mightiest blow <b>{highestPower || '—'}</b>
                 </span>
               </div>
-            </button>
 
-            {/* Title / Save & Quit button */}
-            <button
-              onClick={handleGoToTitle}
-              className={`p-3 bg-[#1A1926]/90 border-4 text-white shadow-pixel-box transition-all ${
-                currentView === 'HUB' && hubFocusArea === 'TOP_BAR' && topBarIndex === 1
-                  ? 'border-[#F4B41A] ring-2 ring-[#F4B41A] scale-105'
-                  : 'border-[#2E2B44] hover:border-[#F4B41A]'
-              }`}
-              title="Save & Return to Title Screen"
-            >
-              <LogOut className="w-4 h-4 text-[#F4B41A]" />
-            </button>
-
-            {/* Mute toggle */}
-            <button
-              onClick={toggleMute}
-              className={`p-3 bg-[#1A1926]/90 border-4 text-white shadow-pixel-box transition-all ${
-                currentView === 'HUB' && hubFocusArea === 'TOP_BAR' && topBarIndex === 2
-                  ? 'border-[#F4B41A] ring-2 ring-[#F4B41A] scale-105'
-                  : 'border-[#2E2B44] hover:border-[#F4B41A]'
-              }`}
-              title="Toggle Audio"
-            >
-              {isMuted ? <VolumeX className="w-4 h-4 text-[#FF3366]" /> : <Volume2 className="w-4 h-4 text-[#00EB88]" />}
-            </button>
-          </div>
-        </header>
+              <div className="kk-sysbar">
+                {([
+                  { icon: ICON_PHONE, onClick: () => setIsQrModalOpen(true), tint: netState === 'CONNECTED' ? '#3DF2A0' : '#4A5068',
+                    label: netState === 'CONNECTED' ? 'Phone bound' : `Bind phone · ${roomId || '…'}` },
+                  { icon: ICON_DOOR, onClick: handleGoToTitle, label: 'Save & leave' },
+                  { icon: isMuted ? ICON_BELL_MUTED : ICON_BELL, onClick: toggleMute, label: isMuted ? 'Sound off' : 'Sound on' },
+                ]).map((b, i) => {
+                  const focused = currentView === 'HUB' && hubFocusArea === 'TOP_BAR' && topBarIndex === i;
+                  return (
+                    <button
+                      key={i}
+                      onClick={b.onClick}
+                      className={`kk-sysbar__btn ${focused ? 'kk-sysbar__btn--focused' : ''}`}
+                      style={{ color: b.tint }}
+                      title={b.label}
+                    >
+                      <PixelSprite grid={b.icon} px={3} />
+                      {focused && <span className="kk-sysbar__caption">{b.label}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </header>
 
         {/* Center Active View */}
         <main className="my-auto flex items-center justify-center">
           {currentView === 'HUB' && (
+            <div style={{ zoom, width: '100%' }}>
             <HubMenu
               selectedIndex={hubIndex}
               isFocused={hubFocusArea === 'CAROUSEL'}
@@ -772,6 +720,7 @@ export const GameScreen: React.FC = () => {
               }}
               onHoverNode={(idx) => setHubIndex(idx)}
             />
+            </div>
           )}
 
           {currentView === 'BLACKSMITH' && (
@@ -801,88 +750,49 @@ export const GameScreen: React.FC = () => {
           )}
         </main>
 
-        {/* On-Screen Instant QR Pairing Widget (Prominently displayed whenever unpaired) */}
+        {/* Pairing QR, shown on the hub while no phone is bound */}
         {netState !== 'CONNECTED' && roomId && currentView === 'HUB' && (
-          <aside
-            aria-label="Scan QR Code to Pair Mobile Companion"
-            className="absolute bottom-[76px] right-8 z-40 bg-[#1A1926]/95 border-4 border-[#38B6FF] p-2 rounded shadow-pixel-box flex items-center gap-3 animate-in fade-in"
-          >
-            {/* High-Contrast QR Code for scanning from across the room */}
-            <div className="p-1.5 bg-white border-2 border-black rounded">
-              <QRCodeSVG
-                value={phonePairUrl(roomId)}
-                size={84}
-                level="M"
-              />
+          <aside aria-label="Scan QR Code to Pair Mobile Companion" className="kk-hub-qr" style={{ zoom }}>
+            <div className="kk-hub-qr__code">
+              <QRCodeSVG value={phonePairUrl(roomId)} size={84} level="M" />
             </div>
-
-            <div className="flex flex-col items-start gap-1.5 pr-1">
-              <span className="font-pixel text-[8px] text-[#38B6FF] flex items-center gap-1">
-                <Smartphone className="w-3 h-3 text-[#38B6FF]" />
-                PAIR PHONE
-              </span>
-              <span className="font-pixel text-[7px] text-[#F4B41A] animate-pulse flex items-center gap-0.5">
-                <Wifi className="w-2.5 h-2.5" /> WAITING
-              </span>
-              <span className="font-pixel text-[7px] text-[#A7A9BE] leading-tight">
-                SCAN WITH<br />PHONE CAMERA
-              </span>
-              <span className="bg-[#0F0E17] border border-[#F4B41A] py-0.5 px-2 font-mono text-[11px] text-[#F4B41A] font-bold tracking-widest">
-                {roomId}
-              </span>
+            <div className="kk-hub-qr__text">
+              <span className="kk-hub-qr__title">Bind thy phone</span>
+              <span className="kk-hub-qr__sub">Scan with its camera, or enter the code.</span>
+              <span className="kk-hub-qr__room">{roomId}</span>
+              <span className="kk-hub-qr__wait"><i /> Awaiting</span>
             </div>
           </aside>
         )}
 
-        {/* Once the phone is paired, the pairing widget's corner shows a follow-for-updates QR instead */}
+        {/* Once the phone is bound, the corner shows a follow-for-updates QR instead */}
         {netState === 'CONNECTED' && currentView === 'HUB' && (
-          <aside
-            aria-label="Scan QR Code to follow the developer on X for updates"
-            className="absolute bottom-[76px] right-8 z-40 bg-[#1A1926]/95 border-4 border-[#2E2B44] p-2 rounded shadow-pixel-box flex items-center gap-3 animate-in fade-in"
-          >
-            <div className="p-1.5 bg-white border-2 border-black rounded">
+          <aside aria-label="Scan QR Code to follow the developer on X for updates" className="kk-hub-qr kk-hub-qr--quiet" style={{ zoom }}>
+            <div className="kk-hub-qr__code">
               <QRCodeSVG value={FOLLOW_URL} size={64} level="M" />
             </div>
-
-            <div className="flex flex-col items-start gap-1.5 pr-1">
-              <span className="font-pixel text-[8px] text-white">FOLLOW FOR</span>
-              <span className="font-pixel text-[8px] text-[#F4B41A]">UPDATES</span>
-              <span className="font-mono text-[11px] text-[#A7A9BE] font-bold">@AnotherDevName</span>
+            <div className="kk-hub-qr__text">
+              <span className="kk-hub-qr__title">Tidings</span>
+              <span className="kk-hub-qr__sub">Follow for updates</span>
+              <span className="kk-hub-qr__handle">@AnotherDevName</span>
             </div>
           </aside>
         )}
 
-        {/* Bottom Fire TV Remote D-Pad Navigation Hint Bar */}
-        <footer className={`${currentView === 'BLACKSMITH' ? 'invisible' : ''} border-t-4 border-[#2E2B44] bg-[#1A1926]/90 p-3 rounded shadow-pixel-box flex items-center justify-between text-[10px] font-mono text-[#A7A9BE] backdrop-blur-sm`}>
-          <div className="flex items-center space-x-4">
-            <span className="flex items-center gap-1.5 text-white font-pixel text-[9px]">
-              <span className="bg-[#2E2B44] px-1.5 py-0.5 border border-[#F4B41A] text-[#F4B41A]">
-                {currentView === 'HUB' && hubFocusArea === 'TOP_BAR' ? '◀ / ▶' : 'D-PAD'}
-              </span>
-              <span>
-                {currentView === 'HUB' && hubFocusArea === 'TOP_BAR' ? 'SELECT TOP BAR' : 'NAVIGATE'}
-              </span>
+        {/* Remote hints */}
+        <footer className={`kk-hub-hints ${currentView === 'BLACKSMITH' ? 'invisible' : ''}`} style={{ zoom }}>
+          <span>
+            <kbd className="kk-hub-hints__arrows">◀▶</kbd>
+            {currentView === 'HUB' && hubFocusArea === 'TOP_BAR' ? 'Settings' : 'Choose'}
+          </span>
+          {currentView === 'HUB' && (
+            <span>
+              <kbd className="kk-hub-hints__arrows">{hubFocusArea === 'TOP_BAR' ? '▼' : '▲'}</kbd>
+              {hubFocusArea === 'TOP_BAR' ? 'Town' : 'Phone & sound'}
             </span>
-            {currentView === 'HUB' && (
-              <span className="flex items-center gap-1.5 text-white font-pixel text-[9px]">
-                <span className="bg-[#2E2B44] px-1.5 py-0.5 border border-[#38B6FF] text-[#38B6FF]">
-                  {hubFocusArea === 'TOP_BAR' ? '▼ / ESC' : '▲'}
-                </span>
-                <span>
-                  {hubFocusArea === 'TOP_BAR' ? 'CITADEL PLAQUES' : 'TOP BAR (PAIR/MUTE)'}
-                </span>
-              </span>
-            )}
-            <span className="flex items-center gap-1.5 text-white font-pixel text-[9px]">
-              <span className="bg-[#2E2B44] px-1.5 py-0.5 border border-[#F4B41A] text-[#F4B41A]">SELECT / ENTER</span>
-              <span>CONFIRM</span>
-            </span>
-            <span className="flex items-center gap-1.5 text-white font-pixel text-[9px]">
-              <span className="bg-[#2E2B44] px-1.5 py-0.5 border border-[#F4B41A] text-[#F4B41A]">BACK / ESC</span>
-              <span>BACK</span>
-            </span>
-          </div>
-
+          )}
+          <span><kbd>Select</kbd>Enter</span>
+          <span><kbd>Back</kbd>{currentView === 'HUB' && hubFocusArea !== 'TOP_BAR' ? 'Quit' : 'Back'}</span>
         </footer>
       </div>
       )}
