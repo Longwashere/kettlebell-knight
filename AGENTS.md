@@ -26,6 +26,7 @@ python3 scripts/shrink_monsters.py  # TV-sized monster atlases (monsters → mon
 npm run sfx [-- ids]          # render the procedural sound bank to work/sfx/*.wav + index.html to audition
 npm run music                 # render the Electric Pow Wow workout soundtrack & stems to work/music/ + web asset
 python3 scripts/build_phone_armor.py  # cut the knight's armour parts from the Spine atlas for the phone AR overlay
+python3 scripts/build_forge_icons.py  # blacksmith shop icons (public/assets/forge/) cut from the knight atlas; rerun after repainting a weapon
 python3 scripts/build_store_art.py   # Amazon Appstore art (store/amazon/) + Fire TV banner & launcher icons from store/cover.png
 npm run build:pages  # GitHub Pages build: phone PWA + /tv demo (see Deploy)
 npm run tv:sync    # build + copy dist/ into the Capacitor Android (Fire TV) project in android/

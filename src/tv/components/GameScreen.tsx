@@ -7,7 +7,7 @@ import { FOLLOW_URL, phonePairUrl } from '../../shared/deployConfig';
 import { exitApp } from '../native';
 import { getGraphicsMode, setGraphicsMode, GraphicsMode } from '../graphicsMode';
 import { HubMenu, HUB_NODES } from './HubMenu';
-import { BlacksmithShop, SHOP_ITEMS } from './BlacksmithShop';
+import { BlacksmithShop, SHOP_ITEMS, forgeNavigate } from './BlacksmithShop';
 import { BattleScreen } from './BattleScreen';
 import { TitleScreen } from './TitleScreen';
 import { MapSelectScreen } from './MapSelectScreen';
@@ -410,9 +410,17 @@ export const GameScreen: React.FC = () => {
   // 3. Blacksmith Equipment Preview Callback
   const handlePreviewShopItem = useCallback((item: EquipmentItem) => {
     if (engineRef.current) {
-      engineRef.current.previewEquipment(item.slot, item.attachmentId);
+      engineRef.current.previewEquipment(item.slot, item.attachmentId, parseInt(item.colorHex.slice(1), 16));
     }
   }, []);
+
+  // The forge opens on the weapon in the knight's hand
+  const openForge = () => {
+    const index = Math.max(0, SHOP_ITEMS.findIndex((si) => si.slot === 'weapon' && equippedItems.has(si.id)));
+    setCurrentView('BLACKSMITH');
+    setShopIndex(index);
+    handlePreviewShopItem(SHOP_ITEMS[index]);
+  };
 
   // Equip item: bought once, then owned (weapons keep their level). Weapons need the knight's level.
   const ownedItems = new Set(profile?.unlockedItems ?? ['iron_kettlebell']);
@@ -436,8 +444,8 @@ export const GameScreen: React.FC = () => {
         next.add(item.id);
         return next;
       });
-      handlePreviewShopItem(item);
-      audioManager.play('equip');
+      engineRef.current?.previewEquipment(item.slot, item.attachmentId);
+      engineRef.current?.showcaseEquipped(parseInt(item.colorHex.slice(1), 16));
       profileManager.saveActiveProfile({
         gold: !owned ? playerGold - item.price : playerGold,
         unlockedItems: owned ? [...ownedItems] : [...ownedItems, item.id],
@@ -446,6 +454,8 @@ export const GameScreen: React.FC = () => {
           [item.slot]: item.id,
         },
       });
+    } else {
+      audioManager.play('warn');
     }
   };
 
@@ -465,8 +475,8 @@ export const GameScreen: React.FC = () => {
         }
       } else if (currentView === 'BLACKSMITH') {
         setShopIndex((prev) => {
-          const next = Math.max(0, prev - 2);
-          handlePreviewShopItem(SHOP_ITEMS[next]);
+          const next = forgeNavigate(prev, 'up');
+          if (next !== prev) handlePreviewShopItem(SHOP_ITEMS[next]);
           return next;
         });
       }
@@ -479,8 +489,8 @@ export const GameScreen: React.FC = () => {
         }
       } else if (currentView === 'BLACKSMITH') {
         setShopIndex((prev) => {
-          const next = Math.min(SHOP_ITEMS.length - 1, prev + 2);
-          handlePreviewShopItem(SHOP_ITEMS[next]);
+          const next = forgeNavigate(prev, 'down');
+          if (next !== prev) handlePreviewShopItem(SHOP_ITEMS[next]);
           return next;
         });
       }
@@ -494,8 +504,8 @@ export const GameScreen: React.FC = () => {
         }
       } else if (currentView === 'BLACKSMITH') {
         setShopIndex((prev) => {
-          const next = Math.max(0, prev - 1);
-          handlePreviewShopItem(SHOP_ITEMS[next]);
+          const next = forgeNavigate(prev, 'left');
+          if (next !== prev) handlePreviewShopItem(SHOP_ITEMS[next]);
           return next;
         });
       }
@@ -509,8 +519,8 @@ export const GameScreen: React.FC = () => {
         }
       } else if (currentView === 'BLACKSMITH') {
         setShopIndex((prev) => {
-          const next = Math.min(SHOP_ITEMS.length - 1, prev + 1);
-          handlePreviewShopItem(SHOP_ITEMS[next]);
+          const next = forgeNavigate(prev, 'right');
+          if (next !== prev) handlePreviewShopItem(SHOP_ITEMS[next]);
           return next;
         });
       }
@@ -535,9 +545,7 @@ export const GameScreen: React.FC = () => {
 
         const selectedNode = HUB_NODES[hubIndex].id;
         if (selectedNode === 'BLACKSMITH') {
-          setCurrentView('BLACKSMITH');
-          setShopIndex(0);
-          handlePreviewShopItem(SHOP_ITEMS[0]);
+          openForge();
         } else if (selectedNode === 'GATE') {
           setCurrentView('MAP_SELECT');
         } else if (selectedNode === 'QUICK_PLAY') {
@@ -669,8 +677,8 @@ export const GameScreen: React.FC = () => {
             </div>
           </div>
 
-          {/* Session Workout Counters & Pairing Pill */}
-          <div className="flex items-center space-x-3">
+          {/* Session Workout Counters & Pairing Pill (the forge takes the whole right side) */}
+          <div className={`flex items-center space-x-3 ${currentView === 'BLACKSMITH' ? 'invisible' : ''}`}>
             {/* Live Rep Counter Pill */}
             <div className="bg-[#1A1926]/90 border-4 border-[#F4B41A] px-4 py-2 rounded shadow-pixel-box flex items-center gap-3">
               <Activity className="w-5 h-5 text-[#F4B41A] animate-pulse" />
@@ -745,9 +753,7 @@ export const GameScreen: React.FC = () => {
               graphicsMode={graphicsMode}
               onSelectNode={(node) => {
                 if (node === 'BLACKSMITH') {
-                  setCurrentView('BLACKSMITH');
-                  setShopIndex(0);
-                  handlePreviewShopItem(SHOP_ITEMS[0]);
+                  openForge();
                 } else if (node === 'GATE') {
                   setCurrentView('MAP_SELECT');
                 } else if (node === 'QUICK_PLAY') {
@@ -776,6 +782,7 @@ export const GameScreen: React.FC = () => {
               ownedIds={ownedItems}
               knightLevel={profile?.level ?? 1}
               weaponCasts={profile?.weaponCasts ?? {}}
+              profile={profile}
             />
           )}
 
@@ -840,7 +847,7 @@ export const GameScreen: React.FC = () => {
         )}
 
         {/* Bottom Fire TV Remote D-Pad Navigation Hint Bar */}
-        <footer className="border-t-4 border-[#2E2B44] bg-[#1A1926]/90 p-3 rounded shadow-pixel-box flex items-center justify-between text-[10px] font-mono text-[#A7A9BE] backdrop-blur-sm">
+        <footer className={`${currentView === 'BLACKSMITH' ? 'invisible' : ''} border-t-4 border-[#2E2B44] bg-[#1A1926]/90 p-3 rounded shadow-pixel-box flex items-center justify-between text-[10px] font-mono text-[#A7A9BE] backdrop-blur-sm`}>
           <div className="flex items-center space-x-4">
             <span className="flex items-center gap-1.5 text-white font-pixel text-[9px]">
               <span className="bg-[#2E2B44] px-1.5 py-0.5 border border-[#F4B41A] text-[#F4B41A]">

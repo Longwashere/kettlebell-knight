@@ -15,6 +15,7 @@ import { retainFxAtlas, releaseFxAtlas } from './fxAtlas';
 import { inferKind, makeParticleView, updateParticleView, type ParticleView } from './particleSprites';
 import { OutlineFilter } from './outlineFilter';
 import { isPerformanceMode } from '../graphicsMode';
+import { ForgeShowcase } from './forgeShowcase';
 import { RepStamp, type RepCardTarget } from './repStamp';
 import { TRIAL_SCENES, type TrialScene } from './trialScenes';
 import type { SecretTrialId, TrialRepResult } from '../../shared/secretTrials';
@@ -99,8 +100,8 @@ interface KnightMoveOptions {
   stagger?: number;
   interrupt?: boolean;
 }
-/** Knight feet and scale in the blacksmith's fitting room (left of the docked shop panel). */
-const SHOWCASE_KNIGHT = { x: 100, y: 192, scale: 1.28 };
+/** Knight feet and scale in the blacksmith's fitting room (on the dais left of the forge panel). */
+const SHOWCASE_KNIGHT = { x: 98, y: 236, scale: 1.2 };
 const MONSTER_OUTLINE_COLOR = 0x0F0E17; // retro.dark
 // Battle arena background textures (clean 1:1 retro canvas match): ./battleMaps.ts
 export { BATTLE_MAPS, MAP_BATTLE_MUSIC, getMapBattleMusic };
@@ -1323,7 +1324,7 @@ export class GameEngine {
   private trialId: SecretTrialId | null = null;
   private trialToken = 0; // a newer showSecretTrial call cancels a pending one
   private bgRequest = 0; // the latest loadBackground call
-  private showcaseLight: Graphics | null = null;
+  private showcase: ForgeShowcase | null = null;
   private showcaseHidden: Container[] = [];
   private trialTexture: Texture | null = null;
 
@@ -1833,30 +1834,32 @@ export class GameEngine {
    */
   public setShowcase(on: boolean): void {
     const knight = this.knightContainer;
-    if (!knight || !this.gameLayer || on === !!this.showcaseLight) return;
+    if (!knight || !this.gameLayer || on === !!this.showcase) return;
     if (on) {
       this.showcaseHidden = [...this.monsterSlots.map((s) => s.container), this.enemyDummy, this.targetReticle]
         .filter((c): c is Container => !!c && c.visible);
       this.showcaseHidden.forEach((c) => (c.visible = false));
-      const light = new Graphics();
-      light.ellipse(0, 0, 46, 10).fill({ color: 0xF59E0B, alpha: 0.16 });
-      light.ellipse(0, 0, 30, 6).fill({ color: 0xFDE68A, alpha: 0.18 });
-      light.poly([-20, -150, 20, -150, 44, 0, -44, 0]).fill({ color: 0xFDE68A, alpha: 0.06 });
-      light.blendMode = 'add';
-      light.position.set(SHOWCASE_KNIGHT.x, SHOWCASE_KNIGHT.y);
-      light.zIndex = -200;
-      this.gameLayer.addChild(light);
-      this.showcaseLight = light;
+      this.showcase = new ForgeShowcase(this.gameLayer, SHOWCASE_KNIGHT.x, SHOWCASE_KNIGHT.y, SCENE_RAISE_Y, isPerformanceMode(), knight);
       knight.position.set(SHOWCASE_KNIGHT.x, SHOWCASE_KNIGHT.y);
       knight.scale.set(SHOWCASE_KNIGHT.scale);
+      if (this.knightShadow) this.knightShadow.visible = false; // the dais casts it
     } else {
       this.showcaseHidden.forEach((c) => (c.visible = true));
       this.showcaseHidden = [];
-      this.showcaseLight?.destroy();
-      this.showcaseLight = null;
+      this.showcase?.destroy();
+      this.showcase = null;
       knight.position.set(KNIGHT_HOME.x, KNIGHT_HOME.y);
       knight.scale.set(1);
+      if (this.knightShadow) this.knightShadow.visible = true;
     }
+  }
+
+  /** Blacksmith: the knight bought or equipped the item, so he raises it in triumph in a burst of its colour. */
+  public showcaseEquipped(accent: number): void {
+    if (!this.showcase) return;
+    this.showcase.setAccent(accent, true);
+    this.playKnightAnimation('WIN');
+    audioManager.play('level_up');
   }
 
   /** Clears victory/defeat lock and returns the knight to IDLE (new battle). */
@@ -3490,7 +3493,7 @@ export class GameEngine {
    * call engineRef.current.previewEquipment(slotId, attachmentId). The GameEngine class must
    * dynamically load the texture, execute skeleton.setAttachment(), and unload the previous preview texture."
    */
-  public async previewEquipment(slotId: string, attachmentId: string): Promise<void> {
+  public async previewEquipment(slotId: string, attachmentId: string, accent?: number): Promise<void> {
     const assetKey = `preview_${slotId}_${attachmentId}`;
 
     // 1. Unload previous preview asset to strictly manage VRAM on 1GB Fire TV Sticks
@@ -3523,6 +3526,11 @@ export class GameEngine {
         }
       }
       audioManager.play('equip');
+      // In the fitting room the knight lifts the new piece to look it over, in a flare of its colour
+      if (this.showcase && accent !== undefined) {
+        this.showcase.setAccent(accent);
+        this.playKnightAnimation('BUFF');
+      }
     } catch (err) {
       console.error('[GameEngine] previewEquipment error:', err);
     }
@@ -3851,8 +3859,12 @@ export class GameEngine {
         }
       }
 
+      this.showcase?.update(delta);
+
       // Update Target Reticle over active monster
-      if (this.targetReticle) {
+      if (this.showcase && this.targetReticle) {
+        this.targetReticle.visible = false;
+      } else if (this.targetReticle) {
         const targetSlot = this.monsterSlots[this.targetSlotIndex] ?? this.monsterSlots.find(s => s.isAlive);
         if (targetSlot && targetSlot.isAlive && !targetSlot.isLocked) {
           this.targetReticle.visible = true;
