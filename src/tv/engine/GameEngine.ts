@@ -1,5 +1,5 @@
-import { Application, Container, Graphics, Text, Assets, Sprite, Texture, Cache, Rectangle, TexturePool, ColorMatrixFilter, type BindGroup, type Filter } from 'pixi.js';
-import { AdvancedBloomFilter } from 'pixi-filters/advanced-bloom';
+import { Application, Container, Graphics, Text, Assets, Sprite, Texture, Cache, Rectangle, TexturePool, type BindGroup, type Filter } from 'pixi.js';
+import { UltraFx } from './ultraFx';
 import { RimLightFilter } from './rimLightFilter';
 import { measureSceneLight, DEFAULT_SCENE_LIGHT, type SceneLight } from './sceneLight';
 import { Spine, SpineTexture, EventTimeline, RegionAttachment } from '@esotericsoftware/spine-pixi-v8';
@@ -1219,34 +1219,16 @@ export interface MonsterSlot {
   auraPool?: Graphics | null;
 }
 
-/** ULTRA vignette: transparent centre darkening toward the corners, stretched over the 426x240 stage. */
-function vignetteTexture(): Texture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 213;
-  canvas.height = 120;
-  const ctx = canvas.getContext('2d')!;
-  ctx.scale(1, 120 / 213); // a circle in the square becomes an ellipse fitted to the 16:9 frame
-  const g = ctx.createRadialGradient(106.5, 106.5, 50, 106.5, 106.5, 132);
-  g.addColorStop(0, 'rgba(8,6,16,0)');
-  g.addColorStop(0.55, 'rgba(8,6,16,0.18)');
-  g.addColorStop(1, 'rgba(8,6,16,0.55)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 213, 213);
-  const tex = Texture.from(canvas);
-  tex.source.scaleMode = 'linear';
-  return tex;
-}
-
 export class GameEngine {
   private app: Application | null = null;
   private containerElement: HTMLElement;
   private resizeObserver: ResizeObserver | null = null;
   private offGraphicsMode: (() => void) | null = null;
-  /** Holds the camera-moved scene so ULTRA's bloom has an untransformed, screen-sized filter area. */
+  /** Holds the camera-moved scene so ULTRA's scene filters have an untransformed, screen-sized filter area. */
   private sceneHost: Container | null = null;
-  private bloom: AdvancedBloomFilter | null = null;
-  private grade: ColorMatrixFilter | null = null;
-  private vignette: Sprite | null = null;
+  /** ULTRA's extras (grade, bloom, ambience, depth of field, impact distortion, motion blur); see ultraFx.ts. */
+  private ultraFx: UltraFx | null = null;
+  private afterimageClock = 0;
   /** ULTRA rim light on the knight and monsters, lit by the current background's key light. */
   private rimLight = new RimLightFilter();
   private sceneLight: SceneLight = DEFAULT_SCENE_LIGHT;
@@ -1453,7 +1435,6 @@ export class GameEngine {
     this.sceneHost = new Container();
     this.sceneHost.addChild(this.rootStage);
     this.app.stage.addChild(this.sceneHost);
-    this.applyUltraLook();
 
     this.bgLayer = new Container();
     this.gameLayer = new Container();
@@ -1466,6 +1447,8 @@ export class GameEngine {
     this.rootStage.addChild(this.gameLayer);
     this.rootStage.addChild(this.effectsLayer);
     this.rootStage.addChild(this.uiLayer);
+    this.ultraFx = new UltraFx({ sceneHost: this.sceneHost, rootStage: this.rootStage, bgLayer: this.bgLayer, effectsLayer: this.effectsLayer });
+    this.applyUltraLook();
 
     // 1. Build 32-Bit Parallax Dungeon / Town Hub Background
     this.createRetroBackground();
@@ -1584,6 +1567,7 @@ export class GameEngine {
       this.currentBgKey = targetKey;
       this.sceneLight = measureSceneLight(targetKey, texture);
       this.applySceneLight();
+      this.ultraFx?.setScene(targetKey, this.sceneLight);
 
       const bgSprite = new Sprite(texture);
       // Horizontal overscan padding (20px per side) so camera shakes (intensity up to 14px)
@@ -1647,44 +1631,10 @@ export class GameEngine {
     this.fitCanvas();
   }
 
-  /**
-   * ULTRA's finish over the whole scene: a contrast/saturation grade, a vignette, bloom so spell light and
-   * bright highlights glow past their edges, and MSAA. The renderer's own antialias is fixed at init and only
-   * covers the screen, but the scene now renders into the filters' input texture: with every filter in the
-   * chain set to antialias 'on', Pixi makes that texture multisampled, so vector edges smooth out live. It sits on the scene, not the effects layer, so additive VFX keep
-   * blending with what's under them; the rep stamp stays crisp.
-   */
+  /** ULTRA's extras follow the setting; the rim light's width tracks the render resolution. */
   private applyUltraLook(): void {
-    if (!this.sceneHost) return;
-    const ultra = isUltraMode();
-    if (ultra && !this.vignette) {
-      this.vignette = new Sprite(vignetteTexture());
-      this.vignette.width = 426;
-      this.vignette.height = 240;
-      this.sceneHost.addChild(this.vignette); // screen-fixed: the host isn't moved by the camera
-    }
-    if (this.vignette) this.vignette.visible = ultra;
     this.rimLight.width = renderResolution();
-    if (!ultra) {
-      this.sceneHost.filters = [];
-      return;
-    }
-    if (!this.grade) {
-      this.grade = new ColorMatrixFilter();
-      this.grade.resolution = 'inherit';
-      this.grade.antialias = 'on';
-      this.grade.contrast(0.12, false);
-      this.grade.saturate(0.15, true);
-    }
-    if (!this.bloom) {
-      this.bloom = new AdvancedBloomFilter({ threshold: 0.8, bloomScale: 1.5, brightness: 1, blur: 4, quality: 4 });
-      this.bloom.resolution = 'inherit'; // filters default to resolution 1, which would drop the scene to 426x240
-      this.bloom.antialias = 'on';
-    }
-    // Kawase offsets are in backbuffer texels: scale them so the glow spreads the same distance on screen
-    this.bloom.pixelSize = renderResolution();
-    this.sceneHost.filterArea = new Rectangle(0, 0, 426, 240);
-    this.sceneHost.filters = [this.grade, this.bloom];
+    this.ultraFx?.setEnabled(isUltraMode(), renderResolution());
   }
 
   /** A rig's filters for the current setting: ULTRA's rim light, then its outline (none in PERFORMANCE unless coloured). */
@@ -2271,6 +2221,7 @@ export class GameEngine {
       }
       if (slot.container && this.gameLayer) {
         this.gameLayer.removeChild(slot.container);
+        this.ultraFx?.untrack(slot.container);
         slot.container.destroy({ children: true });
       }
       if (slot.rig) releaseMonsterRig(slot.rig);
@@ -2321,6 +2272,7 @@ export class GameEngine {
       filterSystem._globalFilterBindGroup.setResource(Texture.EMPTY.source.style, 2);
       filterSystem._globalFilterBindGroup.setResource(Texture.EMPTY.source, 3);
     }
+    this.ultraFx?.releasePooledTextures();
     TexturePool.clear(true);
   }
 
@@ -2675,6 +2627,8 @@ export class GameEngine {
       flash: (alpha, color) => this.moveFlash(alpha, color),
       hitStop: (frames) => {
         this.hitStopFrames = Math.max(this.hitStopFrames, frames);
+        const k = this.knightContainer;
+        if (k) this.ultraImpact(frames, k.x, k.y - 30); // monster moves land on the knight
       },
       dim: dimmer.dim,
       knightHit: (knockback = 6) => {
@@ -3024,6 +2978,12 @@ export class GameEngine {
       flash: (alpha, color) => this.moveFlash(alpha, color),
       hitStop: (frames) => {
         this.hitStopFrames = Math.max(this.hitStopFrames, frames);
+        if (targets.length) {
+          // Knight moves land on their targets: ripple from the middle of them
+          const cx = targets.reduce((sum, t) => sum + t.x, 0) / targets.length;
+          const cy = targets.reduce((sum, t) => sum + t.y - t.height * 0.5, 0) / targets.length;
+          this.ultraImpact(frames, cx, cy);
+        }
       },
       dim: dimmer.dim,
       impact: (i) => (i === undefined ? landStaggered() : land(i)),
@@ -3931,6 +3891,39 @@ export class GameEngine {
   /**
    * Main 60 FPS Game Loop Ticker
    */
+  /** Camera shake for this frame: ULTRA rolls smooth noise, the others a fresh random jolt (±intensity). */
+  private shakeOffset(delta: number): { x: number; y: number } {
+    if (this.ultraFx?.enabled) return this.ultraFx.shake(this.shakeIntensity, delta);
+    return { x: (Math.random() - 0.5) * this.shakeIntensity * 2, y: (Math.random() - 0.5) * this.shakeIntensity * 2 };
+  }
+
+  /**
+   * ULTRA: motion blur on whoever is moving fast, and a steady afterimage trail behind the knight at speed (the
+   * moves' own ghost() calls still add their coloured ones).
+   */
+  private trackUltraMotion(delta: number): void {
+    if (!this.ultraFx?.enabled) return;
+    const knight = this.knightContainer;
+    if (knight && this.knightSpine && !knight.destroyed) {
+      const speed = this.ultraFx.track(knight, this.knightSpine, delta);
+      this.afterimageClock += delta;
+      if (speed > 3.5 && this.afterimageClock >= 2) {
+        this.afterimageClock = 0;
+        this.spawnKnightAfterimage(0xa8bcff, 0.22, 8);
+      }
+    }
+    for (const slot of this.monsterSlots) {
+      if (slot.container && slot.spine && slot.isAlive) this.ultraFx.track(slot.container, slot.spine, delta);
+    }
+  }
+
+  /** ULTRA impact distortion for a hit with `frames` of hit-stop at battlefield point (x, y). */
+  private ultraImpact(frames: number, x: number, y: number): void {
+    if (!this.ultraFx?.enabled || !this.rootStage) return;
+    const p = this.rootStage.toGlobal({ x, y });
+    this.ultraFx.impact(p.x, p.y, frames);
+  }
+
   private startTicker(): void {
     if (!this.app) return;
 
@@ -3946,10 +3939,14 @@ export class GameEngine {
         if (!this.spinesFrozen) this.setSpinesFrozen(true);
         if (this.shakeIntensity > 0) {
           // a snapped camera cut can land during hit-stop
-          this.applyCamera((Math.random() - 0.5) * this.shakeIntensity * 2, (Math.random() - 0.5) * this.shakeIntensity * 2);
+          const shake = this.shakeOffset(delta);
+          this.applyCamera(shake.x, shake.y);
         }
+        this.ultraFx?.update(delta, true); // the impact ripple keeps spreading through the freeze
         return;
       }
+      this.ultraFx?.update(delta, false);
+      this.trackUltraMotion(delta);
       if (this.spinesFrozen) this.setSpinesFrozen(false);
 
       // 1. Update swing timing (drives enemy impact reaction; the knight arc is a Spine animation)
@@ -4044,8 +4041,9 @@ export class GameEngine {
       let shakeOffsetX = 0;
       let shakeOffsetY = 0;
       if (this.shakeIntensity > 0) {
-        shakeOffsetX = (Math.random() - 0.5) * this.shakeIntensity * 2;
-        shakeOffsetY = (Math.random() - 0.5) * this.shakeIntensity * 2;
+        const shake = this.shakeOffset(delta);
+        shakeOffsetX = shake.x;
+        shakeOffsetY = shake.y;
         this.shakeIntensity = Math.max(0, this.shakeIntensity - 0.6 * delta);
       }
       this.applyCamera(shakeOffsetX, shakeOffsetY);
@@ -4444,6 +4442,7 @@ export class GameEngine {
    */
   public async destroy(): Promise<void> {
     this.isDestroyed = true;
+    this.ultraFx?.setEnabled(false, 1); // drop ULTRA's filters before the textures they sampled are unloaded
     this.showSecretTrial(null);
     this.knightSpine = null;
     this.clearAllMonsters();
@@ -4493,8 +4492,7 @@ export class GameEngine {
     }
     this.activeEffects = [];
     this.monsterOutline.destroy();
-    this.bloom?.destroy();
-    this.grade?.destroy();
+    this.ultraFx?.destroy();
     this.rimLight.destroy();
     this.repStamp?.destroy();
     this.repStamp = null;

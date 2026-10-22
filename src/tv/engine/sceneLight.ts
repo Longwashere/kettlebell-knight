@@ -1,14 +1,19 @@
 import type { Texture } from 'pixi.js';
 
-/** A background's key light: its colour, and the screen-space direction it shines from (y down, not normalised). */
+/**
+ * A background's key light: its colour, the screen-space direction it shines from (y down, not normalised), and
+ * where it sits in the frame (0–1 of the stage).
+ */
 export interface SceneLight {
   color: number;
   dx: number;
   dy: number;
+  x: number;
+  y: number;
 }
 
 /** Cool moonlight from above, for backgrounds that can't be read (still loading, or a cross-origin image). */
-export const DEFAULT_SCENE_LIGHT: SceneLight = { color: 0xc8d2ff, dx: 0.3, dy: -1 };
+export const DEFAULT_SCENE_LIGHT: SceneLight = { color: 0xc8d2ff, dx: 0.3, dy: -1, x: 0.65, y: 0.1 };
 
 const cache = new Map<string, SceneLight>();
 
@@ -50,7 +55,7 @@ export function measureSceneLight(key: string, texture: Texture): SceneLight {
     // From the fighters' line (~65% down the frame); always somewhat from above so the rim lands on heads and shoulders
     const dx = cx / n / w - 0.5;
     const dy = Math.min(-0.35, cy / n / h - 0.65);
-    light = { color: (ch(r) << 16) | (ch(g) << 8) | ch(b), dx, dy };
+    light = { color: (ch(r) << 16) | (ch(g) << 8) | ch(b), dx, dy, x: cx / n / w, y: cy / n / h };
   } catch {
     // Unreadable pixels: keep the default light
   }

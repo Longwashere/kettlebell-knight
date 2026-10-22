@@ -8,7 +8,7 @@ import { IS_NATIVE_APP } from './native';
  */
 export type GraphicsMode = 'QUALITY' | 'PERFORMANCE' | 'ULTRA';
 
-/** Menu order; Left/Right and Select step through it. ULTRA is QUALITY's effects at 4× resolution, never a default. */
+/** Menu order; Left/Right and Select step through it. ULTRA is QUALITY's effects at 4× resolution plus a finish. */
 const MODES: GraphicsMode[] = ['PERFORMANCE', 'QUALITY', 'ULTRA'];
 
 export const GRAPHICS_MODE_LABEL: Record<GraphicsMode, string> = { PERFORMANCE: 'Performance', QUALITY: 'Quality', ULTRA: 'Ultra' };
@@ -22,14 +22,14 @@ const HIGH_END_FIRE_TV = new Set(['AFTR', 'AFTGAZL', 'AFTKA', 'AFTKM', 'AFTKRT']
 const LOW_END_FIRE_TV = new Set(['AFTSS', 'AFTSSS', 'AFTMM', 'AFTT', 'AFTM', 'AFTB', 'AFTS', 'AFTN', 'AFTA']);
 
 /**
- * Default when nothing is saved. Browsers (desktop /tv demo) get QUALITY. On a Fire TV (the app, or Silk) the
- * model code decides; an unknown model (Fire TV Edition sets, newer sticks) gets QUALITY only with 2+ GB of RAM
- * and 4+ cores.
+ * Default when nothing is saved. Browsers (desktop /tv demo) and known high-end Fire TVs get ULTRA, known low-end
+ * ones PERFORMANCE; an unknown model (Fire TV Edition sets, newer sticks) gets QUALITY only with 2+ GB of RAM and
+ * 4+ cores.
  */
 function detectDefaultMode(): GraphicsMode {
   const model = /\b(AFT[A-Z0-9]+)\b/.exec(navigator.userAgent)?.[1];
-  if (!model && !IS_NATIVE_APP) return 'QUALITY';
-  if (model && HIGH_END_FIRE_TV.has(model)) return 'QUALITY';
+  if (!model && !IS_NATIVE_APP) return 'ULTRA';
+  if (model && HIGH_END_FIRE_TV.has(model)) return 'ULTRA';
   if (model && LOW_END_FIRE_TV.has(model)) return 'PERFORMANCE';
   const memoryGb = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 0;
   return memoryGb >= 2 && navigator.hardwareConcurrency >= 4 ? 'QUALITY' : 'PERFORMANCE';
