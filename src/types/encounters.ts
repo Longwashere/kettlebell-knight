@@ -327,7 +327,7 @@ export const ENCOUNTERS: EncounterTemplate[] = [
     description: 'A dark wizard performing reanimation rituals beside a raised skeleton.',
     map: 'BLOOD_CEMETERY',
     monsterIds: [
-      { id: 'dark_mage', name: 'GRAVE NECROMANCER', title: 'BONE CHANGER', affix: 'VOID' },
+      { id: 'dark_mage', name: 'GRAVE NECROMANCER', title: 'BONE CHANGER', affix: 'VOID', scaleMultiplier: 1.4 },
       'skeleton_warrior',
     ],
   },
