@@ -1,5 +1,7 @@
-import { Application, Container, Graphics, Text, Assets, Sprite, Texture, Cache, Rectangle, TexturePool, type BindGroup } from 'pixi.js';
+import { Application, Container, Graphics, Text, Assets, Sprite, Texture, Cache, Rectangle, TexturePool, ColorMatrixFilter, type BindGroup, type Filter } from 'pixi.js';
 import { AdvancedBloomFilter } from 'pixi-filters/advanced-bloom';
+import { RimLightFilter } from './rimLightFilter';
+import { measureSceneLight, DEFAULT_SCENE_LIGHT, type SceneLight } from './sceneLight';
 import { Spine, SpineTexture, EventTimeline, RegionAttachment } from '@esotericsoftware/spine-pixi-v8';
 import { BATTLE_MAPS, MAP_BATTLE_MUSIC, getMapBattleMusic } from './battleMaps';
 import type { TextureAtlas } from '@esotericsoftware/spine-core';
@@ -1217,6 +1219,24 @@ export interface MonsterSlot {
   auraPool?: Graphics | null;
 }
 
+/** ULTRA vignette: transparent centre darkening toward the corners, stretched over the 426x240 stage. */
+function vignetteTexture(): Texture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 213;
+  canvas.height = 120;
+  const ctx = canvas.getContext('2d')!;
+  ctx.scale(1, 120 / 213); // a circle in the square becomes an ellipse fitted to the 16:9 frame
+  const g = ctx.createRadialGradient(106.5, 106.5, 50, 106.5, 106.5, 132);
+  g.addColorStop(0, 'rgba(8,6,16,0)');
+  g.addColorStop(0.55, 'rgba(8,6,16,0.18)');
+  g.addColorStop(1, 'rgba(8,6,16,0.55)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 213, 213);
+  const tex = Texture.from(canvas);
+  tex.source.scaleMode = 'linear';
+  return tex;
+}
+
 export class GameEngine {
   private app: Application | null = null;
   private containerElement: HTMLElement;
@@ -1225,6 +1245,11 @@ export class GameEngine {
   /** Holds the camera-moved scene so ULTRA's bloom has an untransformed, screen-sized filter area. */
   private sceneHost: Container | null = null;
   private bloom: AdvancedBloomFilter | null = null;
+  private grade: ColorMatrixFilter | null = null;
+  private vignette: Sprite | null = null;
+  /** ULTRA rim light on the knight and monsters, lit by the current background's key light. */
+  private rimLight = new RimLightFilter();
+  private sceneLight: SceneLight = DEFAULT_SCENE_LIGHT;
   private isDestroyed: boolean = false;
 
   // Scene containers
@@ -1393,7 +1418,8 @@ export class GameEngine {
     this.applyRenderResolution();
     this.offGraphicsMode = onGraphicsModeChange(() => {
       this.applyRenderResolution();
-      this.applyBloom();
+      this.applyUltraLook();
+      this.refreshRigFilters();
     });
 
     canvas.addEventListener('webglcontextlost', (e) => {
@@ -1427,7 +1453,7 @@ export class GameEngine {
     this.sceneHost = new Container();
     this.sceneHost.addChild(this.rootStage);
     this.app.stage.addChild(this.sceneHost);
-    this.applyBloom();
+    this.applyUltraLook();
 
     this.bgLayer = new Container();
     this.gameLayer = new Container();
@@ -1556,6 +1582,8 @@ export class GameEngine {
         } catch (e) { }
       }
       this.currentBgKey = targetKey;
+      this.sceneLight = measureSceneLight(targetKey, texture);
+      this.applySceneLight();
 
       const bgSprite = new Sprite(texture);
       // Horizontal overscan padding (20px per side) so camera shakes (intensity up to 14px)
@@ -1620,23 +1648,61 @@ export class GameEngine {
   }
 
   /**
-   * ULTRA: bloom over the whole scene, so spell light and bright highlights glow past their edges. It sits on the
-   * scene, not the effects layer, so additive VFX keep blending with what's under them; the rep stamp stays crisp.
+   * ULTRA's finish over the whole scene: a contrast/saturation grade, a vignette, bloom so spell light and
+   * bright highlights glow past their edges, and MSAA. The renderer's own antialias is fixed at init and only
+   * covers the screen, but the scene now renders into the filters' input texture: with every filter in the
+   * chain set to antialias 'on', Pixi makes that texture multisampled, so vector edges smooth out live. It sits on the scene, not the effects layer, so additive VFX keep
+   * blending with what's under them; the rep stamp stays crisp.
    */
-  private applyBloom(): void {
+  private applyUltraLook(): void {
     if (!this.sceneHost) return;
-    if (!isUltraMode()) {
+    const ultra = isUltraMode();
+    if (ultra && !this.vignette) {
+      this.vignette = new Sprite(vignetteTexture());
+      this.vignette.width = 426;
+      this.vignette.height = 240;
+      this.sceneHost.addChild(this.vignette); // screen-fixed: the host isn't moved by the camera
+    }
+    if (this.vignette) this.vignette.visible = ultra;
+    this.rimLight.width = renderResolution();
+    if (!ultra) {
       this.sceneHost.filters = [];
       return;
+    }
+    if (!this.grade) {
+      this.grade = new ColorMatrixFilter();
+      this.grade.resolution = 'inherit';
+      this.grade.antialias = 'on';
+      this.grade.contrast(0.12, false);
+      this.grade.saturate(0.15, true);
     }
     if (!this.bloom) {
       this.bloom = new AdvancedBloomFilter({ threshold: 0.8, bloomScale: 1.5, brightness: 1, blur: 4, quality: 4 });
       this.bloom.resolution = 'inherit'; // filters default to resolution 1, which would drop the scene to 426x240
+      this.bloom.antialias = 'on';
     }
     // Kawase offsets are in backbuffer texels: scale them so the glow spreads the same distance on screen
     this.bloom.pixelSize = renderResolution();
     this.sceneHost.filterArea = new Rectangle(0, 0, 426, 240);
-    this.sceneHost.filters = [this.bloom];
+    this.sceneHost.filters = [this.grade, this.bloom];
+  }
+
+  /** A rig's filters for the current setting: ULTRA's rim light, then its outline (none in PERFORMANCE unless coloured). */
+  private rigFilters(customOutline?: Filter | null): Filter[] {
+    const outline = customOutline ?? (isPerformanceMode() ? null : this.monsterOutline);
+    return [...(isUltraMode() ? [this.rimLight] : []), ...(outline ? [outline] : [])];
+  }
+
+  /** Re-applies rigFilters() to the knight and every monster after a graphics change. */
+  private refreshRigFilters(): void {
+    if (this.knightSpine) this.knightSpine.filters = this.rigFilters();
+    for (const slot of this.monsterSlots) if (slot.spine) slot.spine.filters = this.rigFilters(slot.customOutline);
+  }
+
+  /** Points the rim light at the current background's key light. */
+  private applySceneLight(): void {
+    const { color, dx, dy } = this.sceneLight;
+    this.rimLight.setLight(color, dx, dy, 0.4);
   }
 
   private fitCanvas(): void {
@@ -1688,7 +1754,7 @@ export class GameEngine {
       spine.state.data.defaultMix = 0.08;
       spine.state.setAnimation(0, 'IDLE', true);
       // Same dark silhouette as the monsters: the downscaled painted art goes soft against busy backgrounds.
-      if (!isPerformanceMode()) spine.filters = [this.monsterOutline];
+      spine.filters = this.rigFilters();
 
       this.knightSpine = spine;
       this.knightContainer.addChild(spine);
@@ -2081,14 +2147,9 @@ export class GameEngine {
           ? variant.outlineColor
           : auraCfg?.outlineColor;
 
-        if (outlineColor !== undefined) {
-          const customFilter = new OutlineFilter({ color: outlineColor });
-          slot.customOutline = customFilter;
-          spine.filters = [customFilter];
-        } else if (!isPerformanceMode()) {
-          // The plain dark outline is an extra filter pass per monster; PERFORMANCE skips it (coloured ones stay).
-          spine.filters = [this.monsterOutline];
-        }
+        // The plain dark outline is an extra filter pass per monster; PERFORMANCE skips it (coloured ones stay).
+        if (outlineColor !== undefined) slot.customOutline = new OutlineFilter({ color: outlineColor });
+        spine.filters = this.rigFilters(slot.customOutline);
 
         // Variant Base Tint (high luminance highlight preserving full sprite pixel art)
         if (variant?.tint !== undefined) {
@@ -4433,6 +4494,8 @@ export class GameEngine {
     this.activeEffects = [];
     this.monsterOutline.destroy();
     this.bloom?.destroy();
+    this.grade?.destroy();
+    this.rimLight.destroy();
     this.repStamp?.destroy();
     this.repStamp = null;
 
