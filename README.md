@@ -88,7 +88,7 @@ If the install fails with a signature mismatch (switching between debug and rele
 
 ### 4. Pair a phone
 
-Scan the QR code on the TV with your phone. It opens the phone companion hosted on GitHub Pages (`VITE_PHONE_URL` in `.env.production`). You can also open https://longwashere.github.io/kettlebell-knight/phone and enter the room code. The phone and TV connect peer-to-peer, so LAN discovery isn't needed.
+Scan the QR code on the TV with your phone. It opens the phone companion hosted on GitHub Pages (`VITE_PHONE_URL` in `.env`, used by the dev server too). You can also open https://longwashere.github.io/kettlebell-knight/phone and enter the room code. The phone and TV connect peer-to-peer, so LAN discovery isn't needed.
 
 ### Debugging on the device
 

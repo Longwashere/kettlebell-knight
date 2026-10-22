@@ -71,7 +71,7 @@ Routes: `/` launcher · `/tv` Fire TV game · `/phone` phone companion · `/test
   room (`lastPairedRoom`), so the home-screen app reconnects without the QR code. The Fire TV app is a Capacitor Android shell (`capacitor.config.ts`, `android/`) bundling `dist/`
   (or loading `CAP_SERVER_URL`); `src/tv/native.ts` bridges the remote's Back key and exits from the title menu / hub.
 - Release settings are `VITE_*` env vars read in `src/shared/deployConfig.ts` (see `.env.example`): `VITE_PHONE_URL`
-  for the pairing QR code (set in `.env.production`; required in the APK, whose origin is `https://localhost`),
+  for the pairing QR code (set in `.env` for every mode, dev included; required in the APK, whose origin is `https://localhost`),
   PeerServer host, TURN (for Pages: repo Actions variables).
   Build peers with `peerOptions()`, never inline `new Peer()` options.
 - LAN discovery (`/api/discovery`) is dev/preview only (`LAN_DISCOVERY`); production pairs by QR code or room code.

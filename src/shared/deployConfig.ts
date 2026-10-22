@@ -13,7 +13,8 @@ const STUN_SERVERS: RTCIceServer[] = [
 
 /**
  * The link the TV's QR code opens on the phone. Inside the packaged Fire TV app the page's own origin is
- * the app shell (https://localhost), so release builds must set VITE_PHONE_URL.
+ * the app shell (https://localhost), so release builds must set VITE_PHONE_URL. `.env` sets it for every mode, so the
+ * dev server's QR code opens the GitHub Pages phone too; unset it in `.env.development.local` for a same-origin phone.
  */
 let warnedPhoneUrl = false;
 
