@@ -11,7 +11,7 @@
 import type { Graphics } from 'pixi.js';
 import { INK, BONE, lerp } from './choreo';
 import { stamp, stampPal, fxReady } from './fxAtlas';
-import { isPerformanceMode } from '../graphicsMode';
+import { isPerformanceMode, isUltraMode } from '../graphicsMode';
 
 /** Ink contour, saturated body, hot core. */
 export interface Pal {
@@ -72,7 +72,7 @@ export function crescent(g: Graphics, cx: number, cy: number, r: number, a0: num
   layer(r, thick * 0.85, p.body, 0.95 * alpha);
   layer(r - 0.5, Math.max(1, thick * 0.45), p.core, alpha);
   layer(r + 0.5, Math.max(0.8, thick * 0.14), 0xFFFFFF, alpha);
-  const beads = isPerformanceMode() ? 0 : Math.min(5, 2 + Math.round(Math.abs(a1 - a0) * 2));
+  const beads = isPerformanceMode() ? 0 : Math.min(isUltraMode() ? 8 : 5, 2 + Math.round(Math.abs(a1 - a0) * (isUltraMode() ? 3 : 2)));
   for (let i = 1; i <= beads; i++) {
     const u = i / (beads + 1);
     const ang = lerp(a0, a1, Math.pow(u, 0.8));

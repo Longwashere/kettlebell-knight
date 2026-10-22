@@ -36,7 +36,7 @@ import {
   P_FIRE, P_EMBER, P_VOID, P_SUN, P_HOLY, P_JADE, P_LIME,
 } from './knightKit';
 import {
-  lite, lightSpan, glow, godRay, glint, focusLines, speedLines, impactFrame, shockSphere, groundCracks, windUp, rubble, skyBolt,
+  particles, lightSpan, glow, godRay, glint, focusLines, speedLines, impactFrame, shockSphere, groundCracks, windUp, rubble, skyBolt,
   afterglow, mix, weaponTrail, targetRing,
   LOOK, themed, staged, chargeUp, castCircle, aura, motes, breath, dutch, signature,
 } from './spellKit';
@@ -276,7 +276,7 @@ function cone(g: Graphics, x: number, y: number, ang: number, len: number, sprea
       const w = 10 + d * Math.tan(spread) * 2.6;
       stamp(g, 'bloom', x + Math.cos(ang) * d, y + Math.sin(ang) * d, w * 1.4, w, { rot: ang, tint: layers[0], alpha: 0.4 * alpha });
     }
-    const n = lite() ? 12 : 22;
+    const n = particles(22, 12);
     for (let i = 0; i < n; i++) {
       const ph = (f * 0.055 + i / n) % 1;
       const d = len * (0.04 + 0.96 * ph);

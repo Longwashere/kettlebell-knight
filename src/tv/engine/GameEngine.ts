@@ -1,4 +1,5 @@
 import { Application, Container, Graphics, Text, Assets, Sprite, Texture, Cache, Rectangle, TexturePool, type BindGroup } from 'pixi.js';
+import { AdvancedBloomFilter } from 'pixi-filters/advanced-bloom';
 import { Spine, SpineTexture, EventTimeline, RegionAttachment } from '@esotericsoftware/spine-pixi-v8';
 import { BATTLE_MAPS, MAP_BATTLE_MUSIC, getMapBattleMusic } from './battleMaps';
 import type { TextureAtlas } from '@esotericsoftware/spine-core';
@@ -14,7 +15,7 @@ import { VFX_RIGS, VFX_NAMES, type VfxName, type VfxOpts } from './vfx';
 import { retainFxAtlas, releaseFxAtlas } from './fxAtlas';
 import { inferKind, makeParticleView, updateParticleView, type ParticleView } from './particleSprites';
 import { OutlineFilter } from './outlineFilter';
-import { isPerformanceMode, onGraphicsModeChange, renderResolution } from '../graphicsMode';
+import { isPerformanceMode, isUltraMode, onGraphicsModeChange, renderResolution } from '../graphicsMode';
 import { ForgeShowcase } from './forgeShowcase';
 import { RepStamp, type RepCardTarget } from './repStamp';
 import { TRIAL_SCENES, type TrialScene } from './trialScenes';
@@ -1221,6 +1222,9 @@ export class GameEngine {
   private containerElement: HTMLElement;
   private resizeObserver: ResizeObserver | null = null;
   private offGraphicsMode: (() => void) | null = null;
+  /** Holds the camera-moved scene so ULTRA's bloom has an untransformed, screen-sized filter area. */
+  private sceneHost: Container | null = null;
+  private bloom: AdvancedBloomFilter | null = null;
   private isDestroyed: boolean = false;
 
   // Scene containers
@@ -1387,7 +1391,10 @@ export class GameEngine {
     canvas.style.position = 'absolute';
     canvas.style.display = 'block';
     this.applyRenderResolution();
-    this.offGraphicsMode = onGraphicsModeChange(() => this.applyRenderResolution());
+    this.offGraphicsMode = onGraphicsModeChange(() => {
+      this.applyRenderResolution();
+      this.applyBloom();
+    });
 
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
@@ -1417,7 +1424,10 @@ export class GameEngine {
     if (!this.app) return;
 
     this.rootStage = new Container();
-    this.app.stage.addChild(this.rootStage);
+    this.sceneHost = new Container();
+    this.sceneHost.addChild(this.rootStage);
+    this.app.stage.addChild(this.sceneHost);
+    this.applyBloom();
 
     this.bgLayer = new Container();
     this.gameLayer = new Container();
@@ -1607,6 +1617,26 @@ export class GameEngine {
     if (this.app.renderer.resolution !== res) this.app.renderer.resize(426, 240, res);
     this.app.canvas.style.imageRendering = res > 1 ? 'auto' : 'pixelated';
     this.fitCanvas();
+  }
+
+  /**
+   * ULTRA: bloom over the whole scene, so spell light and bright highlights glow past their edges. It sits on the
+   * scene, not the effects layer, so additive VFX keep blending with what's under them; the rep stamp stays crisp.
+   */
+  private applyBloom(): void {
+    if (!this.sceneHost) return;
+    if (!isUltraMode()) {
+      this.sceneHost.filters = [];
+      return;
+    }
+    if (!this.bloom) {
+      this.bloom = new AdvancedBloomFilter({ threshold: 0.8, bloomScale: 1.5, brightness: 1, blur: 4, quality: 4 });
+      this.bloom.resolution = 'inherit'; // filters default to resolution 1, which would drop the scene to 426x240
+    }
+    // Kawase offsets are in backbuffer texels: scale them so the glow spreads the same distance on screen
+    this.bloom.pixelSize = renderResolution();
+    this.sceneHost.filterArea = new Rectangle(0, 0, 426, 240);
+    this.sceneHost.filters = [this.bloom];
   }
 
   private fitCanvas(): void {
@@ -4402,6 +4432,7 @@ export class GameEngine {
     }
     this.activeEffects = [];
     this.monsterOutline.destroy();
+    this.bloom?.destroy();
     this.repStamp?.destroy();
     this.repStamp = null;
 

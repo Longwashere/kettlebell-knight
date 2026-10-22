@@ -26,6 +26,7 @@
     "howler": "^2.2.4",
     "lucide-react": "^0.475.0",
     "peerjs": "^1.5.4",
+    "pixi-filters": "6.1.5",
     "pixi.js": "^8.6.6",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",

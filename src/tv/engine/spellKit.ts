@@ -18,7 +18,7 @@
  * bursts stamp soft blooms, flares, beams and shaded sprites; the vector drawing stays as the loading fallback.
  */
 import type { Graphics } from 'pixi.js';
-import { isPerformanceMode } from '../graphicsMode';
+import { isPerformanceMode, isUltraMode } from '../graphicsMode';
 import { Timeline, type SfxName, shifted, lerp, easeIn, easeOut, arc, rand, INK } from './choreo';
 import { type Pal, pal, palOf, blend, hash, starburst } from './fxKit';
 import { stamp, stampPal, fxReady, seq } from './fxAtlas';
@@ -26,6 +26,9 @@ import { type KnightMove, type KnightMoveHost, type P, drawSpan, once, chargeSou
 
 /** PERFORMANCE graphics: fewer light layers. */
 export const lite = () => isPerformanceMode();
+
+/** Particle count for the graphics setting: `n` at QUALITY, ×0.6 (or `perf`) at PERFORMANCE, ×1.6 at ULTRA. */
+export const particles = (n: number, perf = n * 0.6) => Math.round(lite() ? perf : isUltraMode() ? n * 1.6 : n);
 
 /** drawSpan on an additive Graphics: light that brightens what's under it. */
 export function lightSpan(h: KnightMoveHost, tl: Timeline, from: number, to: number, draw: (g: Graphics, t: number, f: number) => void, layer: 'fx' | 'back' | 'ground' = 'fx') {
@@ -105,7 +108,7 @@ export function glint(g: Graphics, x: number, y: number, r: number, rot: number,
  */
 export function focusLines(g: Graphics, x: number, y: number, seed: number, color: number, alpha = 1, o: { inner?: number; n?: number; width?: number; outer?: number } = {}) {
   if (alpha <= 0) return;
-  const n = Math.round((o.n ?? 26) * (lite() ? 0.6 : 1));
+  const n = particles(o.n ?? 26);
   const inner = o.inner ?? 34;
   const outer = o.outer ?? 320;
   const w = o.width ?? 3;
@@ -314,8 +317,9 @@ export function windUp(h: KnightMoveHost, tl: Timeline, from: number, to: number
   lightSpan(h, tl, from, to, (g, t, f) => {
     const c = at();
     glow(g, c.x, c.y, 8 + 22 * easeIn(t) + Math.sin(f * 0.9) * 2, color, 0.5 + 0.5 * t);
-    for (let k = 0; k < (lite() ? 6 : 10); k++) {
-      const ph = (f / 16 + k / 10) % 1;
+    const motes = particles(10, 6);
+    for (let k = 0; k < motes; k++) {
+      const ph = (f / 16 + k / motes) % 1;
       const a = k * 2.4 + f * 0.05;
       const r = reach * (1 - easeIn(ph));
       const x = c.x + Math.cos(a) * r;
@@ -673,7 +677,7 @@ export function aura(h: KnightMoveHost, tl: Timeline, from: number, to: number, 
     lightSpan(h, tl, from, to, (g, t, f) => {
       const p = h.pos();
       const grow = Math.min(1, t / 0.2) * (t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1);
-      for (let k = 0; k < (lite() ? 3 : 5); k++) {
+      for (let k = 0, sparks = particles(5, 3); k < sparks; k++) {
         const ph = ((f + k * 11) % 30) / 30;
         const x = p.x - 14 * s + 28 * s * hash(k * 7 + Math.floor((f + k * 11) / 30));
         const y = p.y - 8 - ph * 52 * s;
@@ -687,7 +691,7 @@ export function aura(h: KnightMoveHost, tl: Timeline, from: number, to: number, 
 export function motes(h: KnightMoveHost, tl: Timeline, from: number, to: number, look: Look, o: { at?: () => P; reach?: number; n?: number } = {}) {
   const at = o.at ?? (() => h.weaponTip());
   const reach = o.reach ?? 60;
-  const n = Math.round((o.n ?? 9) * (lite() ? 0.6 : 1));
+  const n = particles(o.n ?? 9);
   lightSpan(h, tl, from, to, (g, t, f) => {
     const c = at();
     const speed = 1 + 2 * t;

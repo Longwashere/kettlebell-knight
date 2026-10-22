@@ -61,6 +61,11 @@ export function isPerformanceMode(): boolean {
   return mode === 'PERFORMANCE';
 }
 
+/** ULTRA's extras over QUALITY: a bloom pass over the battle and denser spell particles (`particles()` in spellKit). */
+export function isUltraMode(): boolean {
+  return mode === 'ULTRA';
+}
+
 /**
  * Pixi backbuffer scale over the 426×240 stage. QUALITY renders at 2× (852×480) so vectors, text and the painted
  * rigs stay smooth when the TV upscales, ULTRA at 4× (1704×960); PERFORMANCE keeps the native grid. `?res=1..6` overrides it for comparisons
