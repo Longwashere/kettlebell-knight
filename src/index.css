@@ -2360,6 +2360,20 @@ canvas,
   width: clamp(28px, 4vw, 80px);
   flex: none;
 }
+.kk-intro__tip {
+  margin: 3.2vh auto 0;
+  max-width: min(52vw, 820px);
+  color: #d8d4c4;
+  font-size: clamp(10px, 0.95vw, 17px);
+  line-height: 1.6;
+  text-shadow: 0 2px 0 #000, 1px 0 0 #000, -1px 0 0 #000;
+}
+.kk-intro__tip-label {
+  color: var(--intro-accent);
+  font-size: 0.85em;
+  letter-spacing: 0.12em;
+  margin-right: 0.4em;
+}
 @keyframes kkIntroWord {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }

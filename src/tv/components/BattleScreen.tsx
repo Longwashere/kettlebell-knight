@@ -23,6 +23,7 @@ import { CardUnlockCelebration } from './CardUnlockCelebration';
 import { MasteryCelebration } from './MasteryCelebration';
 import { PauseMenu } from './PauseMenu';
 import { BattleIntro, introTimeline, introHudClass, type IntroStep } from './BattleIntro';
+import { nextGameTip, tipHoldMs, TIPS, type GameTip } from '../../shared/gameTips';
 import { BATTLE_QUOTES, nextBattleQuote, quoteHoldMs, type BattleQuote } from './battleQuotes';
 import { STAGE_LORE } from '../../shared/stageLore';
 import type { CardUnlockDef } from '../../shared/cardUnlocks';
@@ -100,6 +101,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const [runXp, setRunXp] = useState<number>(0);
   const [runLevelUps, setRunLevelUps] = useState<LevelUpEvent[]>([]);
   const [breatherHeal, setBreatherHeal] = useState<number>(0);
+  const [breatherTip, setBreatherTip] = useState<GameTip | null>(null);
   // Gold: reps fill the current fight's purse; winning the fight banks it, losing forfeits it
   const fightGoldRef = useRef<number>(0);
   const [fightGold, setFightGold] = useState<number>(0);
@@ -283,7 +285,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
   // Opening of each fight (BattleIntro): the monster clock and reps hold until FIGHT!, and the first rep,
   // Enter or Back skips straight to it. Starts hidden so the HUD doesn't flash in before the engine is ready.
-  const [intro, setIntro] = useState<{ step: IntroStep; short: boolean; boss: boolean; quote?: BattleQuote }>({ step: 'scene', short: false, boss: false });
+  const [intro, setIntro] = useState<{ step: IntroStep; short: boolean; boss: boolean; quote?: BattleQuote; tip?: GameTip }>({ step: 'scene', short: false, boss: false });
   const introRef = useRef(intro);
   introRef.current = intro;
   const introLockedRef = useRef<boolean>(true);
@@ -320,16 +322,18 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     const token = ++introTokenRef.current;
     // A full opening reads out a knightly maxim before the title (battleQuotes.ts)
     const quote = short ? undefined : nextBattleQuote();
-    setIntro({ step: short ? 'title' : 'scene', short, boss, quote });
+    const tip = quote ? nextGameTip(profileManager.getActiveProfile()) : undefined;
+    const holdMs = quote ? quoteHoldMs(quote) + (tip ? tipHoldMs(tip) : 0) : 0;
+    setIntro({ step: short ? 'title' : 'scene', short, boss, quote, tip });
     await loaded?.catch(() => undefined);
     if (token !== introTokenRef.current || !introLockedRef.current) return; // replaced or skipped meanwhile
     if (!short) {
       audioManager.play('rune', { vol: 0.5 });
-      if (boss) audioManager.play('roar', { vol: 0.7, delay: 0.6 + (quote ? quoteHoldMs(quote) / 1000 : 0) });
+      if (boss) audioManager.play('roar', { vol: 0.7, delay: 0.6 + holdMs / 1000 });
     } else {
       audioManager.play('charge', { vol: 0.4 });
     }
-    runIntroTimeline(introTimeline(short, quote ? quoteHoldMs(quote) : 0));
+    runIntroTimeline(introTimeline(short, holdMs));
   }, [runIntroTimeline]);
   /** Enter / Back during the quote: on to the title plate (the rest of the opening plays as usual). */
   const skipQuote = useCallback(() => {
@@ -693,6 +697,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             playerHpRef.current += heal;
             setPlayerHp(playerHpRef.current);
             setBreatherHeal(heal);
+            setBreatherTip(nextGameTip(profileManager.getActiveProfile()));
             battleStatusRef.current = 'ENCOUNTER_CLEARED';
             setBattleStatus('ENCOUNTER_CLEARED');
             setRecentCombatLog(`Encounter ${expeditionStep + 1} of ${expeditionEncounters.length} Cleared! Catch thy breath (+${heal} HP)!`);
@@ -1097,6 +1102,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       introStep: (step: IntroStep) => { clearIntroTimers(); setIntroStep(step); },
       // Every maxim (battleQuotes.ts), for checking how each one wraps
       quote: (index: number) => setIntro((prev) => ({ ...prev, quote: BATTLE_QUOTES[index] })),
+      // Every tip (gameTips.json), on both the intro and the encounter-cleared screen
+      tip: (index: number) => {
+        setIntro((prev) => ({ ...prev, tip: TIPS[index] }));
+        setBreatherTip(TIPS[index]);
+      },
       // Drops every living foe to 1 HP, so the next hit wins the fight (victory screens, secret trial calls)
       weaken: () => commitMonsters((prev) => prev.map((m) => (m.currentHp > 0 ? { ...m, currentHp: 1 } : m))),
       focusCard: (index: number) => setFocusedCardIndex(Math.max(0, Math.min(hand.length - 1, index))),
@@ -1550,6 +1560,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                 <span className="text-white">[BACK / ESC] TOWN HUB</span>
               </div>
             </div>
+
+            {battleStatus === 'ENCOUNTER_CLEARED' && breatherTip && (
+              <p className="mt-3 pt-2.5 border-t border-[#2E2B44] text-[10px] leading-relaxed text-[#A7A9BE] font-mono">
+                <span className="font-pixel text-[8.5px] text-[#F4B41A] mr-1.5">TIP:</span>
+                {breatherTip.text}
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -1565,6 +1582,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           stageName={STAGE_LORE[introMap]?.stageName ?? introMap.replace(/_/g, ' ')}
           epithet={STAGE_LORE[introMap]?.epithet}
           quote={intro.quote}
+          tip={intro.tip?.text}
           chapter={[STAGE_LORE[introMap]?.actRoman, isExpeditionMode ? `STAGE ${mapTier(introMap) + 1}` : ''].filter(Boolean).join(' • ')}
           levelLine={isExpeditionMode
             ? `LEVEL ${currentLevel} • ${(getMapConfig(currentMap).levels.find((l) => l.level === currentLevel)?.title ?? '').toUpperCase()}`

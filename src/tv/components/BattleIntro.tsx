@@ -75,6 +75,8 @@ interface BattleIntroProps {
   /** A horde fight's name ("Goblin Horde"), shown in place of the stage on the title plate. */
   hordeName?: string;
   quote?: BattleQuote;
+  /** A gameplay tip under the quote (gameTips.ts) */
+  tip?: string;
   /** Heading over the quote: where in the campaign, e.g. "ACT V • STAGE 9" */
   chapter?: string;
   /** Under the stage name in that heading, e.g. "LEVEL 1 • OUTER RECONNAISSANCE" */
@@ -90,7 +92,7 @@ const Rule: React.FC<{ flip?: boolean }> = ({ flip }) => (
 /** Each word fades in after the one before it (CSS delay), so the quote reads itself out without re-renders. */
 const QUOTE_WORD_MS = 45;
 
-const QuoteCard: React.FC<{ quote: BattleQuote }> = ({ quote }) => {
+const QuoteCard: React.FC<{ quote: BattleQuote; tip?: string }> = ({ quote, tip }) => {
   let word = 0;
   const words = quote.lines.join(' ').split(/\s+/).length;
   return (
@@ -115,11 +117,16 @@ const QuoteCard: React.FC<{ quote: BattleQuote }> = ({ quote }) => {
         <span className="font-gothic font-bold">{quote.source}</span>
         <Rule flip />
       </div>
+      {tip && (
+        <p className="kk-intro__tip font-mono">
+          <span className="kk-intro__tip-label font-pixel">TIP:</span> {tip}
+        </p>
+      )}
     </div>
   );
 };
 
-export const BattleIntro: React.FC<BattleIntroProps> = ({ step, short, map, kicker, stageName, epithet, bossName, hordeName, quote, chapter, levelLine }) => {
+export const BattleIntro: React.FC<BattleIntroProps> = ({ step, short, map, kicker, stageName, epithet, bossName, hordeName, quote, tip, chapter, levelLine }) => {
   if (step === 'done') return null;
   const theme = THEMES[map] ?? THEMES.VERDANT_FOREST;
   const vars = { '--intro-accent': theme.accent, '--intro-deep': theme.deep, '--intro-ember': theme.ember } as React.CSSProperties;
@@ -158,7 +165,7 @@ export const BattleIntro: React.FC<BattleIntroProps> = ({ step, short, map, kick
             {epithet && <span className="kk-intro__epithet font-tome italic">{epithet}</span>}
             {levelLine && <span className="kk-intro__chapter-level font-gothic font-bold">{levelLine}</span>}
           </div>
-          <QuoteCard quote={quote} />
+          <QuoteCard quote={quote} tip={tip} />
         </div>
       )}
 

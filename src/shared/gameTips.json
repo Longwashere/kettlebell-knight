@@ -1,0 +1,260 @@
+{
+  "categories": [
+    {
+      "id": "effort",
+      "label": "Effort & Form"
+    },
+    {
+      "id": "combat",
+      "label": "Combat"
+    },
+    {
+      "id": "elements",
+      "label": "Elements"
+    },
+    {
+      "id": "progression",
+      "label": "Progression"
+    },
+    {
+      "id": "cards",
+      "label": "Cards & Unlocks"
+    },
+    {
+      "id": "monsters",
+      "label": "Monsters"
+    },
+    {
+      "id": "secrets",
+      "label": "Secrets"
+    },
+    {
+      "id": "setup",
+      "label": "Setup"
+    }
+  ],
+  "tips": [
+    {
+      "id": "compound-reps",
+      "category": "combat",
+      "spoiler": false,
+      "text": "One rep can power two cards. A compound movement counts for every exercise it contains: a thruster is both a squat and an overhead press, so with both in your hand each thruster charges both cards. Do compound movements to build up several attacks at once!"
+    },
+    {
+      "id": "explosive-reps",
+      "category": "effort",
+      "spoiler": false,
+      "text": "Explosive reps hit harder. Fast, powerful reps can deal up to 50% more damage. Slow, grinding reps can deal up to 25% less."
+    },
+    {
+      "id": "form-counts",
+      "category": "effort",
+      "spoiler": false,
+      "text": "Form counts on every card. Sloppy reps weaken attacks, Block and healing alike. Clean reps get full value."
+    },
+    {
+      "id": "power-averaged",
+      "category": "effort",
+      "spoiler": false,
+      "text": "One bad rep won't ruin a card. Power is averaged over all the card's reps, so finish the set strong."
+    },
+    {
+      "id": "rep-gold",
+      "category": "effort",
+      "spoiler": false,
+      "text": "Every rep earns gold, and harder reps earn more. You only keep the fight's gold if you win. Losing a fight loses its gold."
+    },
+    {
+      "id": "watch-intent",
+      "category": "combat",
+      "spoiler": false,
+      "text": "Watch the monster's intent. Each enemy shows what it's about to do and a bar that fills as it charges. Its attack lands moments after the bar fills."
+    },
+    {
+      "id": "block-heavy",
+      "category": "combat",
+      "spoiler": false,
+      "text": "Block before big hits. When an enemy is winding up a heavy attack, play a Block card first."
+    },
+    {
+      "id": "shatter",
+      "category": "combat",
+      "spoiler": false,
+      "text": "Shatter cards ignore enemy Block. Save them for monsters that just defended."
+    },
+    {
+      "id": "stagger",
+      "category": "combat",
+      "spoiler": false,
+      "text": "Stagger buys time. A Stagger hit pushes back the enemy's attack timer. Use it on an enemy that's about to strike."
+    },
+    {
+      "id": "targeting",
+      "category": "combat",
+      "spoiler": false,
+      "text": "You always attack the closest enemy. Back cards hit the farthest one. Pierce hits the front enemy and the one behind it. Chain bounces between enemies at random."
+    },
+    {
+      "id": "aoe-packs",
+      "category": "combat",
+      "spoiler": false,
+      "text": "Use area attacks on groups. In a pack each monster is weaker, but there's more total health to get through. Hit-all cards do the most good against hordes."
+    },
+    {
+      "id": "hand-variety",
+      "category": "combat",
+      "spoiler": false,
+      "text": "Your hand always has 5 different exercises. If you're tired of one movement, do a different exercise to work on another card."
+    },
+    {
+      "id": "unmatched-reps",
+      "category": "combat",
+      "spoiler": false,
+      "text": "The phone only watches for the exercises in your hand. Reps of any other movement aren't counted at all: no card progress, no gold."
+    },
+    {
+      "id": "breather",
+      "category": "combat",
+      "spoiler": false,
+      "text": "Between fights in an expedition you get a breather that restores a fifth of your max health."
+    },
+    {
+      "id": "victory-squat",
+      "category": "combat",
+      "spoiler": false,
+      "text": "After a win, do a squat to move on to the next fight."
+    },
+    {
+      "id": "element-cycle",
+      "category": "elements",
+      "spoiler": false,
+      "text": "Know the element cycle: Fire beats Nature, Nature beats Earth, Earth beats Storm, Storm beats Frost, Frost beats Fire. Holy and Void beat each other."
+    },
+    {
+      "id": "element-multipliers",
+      "category": "elements",
+      "spoiler": false,
+      "text": "Strong hits deal 1.5×, resisted hits deal only 0.6×. An element is resisted by its own kind and by the element it's weak to. Don't use Fire on a Frost monster."
+    },
+    {
+      "id": "weapon-element",
+      "category": "elements",
+      "spoiler": false,
+      "text": "Elemental weapons trade some raw Attack for elemental damage on every attack card. Against a weak foe they beat plain steel, but against a neutral or resistant foe plain steel hits harder. Pick a weapon for the map you're on."
+    },
+    {
+      "id": "xp-on-loss",
+      "category": "progression",
+      "spoiler": false,
+      "text": "You earn XP for every kill, even when you lose. If a stage beats you, the attempt still makes you stronger."
+    },
+    {
+      "id": "speed-stat",
+      "category": "progression",
+      "spoiler": false,
+      "text": "Speed means fewer reps per card and a chance to dodge. It maxes out at 30% fewer reps and a 20% dodge chance."
+    },
+    {
+      "id": "stat-bag",
+      "category": "progression",
+      "spoiler": false,
+      "text": "Level-ups spread across all three stats. Each stat goes up once before any stat repeats, so you won't get all Strength in a row."
+    },
+    {
+      "id": "card-levels",
+      "category": "progression",
+      "spoiler": false,
+      "text": "Cards get stronger the more you cast them, up to +45% at level 10. Your favourite cards improve the more you use them."
+    },
+    {
+      "id": "weapon-mastery",
+      "category": "progression",
+      "spoiler": false,
+      "text": "Weapons level up as you use them too. At weapon level 5 you master its spells, and one copy of each stays in your deck whichever weapon you carry."
+    },
+    {
+      "id": "stuck",
+      "category": "progression",
+      "spoiler": false,
+      "text": "If you're stuck, you have two options: level up on earlier maps, or come back and push harder reps. Both work."
+    },
+    {
+      "id": "card-unlocks",
+      "category": "cards",
+      "spoiler": false,
+      "text": "New cards unlock as you play. You can get them by defeating certain monsters, doing reps of certain exercises, keeping perfect form, hitting high power, clearing maps or blocking damage. The Card Codex shows what each card needs."
+    },
+    {
+      "id": "weapon-spells",
+      "category": "cards",
+      "spoiler": false,
+      "text": "Weapons come with spells. Two copies of each of your weapon's spells are shuffled into your deck."
+    },
+    {
+      "id": "golden",
+      "category": "monsters",
+      "spoiler": false,
+      "text": "Golden monsters have 50% more health but hit softer. The longer fight earns more gold from your reps, and their extra health means more XP."
+    },
+    {
+      "id": "shadow",
+      "category": "monsters",
+      "spoiler": false,
+      "text": "Shadow monsters hit very hard but have less health. Kill them fast or keep Block ready."
+    },
+    {
+      "id": "frost-touched",
+      "category": "monsters",
+      "spoiler": false,
+      "text": "Frost-touched monsters are tough and become Frost element. Bring Storm."
+    },
+    {
+      "id": "monster-sizes",
+      "category": "monsters",
+      "spoiler": false,
+      "text": "Miniature monsters charge their attacks faster. Giants have 40% more health and give more XP."
+    },
+    {
+      "id": "secret-trials",
+      "category": "secrets",
+      "spoiler": true,
+      "text": "Every map hides a legendary weapon. After you clear a level, a secret trial may appear. You get one try each time it appears, and it comes back until you win."
+    },
+    {
+      "id": "trial-odds",
+      "category": "secrets",
+      "spoiler": true,
+      "text": "Doing a trial's exercise during a level makes its trial more likely to appear when you clear the level."
+    },
+    {
+      "id": "trial-types",
+      "category": "secrets",
+      "spoiler": true,
+      "text": "Trials test different things: some are races, some only count hard reps, some need rhythm. Read the trial before you start."
+    },
+    {
+      "id": "midas-bell",
+      "category": "secrets",
+      "spoiler": true,
+      "text": "The Midas Bell gives +50% gold per rep."
+    },
+    {
+      "id": "excalibane",
+      "category": "secrets",
+      "spoiler": true,
+      "text": "Excalibane is only for those who hold Excalibell."
+    },
+    {
+      "id": "camera-framing",
+      "category": "setup",
+      "spoiler": false,
+      "text": "Set your phone up so the camera sees your whole body. The rep tracker needs to see your full body to count reps and score form."
+    },
+    {
+      "id": "auto-reconnect",
+      "category": "setup",
+      "spoiler": false,
+      "text": "The phone remembers your TV. Once you've paired, opening the home-screen app reconnects without the QR code."
+    }
+  ]
+}
