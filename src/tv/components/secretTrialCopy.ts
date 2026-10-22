@@ -16,6 +16,7 @@ export interface SecretTrialCopy {
   introAfter: string;
   goalLine: string;
   warning: string;
+  /** The intro's call to start: every trial starts on a squat (the phone watches only SQUAT until then). */
   startLine: string;
   repLabel: string;
   formHint: string;
@@ -76,7 +77,7 @@ export const SECRET_TRIAL_COPY: Record<SecretTrialId, SecretTrialCopy> = {
     introAfter: ', and the earth gives it up only to a knight who completes',
     goalLine: '{reps} DEADLIFTS BEFORE THE MOON TURNS TO BLOOD',
     warning: 'Thou hast but one try. When the moon runs red, the grave seals forever.',
-    startLine: 'DEADLIFT TO BEGIN THE HAUL',
+    startLine: 'SQUAT TO BEGIN THE HAUL',
     repLabel: 'DEADLIFTS',
     formHint: 'FLAT BACK • HINGE • STAND TALL',
     wrongMove: 'ONLY DEADLIFTS HAUL THE COFFIN!',
@@ -102,7 +103,7 @@ export const SECRET_TRIAL_COPY: Record<SecretTrialId, SecretTrialCopy> = {
     introAfter: '!" Only a swing with real power sends the puck all the way. Thou needest',
     goalLine: '{reps} BELL-RINGING SWINGS IN {seconds} SECONDS',
     warning: 'One try, friend. Weak swings fall short and count for nothing.',
-    startLine: 'SWING TO START THE SHOW',
+    startLine: 'SQUAT TO START THE SHOW',
     repLabel: 'BELLS RUNG',
     formHint: 'SNAP THE HIPS • DRIVE IT HIGH',
     wrongMove: 'ONLY SWINGS WORK THE STRIKER!',
@@ -129,7 +130,7 @@ export const SECRET_TRIAL_COPY: Record<SecretTrialId, SecretTrialCopy> = {
     introAfter: '. The floodwater is rising. Haul it up with',
     goalLine: '{reps} GORILLA ROWS BEFORE THE WATER CLOSES OVER THEE',
     warning: 'One try. Every row pushes the water back; stop, and it climbs.',
-    startLine: 'ROW TO START THE HAUL',
+    startLine: 'SQUAT TO START THE HAUL',
     repLabel: 'GORILLA ROWS',
     formHint: 'FLAT BACK • PULL TO THE HIP',
     wrongMove: 'ONLY GORILLA ROWS HAUL THE CHAIN!',
@@ -155,7 +156,7 @@ export const SECRET_TRIAL_COPY: Record<SecretTrialId, SecretTrialCopy> = {
     introAfter: ', ringed by twelve guttering candles. The dark at the edges is hungry. Keep them lit with',
     goalLine: '{reps} PASSES BEFORE THE LAST CANDLE DIES',
     warning: 'One try. Every pass around the body relights a candle; stop, and the dark comes in.',
-    startLine: 'PASS THE BELL TO BEGIN THE VIGIL',
+    startLine: 'SQUAT TO BEGIN THE VIGIL',
     repLabel: 'PASSES',
     formHint: 'CIRCLE THE WAIST • HAND TO HAND',
     wrongMove: 'ONLY PASSES SWING THE CENSER!',
@@ -181,7 +182,7 @@ export const SECRET_TRIAL_COPY: Record<SecretTrialId, SecretTrialCopy> = {
     introAfter: '. The storm keeps time. Haul the rope on its beat with',
     goalLine: '{reps} SNATCHES ON THE THUNDER\'S BEAT',
     warning: 'One try. A snatch off the beat only rocks the bell.',
-    startLine: 'SNATCH TO WAKE THE STORM',
+    startLine: 'SQUAT TO WAKE THE STORM',
     repLabel: 'TOLLS',
     formHint: 'PUNCH THROUGH • LOCK OUT ON THE FLASH',
     wrongMove: 'ONLY SNATCHES HAUL THE BELL ROPE!',
@@ -208,7 +209,7 @@ export const SECRET_TRIAL_COPY: Record<SecretTrialId, SecretTrialCopy> = {
     introAfter: '. A cracked pipe bleeds the pressure away. Build it faster with',
     goalLine: '{reps} THRUSTERS\' WORTH OF STEAM',
     warning: 'One try. The gauge sinks whenever thou restest.',
-    startLine: 'THRUSTER TO FIRE THE BOILER',
+    startLine: 'SQUAT TO FIRE THE BOILER',
     repLabel: 'THRUSTERS',
     formHint: 'SQUAT DEEP • DRIVE IT OVERHEAD',
     wrongMove: 'ONLY THRUSTERS PUMP THE BOILER!',
@@ -234,7 +235,7 @@ export const SECRET_TRIAL_COPY: Record<SecretTrialId, SecretTrialCopy> = {
     introAfter: ' if its iron never cools. Keep it white-hot with',
     goalLine: '{reps} CLEAN & PRESSES BEFORE THE IRON COOLS',
     warning: 'One try. Every press strikes the hammer; stop, and the steel cracks.',
-    startLine: 'CLEAN & PRESS TO STRIKE',
+    startLine: 'SQUAT TO STRIKE',
     repLabel: 'HAMMER STRIKES',
     formHint: 'RACK IT • PRESS TO LOCKOUT',
     wrongMove: 'ONLY CLEAN & PRESSES SWING THE HAMMER!',
@@ -260,7 +261,7 @@ export const SECRET_TRIAL_COPY: Record<SecretTrialId, SecretTrialCopy> = {
     introAfter: ', and its eye is on thee. The choir will lie: trust only thy body. Close the rift with',
     goalLine: '{reps} SINGLE-LEG RDLS IN {seconds} SECONDS',
     warning: 'One try. What thou seest may not be true.',
-    startLine: 'HINGE TO BEGIN',
+    startLine: 'SQUAT TO BEGIN',
     repLabel: 'SINGLE-LEG RDLS',
     formHint: 'HIPS SQUARE • REACH LONG',
     wrongMove: 'ONLY SINGLE-LEG RDLS CLOSE THE RIFT!',
@@ -286,7 +287,7 @@ export const SECRET_TRIAL_COPY: Record<SecretTrialId, SecretTrialCopy> = {
     introAfter: ', Excalibell\'s shadow twin. It yields only to a knight who has mastered every form. Complete',
     goalLine: '3 REPS OF ALL 13 EXERCISES IN {seconds} SECONDS',
     warning: 'One try. The labours come in order; the throne accepts no other.',
-    startLine: 'BEGIN WITH A SWING',
+    startLine: 'SQUAT TO BEGIN',
     repLabel: 'LABOURS',
     formHint: 'EVERY FORM, IN ORDER',
     wrongMove: 'NOT THIS LABOUR! FOLLOW THE ORDER',

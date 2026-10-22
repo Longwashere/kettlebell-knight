@@ -13,6 +13,7 @@ import { weaponStats } from '../../shared/progression';
 import { ELEMENT_INFO } from '../../shared/elements';
 import { WEAPON_SPELLS } from '../../types/weaponSpells';
 import { useTVRemote } from '../hooks/useTVRemote';
+import { networkManager } from '../../shared/NetworkManager';
 import { registerDebug } from '../debug/agentBridge';
 
 type Phase = 'INTRO' | 'TRIAL' | 'WON' | 'LOST';
@@ -26,12 +27,15 @@ interface SecretTrialProps {
   onExit: () => void;
 }
 
+/** The victory squat that led here mustn't also start the trial: the intro ignores squats this long. */
+const START_GRACE_MS = 1500;
+
 /** What the Hollow Choir shows instead of the truth, now and then. */
 const LIES = ['THE RIFT REJECTS THEE', 'TRIAL FAILED', 'THOU HAST ALREADY LOST', 'COUNT AGAIN', 'IT IS NOT LISTENING'];
 
 /**
  * Secret stage (src/shared/secretTrials.ts): one try at the trial, under its mechanic (TrialRun holds the rules).
- * The clock starts on the first rep (or Enter). Win or lose, it ends in the town hub. The engine stages the
+ * The clock starts on a squat (or Enter); that squat doesn't count. Win or lose, it ends in the town hub. The engine stages the
  * trial's own scene (src/tv/engine/trialScenes.ts); the words come from SECRET_TRIAL_COPY. Per-frame values
  * (clock, meters, the beat) are written straight to the DOM, not React state.
  */
@@ -49,6 +53,7 @@ export const SecretTrial: React.FC<SecretTrialProps> = ({ trialId, engineRef, is
   const [miss, setMiss] = useState<TrialRepResult | null>(null);
   const [lie, setLie] = useState<string | null>(null);
   const phaseRef = useRef<Phase>('INTRO');
+  const shownAtRef = useRef(performance.now());
   const clockRef = useRef<HTMLSpanElement | null>(null);
   const sandRef = useRef<HTMLDivElement | null>(null);
   const barRef = useRef<HTMLDivElement | null>(null);
@@ -78,6 +83,12 @@ export const SecretTrial: React.FC<SecretTrialProps> = ({ trialId, engineRef, is
     return () => engineRef.current?.showSecretTrial(null);
   }, [isEngineReady, engineRef, mapId, trialId, spec]);
 
+  // The phone watches only the starting squat on the intro, then the exercise that counts now
+  useEffect(() => {
+    networkManager.sendHand(null, 'TRIAL');
+    return () => networkManager.sendHand(null);
+  }, []);
+
   useEffect(() => () => {
     for (const t of [resultTimerRef, missTimerRef, lieTimerRef]) if (t.current) clearTimeout(t.current);
     audioManager.stopBgm();
@@ -102,6 +113,7 @@ export const SecretTrial: React.FC<SecretTrialProps> = ({ trialId, engineRef, is
   const start = useCallback(() => {
     if (phaseRef.current !== 'INTRO') return;
     enterPhase('TRIAL');
+    networkManager.sendHand(null, 'TRIAL', [runRef.current.exercise]);
     audioManager.play('charge', { vol: 0.6 });
     audioManager.playBgm(); // the workout soundtrack
   }, []);
@@ -114,7 +126,10 @@ export const SecretTrial: React.FC<SecretTrialProps> = ({ trialId, engineRef, is
 
   const handleRep = useCallback((exercise: ExerciseType, power = 80) => {
     const run = runRef.current;
-    if (phaseRef.current === 'INTRO' && exercise === run.exercise) start();
+    if (phaseRef.current === 'INTRO') {
+      if (exercise === 'SQUAT' && performance.now() - shownAtRef.current >= START_GRACE_MS) start();
+      return;
+    }
     if (phaseRef.current !== 'TRIAL') return;
     const { result, won } = run.rep(exercise, power);
     if (result !== 'counted') {
@@ -125,6 +140,8 @@ export const SecretTrial: React.FC<SecretTrialProps> = ({ trialId, engineRef, is
     }
     setMiss(null);
     setReps(run.count);
+    // A gauntlet moved on to its next exercise: the phone watches that one now
+    if (!won && run.exercise !== exercise) networkManager.sendHand(null, 'TRIAL', [run.exercise]);
     engineRef.current?.secretTrialRep(run.progress, power);
     if (won) finish(true);
   }, [engineRef, finish, start]);
@@ -198,7 +215,7 @@ export const SecretTrial: React.FC<SecretTrialProps> = ({ trialId, engineRef, is
       if (phaseRef.current === 'INTRO' || phaseRef.current === 'TRIAL') finish(false);
       else if (showResult) onExit();
     },
-    onDemoSwing: () => handleRep(runRef.current.exercise, 100),
+    onDemoSwing: () => (phaseRef.current === 'INTRO' ? start() : handleRep(runRef.current.exercise, 100)),
   });
 
   useEffect(() => registerDebug(
@@ -221,6 +238,7 @@ export const SecretTrial: React.FC<SecretTrialProps> = ({ trialId, engineRef, is
     {
       // Lands n perfect trial reps at once (starts the clock if needed): full power, on the beat
       trialReps: (n: number) => {
+        start();
         for (let i = 0; i < n; i++) {
           const run = runRef.current;
           if (mech.kind === 'rhythm' && phaseRef.current === 'TRIAL') run.elapsed = Math.ceil(run.elapsed / mech.beat) * mech.beat + 0.01;

@@ -18,6 +18,14 @@ const POSTURE = {
    * hunched over for good (no swing would lock out again).
    */
   uprightKnee: 0.92,
+  /** The upright reference rises from a slower average than posture itself, so a one-frame ankle jitter can't set it. */
+  uprightSmoothing: 0.12,
+  /**
+   * Near upright (posture above uprightDecayAbove) the reference eases down this much per frame toward how tall you
+   * actually stand, so one tall outlier doesn't stick for the session. Bent over it holds, so a long row set doesn't drift.
+   */
+  uprightDecay: 0.9995,
+  uprightDecayAbove: 0.8,
 };
 
 /** Keeps the swing's body-relative bell height positive in lastMetricY, where 0 means "no previous frame". */
@@ -39,16 +47,25 @@ const SWING = {
   driveSpeed: 1.2,
   /** Lockout line: the bell has to rise to this height (about the bottom of the chest). */
   lockoutBell: 0.65,
-  /** Lockout: standing tall again, locked out straight — posture at least this upright, knees at least this straight. */
+  /**
+   * Lockout: standing tall again, locked out straight — posture at least this upright, knees at least this straight.
+   * Posture also passes once it has recovered lockoutRecover of the way from the hike's deepest hinge back to upright:
+   * facing the camera, a lockout's slight lean back shortens the torso on screen just like a hinge does.
+   */
   lockoutPosture: 0.9,
+  lockoutRecover: 0.7,
   lockoutKnee: 0.7,
   /**
    * Lockout: the shoulders risen at least this far (torso lengths) since the bottom of the hike. Standing up out of
    * the hinge lifts them; a gorilla row pulls the bell just as high toward the hunched shoulders but leaves them put.
    */
   lockoutRise: 0.1,
-  /** Standing tall and the bell crossing the line may be this far apart, in either order (the bell staying within lockoutSlack of the line). */
+  /**
+   * Standing tall and the bell crossing the line may be this far apart, in either order (the bell staying within
+   * lockoutSlack of the line); at least lockoutGraceFrames frames, so a slow phone still gets a few looks at the top.
+   */
   lockoutGraceMs: 600,
+  lockoutGraceFrames: 10,
   lockoutSlack: 0.25,
   /** Cancels the drive as a curl only for a forearm clearly standing up at nearly full length on screen. */
   curlForearmLen: 0.8,
@@ -388,7 +405,11 @@ export class KinematicTracker {
   /** The best bell / hinge / knee this drive reached (for the miss note). */
   /** Lowest the shoulders got (largest y) in this hike, to measure standing up against. */
   private swingHikeShoulder: number = 0;
-  private swingBest = { bell: 9, hinge: 0, knee: 0 };
+  /** Deepest hinge (lowest posture) since the hike began. */
+  private swingHikePosture: number = 1;
+  /** Smoothed frame interval, for the lockout grace on slow phones. */
+  private swingFrameMs: number = 33;
+  private swingBest = { bell: 9, hinge: 0, knee: 0, rise: 0 };
   /** When the clean's bell settled in the rack zone (0 = not settled). */
   private cleanRackAt: number = 0;
   /** Clean & press progress per wrist. */
@@ -429,6 +450,7 @@ export class KinematicTracker {
   private posture: number = 1;
   private torsoPerShin: number = 0;
   private uprightTorsoPerShin: number = 0;
+  private uprightSlow: number = 0;
   private shinRef: number = 0;
 
   private requireFullBody: boolean = true;
@@ -586,8 +608,12 @@ export class KinematicTracker {
       (this.torsoPerShin > 0 && Math.abs(ratio - this.torsoPerShin) > POSTURE.glitch * this.torsoPerShin);
     if (!glitch) {
       this.torsoPerShin = this.torsoPerShin > 0 ? this.torsoPerShin + (ratio - this.torsoPerShin) * 0.35 : ratio;
+      this.uprightSlow = this.uprightSlow > 0 ? this.uprightSlow + (ratio - this.uprightSlow) * POSTURE.uprightSmoothing : ratio;
+      if (this.uprightTorsoPerShin > 0 && this.torsoPerShin / this.uprightTorsoPerShin > POSTURE.uprightDecayAbove) {
+        this.uprightTorsoPerShin *= POSTURE.uprightDecay;
+      }
       if (kneeStraight >= POSTURE.uprightKnee || this.uprightTorsoPerShin === 0) {
-        this.uprightTorsoPerShin = Math.max(this.uprightTorsoPerShin, this.torsoPerShin);
+        this.uprightTorsoPerShin = Math.max(this.uprightTorsoPerShin, this.uprightSlow);
       }
     }
     this.posture = this.uprightTorsoPerShin > 0 ? this.torsoPerShin / this.uprightTorsoPerShin : fallback;
@@ -1031,7 +1057,11 @@ export class KinematicTracker {
     // Locked out straight: upright, knees extended and the shoulders risen out of the hike (a gorilla row pulls
     // the bell as high, hunched over)
     const shoulderRise = this.swingHikeShoulder > 0 ? (this.swingHikeShoulder - shoulderY) / torsoHeight : 0;
-    const standingTall = hinge >= SWING.lockoutPosture && knee >= SWING.lockoutKnee && shoulderRise >= SWING.lockoutRise;
+    const uprightNeeded = Math.min(
+      SWING.lockoutPosture,
+      this.swingHikePosture + SWING.lockoutRecover * (1 - this.swingHikePosture),
+    );
+    const standingTall = hinge >= uprightNeeded && knee >= SWING.lockoutKnee && shoulderRise >= SWING.lockoutRise;
     let note: string | undefined;
     // Arm straightness and forearm direction (+1 hanging straight down, -1 standing straight up)
     const elbowAngle = calculateAngle(shoulder, elbow, wrist);
@@ -1049,6 +1079,8 @@ export class KinematicTracker {
       forearmDown <= SWING.curlForearmUp;
 
     const dt = this.lastTimestamp > 0 ? Math.max(0.016, (timestampMs - this.lastTimestamp) / 1000) : 0.033;
+    if (this.lastTimestamp > 0 && dt < 0.5) this.swingFrameMs += (dt * 1000 - this.swingFrameMs) * 0.1;
+    const graceMs = Math.max(SWING.lockoutGraceMs, this.swingFrameMs * SWING.lockoutGraceFrames);
     // lastMetricY keeps rel offset by SWING_REL_OFFSET so 0 still means "no previous frame" (reset on arm switch)
     const prevRel = this.lastMetricY > 0 ? this.lastMetricY - SWING_REL_OFFSET : null;
     const relVelocity = prevRel !== null ? (prevRel - rel) / dt : 0; // torso lengths/s, upward positive
@@ -1060,6 +1092,7 @@ export class KinematicTracker {
       case 0: { // HIKE: straight arms, forearms hanging, bell at or below the hips, hips hinged, soft knees
         if (rel >= SWING.hikeBell && elbowAngle >= SWING.hikeElbow && forearmDown >= SWING.hikeForearm && hingedHike) {
           this.swingHikeShoulder = this.phaseStartTimestamp > 0 ? Math.max(this.swingHikeShoulder, shoulderY) : shoulderY;
+          this.swingHikePosture = this.phaseStartTimestamp > 0 ? Math.min(this.swingHikePosture, hinge) : hinge;
           this.phaseStartTimestamp = timestampMs;
           this.maxMovementVelocity = 0;
           this.swingForearmRef = Math.max(this.swingForearmRef * 0.9, forearmLen);
@@ -1069,7 +1102,7 @@ export class KinematicTracker {
           this.maxMovementVelocity = upwardVelocity;
           this.swingLineAt = 0;
           this.swingTallAt = 0;
-          this.swingBest = { bell: rel, hinge, knee };
+          this.swingBest = { bell: rel, hinge, knee, rise: shoulderRise };
         }
         break;
       }
@@ -1078,10 +1111,12 @@ export class KinematicTracker {
           this.maxMovementVelocity = upwardVelocity;
         }
         this.swingHikeShoulder = Math.max(this.swingHikeShoulder, shoulderY);
+        this.swingHikePosture = Math.min(this.swingHikePosture, hinge);
         this.swingBest = {
           bell: Math.min(this.swingBest.bell, rel),
           hinge: Math.max(this.swingBest.hinge, hinge),
           knee: Math.max(this.swingBest.knee, knee),
+          rise: Math.max(this.swingBest.rise, shoulderRise),
         };
         // Fell back into the hike, or the forearms folded up into a curl: not a swing
         const fellBack = rel > 1.1 && relVelocity < -0.8;
@@ -1089,7 +1124,7 @@ export class KinematicTracker {
           const best = this.swingBest;
           note = curled
             ? `cancelled: forearm curled up (${forearmDown.toFixed(2)})`
-            : `missed lockout — best: bell ${best.bell.toFixed(2)} posture ${best.hinge.toFixed(2)} knee ${best.knee.toFixed(2)} rise ${shoulderRise.toFixed(2)}`;
+            : `missed lockout — best: bell ${best.bell.toFixed(2)} posture ${best.hinge.toFixed(2)}/${uprightNeeded.toFixed(2)} knee ${best.knee.toFixed(2)} rise ${best.rise.toFixed(2)}`;
           this.currentState = 0;
           this.maxMovementVelocity = 0;
           if (curled) this.phaseStartTimestamp = 0;
@@ -1101,8 +1136,8 @@ export class KinematicTracker {
         if (standingTall) this.swingTallAt = timestampMs;
         const nearLine = rel <= SWING.lockoutBell + SWING.lockoutSlack;
         const atLine =
-          rel <= SWING.lockoutBell || (this.swingLineAt > 0 && timestampMs - this.swingLineAt <= SWING.lockoutGraceMs && nearLine);
-        const wasTall = this.swingTallAt > 0 && timestampMs - this.swingTallAt <= SWING.lockoutGraceMs;
+          rel <= SWING.lockoutBell || (this.swingLineAt > 0 && timestampMs - this.swingLineAt <= graceMs && nearLine);
+        const wasTall = this.swingTallAt > 0 && timestampMs - this.swingTallAt <= graceMs;
         if (atLine && (standingTall || (wasTall && nearLine))) {
           if (timestampMs - this.lastRepTimestamp >= this.minRepIntervalMs) {
             this.currentState = 2;

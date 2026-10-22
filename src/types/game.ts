@@ -165,12 +165,15 @@ export interface PeerMessage {
   timestamp: number;
 }
 
-export type HandSyncMode = 'BATTLE' | 'VICTORY' | 'CINEMATIC';
+/** VICTORY / CINEMATIC: the phone watches only SQUAT, the "go on" rep; TRIAL: a secret trial's `watch` (SQUAT to start). */
+export type HandSyncMode = 'BATTLE' | 'VICTORY' | 'CINEMATIC' | 'TRIAL';
 
 /** TV → phone: the battle's current hand, or null outside battle (the phone then tracks every exercise). */
 export interface HandSyncPayload {
   cards: CombatCard[] | null;
   mode?: HandSyncMode;
+  /** TRIAL: the exercises the trial counts now (none on its intro, which waits for a squat). */
+  watch?: ExerciseType[];
 }
 
 export type EquipmentSlot = 'weapon' | 'shield' | 'armor' | 'helmet';
