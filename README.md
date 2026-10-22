@@ -50,3 +50,52 @@ Open:
 - TV interface: `http://localhost:5173/tv`
 - Phone companion: `http://localhost:5173/phone`
 - Root launcher: `http://localhost:5173/`
+
+---
+
+## 📺 Testing on a Fire TV
+
+The Fire TV app is a Capacitor Android shell (`android/`) that bundles the built game from `dist/`. You build an APK and sideload it over ADB.
+
+### 1. Prepare the Fire TV
+
+1. **Settings → My Fire TV → About**: select the device name 7 times to unlock **Developer Options**.
+2. **Settings → My Fire TV → Developer Options**: turn on **ADB debugging** and **Apps from Unknown Sources**.
+3. **Settings → My Fire TV → About → Network**: note the TV's IP address. Your computer must be on the same network.
+
+### 2. Build the APK
+
+You need the Android SDK (Android Studio installs it) and JDK 21. Gradle 8.14 doesn't run on JDK 25.
+
+```bash
+npm run tv:sync   # build the game and copy dist/ into android/
+
+# Debug APK (no keystore needed) → android/app/build/outputs/apk/debug/app-debug.apk
+(cd android && JAVA_HOME=$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home ./gradlew assembleDebug)
+```
+
+A signed release build (`./gradlew assembleRelease`) needs `android/keystore.properties`. You can also open the project in Android Studio with `npm run tv:open`.
+
+### 3. Install and launch
+
+```bash
+adb connect <TV-IP>:5555          # accept the "Allow USB debugging?" prompt on the TV the first time
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+adb shell monkey -p com.kettlebellknight.tv 1   # launch it (or find it under Your Apps & Channels)
+```
+
+If the install fails with a signature mismatch (switching between debug and release builds), run `adb uninstall com.kettlebellknight.tv` first.
+
+### 4. Pair a phone
+
+Scan the QR code on the TV with your phone. It opens the phone companion hosted on GitHub Pages (`VITE_PHONE_URL` in `.env.production`). You can also open https://longwashere.github.io/kettlebell-knight/phone and enter the room code. The phone and TV connect peer-to-peer, so LAN discovery isn't needed.
+
+### Debugging on the device
+
+```bash
+CAP_WEBVIEW_DEBUG=1 npm run tv:sync   # rebuild with WebView debugging on, then reinstall
+```
+
+Open `chrome://inspect` in desktop Chrome to get DevTools (console, performance profiler, memory) for the game running on the stick. Don't ship a build with this flag.
+
+For a quick look without building an APK, open https://longwashere.github.io/kettlebell-knight/tv in the Fire TV's Silk browser. The APK is still the real test for performance and remote input.
