@@ -4,7 +4,7 @@ import { BattleMapId } from '../../types/battle';
 import { CAMPAIGN_MAPS, CAMPAIGN_MAP_ORDER, latestUnlockedStage } from '../../shared/expeditionEngine';
 import { profileManager } from '../../shared/ProfileManager';
 import { PixelSprite, ICON_ANVIL, ICON_GATE, ICON_LANTERN, ICON_TOME, ICON_TORCH } from './pixelSprites';
-import type { GraphicsMode } from '../graphicsMode';
+import { GRAPHICS_MODE_LABEL, type GraphicsMode } from '../graphicsMode';
 
 export interface HubNodeInfo {
   id: HubLocation;
@@ -21,6 +21,9 @@ export const HUB_NODES: HubNodeInfo[] = [
   { id: 'SANCTUARY', title: 'Sanctuary', desc: 'Thy deck, thy spells, thy trophies.', icon: ICON_TOME },
   { id: 'GRAPHICS', title: 'Visuals', desc: '', icon: ICON_LANTERN },
 ];
+
+/** The Visuals lantern burns brighter with the setting: dim at Performance, lit at Quality, white-hot at Ultra. */
+const LANTERN_COLOR: Record<GraphicsMode, string> = { PERFORMANCE: '#8C6A2A', QUALITY: '#F4D35E', ULTRA: '#FFF4C2' };
 
 interface HubMenuProps {
   selectedIndex: number;
@@ -67,7 +70,7 @@ export const HubMenu: React.FC<HubMenuProps> = ({
               onClick={() => onSelectNode(node.id)}
               onMouseEnter={() => onHoverNode(index)}
               className={`kk-plaque ${isQuickPlay ? 'kk-plaque--march' : ''} ${isSelected ? 'kk-plaque--focused' : ''}`}
-              style={isGraphics ? { color: graphicsMode === 'QUALITY' ? '#F4D35E' : '#8C6A2A' } : undefined}
+              style={isGraphics ? { color: LANTERN_COLOR[graphicsMode] } : undefined}
             >
               <div className="kk-plaque__icon">
                 <PixelSprite grid={node.icon} px={isQuickPlay ? 4 : isGraphics ? 5 : 3} className="kk-plaque__sprite" />
@@ -90,7 +93,7 @@ export const HubMenu: React.FC<HubMenuProps> = ({
                   <h3 className="kk-plaque__title">{node.title}</h3>
                   {isGraphics ? (
                     <p className="kk-plaque__desc">
-                      {graphicsMode === 'QUALITY' ? 'Quality' : 'Performance'}
+                      {GRAPHICS_MODE_LABEL[graphicsMode]}
                       <span className="kk-plaque__toggle">Select to switch</span>
                     </p>
                   ) : (

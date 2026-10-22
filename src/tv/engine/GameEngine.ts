@@ -14,7 +14,7 @@ import { VFX_RIGS, VFX_NAMES, type VfxName, type VfxOpts } from './vfx';
 import { retainFxAtlas, releaseFxAtlas } from './fxAtlas';
 import { inferKind, makeParticleView, updateParticleView, type ParticleView } from './particleSprites';
 import { OutlineFilter } from './outlineFilter';
-import { isPerformanceMode } from '../graphicsMode';
+import { isPerformanceMode, onGraphicsModeChange, renderResolution } from '../graphicsMode';
 import { ForgeShowcase } from './forgeShowcase';
 import { RepStamp, type RepCardTarget } from './repStamp';
 import { TRIAL_SCENES, type TrialScene } from './trialScenes';
@@ -1220,6 +1220,7 @@ export class GameEngine {
   private app: Application | null = null;
   private containerElement: HTMLElement;
   private resizeObserver: ResizeObserver | null = null;
+  private offGraphicsMode: (() => void) | null = null;
   private isDestroyed: boolean = false;
 
   // Scene containers
@@ -1359,8 +1360,8 @@ export class GameEngine {
   }
 
   /**
-   * Initializes PixiJS Application at 426x240 virtual resolution.
-   * Sets CSS pixelated scaling to fill the Fire TV 10-foot screen.
+   * Initializes PixiJS Application at 426x240 virtual resolution, with a backbuffer of renderResolution() × that.
+   * At 1× the canvas is upscaled with CSS pixelated scaling; above it, smoothly.
    */
   public async init(): Promise<void> {
     const app = new Application();
@@ -1369,7 +1370,7 @@ export class GameEngine {
       width: 426,
       height: 240,
       backgroundColor: 0x0F0E17,
-      resolution: 1, // Strictly 1.0 to preserve native 240p pixel grid
+      resolution: renderResolution(), // stage coordinates stay 426x240 at any resolution
       autoDensity: false,
       antialias: false,
       powerPreference: 'high-performance',
@@ -1382,11 +1383,11 @@ export class GameEngine {
 
     this.app = app;
 
-    // Apply strict CSS pixelated scaling for 32-bit retro look & Fire TV VRAM saving
     const canvas = app.canvas;
     canvas.style.position = 'absolute';
     canvas.style.display = 'block';
-    canvas.style.imageRendering = 'pixelated';
+    this.applyRenderResolution();
+    this.offGraphicsMode = onGraphicsModeChange(() => this.applyRenderResolution());
 
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
@@ -1599,6 +1600,15 @@ export class GameEngine {
    * Upscales the 426x240 canvas (CSS only, the render size is unchanged) to cover the whole screen, centred.
    * On a 16:9 TV that is a near-exact fit; other aspect ratios crop a sliver off the long edges.
    */
+  /** Resizes the backbuffer to renderResolution(); 1× keeps the hard pixel grid, higher ones scale smoothly. */
+  private applyRenderResolution(): void {
+    if (!this.app) return;
+    const res = renderResolution();
+    if (this.app.renderer.resolution !== res) this.app.renderer.resize(426, 240, res);
+    this.app.canvas.style.imageRendering = res > 1 ? 'auto' : 'pixelated';
+    this.fitCanvas();
+  }
+
   private fitCanvas(): void {
     if (!this.app) return;
     const canvas = this.app.canvas;
@@ -4348,6 +4358,7 @@ export class GameEngine {
     this.clearAllMonsters();
     this.releaseVfx();
     this.resizeObserver?.disconnect();
+    this.offGraphicsMode?.();
     this.resizeObserver = null;
 
     // Unload Spine knight textures/data to avoid VRAM leaks across scene changes

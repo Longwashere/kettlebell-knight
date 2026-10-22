@@ -6,7 +6,7 @@ import { networkManager, NetworkConnectionState } from '../../shared/NetworkMana
 import { discoveryManager } from '../../shared/DiscoveryManager';
 import { FOLLOW_URL, phonePairUrl } from '../../shared/deployConfig';
 import { exitApp } from '../native';
-import { getGraphicsMode, setGraphicsMode, GraphicsMode } from '../graphicsMode';
+import { getGraphicsMode, setGraphicsMode, cycledGraphicsMode, GraphicsMode } from '../graphicsMode';
 import { HubMenu, HUB_NODES } from './HubMenu';
 import { BlacksmithShop, SHOP_ITEMS, forgeNavigate } from './BlacksmithShop';
 import { BattleScreen } from './BattleScreen';
@@ -576,9 +576,10 @@ export const GameScreen: React.FC = () => {
     setIsMuted(muted);
   };
 
-  // Same setting as the title menu's GRAPHICS item. The CSS savers apply at once; the monster outline from the next fight.
+  // Same setting as the title menu's GRAPHICS item. The CSS savers and render resolution apply at once; the monster
+  // outline from the next fight.
   const toggleGraphicsMode = () => {
-    const next: GraphicsMode = getGraphicsMode() === 'QUALITY' ? 'PERFORMANCE' : 'QUALITY';
+    const next = cycledGraphicsMode();
     setGraphicsMode(next);
     setGraphicsModeState(next);
     audioManager.play('ui_select');

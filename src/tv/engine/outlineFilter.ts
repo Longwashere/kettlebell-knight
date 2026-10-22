@@ -2,8 +2,8 @@ import { Filter, GlProgram, GpuProgram, UniformGroup, defaultFilterVert } from '
 
 /**
  * 1px silhouette outline, drawn behind the sprite's own pixels. Applied to a Spine rig it traces the whole
- * assembled body (not each attachment), so monsters read against busy backgrounds. The stage renders at
- * resolution 1, so one input texel is one native 426×240 pixel and the line stays pixel-crisp.
+ * assembled body (not each attachment), so monsters read against busy backgrounds. It runs at the renderer's
+ * resolution (see renderResolution), so the line is one backbuffer texel: a native pixel at 1×, half of one at 2×.
  *
  * Cost: one extra render-target pass the size of the rig's bounds (~100×100 px on the TV), per outlined rig.
  */
@@ -97,7 +97,7 @@ export class OutlineFilter extends Filter {
         }),
       },
       padding: 1,
-      resolution: 1,
+      resolution: 'inherit',
     });
     this.color = color;
   }

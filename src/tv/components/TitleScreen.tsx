@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTVRemote } from '../hooks/useTVRemote';
 import { exitApp } from '../native';
-import { getGraphicsMode, setGraphicsMode, GraphicsMode } from '../graphicsMode';
+import { getGraphicsMode, setGraphicsMode, cycledGraphicsMode, GRAPHICS_MODE_LABEL, GraphicsMode } from '../graphicsMode';
 import { audioManager } from '../../shared/AudioManager';
 import { profileManager, PlayerProfile, DEFAULT_KNIGHT_NAME, TOTAL_SAVE_SLOTS } from '../../shared/ProfileManager';
 import { 
@@ -100,8 +100,8 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
     }
   }, [onStartGame]);
 
-  const toggleGraphicsMode = useCallback(() => {
-    const next: GraphicsMode = getGraphicsMode() === 'QUALITY' ? 'PERFORMANCE' : 'QUALITY';
+  const toggleGraphicsMode = useCallback((step: 1 | -1 = 1) => {
+    const next = cycledGraphicsMode(step);
     setGraphicsMode(next);
     setGraphicsModeState(next);
     audioManager.play('ui_select');
@@ -195,7 +195,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
     },
     onLeft: () => {
       if (mode === 'MAIN_MENU' && menuIndex === 3) {
-        toggleGraphicsMode();
+        toggleGraphicsMode(-1);
       } else if (mode === 'NAME_ENTRY') {
         setKeypadCol((c) => {
           const cols = KEYPAD_ROWS[keypadRow].length;
@@ -420,7 +420,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
                 {menuIndex === 2 && <span className="text-[10px] animate-pulse">▶</span>}
               </button>
 
-              {/* 4. GRAPHICS: Select or Left/Right toggles QUALITY / PERFORMANCE */}
+              {/* 4. GRAPHICS: Select or Right steps PERFORMANCE → QUALITY → ULTRA, Left steps back */}
               <button
                 type="button"
                 onClick={() => {
@@ -439,7 +439,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStartGame }) => {
                 </span>
                 <span className="text-[9px]">
                   {menuIndex === 3 && '◀ '}
-                  {graphicsMode === 'QUALITY' ? 'QUALITY' : 'PERFORMANCE'}
+                  {GRAPHICS_MODE_LABEL[graphicsMode].toUpperCase()}
                   {menuIndex === 3 && ' ▶'}
                 </span>
               </button>

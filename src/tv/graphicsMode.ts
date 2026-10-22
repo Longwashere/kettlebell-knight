@@ -6,7 +6,12 @@ import { IS_NATIVE_APP } from './native';
  * overrides live under `:root[data-gfx='performance']` in src/index.css, and GameEngine checks
  * `isPerformanceMode()` for its own savers (the default monster outline pass).
  */
-export type GraphicsMode = 'QUALITY' | 'PERFORMANCE';
+export type GraphicsMode = 'QUALITY' | 'PERFORMANCE' | 'ULTRA';
+
+/** Menu order; Left/Right and Select step through it. ULTRA is QUALITY's effects at 4× resolution, never a default. */
+const MODES: GraphicsMode[] = ['PERFORMANCE', 'QUALITY', 'ULTRA'];
+
+export const GRAPHICS_MODE_LABEL: Record<GraphicsMode, string> = { PERFORMANCE: 'Performance', QUALITY: 'Quality', ULTRA: 'Ultra' };
 
 const STORAGE_KEY = 'kk_graphics_mode';
 
@@ -31,6 +36,7 @@ function detectDefaultMode(): GraphicsMode {
 }
 
 let mode: GraphicsMode = detectDefaultMode();
+const listeners = new Set<() => void>();
 
 function apply(): void {
   document.documentElement.dataset.gfx = mode.toLowerCase();
@@ -40,7 +46,7 @@ function apply(): void {
 export function installGraphicsMode(): void {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === 'QUALITY' || saved === 'PERFORMANCE') mode = saved;
+    if (MODES.includes(saved as GraphicsMode)) mode = saved as GraphicsMode;
   } catch {
     // Storage blocked: keep the default.
   }
@@ -55,9 +61,32 @@ export function isPerformanceMode(): boolean {
   return mode === 'PERFORMANCE';
 }
 
+/**
+ * Pixi backbuffer scale over the 426×240 stage. QUALITY renders at 2× (852×480) so vectors, text and the painted
+ * rigs stay smooth when the TV upscales, ULTRA at 4× (1704×960); PERFORMANCE keeps the native grid. `?res=1..6` overrides it for comparisons
+ * (fractions allowed: 4.5 ≈ 1920×1080).
+ */
+export function renderResolution(): number {
+  const forced = Number(new URLSearchParams(window.location.search).get('res'));
+  if (forced >= 1 && forced <= 6) return forced;
+  return mode === 'ULTRA' ? 4 : mode === 'QUALITY' ? 2 : 1;
+}
+
+/** Calls `fn` after every setting change; returns the unsubscribe. */
+export function onGraphicsModeChange(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+/** The setting `step` places along the menu order from the current one (wraps). */
+export function cycledGraphicsMode(step: 1 | -1 = 1): GraphicsMode {
+  return MODES[(MODES.indexOf(mode) + step + MODES.length) % MODES.length];
+}
+
 export function setGraphicsMode(next: GraphicsMode): void {
   mode = next;
   apply();
+  listeners.forEach((fn) => fn());
   try {
     localStorage.setItem(STORAGE_KEY, next);
   } catch {
