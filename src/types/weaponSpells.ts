@@ -4,7 +4,8 @@ import type { CardTemplate } from './battle';
 /**
  * Weapon spells: signature cards granted by the equipped weapon (SHOP_ITEMS id). Equipping a weapon
  * shuffles two copies of each of its spells into the battle deck (CardDeckManager.initDeck). Legendary
- * weapons carry two spells.
+ * weapons carry two spells. A weapon at SPELL_MASTERY_LEVEL (src/shared/progression.ts) masters its
+ * spells: one copy of each joins the deck whatever weapon is equipped.
  *
  * Numbers come from the same balance model as CARD_CATALOG (designCard), so a spell is worth the same
  * per rep as any card of its rarity; better weapons win by bringing rarer cards. Choreography for each

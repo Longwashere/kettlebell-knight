@@ -2891,7 +2891,10 @@ canvas,
 .kk-forge-plaque-wrap {
   position: absolute;
   left: 23%;
-  top: 85.5%;
+  top: 84%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   transform: translateX(-50%);
   pointer-events: none;
 }
@@ -2922,6 +2925,34 @@ canvas,
   letter-spacing: 0.06em;
   text-shadow: 0 2px 0 #000, 0 0 12px currentColor;
 }
+/* Under the plaque: how the inspected weapon's spells are mastered (BlacksmithShop masteryNote) */
+.kk-forge-mastery {
+  width: 540px;
+  margin-top: 4px;
+  padding: 4px 12px 5px;
+  background: linear-gradient(180deg, rgba(14, 11, 18, 0.88), rgba(8, 6, 10, 0.88));
+  border: 1px solid #2A2433;
+  box-shadow: 0 0 0 1px #000;
+  text-align: center;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: #B8A88E;
+  animation: kkForgeIn 360ms ease-out both;
+}
+.kk-forge-mastery b {
+  display: block;
+  margin-bottom: 2px;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #8A5A22;
+}
+.kk-forge-mastery em { font-style: normal; color: #F4B41A; white-space: nowrap; }
+.kk-forge-mastery--done { border-color: #8A5A22; color: #FDE68A; }
+.kk-forge-mastery--done b { color: #F4B41A; }
 
 /* ──────────────────────────────────────────────────────────────────────────────
    Graphics: PERFORMANCE (title screen setting, src/tv/graphicsMode.ts)

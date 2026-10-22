@@ -61,14 +61,16 @@ export class CardDeckManager {
 
   /**
    * Initializes a balanced combat deck from the unlocked cards, plus two copies of each spell the equipped
-   * weapon grants (src/types/weaponSpells.ts).
+   * weapon grants (src/types/weaponSpells.ts) and one of each spell mastered on another weapon
+   * (Loadout.masteredWeapons).
    */
   public initDeck(weaponId: string | undefined = this.weaponId, cardIds: readonly string[] | undefined = this.cardIds): void {
     this.weaponId = weaponId;
     this.cardIds = cardIds;
     const ids = new Set(cardIds?.length ? cardIds : LEGACY_CARD_IDS);
     const spells = spellsForWeapon(weaponId);
-    for (const t of [...CARD_CATALOG, ...spells]) this.sources.set(t.templateId, t);
+    const mastered = this.loadout.masteredWeapons.filter((id) => id !== weaponId).flatMap(spellsForWeapon);
+    for (const t of [...CARD_CATALOG, ...spells, ...mastered]) this.sources.set(t.templateId, t);
     const pool = CARD_CATALOG.filter((c) => ids.has(c.templateId)).map((c) => bindCard(c, this.loadout));
     this.templates = pool;
     this.drawPile = [];
@@ -81,6 +83,7 @@ export class CardDeckManager {
       ...pool,
       ...pool.filter(c => c.rarity === 'common'), // Extra commons
       ...spells.map((spell) => bindCard(spell, this.loadout)).flatMap((spell) => [spell, spell]),
+      ...mastered.map((spell) => bindCard(spell, this.loadout)),
     ];
 
     this.drawPile = deckTemplates.map(template => this.createCardInstance(template));

@@ -2787,6 +2787,20 @@ export class GameEngine {
     const choreo = KNIGHT_MOVES[id] ?? KNIGHT_MOVES.swing_cleave;
 
     const spine = this.knightSpine;
+    // A mastered spell cast with another weapon: its choreography needs the weapon that grants it, so the
+    // knight conjures that weapon for the cast and takes his own back in cleanup()
+    const equippedWeapon = this.equippedSlots['weapon'] || this.equippedSlots['sword'] || 'iron_kettlebell';
+    const spell = ALL_WEAPON_SPELLS.find((c) => c.templateId === id);
+    const borrowed = spell?.weaponId && spell.weaponId !== equippedWeapon ? spell.weaponId : undefined;
+    if (borrowed && spine) {
+      const att = spine.skeleton.getAttachmentByName('sword', borrowed === 'knight_sword' ? 'sword' : borrowed);
+      if (att) spine.skeleton.findSlot('sword')?.setAttachment(att);
+      const color = parseInt((spell?.colorHex ?? '#FFFFFF').slice(1), 16);
+      const tip = this.knightWeaponTip() ?? { x: knight.x + 26, y: knight.y - 22 };
+      this.spawnSparks(tip.x, tip.y, 10, [color, 0xFFFFFF]);
+      this.spawnKnightAfterimage(color, 0.5, 12);
+      audioManager.play('magic', { vol: 0.5, pan: 0.1 });
+    }
     const shadow = this.knightShadow;
     const home = { ...KNIGHT_HOME };
     const fx = new Container();
@@ -2866,7 +2880,7 @@ export class GameEngine {
         if (spine) spine.tint = color;
       },
       ghost: (color, alpha = 0.45, life = 10) => this.spawnKnightAfterimage(color, alpha, life),
-      weaponId: this.equippedSlots['weapon'] || this.equippedSlots['sword'] || 'iron_kettlebell',
+      weaponId: borrowed ?? equippedWeapon,
       weaponTip: () => this.knightWeaponTip() ?? { x: home.x + offX + 26, y: home.y + offY - liftH - 22 },
       weaponShown: (shown) => {
         const slot = spine?.skeleton.findSlot('sword');
@@ -2937,6 +2951,7 @@ export class GameEngine {
           spine.state.setAnimation(0, 'IDLE', true);
         }
       }
+      if (borrowed && spine && !spine.destroyed) this.updateKnightVisuals();
       fx.destroy({ children: true });
       ground.destroy({ children: true });
       back.destroy({ children: true });

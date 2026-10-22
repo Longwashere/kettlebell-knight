@@ -25,7 +25,7 @@ import { type MonsterMoveId, CARD_CATALOG, STARTER_CARD_IDS, type BattleMapId } 
 import type { VfxName } from '../engine/vfx';
 import { BATTLE_MAPS } from '../engine/GameEngine';
 import { CAMPAIGN_MAPS, latestUnlockedStage } from '../../shared/expeditionEngine';
-import { STAT_INFO, weaponLevelReq } from '../../shared/progression';
+import { SPELL_MASTERY_LEVEL, STAT_INFO, castsForWeaponLevel, weaponLevelReq } from '../../shared/progression';
 import { 
   Tv, 
   Smartphone, 
@@ -377,6 +377,12 @@ export const GameScreen: React.FC = () => {
         setShowCinematic(open ?? true);
       },
       unlockCard: (templateId: string) => profileManager.unlockCard(templateId),
+      // Sets a weapon's level (default SPELL_MASTERY_LEVEL: its spells join the deck with any weapon)
+      masterWeapon: (id: string, level = SPELL_MASTERY_LEVEL) => {
+        const weaponCasts = { ...(profileManager.getActiveProfile()?.weaponCasts ?? {}), [id]: castsForWeaponLevel(level) };
+        profileManager.saveActiveProfile({ weaponCasts });
+        setProfile(profileManager.getActiveProfile());
+      },
       unlockAllCards: () => {
         const ids = CARD_CATALOG.map((c) => c.templateId);
         profileManager.saveActiveProfile({ unlockedCards: ids });

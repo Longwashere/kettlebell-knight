@@ -6,7 +6,7 @@ import { SHOP_ITEMS } from '../../shared/shopItems';
 import { ELEMENT_INFO } from '../../shared/elements';
 import type { EquipmentItem } from '../../types/game';
 import {
-  CARD_LEVEL_BONUS, CARD_MAX_LEVEL, WEAPON_LEVEL_BONUS, WEAPON_MAX_LEVEL, bindCard, castsForCardLevel,
+  CARD_LEVEL_BONUS, CARD_MAX_LEVEL, SPELL_MASTERY_LEVEL, WEAPON_LEVEL_BONUS, WEAPON_MAX_LEVEL, bindCard, castsForCardLevel,
   castsForWeaponLevel, weaponStats, type Loadout,
 } from '../../shared/progression';
 import { CardFront, cardStyleVars } from './CombatCardView';
@@ -221,6 +221,8 @@ export const MasteryCelebration: React.FC<MasteryCelebrationProps> = ({ levelUps
       to: pct(CARD_LEVEL_BONUS * (page.to - 1)),
     });
   }
+  // The weapon just crossed the mastery level: its spells now go in the deck with any weapon
+  const masteredSpells = weapon && page.from < SPELL_MASTERY_LEVEL && page.to >= SPELL_MASTERY_LEVEL ? WEAPON_SPELLS[weapon.id] ?? [] : [];
   const bonusText = isWeapon
     ? `Each weapon level adds ${pct(WEAPON_LEVEL_BONUS)} Attack${weapon?.element ? ' and elemental damage' : ''}.`
     : `Each spell level adds ${pct(CARD_LEVEL_BONUS)} to its damage, Block and healing.`;
@@ -275,6 +277,12 @@ export const MasteryCelebration: React.FC<MasteryCelebrationProps> = ({ levelUps
                   </span>
                 </div>
               ))}
+              {masteredSpells.length > 0 && (
+                <div className="text-[10px] font-pixel text-[#F4B41A] border-t border-[#2E2B44]/80 pt-1.5 mt-2 leading-relaxed">
+                  ✦ SPELL{masteredSpells.length > 1 ? 'S' : ''} MASTERED: {masteredSpells.map((s) => `${s.icon ?? ''} ${s.name}`).join(', ')}
+                  <div className="font-mono text-[#A7A9BE]">Now in thy deck whatever weapon thou wieldest.</div>
+                </div>
+              )}
               <div className="text-[10px] font-mono text-[#A7A9BE] border-t border-[#2E2B44]/80 pt-1.5 mt-2">
                 {bonusText}
                 {!atMax && ` Next level at ${castsToNext} casts${isWeapon ? ' with it equipped' : ''}.`}

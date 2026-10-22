@@ -102,6 +102,8 @@ export const castsForWeaponLevel = (level: number) => (10 * (level - 1) * level)
 /** Weapon Attack and elemental damage per weapon level above 1. */
 export const WEAPON_LEVEL_BONUS = 0.06;
 export const weaponLevelMultiplier = (level: number) => 1 + WEAPON_LEVEL_BONUS * (level - 1);
+/** Weapon level at which its spells are mastered: they join the deck whatever weapon is equipped. */
+export const SPELL_MASTERY_LEVEL = 5;
 
 function levelFromCasts(casts: number, castsFor: (l: number) => number, max: number): number {
   let level = 1;
@@ -182,6 +184,8 @@ export interface Loadout {
   dodge: number;
   /** Casts per card templateId (spell levels). */
   cardCasts: Record<string, number>;
+  /** Weapons at SPELL_MASTERY_LEVEL or above: their spells go in the deck with any weapon. */
+  masteredWeapons: string[];
 }
 
 export interface LoadoutSource {
@@ -205,6 +209,7 @@ export function buildLoadout(src: LoadoutSource = {}): Loadout {
     repCut: repCut(stats.spd),
     dodge: dodgeChance(stats.spd),
     cardCasts: src.cardCasts ?? {},
+    masteredWeapons: Object.keys(src.weaponCasts ?? {}).filter((id) => weaponLevel(src.weaponCasts?.[id]) >= SPELL_MASTERY_LEVEL),
   };
 }
 

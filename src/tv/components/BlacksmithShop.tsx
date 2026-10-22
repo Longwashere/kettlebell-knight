@@ -5,7 +5,7 @@ import { SHOP_ITEMS } from '../../shared/shopItems';
 import { isSecretTrialId } from '../../shared/secretTrials';
 import { SECRET_TRIAL_COPY } from './secretTrialCopy';
 import { ELEMENT_INFO } from '../../shared/elements';
-import { WEAPON_MAX_LEVEL, bindCard, castsForWeaponLevel, levelProgress, weaponLevel, weaponLevelReq, weaponStats } from '../../shared/progression';
+import { SPELL_MASTERY_LEVEL, WEAPON_MAX_LEVEL, bindCard, castsForWeaponLevel, levelProgress, weaponLevel, weaponLevelReq, weaponStats } from '../../shared/progression';
 import { loadoutFor, type PlayerProfile } from '../../shared/ProfileManager';
 import { spellsForWeapon } from '../../types/weaponSpells';
 import { TARGET_LABEL } from '../../shared/cardBalance';
@@ -149,6 +149,21 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
   const rarity = RARITY[item.rarity];
   const accent = w?.element ? ELEMENT_INFO[w.element].color : item.colorHex;
   const cardScale = spells.length >= 3 ? 0.43 : spells.length === 2 ? 0.55 : 0.6;
+  // How mastery works: at SPELL_MASTERY_LEVEL the weapon's spells join the deck whatever is wielded
+  const mastered = wLevel >= SPELL_MASTERY_LEVEL;
+  const masteryNote = (
+    <div key={`mastery-${item.id}`} className={`kk-forge-mastery ${mastered ? 'kk-forge-mastery--done' : ''}`} style={{ zoom }}>
+      <b>✦ Spell Mastery</b>
+      {mastered ? (
+        <span>Mastered! {spells.length > 1 ? 'These spells are' : 'This spell is'} thine forever, cast with any weapon thou wieldest.</span>
+      ) : (
+        <span>
+          Raise this weapon to Lv {SPELL_MASTERY_LEVEL} and {spells.length > 1 ? 'its spells become' : 'its spell becomes'} thine forever, cast with any weapon.
+          <em> Lv {wLevel}/{SPELL_MASTERY_LEVEL}</em>
+        </span>
+      )}
+    </div>
+  );
   const designW = window.innerWidth / zoom;
 
   return (
@@ -159,6 +174,7 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
           <span>{status.kind === 'equipped' ? 'Wielding' : 'Trying on'}</span>
           <b style={{ color: rarity.color }}>{item.name}</b>
         </div>
+        {spells.length > 0 && masteryNote}
       </div>
 
       <section
@@ -309,9 +325,14 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
               )}
             </div>
 
-            <div className="kk-forge__rule"><span>{spells.length ? `Bound Spell${spells.length > 1 ? 's' : ''}` : 'Enchantment'}</span></div>
+            <div className="kk-forge__rule">
+              <span>
+                {spells.length ? `Bound Spell${spells.length > 1 ? 's' : ''}` : 'Enchantment'}
+                {spells.length > 0 && wLevel >= SPELL_MASTERY_LEVEL && ' · ✦ Mastered'}
+              </span>
+            </div>
 
-            {spells.length > 0 ? (
+            {spells.length > 0 && (
               <div className={`kk-forge__spells kk-forge__spells--${spells.length}`}>
                 {spells.map((s) => (
                   <div key={s.templateId} className="kk-forge__spell">
@@ -333,7 +354,8 @@ export const BlacksmithShop: React.FC<BlacksmithShopProps> = ({
                   </div>
                 ))}
               </div>
-            ) : (
+            )}
+            {spells.length === 0 && (
               <p className="kk-forge__lore kk-forge__lore--plain">Worn, not wielded: it grants no spell, but steadies every rep.</p>
             )}
           </article>
