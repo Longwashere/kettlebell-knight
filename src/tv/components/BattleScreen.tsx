@@ -148,6 +148,15 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   }, [repSignature]);
   // Card showing its technique side (Enter flips the focused card); flips back on its own
   const [flippedCardId, setFlippedCardId] = useState<string | null>(null);
+  // Auto-flip guide: if no rep is counted in 5s during combat, flip every card to show technique.
+  // When 2 reps are counted during this flipped state, flip all cards back to normal.
+  const [autoFlipped, setAutoFlipped] = useState<boolean>(false);
+  const autoFlippedRef = useRef<boolean>(false);
+  autoFlippedRef.current = autoFlipped;
+  const [autoFlipReps, setAutoFlipReps] = useState<number>(0);
+  const autoFlipRepsRef = useRef<number>(0);
+  autoFlipRepsRef.current = autoFlipReps;
+  const inactivityTimerRef = useRef<number | null>(null);
   const [battleStatus, setBattleStatus] = useState<'FIGHTING' | 'VICTORY' | 'DEFEAT' | 'ENCOUNTER_CLEARED' | 'EXPEDITION_VICTORY'>('FIGHTING');
   // End-of-fight modal: which button the D-pad has focused (0 = the primary action, 1 = TOWN HUB)
   const [modalChoice, setModalChoice] = useState(0);
@@ -368,6 +377,52 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     setIntro((prev) => ({ ...prev, step: 'done' }));
   }, []);
   useEffect(() => clearIntroTimers, []);
+
+  // 5-second inactivity timer: if no rep is counted in 5 seconds while fighting, flip cards over to show technique
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+    if (battleStatusRef.current !== 'FIGHTING' || introLockedRef.current || pausedRef.current || isAwaitingVictoryRef.current || autoFlippedRef.current) {
+      return;
+    }
+    inactivityTimerRef.current = window.setTimeout(() => {
+      if (battleStatusRef.current !== 'FIGHTING' || introLockedRef.current || pausedRef.current || isAwaitingVictoryRef.current) {
+        return;
+      }
+      setAutoFlipped(true);
+      autoFlippedRef.current = true;
+      autoFlipRepsRef.current = 0;
+      setAutoFlipReps(0);
+      audioManager.play('card');
+      setRecentCombatLog('Technique Guide: perform 2 reps to resume battle!');
+    }, 5000);
+  }, []);
+
+  // Monitor fighting state to arm or cancel the 5-second inactivity timer
+  useEffect(() => {
+    if (battleStatus === 'FIGHTING' && intro.step === 'done' && !paused && !autoFlipped) {
+      resetInactivityTimer();
+    } else {
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+        inactivityTimerRef.current = null;
+      }
+      if (battleStatus !== 'FIGHTING') {
+        setAutoFlipped(false);
+        autoFlippedRef.current = false;
+        autoFlipRepsRef.current = 0;
+        setAutoFlipReps(0);
+      }
+    }
+    return () => {
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+        inactivityTimerRef.current = null;
+      }
+    };
+  }, [battleStatus, intro.step, paused, autoFlipped, resetInactivityTimer]);
 
   const hasInitializedRef = useRef<boolean>(false);
 
@@ -643,6 +698,27 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       setPendingCardUnlocks((prev) => [...prev, ...repUnlocks]);
     }
 
+    // Auto-flip guide check: if cards are auto-flipped, count towards 2 reps to return to battle
+    if (autoFlippedRef.current) {
+      const nextReps = autoFlipRepsRef.current + 1;
+      autoFlipRepsRef.current = nextReps;
+      setAutoFlipReps(nextReps);
+      if (nextReps >= 2) {
+        setAutoFlipped(false);
+        autoFlippedRef.current = false;
+        setFlippedCardId(null);
+        autoFlipRepsRef.current = 0;
+        setAutoFlipReps(0);
+        audioManager.play('card');
+        setRecentCombatLog('Technique confirmed! Returning to combat!');
+        resetInactivityTimer();
+      } else {
+        setRecentCombatLog('1 of 2 reps counted! One more to return to combat.');
+      }
+    } else {
+      resetInactivityTimer();
+    }
+
     const result = deckManagerRef.current.recordRep(exercise, power, form);
     // The rep's stamp streams its credit into the card it counted toward. A cast is its own payoff, and
     // clears the counters off the attack.
@@ -854,7 +930,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
     // The deck's own hand: a level-up during this rep may have rebound the cards
     setHand(deckManagerRef.current.getHand());
-  }, [engineRef, isExpeditionMode, expeditionStep, expeditionEncounters, currentMap, currentLevel, totalLevelReps, grantXp, announceMastery, onSecretTrial, skipIntro]);
+  }, [engineRef, isExpeditionMode, expeditionStep, expeditionEncounters, currentMap, currentLevel, totalLevelReps, grantXp, announceMastery, onSecretTrial, skipIntro, resetInactivityTimer]);
 
   // Expose rep callback for NetworkManager telemetry
   useEffect(() => {
@@ -1076,11 +1152,20 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       intro: intro.step,
       paused,
       flippedCard: flippedCardId,
+      autoFlipped,
+      autoFlipReps,
       rewardStep,
       pendingMastery,
       log: recentCombatLog,
     }),
     {
+      autoFlip: (on?: boolean) => {
+        const next = on ?? !autoFlippedRef.current;
+        setAutoFlipped(next);
+        autoFlippedRef.current = next;
+        autoFlipRepsRef.current = 0;
+        setAutoFlipReps(0);
+      },
       // ENCOUNTERS id or index, or an ad-hoc list of MONSTER_CATALOG ids / sprite types (e.g. ['wolf', 'BOAR'])
       encounter: (which: string | number | string[]) => {
         if (typeof which === 'string' && which.includes(',')) {
@@ -1212,6 +1297,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       if (battleStatus !== 'FIGHTING') {
         const actions = modalActions();
         actions[Math.min(modalChoice, actions.length - 1)]();
+      } else if (autoFlipped) {
+        setAutoFlipped(false);
+        autoFlippedRef.current = false;
+        setFlippedCardId(null);
+        autoFlipRepsRef.current = 0;
+        setAutoFlipReps(0);
+        resetInactivityTimer();
+        audioManager.play('ui_select');
       } else {
         setFocusedCardIndex(actionCardIndex);
         toggleFlip(hand[actionCardIndex]?.id);
@@ -1224,8 +1317,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       }
       else if (battleStatus === 'EXPEDITION_VICTORY' && secretCall && onSecretTrial) continueReward(() => onSecretTrial(secretCall));
       else if (battleStatus !== 'FIGHTING') continueReward(onExitBattle);
-      else if (flippedCardId !== null) {
+      else if (flippedCardId !== null || autoFlipped) {
         setFlippedCardId(null);
+        setAutoFlipped(false);
+        autoFlippedRef.current = false;
+        autoFlipRepsRef.current = 0;
+        setAutoFlipReps(0);
+        resetInactivityTimer();
         audioManager.play('ui_move');
       }
       else if (!isAwaitingVictoryRef.current) setPaused(true);
@@ -1696,16 +1794,23 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
               index={index}
               handSize={hand.length}
               focused={focusedCardIndex === index}
-              flipped={flippedCardId === card.id}
+              flipped={autoFlipped || flippedCardId === card.id}
+              autoFlipped={autoFlipped}
+              autoFlipReps={autoFlipReps}
               castGhost={castFx.find((f) => f.index === index)?.card}
               dealDelayMs={castFx.some((f) => f.index === index) ? 480 : undefined}
               onCastDone={() => setCastFx((prev) => prev.filter((f) => f.index !== index))}
-              onSelect={() => (focusedCardIndex === index ? toggleFlip(card.id) : setFocusedCardIndex(index))}
+              onSelect={() => (autoFlipped ? (setAutoFlipped(false), autoFlippedRef.current = false, resetInactivityTimer()) : focusedCardIndex === index ? toggleFlip(card.id) : setFocusedCardIndex(index))}
             />
           ))}
         </div>
         <div className={`kk-hand-legend ${introHudClass(intro.step, intro.short, 'up')}`}>
-          {CONTROL_LEGEND.map(([key, label]) => (
+          {(autoFlipped
+            ? (IS_FIRE_TV
+                ? [['2 REPS', `${autoFlipReps}/2 TO RETURN`], ['OK', 'FLIP BACK'], ['▶❚❚', 'DEMO REP']]
+                : [['2 REPS', `${autoFlipReps}/2 TO RETURN`], ['ENTER', 'FLIP BACK'], ['SPACE', 'DEMO REP']])
+            : CONTROL_LEGEND
+          ).map(([key, label]) => (
             <span key={key} className="kk-hand-legend__row">
               <kbd>{key}</kbd>
               {label}

@@ -76,13 +76,22 @@ interface CombatCardViewProps {
   /** Delay before this card deals in (a replacement waits for the cast animation). */
   dealDelayMs?: number;
   onCastDone?: () => void;
+  /** True when auto-flipped due to 5s inactivity to guide the player */
+  autoFlipped?: boolean;
+  /** How many reps have been completed during auto-flip (toward 2 to un-flip) */
+  autoFlipReps?: number;
 }
 
 /**
  * Card back: how to perform the card's exercise. A looping pixel flipbook of the key positions at
  * the movement's tempo, a step strip naming each position, and short form cues.
  */
-const TechniqueSide: React.FC<{ card: CombatCard; active: boolean }> = ({ card, active }) => {
+const TechniqueSide: React.FC<{ card: CombatCard; active: boolean; autoFlipped?: boolean; autoFlipReps?: number }> = ({
+  card,
+  active,
+  autoFlipped,
+  autoFlipReps,
+}) => {
   const guide = EXERCISE_GUIDES[card.exercise];
   const frames = useMemo(() => getExerciseFrames(card.exercise, parseInt(card.colorHex.slice(1), 16)), [card.exercise, card.colorHex]);
   const [frame, setFrame] = useState(0);
@@ -132,7 +141,15 @@ const TechniqueSide: React.FC<{ card: CombatCard; active: boolean }> = ({ card, 
       </ul>
 
       <div className="kk-guide__foot">
-        {card.requiredReps} REPS • <b>ENTER</b> FLIP
+        {autoFlipped ? (
+          <span style={{ color: '#F4B41A', letterSpacing: '0.04em' }}>
+            <b>{autoFlipReps ?? 0}/2</b> REPS TO RESUME
+          </span>
+        ) : (
+          <>
+            {card.requiredReps} REPS • <b>ENTER</b> FLIP
+          </>
+        )}
       </div>
     </div>
   );
@@ -302,7 +319,19 @@ export const CastBurst: React.FC<{ card: CombatCard; onDone?: () => void }> = ({
   </div>
 );
 
-export const CombatCardView: React.FC<CombatCardViewProps> = ({ card, index, handSize, focused, flipped, onSelect, castGhost, dealDelayMs, onCastDone }) => {
+export const CombatCardView: React.FC<CombatCardViewProps> = ({
+  card,
+  index,
+  handSize,
+  focused,
+  flipped,
+  onSelect,
+  castGhost,
+  dealDelayMs,
+  onCastDone,
+  autoFlipped,
+  autoFlipReps,
+}) => {
   // Animate only the pip that was just earned
   const prevReps = useRef(card.currentReps);
   const newPip = card.currentReps > prevReps.current ? card.currentReps - 1 : -1;
@@ -340,7 +369,7 @@ export const CombatCardView: React.FC<CombatCardViewProps> = ({ card, index, han
       <div className={`kk-card-shaker ${charge ? `kk-card-shaker--${charge}` : ''}`}>
         <div className="kk-card-flip">
           <CardFront card={card} newPip={newPip} />
-          <TechniqueSide card={card} active={flipped} />
+          <TechniqueSide card={card} active={flipped} autoFlipped={autoFlipped} autoFlipReps={autoFlipReps} />
         </div>
       </div>
       <div className="kk-card-absorb" aria-hidden />
