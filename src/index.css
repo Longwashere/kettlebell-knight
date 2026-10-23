@@ -630,6 +630,44 @@ canvas,
 .kk-card__art--guide {
   height: 124px;
 }
+.kk-guide-split {
+  display: flex !important;
+  gap: 3px;
+  padding: 2px;
+  background: #000;
+  position: relative;
+}
+.kk-guide-pane {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+  background: #07060c;
+  border: 1px solid #241C36;
+}
+.kk-guide-pane img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.kk-guide-tag {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  z-index: 5;
+  font-family: "Silkscreen", "Press Start 2P", monospace;
+  font-size: 7px;
+  line-height: 8px;
+  padding: 2px 4px;
+  background: rgba(10, 9, 16, 0.88);
+  border: 1px solid #3F3F46;
+  color: #F4D35E;
+  letter-spacing: 0.05em;
+  text-shadow: 1px 1px 0 #000;
+  pointer-events: none;
+}
 .kk-card__art--guide img {
   position: absolute;
   inset: 0;
@@ -640,6 +678,7 @@ canvas,
   position: absolute;
   left: 4px;
   top: 4px;
+  z-index: 6;
   display: flex;
   align-items: center;
   gap: 4px;

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { CardRarity, CombatCard, CardTemplate } from '../../types/battle';
 import { getCardArt } from './cardArt';
-import { EXERCISE_GUIDES, getExerciseFrames, getExerciseStrip } from './exerciseGuide';
+import { EXERCISE_GUIDES, getExerciseFrames, getExerciseFrontFrames, getExerciseStrip } from './exerciseGuide';
 import { TARGET_LABEL } from '../../shared/cardBalance';
 import { ELEMENT_INFO } from '../../shared/elements';
 import { cardLevelMultiplier } from '../../shared/progression';
@@ -93,7 +93,9 @@ const TechniqueSide: React.FC<{ card: CombatCard; active: boolean; autoFlipped?:
   autoFlipReps,
 }) => {
   const guide = EXERCISE_GUIDES[card.exercise];
-  const frames = useMemo(() => getExerciseFrames(card.exercise, parseInt(card.colorHex.slice(1), 16)), [card.exercise, card.colorHex]);
+  const accent = useMemo(() => parseInt(card.colorHex.slice(1), 16), [card.colorHex]);
+  const sideFrames = useMemo(() => getExerciseFrames(card.exercise, accent), [card.exercise, accent]);
+  const frontFrames = useMemo(() => getExerciseFrontFrames(card.exercise, accent), [card.exercise, accent]);
   const [frame, setFrame] = useState(0);
 
   // Only tick while the back is showing; UI-rate state (a few changes per second), not per-frame
@@ -102,9 +104,9 @@ const TechniqueSide: React.FC<{ card: CombatCard; active: boolean; autoFlipped?:
       setFrame(0);
       return;
     }
-    const id = setInterval(() => setFrame((f) => (f + 1) % frames.length), guide.tempoMs);
+    const id = setInterval(() => setFrame((f) => (f + 1) % sideFrames.length), guide.tempoMs);
     return () => clearInterval(id);
-  }, [active, frames.length, guide.tempoMs]);
+  }, [active, sideFrames.length, guide.tempoMs]);
 
   return (
     <div className="kk-card kk-card--back">
@@ -115,13 +117,18 @@ const TechniqueSide: React.FC<{ card: CombatCard; active: boolean; autoFlipped?:
         <div className="kk-card__name" style={{ fontSize: guide.name.length > 16 ? 10 : 11 }}>{guide.name}</div>
       </div>
 
-      <div className="kk-card__art kk-card__art--guide">
-        {frames.map((url, i) => (
-          <img key={i} src={url} alt="" className="pixelated" draggable={false} style={{ opacity: i === frame ? 1 : 0 }} />
-        ))}
-        <div className="kk-guide__label">
-          <span>{frame + 1}</span>
-          {guide.frames[frame].label}
+      <div className="kk-card__art kk-card__art--guide kk-guide-split">
+        <div className="kk-guide-pane">
+          <span className="kk-guide-tag">SIDE</span>
+          {sideFrames.map((url, i) => (
+            <img key={i} src={url} alt="" className="pixelated" draggable={false} style={{ opacity: i === frame ? 1 : 0 }} />
+          ))}
+        </div>
+        <div className="kk-guide-pane">
+          <span className="kk-guide-tag">FRONT</span>
+          {frontFrames.map((url, i) => (
+            <img key={i} src={url} alt="" className="pixelated" draggable={false} style={{ opacity: i === frame ? 1 : 0 }} />
+          ))}
         </div>
       </div>
 
