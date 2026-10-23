@@ -8,6 +8,12 @@ export interface NormalizedLandmark {
   visibility?: number;
 }
 
+/**
+ * Full-body gate. MediaPipe loses a knee or wrist for a few frames whenever a limb crosses the body or swings toward
+ * the lens; a dropout shorter than this skips those frames and keeps the rep going instead of resetting it.
+ */
+const BODY_DROPOUT_GRACE_MS = 600;
+
 /** Posture calibration (see KinematicTracker.posture). */
 const POSTURE = {
   /** A frame where the shin or torso-per-shin jumps more than this share is a landmark glitch and is skipped. */
@@ -64,7 +70,7 @@ const SWING = {
    * Standing tall and the bell crossing the line may be this far apart, in either order (the bell staying within
    * lockoutSlack of the line); at least lockoutGraceFrames frames, so a slow phone still gets a few looks at the top.
    */
-  lockoutGraceMs: 600,
+  lockoutGraceMs: 300,
   lockoutGraceFrames: 10,
   lockoutSlack: 0.25,
   /** Cancels the drive as a curl only for a forearm clearly standing up at nearly full length on screen. */
@@ -93,7 +99,7 @@ const CLEAN = {
   rackElbowTuck: 0.12,
   /** Rack: the bell settled (slower than this, torso lengths / s) for this long. */
   rackStillSpeed: 1.2,
-  rackHoldMs: 150,
+  rackHoldMs: 75,
   /** A pull that hasn't racked by now (or dropped back into the hike) is abandoned. */
   pullTimeoutMs: 1600,
 };
@@ -105,7 +111,7 @@ const CLEAN = {
 const CLEAN_PRESS = {
   /** Rack: the wrist within this distance of the shoulder line, held this long. */
   rackBand: 0.12,
-  rackHoldMs: 100,
+  rackHoldMs: 50,
   /** Lockout: the wrist at least this far above the shoulder line. */
   lockout: 0.24,
   /** Pull starts when the wrist rises at least this fast (screen heights / s) from the hang. */
@@ -133,7 +139,7 @@ interface CleanPressArm {
 /** Windmill timing. The descent and return are slow, so a hand jittering around the knee line can re-trigger a rep. */
 const WINDMILL = {
   /** After a rep, the tracker waits this long before a new descent can start (and between counted reps). */
-  cooldownMs: 1200,
+  cooldownMs: 600,
 };
 
 /**
@@ -244,8 +250,24 @@ const LUNGE = {
   depthSplit: 0.5,
   /** Drive: the front thigh has risen this far back from its deepest point. */
   driveRise: 0.1,
-  /** The torso stays at least this tall (vs standing): a hinge with the leg kicked back is a single-leg RDL. */
+  /**
+   * Upright, from shoulders and hips alone (the camera rarely sees the ankles), so stepping toward or away from the
+   * phone never reads as a hinge; a hinge with the leg kicked back is a single-leg RDL. Side-on a hinge tilts the
+   * torso: its lean (sine off vertical) stays at most maxLean. Facing the camera it shortens the torso instead:
+   * torso height per shoulder width stays at least minTorso of standing's (side-on the shoulders close to a sliver,
+   * so this only binds facing the phone).
+   */
+  maxLean: 0.55,
   minTorso: 0.72,
+  /** Standing's torso-per-shoulder reference is only learned with the shoulders at least this wide (per torso). */
+  facingShoulders: 0.4,
+  /**
+   * A lunge steps toward or away from the phone, so thighs are scaled by how big the body is on screen right now: the
+   * shoulder→hip length (a slant, not just its height, so leaning side-on doesn't read as stepping back) against the
+   * standing torso, kept within this range.
+   */
+  minScale: 0.6,
+  maxScale: 1.6,
 };
 
 export type SwingState = 0 | 1 | 2; // Phase 0 (Prep/Start), Phase 1 (Mid/Inflection), Phase 2 (Peak/Lockout)
@@ -376,6 +398,10 @@ export class KinematicTracker {
   private lastMetricX: number = 0;
   private maxMovementVelocity: number = 0;
   private maxSquatDepth: number = 0;
+  /** Lunge: this rep has reached depth (front thigh folded with the knees split) at some frame. */
+  private lungeDepthReached: boolean = false;
+  /** Lunge: torso height per shoulder width standing tall facing the camera (0 = not seen yet). */
+  private lungeTorsoPerShoulder: number = 0;
   private lastRepTimestamp: number = 0;
   private minRepIntervalMs: number = 650;
 
@@ -456,6 +482,10 @@ export class KinematicTracker {
   private requireFullBody: boolean = true;
   private consecutiveFullBodyFrames: number = 0;
   private minFullBodyFramesRequired: number = 3;
+  /** When the body check started failing (0 = it passes). */
+  private bodyLostAt: number = 0;
+  /** The last tracked frame's update, repeated while a brief dropout is ridden out. */
+  private lastTrackedUpdate: KinematicStateUpdate | null = null;
 
   public onRepCompleted?: (telemetry: RepTelemetry) => void;
   public onStateChange?: (update: KinematicStateUpdate) => void;
@@ -507,6 +537,8 @@ export class KinematicTracker {
     this.lastMetricX = 0;
     this.maxMovementVelocity = 0;
     this.maxSquatDepth = 0;
+    this.lungeDepthReached = false;
+    this.lungeTorsoPerShoulder = 0;
     this.lastRepTimestamp = 0;
     this.cleanStageCompleted = false;
     this.cleanRackAt = 0;
@@ -520,6 +552,8 @@ export class KinematicTracker {
     this.aroundSide = 0;
     this.aroundStepAt = 0;
     this.consecutiveFullBodyFrames = 0;
+    this.bodyLostAt = 0;
+    this.lastTrackedUpdate = null;
   }
 
   public getRepCount(): number {
@@ -773,10 +807,17 @@ export class KinematicTracker {
     if (this.requireFullBody) {
       const visibility = this.checkFullBodyVisibility(landmarks);
       if (!visibility.isFullyVisible) {
+        if (!this.bodyLostAt) this.bodyLostAt = timestampMs;
+        // A brief dropout holds the rep where it was (and the screen on its last tracked frame, no STEP BACK flash)
+        if (timestampMs - this.bodyLostAt < BODY_DROPOUT_GRACE_MS && this.lastTrackedUpdate) {
+          const held = { ...this.lastTrackedUpdate, telemetry: undefined, debugNotes: `dropout: ${visibility.reason}` };
+          this.onStateChange?.(held);
+          return held;
+        }
+        // A lasting one resets any partially started rep to avoid hallucinated triggers
         this.consecutiveFullBodyFrames = 0;
         this.lastTimestamp = timestampMs;
-
-        // Reset any partially started rep to avoid hallucinated triggers
+        this.lastTrackedUpdate = null;
         if (this.currentState !== 0) {
           this.currentState = 0;
           this.maxMovementVelocity = 0;
@@ -801,6 +842,7 @@ export class KinematicTracker {
         return update;
       }
 
+      this.bodyLostAt = 0;
       this.consecutiveFullBodyFrames++;
       if (this.consecutiveFullBodyFrames < this.minFullBodyFramesRequired) {
         // Stabilizing camera framing
@@ -839,6 +881,7 @@ export class KinematicTracker {
     const update = this.processExercise(landmarks, timestampMs);
     update.arm = this.armSide;
     update.armed = this.currentState === 0 && this.phaseStartTimestamp > 0;
+    this.lastTrackedUpdate = update;
     return update;
   }
 
@@ -2439,15 +2482,20 @@ export class KinematicTracker {
 
     const shoulderY = (lShoulder.y + rShoulder.y) / 2;
     const hipY = (lHip.y + rHip.y) / 2;
-    const thighRef = Math.max(0.06, this.standingThigh);
     const torsoHeight = Math.max(0.12, this.standingTorso);
+    const torsoLength = Math.hypot((lShoulder.x + rShoulder.x - lHip.x - rHip.x) / 2, hipY - shoulderY);
+    const scale = Math.min(LUNGE.maxScale, Math.max(LUNGE.minScale, torsoLength / torsoHeight));
+    const thighRef = Math.max(0.06, this.standingThigh) * scale;
 
     // The front knee is the higher one on screen (its thigh folds toward level); the rear knee drops toward the floor
     const frontThigh = (Math.min(lKnee.y, rKnee.y) - hipY) / thighRef;
     const rearThigh = (Math.max(lKnee.y, rKnee.y) - hipY) / thighRef;
     const split = rearThigh - frontThigh;
-    const torso = (hipY - shoulderY) / torsoHeight;
-    const upright = torso >= LUNGE.minTorso;
+    const lean = Math.abs(lShoulder.x + rShoulder.x - lHip.x - rHip.x) / 2 / Math.max(0.01, torsoLength);
+    const shoulderWidth = Math.max(0.01, Math.abs(lShoulder.x - rShoulder.x));
+    const torsoPerShoulder = (hipY - shoulderY) / shoulderWidth;
+    const torso = this.lungeTorsoPerShoulder > 0 ? torsoPerShoulder / this.lungeTorsoPerShoulder : 1;
+    const upright = lean <= LUNGE.maxLean && torso >= LUNGE.minTorso;
 
     const dt = this.lastTimestamp > 0 ? Math.max(0.016, (timestampMs - this.lastTimestamp) / 1000) : 0.033;
     // lastMetricY keeps frontThigh offset so 0 still means "no previous frame"
@@ -2457,6 +2505,11 @@ export class KinematicTracker {
     let emittedTelemetry: RepTelemetry | undefined = undefined;
     let note: string | undefined;
     const standing = frontThigh >= LUNGE.standThigh && split < LUNGE.resetSplit;
+    if (standing && lean <= LUNGE.maxLean && shoulderWidth / Math.max(0.01, torsoLength) >= LUNGE.facingShoulders) {
+      this.lungeTorsoPerShoulder = this.lungeTorsoPerShoulder > 0
+        ? this.lungeTorsoPerShoulder + (torsoPerShoulder - this.lungeTorsoPerShoulder) * 0.1
+        : torsoPerShoulder;
+    }
 
     switch (this.currentState) {
       case 0: { // STAND
@@ -2466,6 +2519,7 @@ export class KinematicTracker {
         if (upright && (split >= LUNGE.startSplit || frontThigh < LUNGE.startThigh)) {
           this.currentState = 1;
           this.maxSquatDepth = frontThigh; // shallowest front thigh reached = the lunge's depth
+          this.lungeDepthReached = false;
           this.maxMovementVelocity = 0;
         }
         break;
@@ -2473,18 +2527,20 @@ export class KinematicTracker {
       case 1: { // SINK: the rear knee drops, the front thigh folds toward level
         this.maxSquatDepth = Math.min(this.maxSquatDepth, frontThigh);
         if (!upright) {
-          note = `cancelled: torso hinged (${torso.toFixed(2)})`;
+          note = `cancelled: torso hinged (lean ${lean.toFixed(2)}, torso ${torso.toFixed(2)})`;
           this.currentState = 0;
           this.phaseStartTimestamp = 0;
           break;
         }
-        if (standing) {
+        // Latched: the knees close up again on the way out, so the split is gone by the time the drive shows
+        if (frontThigh <= LUNGE.depthThigh && split >= LUNGE.depthSplit) this.lungeDepthReached = true;
+        if (standing && !this.lungeDepthReached) {
           note = `missed depth — best: front thigh ${this.maxSquatDepth.toFixed(2)}`;
           this.currentState = 0;
           break;
         }
-        const deepEnough = this.maxSquatDepth <= LUNGE.depthThigh && split >= LUNGE.depthSplit;
-        if (deepEnough && frontThigh - this.maxSquatDepth >= LUNGE.driveRise) {
+        // A quick drive can go from the bottom to standing between frames: DRIVE UP then counts it on the next one
+        if (this.lungeDepthReached && (standing || frontThigh - this.maxSquatDepth >= LUNGE.driveRise)) {
           this.currentState = 2;
           this.maxMovementVelocity = riseVelocity;
         }
@@ -2493,7 +2549,7 @@ export class KinematicTracker {
       case 2: { // DRIVE UP: push back to standing tall
         this.maxMovementVelocity = Math.max(this.maxMovementVelocity, riseVelocity);
         if (!upright) {
-          note = `cancelled: torso hinged (${torso.toFixed(2)})`;
+          note = `cancelled: torso hinged (lean ${lean.toFixed(2)}, torso ${torso.toFixed(2)})`;
           this.currentState = 0;
           this.phaseStartTimestamp = 0;
           break;
@@ -2542,7 +2598,7 @@ export class KinematicTracker {
       referenceY: Math.min(lKnee.y, rKnee.y),
       velocity: riseVelocity,
       telemetry: emittedTelemetry,
-      debugNotes: note ?? `front ${frontThigh.toFixed(2)} rear ${rearThigh.toFixed(2)} split ${split.toFixed(2)} torso ${torso.toFixed(2)}`,
+      debugNotes: note ?? `front ${frontThigh.toFixed(2)} rear ${rearThigh.toFixed(2)} split ${split.toFixed(2)} lean ${lean.toFixed(2)} torso ${torso.toFixed(2)}`,
     };
     this.onStateChange?.(update);
     return update;
