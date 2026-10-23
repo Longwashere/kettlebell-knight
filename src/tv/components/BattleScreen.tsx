@@ -589,6 +589,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
       if (nextHp <= 0) {
         battleStatusRef.current = 'DEFEAT';
+        victoryModalOpenedAtRef.current = Date.now();
+        networkManager.sendHand(null, 'DEFEAT');
         settleFightGold(false);
         setBattleStatus('DEFEAT');
         setRecentCombatLog(`Sir Kettleburne was felled by ${intent.name}!`);
@@ -971,6 +973,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     } else if (status === 'VICTORY') {
       audioManager.play('ui_select');
       continueReward(handleNextEncounter);
+    } else if (status === 'DEFEAT') {
+      audioManager.play('ui_select');
+      continueReward(isExpeditionMode ? handleRetryExpedition : handleNextEncounter);
     }
   };
   handleVictorySquatRef.current = handleVictorySquat;
@@ -1128,6 +1133,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       },
       // Drops every living foe to 1 HP, so the next hit wins the fight (victory screens, secret trial calls)
       weaken: () => commitMonsters((prev) => prev.map((m) => (m.currentHp > 0 ? { ...m, currentHp: 1 } : m))),
+      // Knight to 1 HP, so the next monster hit ends the fight in DEFEAT
+      weakenKnight: () => { playerHpRef.current = 1; playerBlockRef.current = 0; setPlayerHp(1); setPlayerBlock(0); },
       focusCard: (index: number) => setFocusedCardIndex(Math.max(0, Math.min(hand.length - 1, index))),
       // Deck contents (template ids) and the equipped weapon whose spells it carries
       deck: () => ({ weaponId: weaponIdRef.current, unlocked: cardIdsRef.current ?? 'legacy', cards: deckManagerRef.current.debugDeck() }),
@@ -1579,13 +1586,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
             {/* 10-foot remote button prompt */}
             <div className="mt-4 pt-2.5 border-t border-[#2E2B44] flex flex-col items-center gap-1.5">
-              {battleStatus !== 'DEFEAT' && (
-                <div className="font-pixel text-[8.5px] text-[#00EB88] flex items-center justify-center gap-1.5 tracking-wider animate-pulse">
-                  <span>◆</span>
-                  <span>SQUAT TO CONTINUE HANDS-FREE</span>
-                  <span>◆</span>
-                </div>
-              )}
+              <div className="font-pixel text-[8.5px] text-[#00EB88] flex items-center justify-center gap-1.5 tracking-wider animate-pulse">
+                <span>◆</span>
+                <span>{battleStatus === 'DEFEAT' ? 'SQUAT TO RETRY HANDS-FREE' : 'SQUAT TO CONTINUE HANDS-FREE'}</span>
+                <span>◆</span>
+              </div>
               <div className="flex items-center justify-center gap-3 text-[8px] font-pixel text-[#A7A9BE]">
                 <span className="text-[#5CC8FF]">[◀ / ▶] CHOOSE</span>
                 <span>•</span>

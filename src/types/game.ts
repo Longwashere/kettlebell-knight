@@ -165,8 +165,8 @@ export interface PeerMessage {
   timestamp: number;
 }
 
-/** VICTORY / CINEMATIC: the phone watches only SQUAT, the "go on" rep; TRIAL: a secret trial's `watch` (SQUAT to start). */
-export type HandSyncMode = 'BATTLE' | 'VICTORY' | 'CINEMATIC' | 'TRIAL';
+/** VICTORY / DEFEAT / CINEMATIC: the phone watches only SQUAT, the "go on" (or retry) rep; TRIAL: a secret trial's `watch` (SQUAT to start). */
+export type HandSyncMode = 'BATTLE' | 'VICTORY' | 'DEFEAT' | 'CINEMATIC' | 'TRIAL';
 
 /** TV → phone: the battle's current hand, or null outside battle (the phone then tracks every exercise). */
 export interface HandSyncPayload {

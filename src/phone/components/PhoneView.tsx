@@ -249,11 +249,11 @@ export const PhoneView: React.FC = () => {
     };
   }, []);
 
-  // Track every exercise in the TV's hand at once (or dedicated SQUAT on victory/cinematic/trial intro, or all outside battle) and stream each rep to the TV
+  // Track every exercise in the TV's hand at once (or dedicated SQUAT on victory/defeat/cinematic/trial intro, or all outside battle) and stream each rep to the TV
   useEffect(() => {
     if (testMode) {
       trackerRef.current.setExercises(testExercises);
-    } else if (handMode === 'VICTORY' || handMode === 'CINEMATIC' || handMode === 'TRIAL') {
+    } else if (handMode === 'VICTORY' || handMode === 'DEFEAT' || handMode === 'CINEMATIC' || handMode === 'TRIAL') {
       const watch = handMode === 'TRIAL' && trialWatch?.length ? trialWatch : ['SQUAT' as const];
       trackerRef.current.setExercises(watch);
       setActiveExercise(watch[0]);
@@ -1006,6 +1006,8 @@ export const PhoneView: React.FC = () => {
     ? `TEST • ${testExercises.length} WATCHED`
     : handMode === 'VICTORY'
     ? 'VICTORY • SQUAT TO PROCEED'
+    : handMode === 'DEFEAT'
+    ? 'DEFEAT • SQUAT TO RETRY'
     : handMode === 'CINEMATIC'
     ? 'CHRONICLE • SQUAT TO ADVANCE'
     : handMode === 'TRIAL'
