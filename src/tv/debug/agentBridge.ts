@@ -17,7 +17,7 @@ import { MOVESETS } from '../../shared/monsterMovesets';
 import type { MoveTraceReport } from '../engine/moveTrace';
 import { VFX_NAMES } from '../engine/vfx';
 import { getCardArt, CARD_ART_W, CARD_ART_H } from '../components/cardArt';
-import { EXERCISE_GUIDES, getExerciseFrames, POSE_W, POSE_H } from '../components/exerciseGuide';
+import { EXERCISE_GUIDES, getExerciseFrames, getExerciseFrontFrames, POSE_W, POSE_H } from '../components/exerciseGuide';
 
 import { profileManager } from '../../shared/ProfileManager';
 
@@ -565,28 +565,55 @@ const api = {
     return filmStrip(move, () => call('knightMove', move, targets), count, step);
   },
 
-  /** Every exercise guide (exerciseGuide.ts): one row per exercise, its keyframes left to right. */
-  async guideSheet(scale = 3): Promise<string> {
+  /** Every exercise guide (exerciseGuide.ts): one row per exercise, its keyframes (side & front) left to right. */
+  async guideSheet(scale = 2): Promise<string> {
     const entries = Object.entries(EXERCISE_GUIDES);
+    const labelW = 140;
     const w = POSE_W * scale;
-    const h = POSE_H * scale + 14;
+    const h = POSE_H * scale + 24;
+    const maxCols = 6; // 3 keyframes * 2 views (side + front)
     const out = document.createElement('canvas');
-    out.width = w * 3;
+    out.width = labelW + w * maxCols;
     out.height = h * entries.length;
     const ctx = out.getContext('2d')!;
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = '#0F0E17';
     ctx.fillRect(0, 0, out.width, out.height);
-    ctx.font = '11px monospace';
+    ctx.font = 'bold 11px monospace';
+
     for (const [row, [exercise, guide]] of entries.entries()) {
-      const frames = getExerciseFrames(exercise as keyof typeof EXERCISE_GUIDES);
-      for (const [col, url] of frames.entries()) {
-        const img = new Image();
-        img.src = url;
-        await img.decode();
-        ctx.drawImage(img, col * w, row * h + 14, w, POSE_H * scale);
-        ctx.fillStyle = '#F4B41A';
-        ctx.fillText(`${guide.name}: ${guide.frames[col].label}`, col * w + 3, row * h + 11);
+      const y = row * h;
+      ctx.fillStyle = '#F4B41A';
+      ctx.fillText(guide.name, 6, y + 20);
+      ctx.fillStyle = '#94A3B8';
+      ctx.font = '9px monospace';
+      ctx.fillText(`${guide.tempoMs}ms/f`, 6, y + 36);
+      ctx.font = 'bold 11px monospace';
+
+      const sideFrames = getExerciseFrames(exercise as keyof typeof EXERCISE_GUIDES);
+      const frontFrames = getExerciseFrontFrames(exercise as keyof typeof EXERCISE_GUIDES);
+
+      for (let k = 0; k < sideFrames.length; k++) {
+        const colSide = k * 2;
+        const colFront = k * 2 + 1;
+        const xSide = labelW + colSide * w;
+        const xFront = labelW + colFront * w;
+
+        // Side
+        const imgS = new Image();
+        imgS.src = sideFrames[k];
+        await imgS.decode();
+        ctx.drawImage(imgS, xSide, y + 18, w, POSE_H * scale);
+        ctx.fillStyle = '#F3F4F6';
+        ctx.fillText(`${guide.frames[k].label} (S)`, xSide + 3, y + 14);
+
+        // Front
+        const imgF = new Image();
+        imgF.src = frontFrames[k];
+        await imgF.decode();
+        ctx.drawImage(imgF, xFront, y + 18, w, POSE_H * scale);
+        ctx.fillStyle = '#38BDF8';
+        ctx.fillText(`${guide.frames[k].label} (F)`, xFront + 3, y + 14);
       }
     }
     return out.toDataURL('image/png');

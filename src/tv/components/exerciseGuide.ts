@@ -17,6 +17,13 @@ const GROUND = 46;
 
 const L = { shin: 9, thigh: 9, torso: 11, neck: 2.2, head: 3.6, upper: 6.5, fore: 6.5 };
 
+export interface LegFrontDef {
+  ankleX: number;
+  ankleY?: number; // default GROUND - 1
+  kneeX: number;
+  kneeY: number;
+}
+
 export interface FrontPose {
   cx?: number;
   hipY?: number;
@@ -24,6 +31,9 @@ export interface FrontPose {
   stanceW?: number;
   kneeW?: number;
   kneeY?: number;
+  legL?: LegFrontDef;
+  legR?: LegFrontDef;
+  bellBehind?: boolean;
   bell: { x: number; y: number };
   handL?: { x: number; y: number };
   elbowL?: { x: number; y: number };
@@ -42,6 +52,7 @@ interface Pose {
   legB?: [number, number]; // far leg from hip: thigh, shin (default: matches the stance leg)
   bell?: { x: number; y: number }; // bell centre relative to the near hand (default: hangs along the forearm)
   footX?: number; // stance ankle x offset
+  headAngle?: number; // visor/face direction override in degrees (0 = up, 90 = forward right)
   front?: FrontPose;
 }
 
@@ -67,7 +78,7 @@ const HIKE_FRONT: FrontPose = {
 
 const HIKE: Omit<Pose, 'label'> = { shin: 12, thigh: -50, torso: 70, arm: [-20, -25], front: HIKE_FRONT };
 const RACK = { x: 2.5, y: 1.5 };
-const OVERHEAD = { x: -2.5, y: 2 };
+const OVERHEAD = { x: -1.5, y: -2.5 };
 const GOBLET = { x: 2.5, y: 0 };
 const FREE: [number, number] = [12, 14];
 
@@ -159,9 +170,9 @@ export const EXERCISE_GUIDES: Record<ExerciseType, ExerciseGuide> = {
         shin: 0,
         thigh: 0,
         torso: -4,
-        arm: [110, 170],
+        arm: [130, 80],
         armF: FREE,
-        bell: { x: 1, y: 3 },
+        bell: { x: 1, y: 1 },
         front: { stanceW: 7.5, kneeW: 8, kneeY: 37, hipY: 28, shoulderY: 17, bell: { x: 38, y: 17 }, handR: { x: 38, y: 15 }, elbowR: { x: 42, y: 12 }, handL: { x: 28, y: 26 }, elbowL: { x: 29, y: 22 } },
       },
       {
@@ -193,12 +204,13 @@ export const EXERCISE_GUIDES: Record<ExerciseType, ExerciseGuide> = {
       },
       {
         label: 'REACH',
-        shin: 3,
-        thigh: -15,
-        torso: 65,
+        shin: 4,
+        thigh: -18,
+        torso: 60,
         arm: [180, 180],
         armF: [0, 0],
         bell: OVERHEAD,
+        headAngle: -35,
         front: { cx: -1, stanceW: 8.5, kneeW: 8, kneeY: 38, hipY: 31, shoulderY: 24, head: { x: -3, y: 19 }, bell: { x: 39.5, y: 10 }, handR: { x: 39.5, y: 13 }, elbowR: { x: 39.5, y: 18 }, handL: { x: 27, y: 42 }, elbowL: { x: 28, y: 33 } },
       },
     ],
@@ -319,8 +331,9 @@ export const EXERCISE_GUIDES: Record<ExerciseType, ExerciseGuide> = {
         shin: 15,
         thigh: -40,
         torso: 78,
-        arm: [-95, 0],
+        arm: [-110, -10],
         armF: [0, 0],
+        bell: { x: 0, y: 1 },
         front: { stanceW: 9.5, kneeW: 10, kneeY: 39, hipY: 34, shoulderY: 24, bell: { x: 40, y: 25 }, handR: { x: 40, y: 23 }, elbowR: { x: 43, y: 18 }, handL: { x: 32, y: 38 }, elbowL: { x: 31, y: 31 } },
       },
     ],
@@ -355,7 +368,19 @@ export const EXERCISE_GUIDES: Record<ExerciseType, ExerciseGuide> = {
         torso: 0,
         arm: [-25, 20],
         bell: { x: -3, y: 1 },
-        front: { stanceW: 7, kneeW: 7.5, kneeY: 37, hipY: 28, shoulderY: 17, bell: { x: 34, y: 29 }, handR: { x: 35, y: 28 }, elbowR: { x: 38, y: 23 }, handL: { x: 33, y: 28 }, elbowL: { x: 31, y: 23 } },
+        front: {
+          stanceW: 7,
+          kneeW: 7.5,
+          kneeY: 37,
+          hipY: 28,
+          shoulderY: 17,
+          bellBehind: true,
+          bell: { x: 31, y: 28 },
+          handR: { x: 35, y: 27 },
+          elbowR: { x: 39, y: 23 },
+          handL: { x: 31, y: 27 },
+          elbowL: { x: 28, y: 23 },
+        },
       },
     ],
     cues: ['Stand tall with core braced', 'Pass the bell smoothly around your waist', 'Switch hands behind the back without swaying'],
@@ -371,7 +396,20 @@ export const EXERCISE_GUIDES: Record<ExerciseType, ExerciseGuide> = {
         torso: 0,
         arm: [0, 0],
         legB: [5, -35],
-        front: { stanceW: 6, kneeW: 6.5, kneeY: 37, hipY: 28, shoulderY: 17, bell: { x: 36, y: 31 }, handL: { x: 34, y: 28 }, elbowL: { x: 33, y: 22 }, handR: { x: 38, y: 28 }, elbowR: { x: 39, y: 22 } },
+        front: {
+          stanceW: 5,
+          kneeW: 5.5,
+          kneeY: 37,
+          hipY: 28,
+          shoulderY: 17,
+          legL: { ankleX: 34, kneeX: 34, kneeY: 37 },
+          legR: { ankleX: 39, ankleY: 43, kneeX: 38, kneeY: 37 },
+          bell: { x: 36, y: 31 },
+          handL: { x: 34, y: 28 },
+          elbowL: { x: 33, y: 22 },
+          handR: { x: 38, y: 28 },
+          elbowR: { x: 39, y: 22 },
+        },
       },
       {
         label: 'HINGE',
@@ -380,7 +418,17 @@ export const EXERCISE_GUIDES: Record<ExerciseType, ExerciseGuide> = {
         torso: 85,
         arm: [0, 0],
         legB: [-95, -95],
-        front: { stanceW: 4, kneeW: 5, kneeY: 38, hipY: 31, shoulderY: 23, bell: { x: 34, y: 39 }, handL: { x: 33, y: 36 }, elbowL: { x: 32, y: 29 }, handR: { x: 35, y: 36 }, elbowR: { x: 36, y: 29 } },
+        front: {
+          hipY: 31,
+          shoulderY: 23,
+          legL: { ankleX: 35, kneeX: 35, kneeY: 38 },
+          legR: { ankleX: 45, ankleY: 26, kneeX: 41, kneeY: 30 },
+          bell: { x: 35, y: 39 },
+          handL: { x: 33, y: 36 },
+          elbowL: { x: 32, y: 29 },
+          handR: { x: 36, y: 36 },
+          elbowR: { x: 37, y: 29 },
+        },
       },
     ],
     cues: ['Soft knee on the standing leg', 'Hinge until you form a T', 'Squeeze the glute to stand tall'],
@@ -435,7 +483,17 @@ export const EXERCISE_GUIDES: Record<ExerciseType, ExerciseGuide> = {
         bell: GOBLET,
         legB: [-15, -92],
         footX: 6,
-        front: { stanceW: 4, kneeW: 4.5, kneeY: 38, hipY: 36, shoulderY: 25, bell: { x: 36, y: 25 }, handL: { x: 34, y: 24 }, elbowL: { x: 32, y: 29 }, handR: { x: 38, y: 24 }, elbowR: { x: 40, y: 29 } },
+        front: {
+          hipY: 35,
+          shoulderY: 24,
+          legL: { ankleX: 32, kneeX: 32, kneeY: 35 },
+          legR: { ankleX: 43, kneeX: 41, kneeY: 42 },
+          bell: { x: 35, y: 24 },
+          handL: { x: 33, y: 23 },
+          elbowL: { x: 31, y: 28 },
+          handR: { x: 37, y: 23 },
+          elbowR: { x: 39, y: 28 },
+        },
       },
     ],
     cues: ['Step back, both knees at 90°', 'Back knee hovers above the floor', 'Torso tall, drive through the front heel'],
@@ -467,7 +525,7 @@ function solve(p: Pose) {
   const near = arm(p.arm);
   const far = arm(p.armF ?? p.arm);
   const bell = p.bell ? add(near.hand, p.bell) : add(near.hand, hang(p.arm[1], 3.2));
-  return { ankle, knee, hip, shoulder, headC, kneeB, ankleB, near, far, bell, torso: p.torso };
+  return { ankle, knee, hip, shoulder, headC, kneeB, ankleB, near, far, bell, torso: p.torso, headAngle: p.headAngle };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -514,11 +572,12 @@ function drawFigure(m: Layer, s: ReturnType<typeof solve>): void {
 
   // Great helm: dome, dark visor band toward the facing side, gold brow, red plume
   m.disc(s.headC.x, s.headC.y, L.head, ARMOR.light);
-  const fwd = up(s.torso * 0.6 + 90, 1);
+  const fwd = s.headAngle !== undefined ? up(s.headAngle, 1) : up(s.torso * 0.6 + 90, 1);
   for (let k = 0.6; k <= L.head; k += 0.5) m.set(s.headC.x + fwd.x * k, s.headC.y + fwd.y * k, INK);
   for (let k = 0.6; k <= L.head; k += 0.5) m.set(s.headC.x + fwd.x * k, s.headC.y + fwd.y * k + 1, INK);
   m.set(s.headC.x - fwd.x, s.headC.y - 2, GOLD);
-  const crest = up(s.torso * 0.6 - 40, L.head + 3);
+  const crestAngle = s.headAngle !== undefined ? s.headAngle - 130 : s.torso * 0.6 - 40;
+  const crest = up(crestAngle, L.head + 3);
   m.line(s.headC.x, s.headC.y - L.head + 1, s.headC.x + crest.x, s.headC.y + crest.y, PLUME, 2.5);
 
   m.line(s.ankle.x, s.ankle.y, s.knee.x, s.knee.y, ARMOR.mid, 3.5);
@@ -550,35 +609,61 @@ function drawFigureFront(m: Layer, p: FrontPose): void {
   const headX = cx + (p.head?.x ?? 0);
 
   // Feet / Sabatons & Legs
-  const ankleLX = cx - stanceW;
-  const ankleRX = cx + stanceW;
-  const kneeLX = cx - kneeW;
-  const kneeRX = cx + kneeW;
+  const ankleLX = p.legL ? p.legL.ankleX : cx - stanceW;
+  const ankleLY = p.legL ? (p.legL.ankleY ?? GROUND - 1) : GROUND - 1;
+  const kneeLX = p.legL ? p.legL.kneeX : cx - kneeW;
+  const kneeLY = p.legL ? p.legL.kneeY : kneeY;
+
+  const ankleRX = p.legR ? p.legR.ankleX : cx + stanceW;
+  const ankleRY = p.legR ? (p.legR.ankleY ?? GROUND - 1) : GROUND - 1;
+  const kneeRX = p.legR ? p.legR.kneeX : cx + kneeW;
+  const kneeRY = p.legR ? p.legR.kneeY : kneeY;
+
   const hipLX = cx - hipW;
   const hipRX = cx + hipW;
 
+  const shoulderLX = cx - shoulderW;
+  const shoulderRX = cx + shoulderW;
+
+  const elbowL = p.elbowL ?? { x: shoulderLX - 2, y: shoulderY + 6 };
+  const handL = p.handL ?? { x: shoulderLX - 2, y: shoulderY + 12 };
+  const elbowR = p.elbowR ?? { x: shoulderRX + 2, y: shoulderY + 6 };
+  const handR = p.handR ?? { x: shoulderRX + 2, y: shoulderY + 12 };
+
+  const drawBell = () => {
+    // Kettlebell handle and bell
+    m.line(handR.x, handR.y, p.bell.x, p.bell.y, 0x52525B, 1.5);
+    if (Math.hypot(handL.x - p.bell.x, handL.y - p.bell.y) < 7) {
+      m.line(handL.x, handL.y, p.bell.x, p.bell.y, 0x52525B, 1.5);
+    }
+    m.disc(p.bell.x, p.bell.y, 2.7, IRON);
+  };
+
+  // If bell is behind the body, draw it first so torso / pelvis occlude it
+  if (p.bellBehind) {
+    drawBell();
+  }
+
   // Sabatons
-  m.rect(ankleLX - 2, GROUND - 1, 5, 2, 0x1C1917);
-  m.rect(ankleRX - 2, GROUND - 1, 5, 2, 0x1C1917);
+  m.rect(ankleLX - 2, ankleLY, 5, 2, 0x1C1917);
+  m.rect(ankleRX - 2, ankleRY, 5, 2, 0x1C1917);
 
   // Shins
-  m.line(ankleLX, GROUND - 1, kneeLX, kneeY, ARMOR.mid, 3.5);
-  m.line(ankleRX, GROUND - 1, kneeRX, kneeY, ARMOR.mid, 3.5);
+  m.line(ankleLX, ankleLY, kneeLX, kneeLY, ARMOR.mid, 3.5);
+  m.line(ankleRX, ankleRY, kneeRX, kneeRY, ARMOR.mid, 3.5);
 
   // Thighs
-  m.line(kneeLX, kneeY, hipLX, hipY, ARMOR.mid, 4);
-  m.line(kneeRX, kneeY, hipRX, hipY, ARMOR.mid, 4);
+  m.line(kneeLX, kneeLY, hipLX, hipY, ARMOR.mid, 4);
+  m.line(kneeRX, kneeRY, hipRX, hipY, ARMOR.mid, 4);
 
   // Poleyns (knee armor)
-  m.disc(kneeLX, kneeY, 1.8, ARMOR.light);
-  m.disc(kneeRX, kneeY, 1.8, ARMOR.light);
+  m.disc(kneeLX, kneeLY, 1.8, ARMOR.light);
+  m.disc(kneeRX, kneeRY, 1.8, ARMOR.light);
 
   // Fauld (plate skirt / pelvis)
   m.line(hipLX, hipY, hipRX, hipY, ARMOR.dark, 5);
 
   // Torso / Breastplate
-  const shoulderLX = cx - shoulderW;
-  const shoulderRX = cx + shoulderW;
   m.line(hipLX, hipY, shoulderLX, shoulderY, ARMOR.mid, 4);
   m.line(hipRX, hipY, shoulderRX, shoulderY, ARMOR.mid, 4);
   m.line(cx, hipY, cx, shoulderY, ARMOR.light, 3.5); // Center ridge highlight
@@ -603,12 +688,6 @@ function drawFigureFront(m: Layer, p: FrontPose): void {
   m.disc(shoulderLX, shoulderY, 2.6, ARMOR.mid);
   m.disc(shoulderRX, shoulderY, 2.6, ARMOR.mid);
 
-  // Arms
-  const elbowL = p.elbowL ?? { x: shoulderLX - 2, y: shoulderY + 6 };
-  const handL = p.handL ?? { x: shoulderLX - 2, y: shoulderY + 12 };
-  const elbowR = p.elbowR ?? { x: shoulderRX + 2, y: shoulderY + 6 };
-  const handR = p.handR ?? { x: shoulderRX + 2, y: shoulderY + 12 };
-
   // Left arm
   m.line(shoulderLX, shoulderY, elbowL.x, elbowL.y, ARMOR.light, 3);
   m.line(elbowL.x, elbowL.y, handL.x, handL.y, ARMOR.light, 3);
@@ -619,12 +698,10 @@ function drawFigureFront(m: Layer, p: FrontPose): void {
   m.line(elbowR.x, elbowR.y, handR.x, handR.y, ARMOR.light, 3);
   m.disc(handR.x, handR.y, 1.4, ARMOR.dark); // Gauntlet
 
-  // Kettlebell handle and bell
-  m.line(handR.x, handR.y, p.bell.x, p.bell.y, 0x52525B, 1.5);
-  if (Math.hypot(handL.x - p.bell.x, handL.y - p.bell.y) < 7) {
-    m.line(handL.x, handL.y, p.bell.x, p.bell.y, 0x52525B, 1.5);
+  // If bell is in front, draw it here
+  if (!p.bellBehind) {
+    drawBell();
   }
-  m.disc(p.bell.x, p.bell.y, 2.7, IRON);
 }
 
 function defaultFrontPose(p: Pose): FrontPose {
@@ -696,9 +773,13 @@ function renderFrontFrames(exercise: ExerciseType, accent: number): Layer[] {
     const base = stage();
     const cx = 36 + (fp.cx ?? 0);
     const stanceW = fp.stanceW ?? 7;
-    // Shadows under both feet
-    for (let x = Math.round(cx - stanceW - 3); x <= Math.round(cx - stanceW + 3); x++) base.set(x, GROUND, 0x0C0A09);
-    for (let x = Math.round(cx + stanceW - 3); x <= Math.round(cx + stanceW + 3); x++) base.set(x, GROUND, 0x0C0A09);
+    // Shadows under grounded feet
+    const footLX = fp.legL ? fp.legL.ankleX : cx - stanceW;
+    const footRX = fp.legR ? fp.legR.ankleX : cx + stanceW;
+    const groundL = fp.legL ? (fp.legL.ankleY ?? GROUND - 1) >= GROUND - 2 : true;
+    const groundR = fp.legR ? (fp.legR.ankleY ?? GROUND - 1) >= GROUND - 2 : true;
+    if (groundL) for (let x = Math.round(footLX - 3); x <= Math.round(footLX + 3); x++) base.set(x, GROUND, 0x0C0A09);
+    if (groundR) for (let x = Math.round(footRX - 3); x <= Math.round(footRX + 3); x++) base.set(x, GROUND, 0x0C0A09);
 
     // Bell path through every keyframe, dotted, with current position ringed
     for (let k = 0; k < path.length; k++) {
