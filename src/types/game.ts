@@ -159,10 +159,22 @@ export interface RepTelemetry {
 export type NetworkRole = 'tv' | 'phone';
 
 export interface PeerMessage {
-  type: 'TELEMETRY' | 'HANDSHAKE' | 'CALIBRATE' | 'ACK' | 'PING' | 'PONG' | 'SELECT_SKILL' | 'HAND_SYNC';
+  type: 'TELEMETRY' | 'HANDSHAKE' | 'CALIBRATE' | 'ACK' | 'PING' | 'PONG' | 'SELECT_SKILL' | 'HAND_SYNC' | 'BODY_VISIBILITY';
   payload: any;
   senderId?: string;
   timestamp: number;
+}
+
+/**
+ * The body parts the phone's camera must see before it counts reps (KinematicTracker.checkFullBodyVisibility
+ * names the missing ones; 'ALL JOINTS' when no one is in frame).
+ */
+export const REQUIRED_BODY_PARTS = ['SHOULDERS', 'ARMS / HANDS', 'HIPS', 'KNEES'] as const;
+
+/** Phone → TV: whether the camera sees the whole knight, sent on every change (and when the phone pairs). */
+export interface BodyVisibilityPayload {
+  visible: boolean;
+  missing: string[];
 }
 
 /** VICTORY / DEFEAT / CINEMATIC: the phone watches only SQUAT, the "go on" (or retry) rep; TRIAL: a secret trial's `watch` (SQUAT to start). */

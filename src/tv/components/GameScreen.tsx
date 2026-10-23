@@ -18,6 +18,7 @@ import { CardCodexScreen } from './CardCodexScreen';
 import { SecretTrial } from './SecretTrial';
 import { isSecretTrialId, type SecretTrialId } from '../../shared/secretTrials';
 import { QRCodeModal } from './QRCodeModal';
+import { BodyFramingNotice } from './BodyFramingNotice';
 import { QRCodeSVG } from 'qrcode.react';
 import { EquipmentItem, HubLocation, RepTelemetry } from '../../types/game';
 import { profileManager, PlayerProfile } from '../../shared/ProfileManager';
@@ -811,6 +812,9 @@ export const GameScreen: React.FC = () => {
         onClose={() => setIsQrModalOpen(false)}
         isPaired={netState === 'CONNECTED'}
       />
+
+      {/* In battle, the bound phone's camera can't see the whole knight: step back */}
+      <BodyFramingNotice active={currentView === 'COMBAT' && netState === 'CONNECTED'} zoom={zoom} />
 
       {/* 64-BIT DARK FANTASY STAGE CINEMATIC MODAL (Auto-played on Level 1 embark) */}
       {showCinematic && (

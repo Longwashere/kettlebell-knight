@@ -1,5 +1,5 @@
 import Peer, { DataConnection } from 'peerjs';
-import { ExerciseType, HandSyncMode, HandSyncPayload, PeerMessage, RepTelemetry } from '../types/game';
+import { BodyVisibilityPayload, ExerciseType, HandSyncMode, HandSyncPayload, PeerMessage, RepTelemetry } from '../types/game';
 import type { CombatCard } from '../types/battle';
 import { peerOptions } from './deployConfig';
 
@@ -8,6 +8,13 @@ export type NetworkConnectionState = 'DISCONNECTED' | 'INITIALIZING' | 'WAITING_
 export type TelemetryCallback = (telemetry: RepTelemetry) => void;
 export type StateChangeCallback = (state: NetworkConnectionState, info?: string) => void;
 export type HandCallback = (cards: CombatCard[] | null, mode?: HandSyncMode, watch?: ExerciseType[]) => void;
+export type BodyVisibilityCallback = (visibility: BodyVisibilityPayload) => void;
+
+const FULL_BODY: BodyVisibilityPayload = { visible: true, missing: [] };
+/** Phone: resends its body visibility this often, so one lost update can't leave the TV's banner stale. */
+const VISIBILITY_RESEND_MS = 1000;
+/** TV: with no visibility update for this long the phone is gone (or silent): drop the banner. */
+const VISIBILITY_STALE_MS = 3000;
 
 /**
  * WebRTC Network Manager using PeerJS (signalling and STUN/TURN servers configured in deployConfig).
@@ -55,6 +62,10 @@ export class NetworkManager {
   private hand: CombatCard[] | null = null;
   private handMode?: HandSyncMode;
   private handWatch?: ExerciseType[];
+  private visibilityCallbacks: Set<BodyVisibilityCallback> = new Set();
+  /** Whether the phone's camera sees the whole knight: kept by the phone (resent on pairing), received by the TV. */
+  private bodyVisibility: BodyVisibilityPayload = FULL_BODY;
+  private visibilityTimer: ReturnType<typeof setInterval> | ReturnType<typeof setTimeout> | null = null;
   private isHost: boolean = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelay = RECONNECT_MIN_MS;
@@ -95,6 +106,20 @@ export class NetworkManager {
     this.handCallbacks.add(cb);
     cb(this.hand, this.handMode, this.handWatch);
     return () => this.handCallbacks.delete(cb);
+  }
+
+  /** TV: whether the phone's camera sees the whole knight, now and on every change (in sight while unpaired). */
+  public onBodyVisibility(cb: BodyVisibilityCallback): () => void {
+    this.visibilityCallbacks.add(cb);
+    cb(this.bodyVisibility);
+    return () => this.visibilityCallbacks.delete(cb);
+  }
+
+  private setBodyVisibility(visibility: BodyVisibilityPayload): void {
+    this.clearVisibilityTimer();
+    if (!visibility.visible) this.visibilityTimer = setTimeout(() => this.setBodyVisibility(FULL_BODY), VISIBILITY_STALE_MS);
+    this.bodyVisibility = visibility;
+    this.visibilityCallbacks.forEach((cb) => cb(visibility));
   }
 
   public onStateChange(cb: StateChangeCallback): () => void {
@@ -204,6 +229,12 @@ export class NetworkManager {
         conn.on('open', () => {
           writeStored(PHONE_ROOM_KEY, roomId);
           this.sendHandshake();
+          this.sendBodyVisibility(this.bodyVisibility.visible, this.bodyVisibility.missing);
+          this.clearVisibilityTimer();
+          this.visibilityTimer = setInterval(
+            () => this.sendBodyVisibility(this.bodyVisibility.visible, this.bodyVisibility.missing),
+            VISIBILITY_RESEND_MS,
+          );
           resolve();
         });
       });
@@ -237,8 +268,10 @@ export class NetworkManager {
     conn.on('close', () => {
       this.connection = null;
       if (this.isHost) {
+        this.setBodyVisibility(FULL_BODY);
         this.setState('WAITING_FOR_PEER', 'Phone disconnected. Waiting for reconnect...');
       } else {
+        this.clearVisibilityTimer();
         this.setState('DISCONNECTED', 'Connection closed');
       }
     });
@@ -271,6 +304,9 @@ export class NetworkManager {
       this.handMode = payload.mode;
       this.handWatch = payload.watch;
       this.handCallbacks.forEach((cb) => cb(this.hand, this.handMode, this.handWatch));
+    } else if (data.type === 'BODY_VISIBILITY' && data.payload) {
+      const payload = data.payload as BodyVisibilityPayload;
+      this.setBodyVisibility({ visible: !!payload.visible, missing: payload.missing ?? [] });
     }
   }
 
@@ -309,6 +345,23 @@ export class NetworkManager {
     }
   }
 
+  /** Phone: tells the TV whether the camera sees the whole knight (call on every change). */
+  public sendBodyVisibility(visible: boolean, missing: string[]): void {
+    this.bodyVisibility = { visible, missing };
+    if (!this.connection || !this.connection.open) return;
+    const payload: BodyVisibilityPayload = { visible, missing };
+    try {
+      this.connection.send({ type: 'BODY_VISIBILITY', payload, timestamp: Date.now() } satisfies PeerMessage);
+    } catch (err) {
+      console.warn('[NetworkManager] Failed to send body visibility:', err);
+    }
+  }
+
+  private clearVisibilityTimer(): void {
+    if (this.visibilityTimer) clearTimeout(this.visibilityTimer);
+    this.visibilityTimer = null;
+  }
+
   public sendHandshake(): void {
     if (!this.connection || !this.connection.open) return;
     this.connection.send({
@@ -329,6 +382,7 @@ export class NetworkManager {
 
   public cleanup(): void {
     this.hand = null;
+    this.setBodyVisibility(FULL_BODY);
     if (this.connection) {
       try {
         this.connection.close();

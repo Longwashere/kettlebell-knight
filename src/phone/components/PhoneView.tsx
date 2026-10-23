@@ -15,6 +15,9 @@ import { discoveryManager, DiscoveredTV, LAN_DISCOVERY } from '../../shared/Disc
 export type PhoneOverlayMode = 'ARMOR' | 'SKELETON' | 'OFF';
 import { Tv, Zap, Swords, Wifi } from 'lucide-react';
 
+/** Frames without any pose for this long mean the knight has left the frame (a single dropped detection doesn't). */
+const NO_POSE_GRACE_MS = 800;
+
 export const PhoneView: React.FC = () => {
   const [searchParams] = useSearchParams();
   // The QR link carries ?room=; the home-screen app opens without it and rejoins the last TV instead
@@ -82,6 +85,8 @@ export const PhoneView: React.FC = () => {
   const wakeLockRef = useRef<any>(null);
   const animFrameRef = useRef<number | null>(null);
   const lastVideoTimeRef = useRef<number>(-1);
+  // When the camera last found a pose; after NO_POSE_GRACE_MS without one the knight has left the frame
+  const lastPoseAtRef = useRef<number>(0);
 
   // Local WiFi Discovery State
   const [discoveredTVs, setDiscoveredTVs] = useState<DiscoveredTV[]>([]);
@@ -308,6 +313,8 @@ export const PhoneView: React.FC = () => {
       setIsFullBodyVisible(visible);
       isFullBodyVisibleRef.current = visible;
       setMissingBodyParts(missing);
+      // The TV says so too: the player is watching it, not the phone
+      networkManager.sendBodyVisibility(visible, missing);
     };
   }, []);
 
@@ -427,7 +434,11 @@ export const PhoneView: React.FC = () => {
             lastVideoTimeRef.current = video.currentTime;
             try {
               const results = landmarker.detectForVideo(video, nowMs);
-              if (results.landmarks && results.landmarks[0]) {
+              if (!results.landmarks?.[0]) {
+                // Nobody in frame: the trackers report every joint missing (and tell the TV)
+                if (Date.now() - lastPoseAtRef.current > NO_POSE_GRACE_MS) trackerRef.current.processLandmarks([], Date.now());
+              } else {
+                lastPoseAtRef.current = Date.now();
                 const landmarks = results.landmarks[0] as NormalizedLandmark[];
                 
                 // Mirror landmark X coords so they match the mirrored canvas
