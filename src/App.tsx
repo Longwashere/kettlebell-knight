@@ -110,6 +110,7 @@ export const App: React.FC = () => {
     return (
       <BrowserRouter basename={basename}>
         <Routes>
+          <Route path="/" element={<RootLauncher />} />
           <Route path="/phone" element={<PhoneView />} />
           <Route
             path="/tv"
@@ -121,7 +122,7 @@ export const App: React.FC = () => {
           />
           <Route path="/test" element={<MotionTestView />} />
           <Route path="/lab" element={<MotionTestView />} />
-          <Route path="*" element={<Navigate to="/phone" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     );
